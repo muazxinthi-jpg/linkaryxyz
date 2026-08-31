@@ -25,6 +25,43 @@
 .subview-head p{font-size:var(--text-sm)}
 .search-field input{font-size:var(--text-xs)}
 .filter-chip{font-size:var(--text-xs)}
+
+/* Accessibility floor: keep supporting copy and controls readable across the product. */
+body small,
+body label,
+body kbd,
+body .index,
+body .kicker,
+body .subview-head>div>span,
+body .dash-metrics small,
+body .sub-metrics small,
+body .metrics small,
+body .mini-title small,
+body .chart small,
+body .link-table>header,
+body .analytics-main header small,
+body .source-panel header small,
+body .campaign-stat small,
+body .creator-cards dt,
+body .public-profile-body dt,
+body .settings-form>label>small{font-size:11px!important}
+body .proof,
+body .auth-options label,
+body .auth-options button,
+body .filter-chip,
+body .search-field input,
+body .creator-line b,
+body .creator-line strong,
+body .creator-line small,
+body .tr,
+body .tr small,
+body .workspace small,
+body .user small,
+body .dash-metrics span{font-size:12px!important}
+body .status,
+body .badge,
+body .tag,
+body .pill{font-size:11px!important}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 /* v2.1 — clean signal fields: no decorative page grids */
