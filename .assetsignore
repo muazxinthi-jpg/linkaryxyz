@@ -6,3 +6,8 @@
 .gitignore
 README.md
 wrangler.jsonc
+package.json
+package-lock.json
+src/
+migrations/
+IMPLEMENTATION_STATUS.md

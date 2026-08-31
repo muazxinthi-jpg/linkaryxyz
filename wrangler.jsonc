@@ -1,9 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "linkary-xyz",
+  "main": "src/index.ts",
   "compatibility_date": "2026-08-31",
   "assets": {
     "directory": ".",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash"
   }
 }
