@@ -273,3 +273,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id, created_at);
+
+CREATE TABLE IF NOT EXISTS invite_click_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  invite_id TEXT NOT NULL REFERENCES invites(id),
+  visitor_id_hash TEXT NOT NULL,
+  referrer_host TEXT,
+  occurred_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_invite_click_events_invite ON invite_click_events(invite_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_invite_click_events_visitor ON invite_click_events(invite_id, visitor_id_hash);
