@@ -15,9 +15,9 @@ Fresh-start rule: legacy Linkary implementation decisions are not authoritative.
 - [x] Server-side hashed session tokens, CSRF boundary, logout/revocation, and Superadmin authorization check
 - [x] Separate Superadmin grant architecture and protected admin API boundary
 - [x] Fresh migration validated locally against SQLite
-- [ ] Provision Cloudflare D1 database `linkary-db` in account `2d862c45f8afbb8fb004dec8d16a2434`
-- [ ] Attach real `DB` D1 binding in `wrangler.jsonc`
-- [ ] Apply `migrations/0001_initial.sql` to remote D1 and verify schema
+- [x] Provision Cloudflare D1 database `linkary-db` in account `2d862c45f8afbb8fb004dec8d16a2434`
+- [x] Attach real `DB` D1 binding in `wrangler.jsonc`
+- [x] Apply `migrations/0001_initial.sql` to remote D1 and verify schema in Cloudflare Console
 - [ ] Configure real X Developer credentials and callback vars
 - [ ] Bootstrap the first Superadmin through a controlled database operation after owner login
 
@@ -56,12 +56,13 @@ Fresh-start rule: legacy Linkary implementation decisions are not authoritative.
 
 - `50e348f057738f76fb2f74b3af4f4b86e9aa9cad` - fresh Phase A/B identity, auth, onboarding, SEO and public-profile foundation
 - `462745c52888c0bd900fcf8f7eb0dabd4c05ea1f` - profile editing, workspace lifecycle, invite balances, invite generation and first-party invite-click tracking
+- `a0a4a59ea08bf9206b9391d8595ab7d90fb6df8c` - real Cloudflare D1 binding for `linkary-db`
 
 ## Deployment note
 
-Database-backed routes remain unavailable on the deployed Worker until the real Cloudflare D1 database is provisioned and `DB` is attached. This is deliberate. No fake database or fake production authentication is used.
+The production D1 database is now provisioned, bound as `DB`, migrated, and verified in the Cloudflare Console. Database-backed routes can now be deployed against the real schema once the Worker is deployed with the current `main` branch.
 
-The real production domains are also intentionally not hard-coded. Until they are attached, URL generation falls back to the active Worker origin. Later the following environment values can be configured without changing route logic:
+The real production domains are intentionally not hard-coded. Until they are attached, URL generation falls back to the active Worker origin. Later the following environment values can be configured without changing route logic:
 
 - `PUBLIC_SITE_URL`
 - `APP_BASE_URL`
