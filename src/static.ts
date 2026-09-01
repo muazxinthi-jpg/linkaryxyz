@@ -1,9 +1,14 @@
 import type { Env } from './env';
 
 const productionShellCss = `
+@media (max-width: 900px) {
+  .auth-page.active { display: block; min-height: 100svh; }
+  .auth-brand { display: none; }
+  .auth-side { min-height: 100svh; }
+}
+
 @media (max-width: 700px) {
   html, body { min-width: 0; }
-  .auth-page.active { display: block; min-height: 100svh; }
   .auth-side {
     display: block;
     min-height: 100svh;
@@ -44,6 +49,7 @@ const productionShellCss = `
   .auth-card { padding-inline: 14px; border-radius: 14px; }
   .role-select { grid-template-columns: 1fr; }
   .role-select button { min-height: 94px; }
+  .auth-options { flex-direction: column; }
 }
 `;
 
@@ -66,6 +72,7 @@ export async function serveStatic(request: Request, env: Env): Promise<Response>
 
   const headers = new Headers(response.headers);
   headers.delete('content-length');
+  headers.delete('content-encoding');
   headers.delete('etag');
 
   return new Response(productionHtml(await response.text()), {
