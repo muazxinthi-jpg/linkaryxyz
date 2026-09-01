@@ -6,6 +6,12 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function hashInput(value: string): string {
+  const trimmed = value.trim();
+  if (/^LNK-/i.test(trimmed)) return trimmed.toUpperCase();
+  return value;
+}
+
 export function randomToken(bytes = 32): string {
   const array = new Uint8Array(bytes);
   crypto.getRandomValues(array);
@@ -13,7 +19,7 @@ export function randomToken(bytes = 32): string {
 }
 
 export async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(hashInput(value)));
   return base64Url(new Uint8Array(digest));
 }
 
