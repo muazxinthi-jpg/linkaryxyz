@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: linkary-production
+  group: linkary-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -42,6 +45,7 @@ jobs:
         run: npm run deploy:dry
 
       - name: Check Cloudflare deployment credentials
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
         shell: bash
         run: |
@@ -53,9 +57,13 @@ jobs:
           fi
 
       - name: Deploy Worker to production
-        if: steps.cloudflare.outputs.ready == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         run: npm run deploy
 
       - name: Deployment skipped
-        if: steps.cloudflare.outputs.ready != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready != 'true'
         run: echo "Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets to enable automatic production deployment."
+
+      - name: Pull request verification complete
+        if: github.event_name == 'pull_request'
+        run: echo "Verification passed. Pull requests never deploy to production."
