@@ -2,6 +2,7 @@ import { getAuthHeaders } from '@coinbase/cdp-sdk/auth';
 import type { Env } from '../env';
 import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
+import { upsertPlatformIdentityForUser } from '../db/identity';
 import { HttpError, json, readJson } from '../http';
 import { sha256 } from '../security/crypto';
 import { createSession } from './session';
@@ -37,6 +38,11 @@ function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function identifierValue(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return stringValue(value);
+}
+
 function authMethods(endUser: UnknownRecord): UnknownRecord[] {
   const value = endUser.authenticationMethods;
   if (!Array.isArray(value)) return [];
@@ -54,9 +60,7 @@ function extractVerifiedEmail(methods: UnknownRecord[]): string | null {
 function extractLastAuthMethod(methods: UnknownRecord[]): string | null {
   const first = methods[0];
   if (!first) return null;
-  const type = stringValue(first.type);
-  const provider = stringValue(first.provider) || stringValue(first.oauthProvider) || stringValue(first.oauth_provider);
-  return provider ? `${type || 'oauth'}:${provider}` : type;
+  return stringValue(first.type)?.toLowerCase() || null;
 }
 
 function extractEvmAddresses(endUser: UnknownRecord): string[] {
@@ -76,6 +80,41 @@ function extractEvmAddresses(endUser: UnknownRecord): string[] {
     }
   }
   return [...addresses];
+}
+
+async function syncCdpPlatformIdentities(db: Db, userId: string, methods: UnknownRecord[]): Promise<void> {
+  for (const method of methods) {
+    const type = stringValue(method.type)?.toLowerCase();
+    if (type === 'x') {
+      const providerUserId = identifierValue(method.sub);
+      if (!providerUserId) continue;
+      await upsertPlatformIdentityForUser(db, userId, {
+        platform: 'x',
+        providerUserId,
+        username: stringValue(method.username),
+        displayName: stringValue(method.name) || stringValue(method.displayName) || stringValue(method.username),
+        raw: method,
+        source: 'cdp_oauth',
+      });
+      continue;
+    }
+
+    if (type === 'telegram') {
+      const providerUserId = identifierValue(method.id) || identifierValue(method.sub);
+      if (!providerUserId) continue;
+      const firstName = stringValue(method.firstName);
+      const lastName = stringValue(method.lastName);
+      const fullName = [firstName, lastName].filter(Boolean).join(' ') || null;
+      await upsertPlatformIdentityForUser(db, userId, {
+        platform: 'telegram',
+        providerUserId,
+        username: stringValue(method.username),
+        displayName: fullName || stringValue(method.username),
+        raw: method,
+        source: 'cdp_oauth',
+      });
+    }
+  }
 }
 
 async function validateCdpAccessToken(accessToken: string, config: { apiKeyId: string; apiKeySecret: string }): Promise<UnknownRecord> {
@@ -148,28 +187,26 @@ async function attachAccessContext(db: Db, userId: string, context: AccessContex
   const timestamp = now();
 
   if (context.kind === 'invite') {
-    const redemptionId = id('red');
+    const existing = await db.first<{ id: string }>(
+      `SELECT id FROM invite_redemptions WHERE invite_id = ? AND user_id = ?`,
+      [context.inviteId, userId],
+    );
+    if (existing) return;
+
     await db.batch([
       db.statement(
-        `INSERT OR IGNORE INTO invite_redemptions (id, invite_id, user_id, chosen_account_type, organization_id, quality_state, redeemed_at)
-         SELECT ?, id, ?, NULL, NULL, 'pending', ? FROM invites
-         WHERE id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`,
-        [redemptionId, userId, timestamp, context.inviteId, timestamp],
+        `INSERT INTO invite_redemptions (id, invite_id, user_id, chosen_account_type, organization_id, quality_state, redeemed_at)
+         VALUES (?, ?, ?, NULL, NULL, 'pending', ?)`,
+        [id('red'), context.inviteId, userId, timestamp],
       ),
       db.statement(
         `UPDATE invites SET uses = uses + 1,
           status = CASE WHEN uses + 1 >= max_uses THEN 'exhausted' ELSE status END,
           updated_at = ?
-         WHERE id = ? AND status = 'active' AND uses < max_uses
-           AND EXISTS (SELECT 1 FROM invite_redemptions WHERE invite_id = ? AND user_id = ?)`,
-        [timestamp, context.inviteId, context.inviteId, userId],
+         WHERE id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`,
+        [timestamp, context.inviteId, timestamp],
       ),
     ]);
-    const redemption = await db.first<{ id: string }>(
-      `SELECT id FROM invite_redemptions WHERE invite_id = ? AND user_id = ?`,
-      [context.inviteId, userId],
-    );
-    if (!redemption) throw new HttpError(409, 'This invitation was used before sign-in completed', 'invite_exhausted');
     return;
   }
 
@@ -277,6 +314,8 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   if (!(await hasLinkaryAccess(db, link.user_id))) {
     throw new HttpError(403, 'A valid Linkary invitation or approved access path is required', 'access_required');
   }
+
+  await syncCdpPlatformIdentities(db, link.user_id, methods);
 
   const evmAddresses = extractEvmAddresses(endUser);
   for (let index = 0; index < evmAddresses.length; index += 1) {
