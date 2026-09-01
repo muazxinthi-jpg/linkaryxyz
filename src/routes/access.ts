@@ -1,11 +1,8 @@
 import type { Env } from '../env';
 import { requireDb } from '../env';
 import { Db } from '../db/client';
-import { HttpError, json, readJson } from '../http';
-import { randomToken, sha256 } from '../security/crypto';
-import { getLinkaryUrls } from '../urls';
-
-interface EarnedAccessBody { postUrl?: string }
+import { HttpError, json } from '../http';
+import { sha256 } from '../security/crypto';
 
 export function isValidXPostUrl(value: string): boolean {
   try {
@@ -17,24 +14,12 @@ export function isValidXPostUrl(value: string): boolean {
   } catch { return false; }
 }
 
-export async function createEarnedAccess(request: Request, env: Env): Promise<Response> {
-  const db = new Db(requireDb(env));
-  const body = await readJson<EarnedAccessBody>(request);
-  const postUrl = body.postUrl?.trim();
-  if (!postUrl || !isValidXPostUrl(postUrl)) throw new HttpError(400, 'Provide a valid X post URL', 'invalid_x_post_url');
-  const rawGrant = randomToken(24);
-  const now = new Date();
-  const expires = new Date(now.getTime() + 30 * 60 * 1000);
-  await db.run(`INSERT INTO access_post_submissions (id, user_id, submitted_x_url, grant_token_hash, status, expires_at, submitted_at, auth_verified_at, consumed_at) VALUES (?, NULL, ?, ?, 'pending', ?, ?, NULL, NULL)`, [`aps_${crypto.randomUUID().replace(/-/g, '')}`, postUrl, await sha256(rawGrant), expires.toISOString(), now.toISOString()]);
-  const appBase = getLinkaryUrls(request, env).app;
-  return json({
-    access: 'earned_creator',
-    expiresAt: expires.toISOString(),
-    continueUrl: `${appBase}/?grant=${encodeURIComponent(rawGrant)}&access=earned`,
-    allowedAccountTypes: ['creator'],
-    verification: 'manual_url_evidence_only',
-    twitterApiIoUsed: false,
-  }, { status: 201 });
+export async function createEarnedAccess(_request: Request, _env: Env): Promise<Response> {
+  throw new HttpError(
+    410,
+    'Creator Earn Access now starts after sign-in and uses a reviewed Linkary claim.',
+    'creator_access_flow_updated',
+  );
 }
 
 export async function previewInvite(code: string, env: Env): Promise<Response> {
