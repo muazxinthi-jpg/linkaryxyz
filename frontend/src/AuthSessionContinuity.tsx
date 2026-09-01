@@ -4,6 +4,7 @@ import { useGetAccessToken, useIsInitialized, useIsSignedIn, useSignOut } from '
 type AccessContext = { inviteCode?: string; earnedGrant?: string };
 type StoredAccessContext = AccessContext & { savedAt: number };
 type RecoveryState = 'idle' | 'recovering' | 'error';
+type RecoveryDetails = { message: string; reference: string };
 
 const ACCESS_STORAGE = 'linkary.access.v1';
 const DURABLE_ACCESS_STORAGE = 'linkary.pending-access.v2';
@@ -75,21 +76,63 @@ async function routeAuthenticatedUser() {
   window.location.replace(status.data.profiles?.length ? '/dashboard' : '/onboarding');
 }
 
-function recoveryMessage(code?: string) {
+function recoveryDetails(code?: string, status?: number): RecoveryDetails {
   if (code === 'invalid_invite' || code === 'invite_exhausted') {
-    return 'Your invitation could not be completed. Reopen the invitation you received, or use a different account.';
+    return {
+      message: 'Your invitation could not be completed. Reopen the invitation you received, or use a different account.',
+      reference: 'LK-AUTH-INVITE',
+    };
   }
   if (code === 'invalid_access_grant') {
-    return 'Your creator access approval is no longer available. Return to the creator access flow and try again.';
+    return {
+      message: 'Your creator access approval is no longer available. Return to the creator access flow and try again.',
+      reference: 'LK-AUTH-GRANT',
+    };
   }
   if (code === 'access_required') {
-    return 'You are signed in, but this account still needs a valid Linkary invitation or approved creator access.';
+    return {
+      message: 'You are signed in, but this account still needs a valid Linkary invitation or approved creator access.',
+      reference: 'LK-AUTH-ACCESS',
+    };
   }
-  return 'Your sign-in is complete, but Linkary could not finish opening your account. Try again and we will continue from where you stopped.';
+  if (code === 'cdp_access_token_invalid' || code === 'access_token_unavailable') {
+    return {
+      message: 'Your secure sign-in session needs to be refreshed before Linkary can open your account.',
+      reference: 'LK-AUTH-SESSION',
+    };
+  }
+  if (code === 'cdp_validation_failed' || code === 'cdp_invalid_response') {
+    return {
+      message: 'Linkary could not verify the completed sign-in. Please continue once more.',
+      reference: 'LK-AUTH-VERIFY',
+    };
+  }
+  if (code === 'user_mapping_failed') {
+    return {
+      message: 'Your sign-in is complete, but Linkary could not load the account mapping.',
+      reference: 'LK-AUTH-USER',
+    };
+  }
+  if (code === 'account_state_unavailable') {
+    return {
+      message: 'Your account is signed in, but Linkary could not load the next setup step.',
+      reference: 'LK-AUTH-STATE',
+    };
+  }
+  if (code === 'creator_claim_unavailable') {
+    return {
+      message: 'Your sign-in is complete, but creator access could not be prepared.',
+      reference: 'LK-AUTH-CREATOR',
+    };
+  }
+  return {
+    message: 'Your sign-in is complete, but Linkary could not finish opening your account. Try again and we will continue from where you stopped.',
+    reference: status && status >= 500 ? 'LK-AUTH-SERVER' : 'LK-AUTH-UNEXPECTED',
+  };
 }
 
-function RecoveryScreen({ error, onRetry, onDifferentAccount }: { error: string | null; onRetry: () => void; onDifferentAccount: () => void }) {
-  if (!error) {
+function RecoveryScreen({ details, onRetry, onDifferentAccount }: { details: RecoveryDetails | null; onRetry: () => void; onDifferentAccount: () => void }) {
+  if (!details) {
     return (
       <main className="loading-screen" aria-live="polite">
         <a className="brand" href="https://linkary.xyz" aria-label="Linkary home">
@@ -111,7 +154,8 @@ function RecoveryScreen({ error, onRetry, onDifferentAccount }: { error: string 
         </a>
         <span className="section-label">SIGN-IN COMPLETE</span>
         <h1>Let’s finish setting up Linkary.</h1>
-        <p>{error}</p>
+        <p>{details.message}</p>
+        <p className="security-note clean-note">Reference: {details.reference}</p>
         <button className="button primary full" onClick={onRetry}>Continue</button>
         <button className="button secondary full" onClick={onDifferentAccount}>Use a different account</button>
       </div>
@@ -125,7 +169,7 @@ export default function AuthSessionContinuity({ children }: { children: ReactNod
   const { getAccessToken } = useGetAccessToken();
   const { signOut } = useSignOut();
   const [state, setState] = useState<RecoveryState>('idle');
-  const [error, setError] = useState<string | null>(null);
+  const [details, setDetails] = useState<RecoveryDetails | null>(null);
   const [retry, setRetry] = useState(0);
 
   const accessContext = useMemo(() => rememberAccessContext(), []);
@@ -137,7 +181,7 @@ export default function AuthSessionContinuity({ children }: { children: ReactNod
 
     void (async () => {
       setState('recovering');
-      setError(null);
+      setDetails(null);
       try {
         const current = await jsonRequest<{ authenticated?: boolean }>('/api/auth/me');
         if (cancelled) return;
@@ -182,11 +226,12 @@ export default function AuthSessionContinuity({ children }: { children: ReactNod
         }
 
         setState('error');
-        setError(recoveryMessage(bridged.data.error));
-      } catch {
+        setDetails(recoveryDetails(bridged.data.error, bridged.status));
+      } catch (error) {
         if (cancelled) return;
+        const code = error instanceof Error ? error.message : undefined;
         setState('error');
-        setError(recoveryMessage());
+        setDetails(recoveryDetails(code));
       }
     })();
 
@@ -201,12 +246,12 @@ export default function AuthSessionContinuity({ children }: { children: ReactNod
     try { await signOut(); } catch {}
     sessionStorage.removeItem(CLAIM_TOKEN_STORAGE);
     setState('idle');
-    setError(null);
+    setDetails(null);
     window.location.replace('/signup');
   }
 
   if (shouldRecover || state === 'recovering' || state === 'error') {
-    return <RecoveryScreen error={state === 'error' ? error : null} onRetry={() => setRetry((value) => value + 1)} onDifferentAccount={() => void useDifferentAccount()} />;
+    return <RecoveryScreen details={state === 'error' ? details : null} onRetry={() => setRetry((value) => value + 1)} onDifferentAccount={() => void useDifferentAccount()} />;
   }
 
   return <>{children}</>;
