@@ -62,12 +62,19 @@ function isLegacyPrototype(html: string): boolean {
   return html.includes('class="preview-nav"') && html.includes('data-page="auth"');
 }
 
-function productionHtml(html: string, appBase: string): string {
+function socialPreviewMeta(publicSite: string): string {
+  const root = publicSite.replace(/\/$/, '');
+  const image = `${root}/assets/brand/linkary-banner.jpeg`;
+  return `<link rel="canonical" href="${root}/"><meta property="og:type" content="website"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="Linkary | Growth Intelligence Network"><meta property="og:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta property="og:url" content="${root}/"><meta property="og:image" content="${image}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linkary | Growth Intelligence Network"><meta name="twitter:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta name="twitter:image" content="${image}">`;
+}
+
+function productionHtml(html: string, appBase: string, publicSite: string): string {
   const withoutPrototypeNavigation = html.replace(/<nav class="preview-nav"[\s\S]*?<\/nav>/i, '');
   const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
-  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function clean(){history.replaceState(null,'',window.location.pathname+window.location.search);}function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'||window.location.hash==='#home'){clean();}window.addEventListener('DOMContentLoaded',function(){if(window.location.hash==='#home')clean();});document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route]'):null;if(!node)return;var route=node.getAttribute('data-route');if(route==='auth'){event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');return;}if(route==='home'){event.preventDefault();event.stopImmediatePropagation();clean();window.scrollTo({top:0,behavior:'smooth'});}},true);})();</script>`;
+  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function clean(){history.replaceState(null,'',window.location.pathname+window.location.search);}function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/login');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'||window.location.hash==='#home'){clean();}window.addEventListener('DOMContentLoaded',function(){if(window.location.hash==='#home')clean();});document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route]'):null;if(!node)return;var route=node.getAttribute('data-route');if(route==='auth'){event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/signup':'/login');return;}if(route==='home'){event.preventDefault();event.stopImmediatePropagation();clean();window.scrollTo({top:0,behavior:'smooth'});}},true);})();</script>`;
+  const preview = socialPreviewMeta(publicSite);
   return withoutPrototypeNavigation
-    .replace('</head>', `<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}</head>`);
+    .replace('</head>', `${preview}<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}</head>`);
 }
 
 function normalizeAssetRequest(request: Request): Request {
@@ -90,7 +97,8 @@ export async function serveStatic(request: Request, env: Env): Promise<Response>
   headers.delete('etag');
   headers.set('cache-control', 'no-store');
 
-  return new Response(productionHtml(source, getLinkaryUrls(request, env).app), {
+  const urls = getLinkaryUrls(request, env);
+  return new Response(productionHtml(source, urls.app, urls.publicSite), {
     status: response.status,
     statusText: response.statusText,
     headers,

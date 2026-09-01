@@ -5,6 +5,15 @@ import { finishXOAuth, startXOAuth } from './auth/x';
 import { createCdpSession } from './auth/cdp';
 import { getAuthContext, requireAuth, revokeCurrentSession, verifyCsrf } from './auth/session';
 import { createEarnedAccess, previewInvite } from './routes/access';
+import {
+  approveCreatorAccessClaim,
+  creatorAccessClaimStatus,
+  creatorAccessVerificationSetting,
+  listCreatorAccessClaims,
+  rejectCreatorAccessClaim,
+  startCreatorAccessClaim,
+  submitCreatorAccessPost,
+} from './routes/creatorAccess';
 import { completeOnboarding, onboardingStatus } from './routes/onboarding';
 import {
   addProfileBlock,
@@ -54,7 +63,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json({
       ok: true,
       service: 'linkary',
-      version: 'cdp-react-auth-foundation',
+      version: 'creator-access-review',
       database: env.DB ? 'bound' : 'not-bound',
       cdp: env.CDP_PROJECT_ID ? 'configured' : 'not-configured',
       urls: getLinkaryUrls(request, env),
@@ -77,7 +86,19 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     for (const cookie of cookies) headers.append('set-cookie', cookie);
     return json({ ok: true }, { headers });
   }
+
+  // Legacy endpoint intentionally remains non-granting for cached clients.
   if (path === '/api/access/earned') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createEarnedAccess(request, env); }
+  if (path === '/api/access/creator/claim') {
+    if (request.method === 'POST') return startCreatorAccessClaim(request, env);
+    if (request.method === 'GET') return creatorAccessClaimStatus(request, env);
+    return methodNotAllowed(['GET', 'POST']);
+  }
+  if (path === '/api/access/creator/claim/submit') {
+    if (request.method !== 'POST') return methodNotAllowed(['POST']);
+    return submitCreatorAccessPost(request, env);
+  }
+
   const invitePreview = path.match(/^\/api\/invites\/([^/]+)\/preview$/);
   if (invitePreview) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return previewInvite(decodeURIComponent(invitePreview[1]), env); }
   if (path === '/api/onboarding/status') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return onboardingStatus(request, env); }
@@ -107,7 +128,18 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (profilePublish) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return publishProfile(request, env, decodeURIComponent(profilePublish[1]), true); }
   const profileUnpublish = path.match(/^\/api\/profiles\/([^/]+)\/unpublish$/);
   if (profileUnpublish) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return publishProfile(request, env, decodeURIComponent(profileUnpublish[1]), false); }
+
   if (path === '/api/admin/health') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return adminHealth(request, env); }
+  if (path === '/api/admin/creator-access') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listCreatorAccessClaims(request, env); }
+  const approveClaim = path.match(/^\/api\/admin\/creator-access\/([^/]+)\/approve$/);
+  if (approveClaim) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return approveCreatorAccessClaim(request, env, decodeURIComponent(approveClaim[1])); }
+  const rejectClaim = path.match(/^\/api\/admin\/creator-access\/([^/]+)\/reject$/);
+  if (rejectClaim) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return rejectCreatorAccessClaim(request, env, decodeURIComponent(rejectClaim[1])); }
+  if (path === '/api/admin/settings/creator-access-verification') {
+    if (request.method !== 'GET' && request.method !== 'PATCH') return methodNotAllowed(['GET', 'PATCH']);
+    return creatorAccessVerificationSetting(request, env);
+  }
+
   return json({ error: 'not_found', message: 'API route not found' }, { status: 404 });
 }
 
