@@ -5,6 +5,9 @@ export interface Env {
   DB?: D1Database;
   SESSION_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;
+  CDP_PROJECT_ID?: string;
+  CDP_API_KEY_ID?: string;
+  CDP_API_KEY_SECRET?: string;
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
   X_REDIRECT_URI?: string;
