@@ -1,9 +1,14 @@
-import { Db } from './client';
+import type { D1Database } from '../platform';
 
 let authSchemaReady: Promise<void> | null = null;
 
-async function applyAuthRuntimeSchema(db: Db): Promise<void> {
-  await db.run(`CREATE TABLE IF NOT EXISTS cdp_user_links (
+async function run(database: D1Database, sql: string, values: unknown[] = []): Promise<void> {
+  const result = await database.prepare(sql).bind(...values).run();
+  if (!result.success) throw new Error('D1 runtime schema statement failed');
+}
+
+async function applyAuthRuntimeSchema(database: D1Database): Promise<void> {
+  await run(database, `CREATE TABLE IF NOT EXISTS cdp_user_links (
     id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL REFERENCES users(id),
     cdp_project_id TEXT NOT NULL,
@@ -15,10 +20,10 @@ async function applyAuthRuntimeSchema(db: Db): Promise<void> {
     UNIQUE(cdp_project_id, cdp_user_id),
     UNIQUE(user_id, cdp_project_id)
   )`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_cdp_user_links_user ON cdp_user_links(user_id)`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_cdp_user_links_cdp_user ON cdp_user_links(cdp_project_id, cdp_user_id)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_cdp_user_links_user ON cdp_user_links(user_id)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_cdp_user_links_cdp_user ON cdp_user_links(cdp_project_id, cdp_user_id)`);
 
-  await db.run(`CREATE TABLE IF NOT EXISTS wallet_accounts (
+  await run(database, `CREATE TABLE IF NOT EXISTS wallet_accounts (
     id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL REFERENCES users(id),
     cdp_user_link_id TEXT REFERENCES cdp_user_links(id),
@@ -32,13 +37,10 @@ async function applyAuthRuntimeSchema(db: Db): Promise<void> {
     updated_at TEXT NOT NULL,
     UNIQUE(provider, chain_family, address)
   )`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_accounts_user ON wallet_accounts(user_id, status)`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_accounts_cdp_link ON wallet_accounts(cdp_user_link_id, status)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_wallet_accounts_user ON wallet_accounts(user_id, status)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_wallet_accounts_cdp_link ON wallet_accounts(cdp_user_link_id, status)`);
 
-  // Creator access is the second authentication path. Keeping these tables in
-  // the same guard prevents a fresh production database from breaking when the
-  // first creator uses Earn Access before an operator can run migrations.
-  await db.run(`CREATE TABLE IF NOT EXISTS creator_access_claims (
+  await run(database, `CREATE TABLE IF NOT EXISTS creator_access_claims (
     id TEXT PRIMARY KEY NOT NULL,
     cdp_project_id TEXT NOT NULL,
     cdp_user_id TEXT NOT NULL,
@@ -57,24 +59,25 @@ async function applyAuthRuntimeSchema(db: Db): Promise<void> {
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_creator_access_claims_cdp_user ON creator_access_claims(cdp_project_id, cdp_user_id, status, created_at)`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_creator_access_claims_review ON creator_access_claims(status, created_at)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_creator_access_claims_cdp_user ON creator_access_claims(cdp_project_id, cdp_user_id, status, created_at)`);
+  await run(database, `CREATE INDEX IF NOT EXISTS idx_creator_access_claims_review ON creator_access_claims(status, created_at)`);
 
-  await db.run(`CREATE TABLE IF NOT EXISTS admin_settings (
+  await run(database, `CREATE TABLE IF NOT EXISTS admin_settings (
     setting_key TEXT PRIMARY KEY NOT NULL,
     value_json TEXT NOT NULL,
     updated_by_user_id TEXT REFERENCES users(id),
     updated_at TEXT NOT NULL
   )`);
-  await db.run(
+  await run(
+    database,
     `INSERT OR IGNORE INTO admin_settings (setting_key, value_json, updated_by_user_id, updated_at) VALUES (?, ?, NULL, ?)`,
     ['creator_access_verification', '{"mode":"manual","providerConfigured":false}', new Date().toISOString()],
   );
 }
 
-export async function ensureAuthRuntimeSchema(db: Db): Promise<void> {
+export async function ensureAuthRuntimeSchema(database: D1Database): Promise<void> {
   if (!authSchemaReady) {
-    authSchemaReady = applyAuthRuntimeSchema(db).catch((error) => {
+    authSchemaReady = applyAuthRuntimeSchema(database).catch((error) => {
       authSchemaReady = null;
       throw error;
     });
