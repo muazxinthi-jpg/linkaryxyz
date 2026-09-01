@@ -3,13 +3,19 @@ import type { Env } from '../env';
 import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
+import { sha256 } from '../security/crypto';
 import { createSession } from './session';
 
 interface CdpSessionBody {
   accessToken?: string;
+  inviteCode?: string;
+  earnedGrant?: string;
 }
 
 type UnknownRecord = Record<string, unknown>;
+type AccessContext =
+  | { kind: 'invite'; inviteId: string }
+  | { kind: 'earned'; submissionId: string };
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -102,6 +108,85 @@ async function validateCdpAccessToken(accessToken: string, config: { apiKeyId: s
   return result;
 }
 
+async function hasLinkaryAccess(db: Db, userId: string): Promise<boolean> {
+  if (await db.first<{ id: string }>(`SELECT id FROM invite_redemptions WHERE user_id = ? LIMIT 1`, [userId])) return true;
+  return Boolean(
+    await db.first<{ id: string }>(
+      `SELECT id FROM access_post_submissions WHERE user_id = ? AND status IN ('authenticated', 'consumed') LIMIT 1`,
+      [userId],
+    ),
+  );
+}
+
+async function resolveAccessContext(db: Db, inviteCode?: string, earnedGrant?: string): Promise<AccessContext> {
+  const invite = inviteCode?.trim();
+  const grant = earnedGrant?.trim();
+  if (invite && grant) throw new HttpError(400, 'Use one Linkary access path at a time', 'multiple_access_contexts');
+
+  if (invite) {
+    const row = await db.first<{ id: string }>(
+      `SELECT id FROM invites WHERE code_hash = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`,
+      [await sha256(invite), now()],
+    );
+    if (!row) throw new HttpError(403, 'This Linkary invitation is invalid or no longer available', 'invalid_invite');
+    return { kind: 'invite', inviteId: row.id };
+  }
+
+  if (grant) {
+    const row = await db.first<{ id: string }>(
+      `SELECT id FROM access_post_submissions WHERE grant_token_hash = ? AND status = 'pending' AND expires_at > ?`,
+      [await sha256(grant), now()],
+    );
+    if (!row) throw new HttpError(403, 'This earned-access grant is invalid or expired', 'invalid_access_grant');
+    return { kind: 'earned', submissionId: row.id };
+  }
+
+  throw new HttpError(403, 'A valid Linkary invitation or approved access path is required', 'access_required');
+}
+
+async function attachAccessContext(db: Db, userId: string, context: AccessContext): Promise<void> {
+  const timestamp = now();
+
+  if (context.kind === 'invite') {
+    const redemptionId = id('red');
+    await db.batch([
+      db.statement(
+        `INSERT OR IGNORE INTO invite_redemptions (id, invite_id, user_id, chosen_account_type, organization_id, quality_state, redeemed_at)
+         SELECT ?, id, ?, NULL, NULL, 'pending', ? FROM invites
+         WHERE id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`,
+        [redemptionId, userId, timestamp, context.inviteId, timestamp],
+      ),
+      db.statement(
+        `UPDATE invites SET uses = uses + 1,
+          status = CASE WHEN uses + 1 >= max_uses THEN 'exhausted' ELSE status END,
+          updated_at = ?
+         WHERE id = ? AND status = 'active' AND uses < max_uses
+           AND EXISTS (SELECT 1 FROM invite_redemptions WHERE invite_id = ? AND user_id = ?)`,
+        [timestamp, context.inviteId, context.inviteId, userId],
+      ),
+    ]);
+    const redemption = await db.first<{ id: string }>(
+      `SELECT id FROM invite_redemptions WHERE invite_id = ? AND user_id = ?`,
+      [context.inviteId, userId],
+    );
+    if (!redemption) throw new HttpError(409, 'This invitation was used before sign-in completed', 'invite_exhausted');
+    return;
+  }
+
+  await db.run(
+    `UPDATE access_post_submissions SET user_id = ?, status = 'authenticated', auth_verified_at = ?
+     WHERE id = ? AND status = 'pending' AND expires_at > ?`,
+    [userId, timestamp, context.submissionId, timestamp],
+  );
+  const submission = await db.first<{ user_id: string | null; status: string }>(
+    `SELECT user_id, status FROM access_post_submissions WHERE id = ?`,
+    [context.submissionId],
+  );
+  if (submission?.user_id !== userId || submission.status !== 'authenticated') {
+    throw new HttpError(409, 'This earned-access grant was used before sign-in completed', 'access_grant_used');
+  }
+}
+
 export async function createCdpSession(request: Request, env: Env): Promise<Response> {
   const body = await readJson<CdpSessionBody>(request);
   const accessToken = body.accessToken?.trim();
@@ -131,8 +216,10 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
     [config.projectId, cdpUserId],
   );
   let isNewUser = false;
+  let accessContext: AccessContext | null = null;
 
   if (!link) {
+    accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant);
     isNewUser = true;
     const userId = id('usr');
     const linkId = id('cdp');
@@ -167,6 +254,28 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       `UPDATE auth_identities SET metadata_json = ?, updated_at = ? WHERE provider = 'coinbase_cdp' AND provider_user_id = ?`,
       [JSON.stringify({ authenticationMethods: methods }), timestamp, cdpUserId],
     );
+    if (!(await hasLinkaryAccess(db, link.user_id))) {
+      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant);
+    }
+  }
+
+  if (accessContext) {
+    try {
+      await attachAccessContext(db, link.user_id, accessContext);
+    } catch (error) {
+      if (isNewUser) {
+        await db.batch([
+          db.statement(`DELETE FROM auth_identities WHERE user_id = ? AND provider = 'coinbase_cdp'`, [link.user_id]),
+          db.statement(`DELETE FROM cdp_user_links WHERE id = ?`, [link.id]),
+          db.statement(`DELETE FROM users WHERE id = ?`, [link.user_id]),
+        ]);
+      }
+      throw error;
+    }
+  }
+
+  if (!(await hasLinkaryAccess(db, link.user_id))) {
+    throw new HttpError(403, 'A valid Linkary invitation or approved access path is required', 'access_required');
   }
 
   const evmAddresses = extractEvmAddresses(endUser);
@@ -192,6 +301,7 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
     {
       ok: true,
       isNewUser,
+      accessGranted: true,
       user: { id: user.id, email: user.email, displayName: user.display_name },
       wallet: { evmAddresses },
       csrfToken: session.csrfToken,
