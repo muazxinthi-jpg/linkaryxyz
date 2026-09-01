@@ -1,0 +1,83 @@
+import { Db } from './client';
+
+let authSchemaReady: Promise<void> | null = null;
+
+async function applyAuthRuntimeSchema(db: Db): Promise<void> {
+  await db.run(`CREATE TABLE IF NOT EXISTS cdp_user_links (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    cdp_project_id TEXT NOT NULL,
+    cdp_user_id TEXT NOT NULL,
+    last_auth_method TEXT,
+    last_authenticated_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(cdp_project_id, cdp_user_id),
+    UNIQUE(user_id, cdp_project_id)
+  )`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_cdp_user_links_user ON cdp_user_links(user_id)`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_cdp_user_links_cdp_user ON cdp_user_links(cdp_project_id, cdp_user_id)`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS wallet_accounts (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    cdp_user_link_id TEXT REFERENCES cdp_user_links(id),
+    provider TEXT NOT NULL DEFAULT 'coinbase_cdp',
+    chain_family TEXT NOT NULL CHECK (chain_family IN ('evm', 'solana')),
+    address TEXT NOT NULL,
+    account_type TEXT NOT NULL CHECK (account_type IN ('eoa', 'smart', 'solana')),
+    is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(provider, chain_family, address)
+  )`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_accounts_user ON wallet_accounts(user_id, status)`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_accounts_cdp_link ON wallet_accounts(cdp_user_link_id, status)`);
+
+  // Creator access is the second authentication path. Keeping these tables in
+  // the same guard prevents a fresh production database from breaking when the
+  // first creator uses Earn Access before an operator can run migrations.
+  await db.run(`CREATE TABLE IF NOT EXISTS creator_access_claims (
+    id TEXT PRIMARY KEY NOT NULL,
+    cdp_project_id TEXT NOT NULL,
+    cdp_user_id TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id),
+    claim_code TEXT NOT NULL UNIQUE,
+    claim_token_hash TEXT NOT NULL UNIQUE,
+    submitted_x_url TEXT UNIQUE,
+    approved_invite_id TEXT REFERENCES invites(id),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved', 'rejected', 'consumed', 'revoked', 'expired')),
+    review_mode TEXT NOT NULL DEFAULT 'manual' CHECK (review_mode IN ('manual', 'twitterapi_io')),
+    rejection_reason TEXT,
+    reviewed_by_user_id TEXT REFERENCES users(id),
+    reviewed_at TEXT,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_creator_access_claims_cdp_user ON creator_access_claims(cdp_project_id, cdp_user_id, status, created_at)`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_creator_access_claims_review ON creator_access_claims(status, created_at)`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS admin_settings (
+    setting_key TEXT PRIMARY KEY NOT NULL,
+    value_json TEXT NOT NULL,
+    updated_by_user_id TEXT REFERENCES users(id),
+    updated_at TEXT NOT NULL
+  )`);
+  await db.run(
+    `INSERT OR IGNORE INTO admin_settings (setting_key, value_json, updated_by_user_id, updated_at) VALUES (?, ?, NULL, ?)`,
+    ['creator_access_verification', '{"mode":"manual","providerConfigured":false}', new Date().toISOString()],
+  );
+}
+
+export async function ensureAuthRuntimeSchema(db: Db): Promise<void> {
+  if (!authSchemaReady) {
+    authSchemaReady = applyAuthRuntimeSchema(db).catch((error) => {
+      authSchemaReady = null;
+      throw error;
+    });
+  }
+  await authSchemaReady;
+}
