@@ -8,7 +8,11 @@ test('human Linkary invite codes are case-insensitive', async () => {
   const upper = mixed.toUpperCase();
   assert.equal(canonicalInviteCode(mixed), upper);
   assert.equal(await sha256(mixed), await sha256(upper));
-  assert.equal(await sha256(upper), 'ZetNxKAgJ3lN0DzvyD14t4t62Bvyolk8EYr3nq8o0nU');
+});
+
+test('already-issued owner bootstrap invite remains compatible with its stored hash', async () => {
+  const upper = 'LNK-OWNER-NBQTDRORU8EYEYRXUFTF-UCA';
+  assert.equal(await sha256(upper), 'dEY_v7d7voY9U9kpAR1sfWH12yz3yBPu5PAR4JJiolI');
 });
 
 test('non-human tokens retain exact hashing behavior', async () => {
