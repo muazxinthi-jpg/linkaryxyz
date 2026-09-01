@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS creator_access_claims (
   claim_code TEXT NOT NULL UNIQUE,
   claim_token_hash TEXT NOT NULL UNIQUE,
   submitted_x_url TEXT UNIQUE,
+  approved_invite_id TEXT REFERENCES invites(id),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved', 'rejected', 'consumed', 'revoked', 'expired')),
   review_mode TEXT NOT NULL DEFAULT 'manual' CHECK (review_mode IN ('manual', 'twitterapi_io')),
   rejection_reason TEXT,
