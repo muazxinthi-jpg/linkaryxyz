@@ -84,18 +84,29 @@ function normalizeAssetRequest(request: Request): Request {
   return new Request(url.toString(), request);
 }
 
+function productionHtmlHeaders(response: Response): Headers {
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  headers.delete('etag');
+  headers.set('cache-control', 'no-store, max-age=0');
+  headers.set('pragma', 'no-cache');
+  return headers;
+}
+
 export async function serveStatic(request: Request, env: Env): Promise<Response> {
   const response = await env.ASSETS.fetch(normalizeAssetRequest(request));
   if (env.APP_ENV !== 'production' || !isHtml(response)) return response;
 
   const source = await response.text();
-  if (!isLegacyPrototype(source)) return new Response(source, response);
-
-  const headers = new Headers(response.headers);
-  headers.delete('content-length');
-  headers.delete('content-encoding');
-  headers.delete('etag');
-  headers.set('cache-control', 'no-store');
+  const headers = productionHtmlHeaders(response);
+  if (!isLegacyPrototype(source)) {
+    return new Response(source, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
 
   const urls = getLinkaryUrls(request, env);
   return new Response(productionHtml(source, urls.app, urls.publicSite), {
