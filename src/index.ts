@@ -113,6 +113,11 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
 
 async function serveApp(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  if (url.pathname === '/app' || url.pathname === '/app/') {
+    const canonical = new URL(request.url);
+    canonical.pathname = '/';
+    return Response.redirect(canonical.toString(), 308);
+  }
   if (url.pathname === '/robots.txt') {
     return new Response('User-agent: *\nDisallow: /\n', { headers: { 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex, nofollow' } });
   }
