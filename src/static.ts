@@ -65,13 +65,20 @@ function isLegacyPrototype(html: string): boolean {
 function productionHtml(html: string, appBase: string): string {
   const withoutPrototypeNavigation = html.replace(/<nav class="preview-nav"[\s\S]*?<\/nav>/i, '');
   const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
-  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'){history.replaceState(null,'',window.location.pathname+window.location.search);}document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route="auth"]'):null;if(!node)return;event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');},true);})();</script>`;
+  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function clean(){history.replaceState(null,'',window.location.pathname+window.location.search);}function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'||window.location.hash==='#home'){clean();}window.addEventListener('DOMContentLoaded',function(){if(window.location.hash==='#home')clean();});document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route]'):null;if(!node)return;var route=node.getAttribute('data-route');if(route==='auth'){event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');return;}if(route==='home'){event.preventDefault();event.stopImmediatePropagation();clean();window.scrollTo({top:0,behavior:'smooth'});}},true);})();</script>`;
   return withoutPrototypeNavigation
     .replace('</head>', `<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}</head>`);
 }
 
+function normalizeAssetRequest(request: Request): Request {
+  const url = new URL(request.url);
+  if (url.pathname !== '/') return request;
+  url.pathname = '/index.html';
+  return new Request(url.toString(), request);
+}
+
 export async function serveStatic(request: Request, env: Env): Promise<Response> {
-  const response = await env.ASSETS.fetch(request);
+  const response = await env.ASSETS.fetch(normalizeAssetRequest(request));
   if (env.APP_ENV !== 'production' || !isHtml(response)) return response;
 
   const source = await response.text();
