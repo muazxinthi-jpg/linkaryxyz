@@ -3,6 +3,12 @@
   "name": "linkary-xyz",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-31",
+  "vars": {
+    "CDP_PROJECT_ID": "ec85aa2b-208c-4ec9-a0f2-3da31a8e2218",
+    "PUBLIC_SITE_URL": "https://linkary.xyz",
+    "APP_BASE_URL": "https://app.linkary.xyz",
+    "APP_ENV": "production"
+  },
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
