@@ -3,11 +3,23 @@ import type { D1Database, Fetcher } from './platform';
 export interface Env {
   ASSETS: Fetcher;
   DB?: D1Database;
+
+  // Linkary primary authentication / embedded wallet configuration.
+  // CDP_PROJECT_ID is public client configuration. CDP API credentials are
+  // server-only secrets and must be stored with Cloudflare secret bindings.
+  CDP_PROJECT_ID?: string;
+  CDP_API_KEY_ID?: string;
+  CDP_API_KEY_SECRET?: string;
+
   SESSION_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;
+
+  // Legacy direct-X OAuth boundary. Keep temporarily until the CDP cutover is
+  // deployed and verified, then retire these variables and routes deliberately.
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
   X_REDIRECT_URI?: string;
+
   PUBLIC_SITE_URL?: string;
   APP_BASE_URL?: string;
   TRACKING_BASE_URL?: string;
