@@ -51,6 +51,15 @@ jobs:
           echo "Configured Worker secret names:"
           npx wrangler secret list --config=wrangler.jsonc
 
+      - name: Audit production D1 auth schema
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set +e
+          npx wrangler d1 execute linkary-db --remote --config=wrangler.jsonc --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','sessions','invites','invite_redemptions','cdp_user_links','auth_identities','wallet_accounts') ORDER BY name;"
+          echo "D1_SCHEMA_AUDIT_EXIT=$?"
+          exit 0
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
