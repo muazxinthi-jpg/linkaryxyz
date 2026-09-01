@@ -1,8 +1,10 @@
 .git/
+.github/
 .agents/
 .codex/
 .wrangler/
 node_modules/
+frontend/
 docs/
 tests/
 src/

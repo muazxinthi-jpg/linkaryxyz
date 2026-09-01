@@ -1,4 +1,5 @@
 import type { Env } from './env';
+import { getLinkaryUrls } from './urls';
 
 const productionShellCss = `
 @media (max-width: 900px) {
@@ -57,25 +58,32 @@ function isHtml(response: Response): boolean {
   return (response.headers.get('content-type') || '').toLowerCase().includes('text/html');
 }
 
-function productionHtml(html: string): string {
+function isLegacyPrototype(html: string): boolean {
+  return html.includes('class="preview-nav"') && html.includes('data-page="auth"');
+}
+
+function productionHtml(html: string, appBase: string): string {
   const withoutPrototypeNavigation = html.replace(/<nav class="preview-nav"[\s\S]*?<\/nav>/i, '');
-  if (withoutPrototypeNavigation.includes('id="linkary-production-shell-fixes"')) return withoutPrototypeNavigation;
-  return withoutPrototypeNavigation.replace(
-    '</head>',
-    `<style id="linkary-production-shell-fixes">${productionShellCss}</style></head>`,
-  );
+  const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
+  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function go(path){window.location.href=app+path;}document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route="auth"]'):null;if(!node)return;event.preventDefault();event.stopImmediatePropagation();go(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');},true);if(window.location.hash==='#auth')go('/');if(window.location.hash==='#dashboard')go('/dashboard');if(window.location.hash==='#library')history.replaceState(null,'',window.location.pathname+window.location.search);})();</script>`;
+  return withoutPrototypeNavigation
+    .replace('</head>', `<style id="linkary-production-shell-fixes">${productionShellCss}</style></head>`)
+    .replace('</body>', `${redirectScript}</body>`);
 }
 
 export async function serveStatic(request: Request, env: Env): Promise<Response> {
   const response = await env.ASSETS.fetch(request);
   if (env.APP_ENV !== 'production' || !isHtml(response)) return response;
 
+  const source = await response.text();
+  if (!isLegacyPrototype(source)) return new Response(source, response);
+
   const headers = new Headers(response.headers);
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('etag');
 
-  return new Response(productionHtml(await response.text()), {
+  return new Response(productionHtml(source, getLinkaryUrls(request, env).app), {
     status: response.status,
     statusText: response.statusText,
     headers,

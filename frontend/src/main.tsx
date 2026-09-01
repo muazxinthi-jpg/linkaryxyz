@@ -1,0 +1,24 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
+import App from './App';
+import './styles.css';
+
+const cdpConfig: Config = {
+  projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
+  ethereum: { createOnLogin: 'eoa' },
+  appName: 'Linkary',
+  appLogoUrl: 'https://linkary.xyz/assets/brand/linkary-icon-black.png',
+  authMethods: ['email', 'oauth:google', 'oauth:x', 'oauth:telegram'],
+};
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <CDPReactProvider config={cdpConfig}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </CDPReactProvider>
+  </StrictMode>,
+);
