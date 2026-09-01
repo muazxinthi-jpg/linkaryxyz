@@ -1,194 +1,196 @@
 # Linkary implementation status
 
-The Technical Product and Engineering Paper v1.1 and `uilib.md` are the product/design sources of truth. This file records repository state and separately identifies what is actually deployed.
+The Technical Product and Engineering Paper v1.1 and `uilib.md` are the product and design sources of truth. This file records repository state and production state separately.
 
-Fresh-start rule: legacy Linkary implementation decisions are not authoritative. Reuse only code that independently matches the current specification.
+Fresh-start rule: old Linkary implementation decisions are not authoritative unless they independently match the current specification.
 
-## Phase A - foundation
+## Production foundation
 
-- [x] Cloudflare Worker entrypoint with static-asset fallback
-- [x] `/api/health` runtime smoke endpoint
-- [x] Fresh-start Phase A/B D1 schema covering users, auth identities, sessions, stable platform identities, handle history, profiles, organizations, memberships, invite/access gates, Superadmin grants, invite balances, invite-click events, and audit logs
-- [x] Typed D1 access layer with explicit service-configuration failure when `DB` is not bound
-- [x] URL configuration layer for public/app/tracking/API/MCP origins
-- [x] Server-side hashed session tokens, CSRF boundary, logout/revocation, and Superadmin authorization check
-- [x] Separate Superadmin grant architecture and protected admin API boundary
-- [x] Provision Cloudflare D1 database `linkary-db`
-- [x] Attach real `DB` D1 binding in `wrangler.jsonc`
-- [x] Apply `migrations/0001_initial.sql` to remote D1
-- [x] Apply `migrations/0002_cdp_auth_and_wallets.sql` to remote D1
-- [x] Production `cdp_user_links` table is live
-- [x] Production `wallet_accounts` table is live
-- [x] Create dedicated Coinbase CDP `Linkary` project
-- [x] Configure Linkary CDP branding
-- [x] Configure dedicated `LinkaryAuthBot` Telegram authentication bot in CDP
-- [x] Configure CDP frontend/client domains for `linkary.xyz` and `app.linkary.xyz`
-- [x] Lock CDP as primary authentication + embedded-wallet provider
-- [x] Store CDP server API credentials as Cloudflare Worker secrets, never in Git
-- [x] Implement server-side Coinbase CDP end-user access-token validation using the narrow `@coinbase/cdp-sdk/auth` boundary
-- [x] Implement `POST /api/auth/cdp/session` Linkary session bridge
-- [x] Enforce Linkary invite/approved-access entitlement before a new CDP identity can receive a Linkary session
-- [x] Keep Linkary backend authoritative after CDP authentication
-- [x] Synchronize CDP X and Telegram authentication identities into stable `platform_identities` with handle history
-- [x] Production worker version `cdp-auth-foundation` deployed successfully
-- [x] `linkary.xyz` production domain active
-- [x] `app.linkary.xyz` production domain active
-- [x] Production `/api/health` verifies database binding and CDP configuration
-- [x] Current official CDP frontend packages added to the authenticated React application
-- [ ] Deploy the new React/CDP frontend milestone to production
-- [ ] Retire direct X OAuth routes only after the CDP frontend cutover is deployed and verified end-to-end
-- [ ] Bootstrap the first Superadmin through a controlled database operation after owner login
+- [x] Cloudflare Worker `linkary-xyz` is deployed.
+- [x] Production domains `linkary.xyz` and `app.linkary.xyz` are active.
+- [x] Production D1 database `linkary-db` is bound as `DB`.
+- [x] `migrations/0001_initial.sql` applied to production.
+- [x] `migrations/0002_cdp_auth_and_wallets.sql` applied to production.
+- [x] `migrations/0003_creator_access_review.sql` applied to production.
+- [x] CDP project, branding, frontend domains, Telegram authentication bot, and server validation credentials are configured.
+- [x] GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured.
+- [x] GitHub Actions runs tests, TypeScript checks, Wrangler dry-run, and production deployment on `main`.
+- [x] Pull requests run verification but do not deploy production.
+- [x] Production release `37add9f4ba57fc9e565ce8ebb03b594e43d0ad1b` deployed successfully through GitHub Actions.
 
-## Phase B - user and profile foundation
+## Authentication and identity
 
-- [x] Earn Access post-URL submission, using manual X URL evidence only and zero TwitterAPI.io calls
-- [x] Earn Access now hands off into CDP authentication rather than legacy direct-X OAuth
-- [x] Network invite preview and first-party invite landing foundation
-- [x] Network invite landing now hands off into the CDP application and supports Email, Google, X, or Telegram authentication
-- [x] Creator vs Company/Project onboarding choice without permanent human `user_type`
-- [x] Onboarding no longer requires an X identity before a Linkary username can be claimed
-- [x] Access entitlement limits the account types a user can create, including Creator-only Earn Access
-- [x] Creator profile claim foundation
-- [x] Project/company Organization + owner membership + public profile creation foundation
-- [x] Initial invite allocation model: Creator 10, Project 50
-- [x] Stable provider UID plus append-only handle history model
-- [x] Profile username history foundation
-- [x] Published public-profile JSON read model
-- [x] Public `/{username}` profile rendering foundation with canonical URL and SEO metadata
-- [x] Dynamic sitemap and robots/noindex handling for private application/admin/API surfaces
-- [x] Profile edit API
-- [x] Profile block create/update/delete/reorder APIs
-- [x] Profile publish/unpublish API
-- [x] Organization list API
-- [x] Organization archive/restore lifecycle, with no normal hard-delete path
-- [x] Invite balance read API
-- [x] Network invite creation with atomic credit consumption
-- [x] First-party invite click attribution without TwitterAPI.io
-- [x] Privacy-conscious persistent visitor token for invite unique-click analysis
-- [x] Production shell removes the floating prototype navigation when `APP_ENV=production`
-- [x] Mobile authentication UI is designed mobile-first with safe areas, full-width phone layout, 52px controls, and 16px mobile inputs
-- [x] Real React + TypeScript + Vite authenticated application structure exists in `frontend/`
-- [x] Real CDP Email OTP flow implemented
-- [x] Real CDP Google OAuth flow implemented
-- [x] Real CDP X OAuth flow implemented
-- [x] Real CDP Telegram authentication flow implemented
-- [x] CDP access token is bridged to the Linkary backend and followed by `/api/auth/me`
-- [x] Responsive first-time Creator vs Company/Project onboarding UI is wired to the backend
-- [x] Initial authenticated app shell and workspace selector are implemented
-- [x] Initial authenticated routes exist for dashboard, campaigns, creators, communities, tracking, profile, invites, settings, and isolated Superadmin
-- [ ] Profile editor UI wired to the profile/block APIs
-- [ ] Full workspace switcher behavior for multiple organizations and additional projects
-- [ ] Invite dashboard with generated links, clicks, joins, conversions, and quality state
-- [ ] Team invitation/member management endpoints and UI
-- [ ] Additional project creation flow with a separately verified project platform identity
-- [ ] Old-Linkary-slug redirect workflow after profile username changes
-- [ ] Integration tests with local D1 for auth, invite redemption, onboarding, profile visibility, RBAC, and Superadmin isolation
+- [x] React + TypeScript + Vite authenticated application exists in `frontend/`.
+- [x] Email OTP authentication implemented.
+- [x] Google authentication implemented.
+- [x] X authentication implemented.
+- [x] Telegram authentication implemented.
+- [x] Frontend access token is bridged to `POST /api/auth/cdp/session`.
+- [x] Linkary backend independently validates the authentication token before trusting identity data.
+- [x] Linkary server sessions use secure HTTP-only cookies, hashed session tokens, CSRF protection, logout, and revocation.
+- [x] Stable X and Telegram provider UIDs are stored separately from mutable handles.
+- [x] Handle history is preserved.
+- [x] Human accounts are not permanently typed as Creator or Project.
 
-## Frontend architecture
+## Invite-only onboarding
 
-Public production target:
+- [x] New users require a valid Linkary invitation or approved Creator Earn Access path.
+- [x] Creator first workspace receives 10 network invites.
+- [x] Company / Project first workspace receives 50 network invites.
+- [x] Creator onboarding creates a creator public profile.
+- [x] Company / Project onboarding creates an Organization, owner membership, and project public profile.
+- [x] Initial private owner bootstrap invitation exists as a single-use invitation for the first real owner account.
+- [ ] First real owner account still needs to complete registration.
+- [ ] First Superadmin grant still needs to be bootstrapped after that real user exists.
 
-- `linkary.xyz` remains the public marketing site and public profile host.
-- `linkary.xyz/{username}` remains the public profile route.
-- `app.linkary.xyz` now has a dedicated React SPA build target rather than reusing the public static prototype as the authenticated application.
-- Vite builds the authenticated app into `app/` during CI/deployment.
-- The Worker serves the React shell by hostname for `app.linkary.xyz` while preserving the existing public marketing assets on `linkary.xyz`.
-- Public marketing login/create-account controls are redirected to the real app in production.
-- `app.linkary.xyz` is explicitly noindexed.
+## Creator Earn Access
 
-The current authenticated app uses React + TypeScript + Vite + React Router and the official CDP frontend packages. Tailwind, shadcn/ui, TanStack Query, React Hook Form, Zod, Recharts, and dnd-kit remain incremental frontend additions rather than reasons to delay the working auth/onboarding milestone.
+Production flow:
 
-## Authentication and onboarding flow now represented in code
+1. Creator opens Create account.
+2. Creator chooses Creator.
+3. Creator authenticates first.
+4. Linkary creates a unique `LKY-...` claim.
+5. Linkary shows fixed approved X copy containing `@Linkaryxyz` and the claim code.
+6. `Post on X` opens X compose with the curated copy.
+7. Creator publishes the post and returns to Linkary.
+8. Creator submits the resulting X status URL.
+9. Submission enters the Superadmin review queue.
+10. Superadmin approves or rejects the claim.
+11. Approval creates a one-time Creator-only Linkary access path.
+12. Creator continues into normal onboarding and claims a Linkary username.
 
-1. User opens `app.linkary.xyz` as an existing user, through a Linkary invitation, or through Creator Earn Access.
-2. Coinbase CDP authenticates through Email OTP, Google, X, or Telegram.
-3. The frontend retrieves the CDP end-user access token.
-4. The frontend posts the token and any invite/access context to `/api/auth/cdp/session`.
-5. The backend independently validates the CDP access token with Coinbase.
-6. New Linkary users must have a valid invite or approved access path before a Linkary server session is issued.
-7. X and Telegram provider identities are synchronized against stable provider UIDs, not mutable usernames.
-8. The frontend hydrates the Linkary server session with `/api/auth/me` and `/api/onboarding/status`.
-9. First-time users choose Creator or Company / Project according to their access entitlement.
-10. The user chooses a Linkary username, the profile/org is created, initial invite credits are granted, and the user enters the authenticated dashboard.
+Current controls:
 
-## Telegram attribution model locked for V1
+- [x] Arbitrary X URLs do not automatically grant access.
+- [x] Only canonical X/Twitter status URLs are accepted as evidence.
+- [x] Duplicate post reuse is blocked by the database uniqueness constraint.
+- [x] Manual Superadmin review is the default.
+- [x] Rejection reason and review history are preserved.
+- [x] Superadmin review actions are protected by the existing server-side Superadmin grant boundary.
+- [x] Legacy arbitrary-URL Earn Access endpoint is retired.
+- [x] Automated verification is represented as an admin setting but remains disabled by default.
+- [ ] TwitterAPI.io verification provider integration is deferred until Superadmin explicitly enables and configures it.
 
-- The founder/project installs the Linkary Tracker Bot in the founder's own destination Telegram groups/channels.
-- Large third-party promotional communities do not need to install any Linkary bot.
-- Promotional communities publish the founder's Linkary tracking URL.
-- `l.linkary.xyz` records source/campaign/POC click attribution before redirecting to the founder's Telegram destination.
-- The Tracker Bot verifies joins/leaves/retention in the founder's destination community where permissions allow.
-- Telegram authentication bot and Telegram campaign Tracker Bot are separate responsibilities.
+Important rule: TwitterAPI.io is not required for launch access, referrals, invite attribution, or acquisition attribution.
 
-## Production identity/security rules
+## Superadmin
 
-- `User`, `Profile`, `Organization`, `OrganizationMembership`, `PlatformIdentity`, invites/referrals, and future billing remain separate concepts.
-- Do not introduce a permanent human `user_type=creator/project`.
-- X and Telegram reputation/history attach to immutable platform IDs, not mutable handles.
-- Never expose CDP API secrets in chat, source control, logs, or client code.
-- The Linkary backend validates CDP access tokens before mapping or creating Linkary sessions.
-- The current server API key has no trade, transfer, private-key export, or policy-management authority.
-- Superadmin remains isolated behind `admin_grants` and protected authorization checks.
-- TwitterAPI.io remains excluded from onboarding, launch access, invite validation, referral attribution, and acquisition attribution.
+- [x] `admin_grants` architecture exists.
+- [x] `/admin/*` is isolated from normal workspaces.
+- [x] Creator Earn Access review queue backend exists.
+- [x] Approve and reject actions exist.
+- [x] Verification mode setting exists.
+- [ ] First real Superadmin user grant is not yet created.
+- [ ] Full Superadmin operations dashboard beyond Creator Access review remains to be built.
 
-## Current commits of note
+Future Superadmin controls include invite operations, account moderation, reputation moderation, provider costs, referral holds, plans/contact credits, compliance, and support tools.
 
-- `8707587e4656a36995aa5ea93c0ba4b56f4627dc` - route Coinbase CDP access tokens into Linkary sessions
-- `317d92a5b5e9413dc68e2e83633bf77d5cd7f7c2` - fix CDP token validation for Cloudflare Workers bundling
-- `047c9fc0c0023b1e62ed61f38d3d54ce03273da5` - serve production shell without prototype controls
-- `b729b8144e92081a6008289e8ba2a6504605331b` - responsive authentication shell across phones and tablets
-- `87d0e14d00ddacbb168ac11f53513c11c7272b3a` - enforce invite-only access inside the CDP session bridge
-- `4e77713f42769453f97db3f314af0f420818ae48` - route Linkary invitations through CDP app authentication
-- `b980f384798ac39f3500b565284351de97b17046` - CDP social stable-identity sync and flexible first onboarding
-- `3a88a1368258abb200797d74ffa45e62ce6a38dd` - real React CDP authentication, onboarding, app shell, hostname routing, and CI build integration
+## URLs and public surfaces
 
-## CI/CD status
+- [x] `linkary.xyz` remains the marketing and public profile host.
+- [x] `app.linkary.xyz` remains the authenticated application.
+- [x] Clean `/login` and `/signup` routes are used instead of permanent hash routes.
+- [x] Public marketing CTAs route to the authenticated application.
+- [x] `app.linkary.xyz` is noindexed.
+- [x] Production prototype toolbar is removed from normal production rendering.
+- [x] Main public page contains Open Graph and Twitter card metadata.
+- [x] Published public profile pages include canonical and SEO metadata.
+- [ ] Dedicated generated 1200x630 social preview artwork should replace the current temporary brand image.
+- [ ] Dynamic profile-specific preview images remain to be built.
 
-GitHub Actions is configured for:
+## Public profiles
 
-push/merge to `main` -> install dependencies -> type-check authenticated app -> build React app -> Wrangler dry-run -> deploy only when Cloudflare repository secrets exist.
+- [x] Public `linkary.xyz/{username}` profile rendering foundation.
+- [x] Public profile JSON read model.
+- [x] Profile edit APIs.
+- [x] Profile block create, update, delete, and reorder APIs.
+- [x] Profile publish and unpublish APIs.
+- [x] Username history foundation.
+- [x] Sitemap and robots handling.
+- [ ] Real Profile Editor UI wired to these APIs.
+- [ ] Drag and drop profile editor.
+- [ ] Appearance and SEO editor.
+- [ ] Live mobile preview.
+- [ ] Creator media kit, campaign proof, reputation, Work With Me, and Linkary Score modules.
 
-The workflow for commit `3a88a1368258abb200797d74ffa45e62ce6a38dd` passed:
+## Organizations and workspaces
 
-- dependency installation
-- React/TypeScript type-check
-- Vite authenticated-app build
-- Cloudflare Wrangler dry-run, including Worker bundling
+- [x] Organization creation during Project onboarding.
+- [x] Owner membership creation.
+- [x] Organization list API.
+- [x] Archive and restore lifecycle.
+- [x] Initial workspace selector.
+- [ ] Full multi-organization workspace switching.
+- [ ] Additional project creation.
+- [ ] Team invitation and membership management.
 
-Production deployment is currently skipped because the GitHub repository does not yet contain:
+## Invites and referrals
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+- [x] Invite balance model.
+- [x] Invite ledger.
+- [x] Network invite creation with credit consumption.
+- [x] First-party invite landing and click attribution.
+- [x] Persistent privacy-conscious visitor token foundation.
+- [ ] Invite dashboard UI.
+- [ ] Registration and conversion reporting.
+- [ ] Referral quality scoring and credit refresh rules.
 
-This is a one-time GitHub/Cloudflare configuration requirement. No Cloudflare credential is to be pasted into chat or committed to Git.
+## Campaign and attribution product
 
-## Deployment note
+The next product milestone after first-user onboarding is the V1 campaign operating system.
 
-Production D1 migrations `0001_initial.sql` and `0002_cdp_auth_and_wallets.sql` are already applied. Never edit those deployed migrations. Future database changes begin with `0003_...`.
+Still to build in the official production stack:
 
-Current production values include:
+- [ ] Campaign CRUD.
+- [ ] Activity and deliverable tracking.
+- [ ] Creator, promotional community, and POC assignment.
+- [ ] Manual campaign spend and outcome entry.
+- [ ] `l.linkary.xyz` first-party redirect infrastructure.
+- [ ] Click and visitor attribution.
+- [ ] Conversion ingestion.
+- [ ] Telegram destination-community Tracker Bot.
+- [ ] Join, leave, and retention verification where Telegram permissions allow.
+- [ ] CPC, CPA, cost per join, cost per retained user, conversion, and ROI calculations.
+- [ ] Data labels: Manual, Linkary tracked, Telegram verified, Provider verified.
+- [ ] CSV export.
 
-- `PUBLIC_SITE_URL=https://linkary.xyz`
-- `APP_BASE_URL=https://app.linkary.xyz`
-- `APP_ENV=production`
+## Reputation
 
-Planned dedicated surfaces remain:
+Still to build:
 
-- `TRACKING_BASE_URL=https://l.linkary.xyz`
-- `API_BASE_URL=https://api.linkary.xyz`
-- `MCP_BASE_URL=https://mcp.linkary.xyz`
+- [ ] Manager / POC reputation entity and UI.
+- [ ] Promotional Platform reputation entity and UI.
+- [ ] Upvote and downvote system.
+- [ ] Reason tags.
+- [ ] 180 Unicode character reviews.
+- [ ] Verified campaign weighting.
+- [ ] Vote-change audit history.
+- [ ] Moderation, disputes, and anti-brigading controls.
 
-The currently live Worker remains the earlier `cdp-auth-foundation` deployment until GitHub's Cloudflare deployment secrets are configured and the successful workflow is rerun. Repository code is ahead of production.
+POC reputation and Promotional Platform reputation must remain separate.
 
-## Immediate next milestone after deployment
+## Wallet and payment safety
 
-1. Configure the two one-time GitHub Actions Cloudflare repository secrets.
-2. Deploy the passing React/CDP milestone to production.
-3. Test Email OTP, Google, X, and Telegram on the real `app.linkary.xyz` domain.
-4. Complete the first real invited owner account and verify Creator/Project onboarding against production D1.
-5. Bootstrap the first Superadmin only after the real owner user ID exists.
-6. Build the real Profile Editor and Invite dashboard on the authenticated shell.
+- [x] Embedded wallet mapping foundation exists.
+- [x] Current server credential does not have trade, transfer, private-key export, or policy-management authority.
+- [x] User-controlled wallet model remains the locked direction.
+- [ ] Subscription payment authorization is future work.
+- [ ] Creator payout authorization is future work.
+- [ ] Delegated signing is not enabled.
+
+## Immediate next milestone
+
+1. Use the one-time owner invitation to create the first real Linkary account.
+2. Confirm the real user and workspace are created in production.
+3. Bootstrap that real user with an active `superadmin` grant using a controlled database operation.
+4. Verify `/admin` and the Creator Earn Access review queue end to end.
+5. Run a real Creator Earn Access test from signup through approval and onboarding.
+6. Verify Email, Google, X, and Telegram authentication paths on production.
+7. Build the real Profile Editor UI.
+8. Build the Invite dashboard.
+9. Begin the official V1 Campaign, Activity, Tracking Link, and Result stack from the Technical Product and Engineering Paper v1.1.
 
 ## Deliberately deferred
 
-TwitterAPI.io automation, paid social-data automation, creator referral payouts, wallet payments, deep analytics, audience overlap, and Grok MCP write actions remain deferred until the primary identity/profile/campaign foundation is deployed and verified.
+TwitterAPI.io automation, paid social intelligence, creator referral payouts, wallet payments, deep analytics, audience overlap, reputation scoring automation, MCP write actions, and advanced AI intelligence remain deferred until identity, onboarding, profiles, invites, and first-party campaign attribution are production-stable.
