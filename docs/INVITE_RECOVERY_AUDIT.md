@@ -9,13 +9,15 @@ Root causes:
 
 Fixes:
 
-- Human-facing `LNK-...` codes are normalized to uppercase before hashing.
-- Migration `0004_invite_code_normalization.sql` moves the existing owner bootstrap invitation to the canonical hash without changing its privileges or usage.
+- Human-facing `LNK-...` codes are normalized before lookup.
+- The already-issued owner bootstrap code has a narrow compatibility mapping to the hash already stored in production D1. This avoids requiring broader D1 permissions on the GitHub deployment token.
 - Production HTML responses use `no-store` so new app deployments always select the current hashed frontend assets.
-- Regression tests cover case-insensitive Linkary invite hashing while preserving exact hashing for non-invite security tokens.
+- Regression tests cover case-insensitive Linkary invite handling while preserving exact hashing for non-invite security tokens.
+- The attempted D1 normalization migration was not applied and was removed. The next production schema migration number remains available.
 
 Security notes:
 
 - The bootstrap invitation remains single-use and expiry-controlled.
+- The compatibility mapping stores only hashes, not the bootstrap plaintext code.
 - No public Superadmin privilege is created by the invitation.
 - Superadmin remains a separate controlled `admin_grants` operation after a real Linkary user exists.
