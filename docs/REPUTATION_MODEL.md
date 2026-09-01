@@ -8,6 +8,20 @@ Linkary must keep reputation for the **person/manager/POC** separate from reputa
 
 A manager can represent multiple Telegram groups, X accounts, websites, media outlets, newsletters, communities, or other promotional channels. The quality of the manager and the quality of each platform must be scored independently.
 
+## Stable identity rule
+
+For platforms that expose an immutable provider identifier, Linkary must anchor identity to that provider UID rather than to a mutable username.
+
+This is especially important for:
+- X users/accounts, using the stable X user ID
+- Telegram users, groups, supergroups and channels, using the stable Telegram ID available to Linkary
+
+A handle or username is display metadata only.
+
+If the same X or Telegram UID changes from one username to another, Linkary must preserve the same underlying identity, reputation, POC history, campaign history and review history.
+
+If a previously used username is later acquired by a different UID, the new UID must be treated as a separate identity. Historical reputation must never be transferred based on the username alone.
+
 ## Core entities
 
 ### Person / Manager / POC
@@ -67,9 +81,24 @@ Founders should be able to give positive or negative feedback to both:
 
 The UI may present this as Upvote / Downvote, but the backend must preserve structured campaign-linked evidence.
 
+### 180-character short review
+
+Linkary will also support a concise written review attached to a vote.
+
+Locked rule:
+- maximum review length: **180 characters**
+- review is optional, the Upvote / Downvote may exist without text
+- review must be attached to the specific reviewed entity, either the POC/manager or promotional platform
+- a founder reviewing both a POC and a platform may leave a separate 180-character review for each
+- character count must be enforced on both client and server
+- preserve the original submitted review in the audit trail when edited or moderated
+- reviews should display their verification state, such as verified campaign, verified deal, or unverified feedback
+
+The 180-character limit is intentional. Linkary reviews should be fast to read and useful for decision-making rather than becoming long complaint threads.
+
 ### Preferred eligibility
 
-A vote should carry strongest weight when it is attached to a real Linkary campaign, activity, deal, or verified interaction.
+A vote or review should carry strongest weight when it is attached to a real Linkary campaign, activity, deal, or verified interaction.
 
 Recommended states:
 - `verified_campaign_review`
@@ -133,7 +162,7 @@ Reputation must follow stable identities whenever possible, not mutable username
 
 Examples:
 - X account reputation follows X provider UID and handle history.
-- Telegram account/community reputation should follow stable Telegram identifiers when Linkary has access to them.
+- Telegram person/group/channel reputation follows its stable Telegram identifier when Linkary has access to it.
 - Linkary stores historical handles and relationship periods.
 
 Changing a username must not automatically reset reputation.
@@ -148,7 +177,8 @@ Minimum safeguards:
 - authenticated founder/account required
 - one active vote per founder organization per reviewed entity per qualifying campaign/deal
 - campaign-linked reviews weighted higher
-- changed votes retain audit history
+- changed votes and review text retain audit history
+- server-side 180-character review limit
 - abuse / brigading detection
 - Superadmin moderation and dispute workflow
 - no public accusation labels based only on a single unverified complaint
@@ -164,6 +194,19 @@ Minimum safeguards:
 - `review_disputes`
 - `reputation_score_snapshots`
 
+Suggested `reputation_reviews` fields should include:
+- `id`
+- `reviewer_organization_id`
+- `target_type` (`poc` or `platform`)
+- `target_id`
+- `vote` (`up` or `down`)
+- `review_text` nullable, max 180 characters
+- `verification_state`
+- `campaign_id` or `deal_id` when applicable
+- `created_at`
+- `updated_at`
+- moderation/audit state
+
 The exact schema can be introduced when campaign/activity foundations are added, but current architecture must not make it difficult to add these entities later.
 
 ## UI direction
@@ -172,6 +215,7 @@ On a manager / POC page:
 - reputation summary
 - Upvote / Downvote counts
 - verified review count
+- short founder reviews, maximum 180 characters each
 - platforms currently represented
 - historical platform relationships when appropriate
 - campaign history where disclosure is allowed
@@ -181,6 +225,7 @@ On a promotional platform page:
 - current verified POCs
 - previous POCs where useful
 - founder vote summary
+- short founder reviews, maximum 180 characters each
 - delivery and performance history
 - verified reviews
 - warning / dispute state only when supported by appropriate evidence and moderation
