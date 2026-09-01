@@ -26,8 +26,9 @@ export async function createEarnedAccess(request: Request, env: Env): Promise<Re
   const now = new Date();
   const expires = new Date(now.getTime() + 30 * 60 * 1000);
   await db.run(`INSERT INTO access_post_submissions (id, user_id, submitted_x_url, grant_token_hash, status, expires_at, submitted_at, auth_verified_at, consumed_at) VALUES (?, NULL, ?, ?, 'pending', ?, ?, NULL, NULL)`, [`aps_${crypto.randomUUID().replace(/-/g, '')}`, postUrl, await sha256(rawGrant), expires.toISOString(), now.toISOString()]);
-  const apiBase = getLinkaryUrls(request, env).api;
-  return json({ access: 'earned_creator', expiresAt: expires.toISOString(), continueUrl: `${apiBase}/api/auth/x/start?grant=${encodeURIComponent(rawGrant)}&return_to=%2Fonboarding`, verification: 'manual_url_evidence_only', twitterApiIoUsed: false }, { status: 201 });
+  const appBase = getLinkaryUrls(request, env).app;
+  const params = new URLSearchParams({ grant: rawGrant, return_to: '/onboarding', method: 'x' });
+  return json({ access: 'earned_creator', expiresAt: expires.toISOString(), continueUrl: `${appBase}/login?${params.toString()}`, verification: 'cdp_x_ownership_plus_manual_post_url_evidence', twitterApiIoUsed: false }, { status: 201 });
 }
 
 export async function previewInvite(code: string, env: Env): Promise<Response> {
