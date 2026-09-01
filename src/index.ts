@@ -2,6 +2,7 @@ import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { errorResponse, json, methodNotAllowed } from './http';
 import { finishXOAuth, startXOAuth } from './auth/x';
+import { createCdpSession } from './auth/cdp';
 import { getAuthContext, requireAuth, revokeCurrentSession, verifyCsrf } from './auth/session';
 import { createEarnedAccess, previewInvite } from './routes/access';
 import { completeOnboarding, onboardingStatus } from './routes/onboarding';
@@ -16,7 +17,8 @@ function singleSegmentProfilePath(pathname: string): string | null { const parts
 
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const path=new URL(request.url).pathname;
-  if(path==='/api/health') return json({ok:true,service:'linkary',version:'phase-a-b-foundation',database:env.DB?'bound':'not-bound',urls:getLinkaryUrls(request,env)});
+  if(path==='/api/health') return json({ok:true,service:'linkary',version:'cdp-auth-foundation',database:env.DB?'bound':'not-bound',cdp:env.CDP_PROJECT_ID?'configured':'not-configured',urls:getLinkaryUrls(request,env)});
+  if(path==='/api/auth/cdp/session'){if(request.method!=='POST')return methodNotAllowed(['POST']);return createCdpSession(request,env);}
   if(path==='/api/auth/me'){if(request.method!=='GET')return methodNotAllowed(['GET']);const auth=await getAuthContext(request,env);return json({authenticated:Boolean(auth),user:auth?{id:auth.user.id,displayName:auth.user.display_name,superadmin:auth.isSuperadmin}:null});}
   if(path==='/api/auth/x/start'){if(request.method!=='GET')return methodNotAllowed(['GET']);return startXOAuth(request,env);}
   if(path==='/api/auth/x/callback'){if(request.method!=='GET')return methodNotAllowed(['GET']);return finishXOAuth(request,env);}
