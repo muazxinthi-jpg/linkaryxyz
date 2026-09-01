@@ -37,5 +37,6 @@ test('first CDP auth query self-heals migration 0002/0003 tables before lookup',
   assert.match(trace, /CREATE TABLE IF NOT EXISTS wallet_accounts/);
   assert.match(trace, /CREATE TABLE IF NOT EXISTS creator_access_claims/);
   assert.match(trace, /CREATE TABLE IF NOT EXISTS admin_settings/);
+  assert.match(trace, /INSERT OR IGNORE INTO admin_settings/);
   assert.ok(trace.indexOf('CREATE TABLE IF NOT EXISTS cdp_user_links') < trace.indexOf('FIRST:SELECT id, user_id FROM cdp_user_links'));
 });
