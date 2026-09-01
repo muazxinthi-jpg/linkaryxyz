@@ -1,6 +1,6 @@
 # Linkary implementation status
 
-The Technical Product and Engineering Paper v1.1 and `uilib.md` are the product/design sources of truth. This file records the current repository and production foundation.
+The Technical Product and Engineering Paper v1.1 and `uilib.md` are the product/design sources of truth. This file records repository state and separately identifies what is actually deployed.
 
 Fresh-start rule: legacy Linkary implementation decisions are not authoritative. Reuse only code that independently matches the current specification.
 
@@ -10,11 +10,9 @@ Fresh-start rule: legacy Linkary implementation decisions are not authoritative.
 - [x] `/api/health` runtime smoke endpoint
 - [x] Fresh-start Phase A/B D1 schema covering users, auth identities, sessions, stable platform identities, handle history, profiles, organizations, memberships, invite/access gates, Superadmin grants, invite balances, invite-click events, and audit logs
 - [x] Typed D1 access layer with explicit service-configuration failure when `DB` is not bound
-- [x] URL configuration layer for public/app/tracking/API/MCP origins without hard-coding production domains
-- [x] Legacy direct X OAuth 2.0 PKCE boundary retained temporarily behind environment configuration
+- [x] URL configuration layer for public/app/tracking/API/MCP origins
 - [x] Server-side hashed session tokens, CSRF boundary, logout/revocation, and Superadmin authorization check
 - [x] Separate Superadmin grant architecture and protected admin API boundary
-- [x] Fresh migration validated locally against SQLite
 - [x] Provision Cloudflare D1 database `linkary-db`
 - [x] Attach real `DB` D1 binding in `wrangler.jsonc`
 - [x] Apply `migrations/0001_initial.sql` to remote D1
@@ -26,26 +24,30 @@ Fresh-start rule: legacy Linkary implementation decisions are not authoritative.
 - [x] Configure dedicated `LinkaryAuthBot` Telegram authentication bot in CDP
 - [x] Configure CDP frontend/client domains for `linkary.xyz` and `app.linkary.xyz`
 - [x] Lock CDP as primary authentication + embedded-wallet provider
-- [x] Add follow-up D1 migration `0002_cdp_auth_and_wallets.sql` without rewriting deployed `0001`
-- [x] Document CDP identity separation and Telegram login/tracker bot boundaries
 - [x] Store CDP server API credentials as Cloudflare Worker secrets, never in Git
-- [x] Implement server-side Coinbase CDP end-user access-token validation
+- [x] Implement server-side Coinbase CDP end-user access-token validation using the narrow `@coinbase/cdp-sdk/auth` boundary
 - [x] Implement `POST /api/auth/cdp/session` Linkary session bridge
+- [x] Enforce Linkary invite/approved-access entitlement before a new CDP identity can receive a Linkary session
 - [x] Keep Linkary backend authoritative after CDP authentication
-- [x] Cloudflare Worker bundles with the narrow `@coinbase/cdp-sdk/auth` boundary after the x402 dependency issue
+- [x] Synchronize CDP X and Telegram authentication identities into stable `platform_identities` with handle history
 - [x] Production worker version `cdp-auth-foundation` deployed successfully
 - [x] `linkary.xyz` production domain active
 - [x] `app.linkary.xyz` production domain active
 - [x] Production `/api/health` verifies database binding and CDP configuration
-- [ ] Integrate the current official CDP Frontend SDK in the authenticated Linkary application
-- [ ] Retire direct X OAuth routes only after the CDP frontend cutover is deployed and verified
+- [x] Current official CDP frontend packages added to the authenticated React application
+- [ ] Deploy the new React/CDP frontend milestone to production
+- [ ] Retire direct X OAuth routes only after the CDP frontend cutover is deployed and verified end-to-end
 - [ ] Bootstrap the first Superadmin through a controlled database operation after owner login
 
 ## Phase B - user and profile foundation
 
 - [x] Earn Access post-URL submission, using manual X URL evidence only and zero TwitterAPI.io calls
-- [x] Network invite preview and invite-to-auth handoff foundation
+- [x] Earn Access now hands off into CDP authentication rather than legacy direct-X OAuth
+- [x] Network invite preview and first-party invite landing foundation
+- [x] Network invite landing now hands off into the CDP application and supports Email, Google, X, or Telegram authentication
 - [x] Creator vs Company/Project onboarding choice without permanent human `user_type`
+- [x] Onboarding no longer requires an X identity before a Linkary username can be claimed
+- [x] Access entitlement limits the account types a user can create, including Creator-only Earn Access
 - [x] Creator profile claim foundation
 - [x] Project/company Organization + owner membership + public profile creation foundation
 - [x] Initial invite allocation model: Creator 10, Project 50
@@ -61,35 +63,53 @@ Fresh-start rule: legacy Linkary implementation decisions are not authoritative.
 - [x] Organization archive/restore lifecycle, with no normal hard-delete path
 - [x] Invite balance read API
 - [x] Network invite creation with atomic credit consumption
-- [x] First-party invite landing route and click attribution without TwitterAPI.io
+- [x] First-party invite click attribution without TwitterAPI.io
 - [x] Privacy-conscious persistent visitor token for invite unique-click analysis
 - [x] Production shell removes the floating prototype navigation when `APP_ENV=production`
-- [x] Mobile login/create-account shell has production responsive overrides for narrow phones, safe areas, readable controls, and iOS-friendly input sizing
-- [ ] Replace the static authentication simulation with the real CDP frontend authentication UI
-- [ ] Responsive first-time onboarding screens wired to the new APIs
+- [x] Mobile authentication UI is designed mobile-first with safe areas, full-width phone layout, 52px controls, and 16px mobile inputs
+- [x] Real React + TypeScript + Vite authenticated application structure exists in `frontend/`
+- [x] Real CDP Email OTP flow implemented
+- [x] Real CDP Google OAuth flow implemented
+- [x] Real CDP X OAuth flow implemented
+- [x] Real CDP Telegram authentication flow implemented
+- [x] CDP access token is bridged to the Linkary backend and followed by `/api/auth/me`
+- [x] Responsive first-time Creator vs Company/Project onboarding UI is wired to the backend
+- [x] Initial authenticated app shell and workspace selector are implemented
+- [x] Initial authenticated routes exist for dashboard, campaigns, creators, communities, tracking, profile, invites, settings, and isolated Superadmin
 - [ ] Profile editor UI wired to the profile/block APIs
-- [ ] Workspace switcher UI wired to organizations
-- [ ] Invite dashboard UI with remaining credits, clicks, joins, and conversions
+- [ ] Full workspace switcher behavior for multiple organizations and additional projects
+- [ ] Invite dashboard with generated links, clicks, joins, conversions, and quality state
 - [ ] Team invitation/member management endpoints and UI
 - [ ] Additional project creation flow with a separately verified project platform identity
-- [ ] Handle-change synchronization and old-Linkary-slug redirect workflow
+- [ ] Old-Linkary-slug redirect workflow after profile username changes
 - [ ] Integration tests with local D1 for auth, invite redemption, onboarding, profile visibility, RBAC, and Superadmin isolation
 
-## Current frontend state
+## Frontend architecture
 
-The current public UI is still a static HTML/CSS/JavaScript product prototype. It is now treated as a temporary shell, not the target application architecture.
+Public production target:
 
-Production behavior:
+- `linkary.xyz` remains the public marketing site and public profile host.
+- `linkary.xyz/{username}` remains the public profile route.
+- `app.linkary.xyz` now has a dedicated React SPA build target rather than reusing the public static prototype as the authenticated application.
+- Vite builds the authenticated app into `app/` during CI/deployment.
+- The Worker serves the React shell by hostname for `app.linkary.xyz` while preserving the existing public marketing assets on `linkary.xyz`.
+- Public marketing login/create-account controls are redirected to the real app in production.
+- `app.linkary.xyz` is explicitly noindexed.
 
-- The public marketing design remains intact.
-- The prototype bottom switcher is stripped from production HTML by the Worker.
-- Development can retain the prototype switcher for local previewing when `APP_ENV` is not `production`.
-- Mobile authentication pages receive production-only responsive shell fixes while the real React + TypeScript application is built.
-- The static login form is still a simulation and must not be confused with the upcoming real CDP authentication implementation.
+The current authenticated app uses React + TypeScript + Vite + React Router and the official CDP frontend packages. Tailwind, shadcn/ui, TanStack Query, React Hook Form, Zod, Recharts, and dnd-kit remain incremental frontend additions rather than reasons to delay the working auth/onboarding milestone.
 
-Target frontend migration remains:
+## Authentication and onboarding flow now represented in code
 
-React + TypeScript + Vite + React Router + Tailwind + shadcn/ui + TanStack Query + React Hook Form + Zod, while preserving the existing Linkary visual language.
+1. User opens `app.linkary.xyz` as an existing user, through a Linkary invitation, or through Creator Earn Access.
+2. Coinbase CDP authenticates through Email OTP, Google, X, or Telegram.
+3. The frontend retrieves the CDP end-user access token.
+4. The frontend posts the token and any invite/access context to `/api/auth/cdp/session`.
+5. The backend independently validates the CDP access token with Coinbase.
+6. New Linkary users must have a valid invite or approved access path before a Linkary server session is issued.
+7. X and Telegram provider identities are synchronized against stable provider UIDs, not mutable usernames.
+8. The frontend hydrates the Linkary server session with `/api/auth/me` and `/api/onboarding/status`.
+9. First-time users choose Creator or Company / Project according to their access entitlement.
+10. The user chooses a Linkary username, the profile/org is created, initial invite credits are granted, and the user enters the authenticated dashboard.
 
 ## Telegram attribution model locked for V1
 
@@ -104,7 +124,7 @@ React + TypeScript + Vite + React Router + Tailwind + shadcn/ui + TanStack Query
 
 - `User`, `Profile`, `Organization`, `OrganizationMembership`, `PlatformIdentity`, invites/referrals, and future billing remain separate concepts.
 - Do not introduce a permanent human `user_type=creator/project`.
-- X and Telegram reputation/history must attach to immutable platform IDs, not mutable handles.
+- X and Telegram reputation/history attach to immutable platform IDs, not mutable handles.
 - Never expose CDP API secrets in chat, source control, logs, or client code.
 - The Linkary backend validates CDP access tokens before mapping or creating Linkary sessions.
 - The current server API key has no trade, transfer, private-key export, or policy-management authority.
@@ -113,14 +133,34 @@ React + TypeScript + Vite + React Router + Tailwind + shadcn/ui + TanStack Query
 
 ## Current commits of note
 
-- `50e348f057738f76fb2f74b3af4f4b86e9aa9cad` - fresh Phase A/B identity, auth, onboarding, SEO and public-profile foundation
-- `462745c52888c0bd900fcf8f7eb0dabd4c05ea1f` - profile editing, workspace lifecycle, invite balances, invite generation and first-party invite-click tracking
-- `7bbf39f2a5433861f58f2ff2449f3e8745ab264d` - CDP user/wallet identity migration
-- `40cc302558c2f8c88ff1075b8d49bbae22e20e50` - CDP authentication and Telegram bot architecture documentation
 - `8707587e4656a36995aa5ea93c0ba4b56f4627dc` - route Coinbase CDP access tokens into Linkary sessions
 - `317d92a5b5e9413dc68e2e83633bf77d5cd7f7c2` - fix CDP token validation for Cloudflare Workers bundling
-- `d15a09184e25e64eaea25bd295649b48c2a6f415` - production shell/mobile auth responsiveness helper
 - `047c9fc0c0023b1e62ed61f38d3d54ce03273da5` - serve production shell without prototype controls
+- `b729b8144e92081a6008289e8ba2a6504605331b` - responsive authentication shell across phones and tablets
+- `87d0e14d00ddacbb168ac11f53513c11c7272b3a` - enforce invite-only access inside the CDP session bridge
+- `4e77713f42769453f97db3f314af0f420818ae48` - route Linkary invitations through CDP app authentication
+- `b980f384798ac39f3500b565284351de97b17046` - CDP social stable-identity sync and flexible first onboarding
+- `3a88a1368258abb200797d74ffa45e62ce6a38dd` - real React CDP authentication, onboarding, app shell, hostname routing, and CI build integration
+
+## CI/CD status
+
+GitHub Actions is configured for:
+
+push/merge to `main` -> install dependencies -> type-check authenticated app -> build React app -> Wrangler dry-run -> deploy only when Cloudflare repository secrets exist.
+
+The workflow for commit `3a88a1368258abb200797d74ffa45e62ce6a38dd` passed:
+
+- dependency installation
+- React/TypeScript type-check
+- Vite authenticated-app build
+- Cloudflare Wrangler dry-run, including Worker bundling
+
+Production deployment is currently skipped because the GitHub repository does not yet contain:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+This is a one-time GitHub/Cloudflare configuration requirement. No Cloudflare credential is to be pasted into chat or committed to Git.
 
 ## Deployment note
 
@@ -138,24 +178,16 @@ Planned dedicated surfaces remain:
 - `API_BASE_URL=https://api.linkary.xyz`
 - `MCP_BASE_URL=https://mcp.linkary.xyz`
 
-The Linkary CDP project is the primary authentication and embedded-wallet provider. The current direct-X OAuth code remains only as a temporary fallback until the frontend CDP authentication flow is working end-to-end.
+The currently live Worker remains the earlier `cdp-auth-foundation` deployment until GitHub's Cloudflare deployment secrets are configured and the successful workflow is rerun. Repository code is ahead of production.
 
-See `docs/CLOUDFLARE_SETUP.md` and `docs/CDP_AUTH_ARCHITECTURE.md`.
+## Immediate next milestone after deployment
 
-## Immediate next milestone
-
-A real person visits Linkary, authenticates through CDP, Linkary validates the CDP access token, creates or loads the D1 user and wallet mapping, completes Creator or Company/Project onboarding, and lands in the real authenticated dashboard.
-
-Build order:
-
-1. Real React + TypeScript application shell.
-2. Current official Coinbase CDP frontend SDK integration.
-3. Email OTP, Google, X, and Telegram authentication states.
-4. CDP access token to `POST /api/auth/cdp/session`.
-5. Linkary session hydration through `GET /api/auth/me`.
-6. First-time Creator vs Company/Project onboarding.
-7. Real authenticated dashboard and workspace switcher.
-8. Controlled first Superadmin bootstrap only after real owner authentication.
+1. Configure the two one-time GitHub Actions Cloudflare repository secrets.
+2. Deploy the passing React/CDP milestone to production.
+3. Test Email OTP, Google, X, and Telegram on the real `app.linkary.xyz` domain.
+4. Complete the first real invited owner account and verify Creator/Project onboarding against production D1.
+5. Bootstrap the first Superadmin only after the real owner user ID exists.
+6. Build the real Profile Editor and Invite dashboard on the authenticated shell.
 
 ## Deliberately deferred
 
