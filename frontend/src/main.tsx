@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV2';
+import AuthSessionContinuity from './AuthSessionContinuity';
 import './styles.css';
 import './creator-access.css';
 
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <CDPReactProvider config={cdpConfig}>
       <BrowserRouter>
-        <App />
+        <AuthSessionContinuity>
+          <App />
+        </AuthSessionContinuity>
       </BrowserRouter>
     </CDPReactProvider>
   </StrictMode>,
