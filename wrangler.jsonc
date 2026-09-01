@@ -13,7 +13,8 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    "run_worker_first": true
   },
   "d1_databases": [
     {
