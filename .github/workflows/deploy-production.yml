@@ -44,6 +44,13 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Audit production Worker secret bindings
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          echo "Configured Worker secret names:"
+          npx wrangler secret list --config=wrangler.jsonc
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
