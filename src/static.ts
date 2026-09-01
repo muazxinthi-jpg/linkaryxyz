@@ -65,10 +65,9 @@ function isLegacyPrototype(html: string): boolean {
 function productionHtml(html: string, appBase: string): string {
   const withoutPrototypeNavigation = html.replace(/<nav class="preview-nav"[\s\S]*?<\/nav>/i, '');
   const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
-  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function go(path){window.location.href=app+path;}document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route="auth"]'):null;if(!node)return;event.preventDefault();event.stopImmediatePropagation();go(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');},true);if(window.location.hash==='#auth')go('/');if(window.location.hash==='#dashboard')go('/dashboard');if(window.location.hash==='#library')history.replaceState(null,'',window.location.pathname+window.location.search);})();</script>`;
+  const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'){history.replaceState(null,'',window.location.pathname+window.location.search);}document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route="auth"]'):null;if(!node)return;event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/?mode=signup':'/');},true);})();</script>`;
   return withoutPrototypeNavigation
-    .replace('</head>', `<style id="linkary-production-shell-fixes">${productionShellCss}</style></head>`)
-    .replace('</body>', `${redirectScript}</body>`);
+    .replace('</head>', `<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}</head>`);
 }
 
 export async function serveStatic(request: Request, env: Env): Promise<Response> {
@@ -82,6 +81,7 @@ export async function serveStatic(request: Request, env: Env): Promise<Response>
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('etag');
+  headers.set('cache-control', 'no-store');
 
   return new Response(productionHtml(source, getLinkaryUrls(request, env).app), {
     status: response.status,
