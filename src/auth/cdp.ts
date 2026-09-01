@@ -1,4 +1,4 @@
-import { CdpClient } from '@coinbase/cdp-sdk';
+import { getAuthHeaders } from '@coinbase/cdp-sdk/auth';
 import type { Env } from '../env';
 import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
@@ -13,6 +13,8 @@ type UnknownRecord = Record<string, unknown>;
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
+const CDP_API_HOST = 'api.cdp.coinbase.com';
+const CDP_VALIDATE_PATH = '/platform/v2/end-users/auth/validate-token';
 
 function requireCdpConfig(env: Env): { projectId: string; apiKeyId: string; apiKeySecret: string } {
   if (!env.CDP_PROJECT_ID) throw new ServiceConfigurationError('CDP_PROJECT_ID is not configured');
@@ -37,9 +39,8 @@ function authMethods(endUser: UnknownRecord): UnknownRecord[] {
 
 function extractVerifiedEmail(methods: UnknownRecord[]): string | null {
   for (const method of methods) {
-    const type = stringValue(method.type)?.toLowerCase();
     const email = stringValue(method.email);
-    if (type === 'email' && email) return email.toLowerCase();
+    if (email) return email.toLowerCase();
   }
   return null;
 }
@@ -71,24 +72,53 @@ function extractEvmAddresses(endUser: UnknownRecord): string[] {
   return [...addresses];
 }
 
+async function validateCdpAccessToken(accessToken: string, config: { apiKeyId: string; apiKeySecret: string }): Promise<UnknownRecord> {
+  const requestBody = { accessToken };
+  const authHeaders = await getAuthHeaders({
+    apiKeyId: config.apiKeyId,
+    apiKeySecret: config.apiKeySecret,
+    requestMethod: 'POST',
+    requestHost: CDP_API_HOST,
+    requestPath: CDP_VALIDATE_PATH,
+    requestBody,
+    source: 'linkary-worker',
+  });
+
+  const response = await fetch(`https://${CDP_API_HOST}${CDP_VALIDATE_PATH}`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify(requestBody),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new HttpError(401, 'CDP access token is invalid or expired', 'cdp_access_token_invalid');
+  }
+  if (!response.ok) {
+    throw new HttpError(502, 'CDP access-token validation service is unavailable', 'cdp_validation_failed');
+  }
+
+  const result = asRecord(await response.json());
+  if (!result) throw new HttpError(502, 'CDP returned an invalid end-user response', 'cdp_invalid_response');
+  return result;
+}
+
 export async function createCdpSession(request: Request, env: Env): Promise<Response> {
   const body = await readJson<CdpSessionBody>(request);
   const accessToken = body.accessToken?.trim();
   if (!accessToken) throw new HttpError(400, 'CDP access token is required', 'cdp_access_token_required');
 
   const config = requireCdpConfig(env);
-  const cdp = new CdpClient({ apiKeyId: config.apiKeyId, apiKeySecret: config.apiKeySecret });
 
-  let validated: unknown;
+  let endUser: UnknownRecord;
   try {
-    validated = await cdp.endUser.validateAccessToken({ accessToken });
-  } catch {
-    throw new HttpError(401, 'CDP access token is invalid or expired', 'cdp_access_token_invalid');
+    endUser = await validateCdpAccessToken(accessToken, config);
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(502, 'CDP access-token validation could not be completed', 'cdp_validation_failed');
   }
 
-  const endUser = asRecord(validated);
-  const cdpUserId = stringValue(endUser?.userId) || stringValue(endUser?.id);
-  if (!endUser || !cdpUserId) throw new HttpError(502, 'CDP returned an invalid end-user response', 'cdp_invalid_response');
+  const cdpUserId = stringValue(endUser.userId) || stringValue(endUser.id);
+  if (!cdpUserId) throw new HttpError(502, 'CDP returned an invalid end-user response', 'cdp_invalid_response');
 
   const methods = authMethods(endUser);
   const email = extractVerifiedEmail(methods);
