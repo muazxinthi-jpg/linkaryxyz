@@ -78,3 +78,23 @@ export async function removeProjectMember(request: Request, env: Env, organizati
   ]);
   return json({ ok: true });
 }
+
+export async function transferProjectOwnership(request: Request, env: Env, organizationId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  await verifyCsrf(request, env, auth);
+  const body = await readJson<{ userId?: string }>(request);
+  if (!body.userId) throw new HttpError(400, 'Choose an active Project member to transfer ownership', 'member_required');
+  if (body.userId === auth.user.id) throw new HttpError(400, 'Choose another Project member to transfer ownership', 'invalid_owner_transfer');
+  const db = new Db(requireDb(env));
+  const actor = await organizationMembership(db, auth.user.id, organizationId);
+  if (!actor || actor.role !== 'owner') throw new HttpError(403, 'Only the current Project Owner can transfer ownership', 'owner_required');
+  const target = await db.first<{ role: MemberRole }>(`SELECT role FROM organization_memberships WHERE user_id = ? AND organization_id = ? AND status = 'active'`, [body.userId, organizationId]);
+  if (!target) throw new HttpError(404, 'Active Project member not found', 'member_not_found');
+  const timestamp = now();
+  await db.batch([
+    db.statement(`UPDATE organization_memberships SET role = 'admin', billing_manager = 0, updated_at = ? WHERE user_id = ? AND organization_id = ?`, [timestamp, auth.user.id, organizationId]),
+    db.statement(`UPDATE organization_memberships SET role = 'owner', billing_manager = 1, updated_at = ? WHERE user_id = ? AND organization_id = ?`, [timestamp, body.userId, organizationId]),
+    db.statement(`INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at) VALUES (?, ?, 'user', 'project.ownership_transferred', 'organization', ?, ?, ?, ?)`, [id('aud'), auth.user.id, organizationId, organizationId, JSON.stringify({ previousOwnerUserId: auth.user.id, newOwnerUserId: body.userId, previousTargetRole: target.role }), timestamp]),
+  ]);
+  return json({ ok: true, organizationId, newOwnerUserId: body.userId });
+}
