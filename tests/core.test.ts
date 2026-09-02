@@ -106,3 +106,21 @@ test('public root explicitly fetches index.html and removes prototype controls i
   assert.equal(html.includes('class="preview-nav"'), false);
   assert.equal(html.includes('linkary-production-routing'), true);
 });
+
+test('Project registration remains official-X-only and free-form creation stays blocked', () => {
+  const onboarding = readFileSync(new URL('../src/routes/onboarding.ts', import.meta.url), 'utf8');
+  const organizations = readFileSync(new URL('../src/routes/organizations.ts', import.meta.url), 'utf8');
+  const projectAccess = readFileSync(new URL('../src/routes/projectAccess.ts', import.meta.url), 'utf8');
+
+  assert.equal(onboarding.includes('project_x_identity_required'), true);
+  assert.equal(onboarding.includes('project_handle_mismatch'), true);
+  assert.equal(onboarding.includes('A Project Linkary username must match the verified Project X handle'), true);
+  assert.equal(organizations.includes("'project_registration_required'"), true);
+  assert.equal(projectAccess.includes('searchRegisteredProjects'), true);
+  assert.equal(projectAccess.includes('requestProjectAccess'), true);
+});
+
+test('personal creator profiles are ordered ahead of managed Project workspaces', () => {
+  const onboarding = readFileSync(new URL('../src/routes/onboarding.ts', import.meta.url), 'utf8');
+  assert.equal(onboarding.includes("CASE WHEN owner_user_id = ? AND profile_type = 'creator' THEN 0"), true);
+});
