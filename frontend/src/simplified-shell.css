@@ -1,0 +1,415 @@
+/*
+ * Linkary workspace shell, simplified product hierarchy.
+ * This file intentionally overrides the legacy shell without changing
+ * authentication, onboarding, profile, campaign, or attribution behavior.
+ */
+
+/* Desktop shell */
+.app-shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+  background: #f7f7f6;
+}
+
+.app-sidebar {
+  padding: 22px 12px 18px;
+  background: #090b0d;
+}
+
+.app-sidebar .brand {
+  margin-left: 8px;
+  font-size: 19px;
+}
+
+/* Workspace should feel like context, not another settings panel. */
+.workspace-picker {
+  margin: 28px 4px 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace-picker label {
+  margin: 0 8px 7px;
+  color: #646c75;
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+
+.workspace-picker select {
+  height: 38px;
+  padding: 0 30px 0 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 8px;
+  color: #f5f6f7;
+  background: #14181d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-add {
+  display: none;
+}
+
+/* Keep the first release focused on the sections that are usable now. */
+.app-sidebar nav a[href="/creators"],
+.app-sidebar nav a[href="/communities"] {
+  display: none;
+}
+
+.app-sidebar nav {
+  gap: 2px;
+}
+
+.app-sidebar nav a,
+.admin-link {
+  min-height: 39px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #8e969f;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.app-sidebar nav a.active,
+.app-sidebar nav a:hover {
+  color: #fff;
+  background: #171b20;
+}
+
+.sidebar-user {
+  padding: 14px 8px 0;
+}
+
+/* Remove duplicate chrome and let the page content do the talking. */
+.app-topbar {
+  height: 56px;
+  padding: 0 34px;
+  border-color: #e7e7e5;
+  background: rgba(255,255,255,.92);
+}
+
+.app-topbar > div {
+  display: flex;
+  align-items: baseline;
+}
+
+.app-topbar strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app-topbar span,
+.app-topbar a {
+  font-size: 10px;
+}
+
+.app-page {
+  width: min(1180px, 100%);
+  max-width: none;
+  margin: 0 auto;
+  padding: 42px 46px 64px;
+}
+
+.page-stack {
+  gap: 18px;
+}
+
+.dashboard-hero {
+  align-items: center;
+  padding: 0 0 8px;
+}
+
+.dashboard-hero .section-label {
+  display: none;
+}
+
+.dashboard-hero h1 {
+  margin: 0 0 6px;
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -.045em;
+}
+
+.dashboard-hero p {
+  max-width: 600px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.dashboard-hero .button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+/* Two useful signals are enough on the home screen. Workspace type is already
+   obvious from the workspace picker, so the third metric is deliberately hidden. */
+.real-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.real-metrics article {
+  min-height: 104px;
+  padding: 18px 20px;
+  border: 1px solid #e1e1df;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.real-metrics article:nth-child(3) {
+  display: none;
+}
+
+.real-metrics span {
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+
+.real-metrics strong {
+  margin: 9px 0 4px;
+  font-size: 22px;
+}
+
+.real-metrics small {
+  font-size: 10px;
+}
+
+/* A single onboarding action is calmer than a three-step checklist on day one.
+   Invites and tracking remain directly accessible from navigation. */
+.command-card {
+  border-color: #e1e1df;
+  border-radius: 12px;
+}
+
+.command-card > header {
+  padding: 17px 20px 13px;
+  border-bottom: 0;
+}
+
+.command-card > header .section-label {
+  display: none;
+}
+
+.command-card h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.action-list a {
+  min-height: 60px;
+  padding: 13px 20px;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+.action-list a:nth-child(n+2) {
+  display: none;
+}
+
+.action-list > a > b,
+.action-list small {
+  display: none;
+}
+
+.action-list strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.action-list em {
+  font-size: 15px;
+}
+
+/* Give feature pages the same quieter content density. */
+.foundation-page,
+.feature-page {
+  max-width: 860px;
+}
+
+.foundation-page h1,
+.feature-page h1 {
+  font-size: 34px;
+}
+
+.foundation-box,
+.feature-form {
+  border-color: #e3e3e0;
+  box-shadow: 0 1px 2px rgba(0,0,0,.015);
+}
+
+@media (max-width: 980px) and (min-width: 721px) {
+  .app-shell {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+
+  .app-sidebar {
+    padding-inline: 10px;
+  }
+
+  .app-sidebar .brand {
+    margin-left: 7px;
+  }
+
+  .app-sidebar .brand span,
+  .workspace-picker label,
+  .workspace-picker select,
+  .app-sidebar nav a,
+  .admin-link,
+  .sidebar-user {
+    font-size: revert;
+  }
+
+  .workspace-picker {
+    min-height: 0;
+    position: static;
+  }
+
+  .workspace-picker:after,
+  .app-sidebar nav a:before,
+  .admin-link:before {
+    display: none;
+    content: none;
+  }
+
+  .workspace-picker select {
+    position: static;
+    opacity: 1;
+  }
+
+  .app-page {
+    padding: 36px 30px 54px;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    display: block;
+  }
+
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: max(10px, env(safe-area-inset-top)) 12px 8px;
+    display: grid;
+    grid-template-columns: auto minmax(120px, 1fr);
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .app-sidebar .brand {
+    margin: 0;
+  }
+
+  .app-sidebar .brand span {
+    display: none;
+  }
+
+  .workspace-picker {
+    display: block;
+    min-height: 0;
+    margin: 0;
+    position: static;
+  }
+
+  .workspace-picker label,
+  .workspace-picker:after {
+    display: none;
+  }
+
+  .workspace-picker select {
+    position: static;
+    height: 36px;
+    opacity: 1;
+    font-size: 11px;
+  }
+
+  .app-sidebar nav {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .app-sidebar nav a {
+    min-width: fit-content;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .app-sidebar nav a:before {
+    display: none;
+    content: none;
+  }
+
+  .sidebar-user,
+  .admin-link {
+    display: none;
+  }
+
+  .app-topbar {
+    display: none;
+  }
+
+  .app-page {
+    width: 100%;
+    padding: 26px 16px 44px;
+  }
+
+  .dashboard-hero {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dashboard-hero h1 {
+    font-size: 28px;
+  }
+
+  .dashboard-hero p {
+    font-size: 12px;
+  }
+
+  .real-metrics {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .real-metrics article {
+    min-height: 94px;
+    padding: 15px;
+    border-bottom: 1px solid #e1e1df;
+  }
+
+  .real-metrics strong {
+    font-size: 19px;
+  }
+
+  .command-card > header {
+    padding: 15px 16px 10px;
+  }
+
+  .action-list a {
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 430px) {
+  .real-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-hero .button {
+    width: 100%;
+  }
+}
