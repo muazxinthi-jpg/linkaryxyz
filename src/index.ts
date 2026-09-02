@@ -33,6 +33,7 @@ import { archiveOrganization, createOrganization, listOrganizations, restoreOrga
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
+import { createTrackedLink, redirectTrackedLink } from './routes/tracking';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -122,6 +123,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/invites/list') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listNetworkInvites(request, env); }
   if (path === '/api/campaigns') { if (request.method === 'GET') return listCampaigns(request, env); if (request.method === 'POST') return createCampaign(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-activities') { if (request.method === 'GET') return listActivities(request, env); if (request.method === 'POST') return createActivity(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/tracked-links') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createTrackedLink(request, env); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
@@ -191,6 +193,8 @@ async function handle(request: Request, env: Env, _ctx: ExecutionContextLike): P
 
   const inviteLanding = url.pathname.match(/^\/i\/([^/]+)$/);
   if (inviteLanding) return renderInviteLanding(request, env, decodeURIComponent(inviteLanding[1]));
+  const trackedRedirect = url.pathname.match(/^\/r\/([^/]+)$/);
+  if (trackedRedirect) return redirectTrackedLink(request, env, decodeURIComponent(trackedRedirect[1]));
 
   if (url.pathname.startsWith('/app') || url.pathname.startsWith('/admin')) {
     return Response.redirect(`${urls.app}${url.pathname.startsWith('/admin') ? url.pathname : '/'}${url.search}`, 302);
