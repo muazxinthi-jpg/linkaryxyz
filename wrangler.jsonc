@@ -10,6 +10,12 @@
     "APP_BASE_URL": "https://app.linkary.xyz",
     "APP_ENV": "production"
   },
+  "routes": [
+    {
+      "pattern": "app.linkary.xyz/*",
+      "zone_name": "linkary.xyz"
+    }
+  ],
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
