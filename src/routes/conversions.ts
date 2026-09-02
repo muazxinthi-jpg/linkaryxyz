@@ -1,6 +1,7 @@
 import type { Env } from '../env';
 import { requireDb } from '../env';
 import { Db } from '../db/client';
+import { ensureAttributionSchema } from '../db/attributionSchema';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { organizationMembership, requireOperationalProjectAccess } from './organizations';
@@ -22,6 +23,7 @@ export async function createConversion(request: Request, env: Env): Promise<Resp
   }
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const link = await db.first<{ organization_id: string; campaign_id: string | null; activity_id: string | null }>(
     'SELECT organization_id, campaign_id, activity_id FROM tracked_links WHERE id = ?',
     [body.trackedLinkId],
@@ -62,6 +64,7 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const campaign = await db.first<{ organization_id: string; name: string }>('SELECT organization_id, name FROM campaigns WHERE id = ?', [campaignId]);
   if (!campaign || !(await organizationMembership(db, auth.user.id, campaign.organization_id))) {
     throw new HttpError(403, 'Conversion access denied', 'forbidden');
@@ -149,6 +152,7 @@ export async function campaignOutcomeSummary(request: Request, env: Env): Promis
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const campaign = await db.first<{ organization_id: string }>('SELECT organization_id FROM campaigns WHERE id = ?', [campaignId]);
   if (!campaign || !(await organizationMembership(db, auth.user.id, campaign.organization_id))) {
     throw new HttpError(403, 'Campaign access denied', 'forbidden');
