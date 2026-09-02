@@ -9,8 +9,8 @@ const id = () => `psl_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
 const canonicalStatuses = new Set(['interested', 'contacted', 'negotiating', 'active', 'completed', 'not_a_fit']);
 const partnerKinds = new Set(['community_manager', 'kol_manager', 'creator', 'community', 'collaboration_manager']);
-const stageToStored: Record<string, string> = { saved: 'interested', contacted: 'contacted', in_discussion: 'negotiating', active: 'active', completed: 'completed', not_now: 'not_a_fit' };
-const stageFromStored: Record<string, string> = { interested: 'saved', contacted: 'contacted', negotiating: 'in_discussion', active: 'active', completed: 'completed', not_a_fit: 'not_now' };
+const stageToStored: Record<string, string> = { saved: 'interested', contacted: 'contacted', in_discussion: 'negotiating', approved: 'active', active: 'active', completed: 'completed', not_now: 'not_a_fit' };
+const stageFromStored: Record<string, string> = { interested: 'saved', contacted: 'contacted', negotiating: 'in_discussion', active: 'approved', completed: 'completed', not_a_fit: 'not_now' };
 function storedStage(value: string) { return stageToStored[value] || value; }
 
 export async function listProjectShortlist(request: Request, env: Env): Promise<Response> {
