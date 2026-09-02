@@ -24,6 +24,7 @@ import {
   renderSitemap,
   reorderProfileBlocks,
   updateProfile,
+  listProfileBlocks,
   updateProfileBlock,
 } from './routes/profiles';
 import { adminHealth } from './routes/admin';
@@ -119,7 +120,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateProfile(request, env, decodeURIComponent(profilePatch[1])); }
   const profileBlocks = path.match(/^\/api\/profiles\/([^/]+)\/blocks$/);
-  if (profileBlocks) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return addProfileBlock(request, env, decodeURIComponent(profileBlocks[1])); }
+  if (profileBlocks) { if (request.method === 'GET') return listProfileBlocks(request, env, decodeURIComponent(profileBlocks[1])); if (request.method === 'POST') return addProfileBlock(request, env, decodeURIComponent(profileBlocks[1])); return methodNotAllowed(['GET', 'POST']); }
   const profileBlock = path.match(/^\/api\/profiles\/([^/]+)\/blocks\/([^/]+)$/);
   if (profileBlock) {
     if (request.method === 'PATCH') return updateProfileBlock(request, env, decodeURIComponent(profileBlock[1]), decodeURIComponent(profileBlock[2]));
