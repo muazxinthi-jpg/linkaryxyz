@@ -40,6 +40,7 @@ export function ProductWorkspace({
   const nav = [
     ['/dashboard', 'Overview'],
     ['/campaigns', 'Growth'],
+    ['/tracking', 'Evidence'],
     ['/partners', 'Partners'],
     ['/profile', 'Profile'],
     ['/wallets', 'Wallets'],
