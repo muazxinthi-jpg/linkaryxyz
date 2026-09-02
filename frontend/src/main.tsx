@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV2';
 import AuthSessionContinuity from './AuthSessionContinuity';
+import UiSafetyGuard from './UiSafetyGuard';
 import './styles.css';
 import './creator-access.css';
 import './simplified-shell.css';
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
     <CDPReactProvider config={cdpConfig}>
       <BrowserRouter>
         <AuthSessionContinuity>
+          <UiSafetyGuard />
           <App />
         </AuthSessionContinuity>
       </BrowserRouter>
