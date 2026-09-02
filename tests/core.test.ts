@@ -141,7 +141,9 @@ test('growth product keeps tracking primary and Linkary execution optional', () 
   assert.equal(campaigns.includes("'tracked_elsewhere'"), true);
   assert.equal(campaigns.includes("'run_on_linkary'"), true);
   assert.equal(growth.includes('Run anywhere. Track here.'), true);
-  assert.equal(growth.includes('Campaign execution on Linkary is optional'), true);
+  assert.equal(growth.includes('Running a campaign through Linkary is optional'), true);
+  assert.equal(growth.includes('Founder growth report'), true);
+  assert.equal(growth.includes('Missing spend or outcome data'), false);
 });
 
 test('partner directory models managers, portfolios, combined audience and evidence-based overlap', () => {
@@ -151,4 +153,37 @@ test('partner directory models managers, portfolios, combined audience and evide
   assert.equal(migration.includes('telegram_community'), true);
   assert.equal(migration.includes('kol_creator'), true);
   assert.equal(migration.includes('partner_manager_audience_estimates'), true);
+});
+
+test('partner performance history stays evidence-based instead of using an opaque score', () => {
+  const migration = readFileSync(new URL('../migrations/0016_partner_performance_history.sql', import.meta.url), 'utf8');
+  const route = readFileSync(new URL('../src/routes/partnerReputation.ts', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../frontend/src/PartnerDirectoryExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(migration.includes('partner_manager_collaborations'), true);
+  assert.equal(migration.includes("evidence_source IN ('manual', 'tracked', 'verified')"), true);
+  assert.equal(route.includes("evidence_source, spend_usd, tracked_clicks"), true);
+  assert.equal(ui.includes('Manual collaboration entries are clearly labeled and never treated as verified evidence.'), true);
+  assert.equal(ui.toLowerCase().includes('reputation score'), false);
+});
+
+test('authenticated product has a shared readable responsive typography layer', () => {
+  const ux = readFileSync(new URL('../frontend/src/ux-system.css', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
+  assert.equal(main.includes("import './ux-system.css'"), true);
+  assert.equal(ux.includes('--ux-body:clamp('), true);
+  assert.equal(ux.includes('.ops-nav a{font-size:var(--ux-nav)!important;min-height:42px'), true);
+  assert.equal(ux.includes('@media(max-width:640px)'), true);
+  assert.equal(ux.includes('.ops-create-card label,.ops-modal label'), true);
+});
+
+test('primary user-facing product screens do not expose infrastructure terminology', () => {
+  const screens = [
+    '../frontend/src/GrowthExperience.tsx',
+    '../frontend/src/PartnerDirectoryExperience.tsx',
+    '../frontend/src/ProfileExperience.tsx',
+    '../frontend/src/WalletExperience.tsx',
+  ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8').toLowerCase()).join('\n');
+  for (const forbidden of ['cloudflare', 'd1 database', 'tracking_hash_salt', 'cdp_project_id', 'webhook secret']) {
+    assert.equal(screens.includes(forbidden), false, forbidden);
+  }
 });
