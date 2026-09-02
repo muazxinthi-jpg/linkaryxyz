@@ -37,6 +37,7 @@ import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
+import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
 import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
@@ -143,6 +144,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   const trackedLinkStatus = path.match(/^\/api\/tracked-links\/([^/]+)\/status$/);
   if (trackedLinkStatus) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateTrackedLinkStatus(request, env, decodeURIComponent(trackedLinkStatus[1])); }
   if (path === '/api/conversions') { if (request.method === 'GET') return listConversions(request, env); if (request.method === 'POST') return createConversion(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/network-entities') { if (request.method === 'GET') return listNetworkEntities(request, env); if (request.method === 'POST') return createNetworkEntity(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/campaign-activity-participants') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return assignNetworkEntity(request, env); }
   if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
