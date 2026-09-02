@@ -9,6 +9,7 @@ import {
 type ProfileData = {
   displayName: string;
   bio: string;
+  avatarUrl: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
   visibility: string;
@@ -61,7 +62,7 @@ function safeError(error: unknown, fallback: string) {
     return "Verify the X identity for this profile before publishing.";
   if (error.code === "forbidden")
     return "Your current role cannot edit this profile.";
-  if (error.code === "invalid_url") return "Enter a valid link URL.";
+  if (error.code === "invalid_url") return "Enter a valid HTTPS image or link URL.";
   return fallback;
 }
 function blockLabel(type: string) {
@@ -138,6 +139,7 @@ export default function ProfileExperience({
   const [data, setData] = useState<ProfileData>({
     displayName: "",
     bio: "",
+    avatarUrl: "",
     seoTitle: "",
     seoDescription: "",
     visibility: "private",
@@ -150,6 +152,7 @@ export default function ProfileExperience({
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Block | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [avatarPreviewFailed, setAvatarPreviewFailed] = useState(false);
   const [newBlock, setNewBlock] = useState({
     type: "link",
     title: "",
@@ -196,9 +199,11 @@ export default function ProfileExperience({
       setData({
         ...p.profile,
         bio: p.profile.bio || "",
+        avatarUrl: p.profile.avatarUrl || "",
         seoTitle: p.profile.seoTitle || "",
         seoDescription: p.profile.seoDescription || "",
       });
+      setAvatarPreviewFailed(false);
       setBlocks(b.blocks);
       setClicks(a.linkClicks);
     } catch {
@@ -223,6 +228,7 @@ export default function ProfileExperience({
         body: JSON.stringify({
           displayName: data.displayName,
           bio: data.bio,
+          avatarUrl: data.avatarUrl || "",
           seoTitle: data.seoTitle,
           seoDescription: data.seoDescription,
         }),
@@ -406,6 +412,7 @@ export default function ProfileExperience({
   const previewVideo = previewUrl ? directVideoPreview(previewUrl) : null;
   const previewImage = previewUrl ? youtubePreview(previewUrl) || previewUrl : null;
   const teamAvatarPreview = safeHttpsPreview(newBlock.avatarUrl);
+  const profileAvatarPreview = safeHttpsPreview(data.avatarUrl || "");
 
   return (
     <ProductWorkspace
@@ -447,9 +454,16 @@ export default function ProfileExperience({
         <section className="profile-next-grid">
           <article className="profile-identity-card">
             <div className="profile-avatar-next">
-              {(data.displayName || profile.display_name)
-                .slice(0, 1)
-                .toUpperCase()}
+              {profileAvatarPreview && !avatarPreviewFailed ? (
+                <img
+                  src={profileAvatarPreview}
+                  alt="Profile preview"
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarPreviewFailed(true)}
+                />
+              ) : (
+                (data.displayName || profile.display_name).slice(0, 1).toUpperCase()
+              )}
             </div>
             <label>
               Display name
@@ -468,6 +482,19 @@ export default function ProfileExperience({
                 maxLength={500}
                 placeholder="What should people know about you?"
               />
+            </label>
+            <label className="profile-avatar-url-field">
+              {profile.profile_type === "project" ? "Project logo" : "Profile image"}
+              <input
+                type="url"
+                value={data.avatarUrl || ""}
+                onChange={(e) => {
+                  setAvatarPreviewFailed(false);
+                  setData({ ...data, avatarUrl: e.target.value });
+                }}
+                placeholder="https://..."
+              />
+              <small>Use a secure HTTPS image URL. Leave blank to use your initial.</small>
             </label>
             <div className="profile-save-row">
               <span>
