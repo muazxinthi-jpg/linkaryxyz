@@ -50,6 +50,8 @@ export async function listNetworkInvites(request: Request, env: Env): Promise<Re
     quality_state: string | null;
     recipient_name: string | null;
     recipient_email: string | null;
+    recipient_x_handle: string | null;
+    recipient_telegram: number;
     owner_type: string | null;
     owner_id: string | null;
   }>(
@@ -68,12 +70,15 @@ export async function listNetworkInvites(request: Request, env: Env): Promise<Re
        MAX(r.quality_state) AS quality_state,
        MAX(u.display_name) AS recipient_name,
        MAX(u.email) AS recipient_email,
+       MAX((SELECT p.current_handle FROM platform_identity_links pl JOIN platform_identities p ON p.id = pl.platform_identity_id WHERE pl.user_id = r.user_id AND pl.ended_at IS NULL AND p.platform = 'x' AND p.current_handle IS NOT NULL ORDER BY p.ownership_verified_at DESC LIMIT 1)) AS recipient_x_handle,
+       MAX(CASE WHEN ai.provider = 'telegram' THEN 1 ELSE 0 END) AS recipient_telegram,
        MAX(l.owner_type) AS owner_type,
        MAX(l.owner_id) AS owner_id
      FROM invites i
      LEFT JOIN invite_click_events c ON c.invite_id = i.id
      LEFT JOIN invite_redemptions r ON r.invite_id = i.id
      LEFT JOIN users u ON u.id = r.user_id
+     LEFT JOIN auth_identities ai ON ai.user_id = r.user_id
      LEFT JOIN invite_ledger l ON l.related_invite_id = i.id AND l.transaction_type = 'use'
      WHERE i.inviter_user_id = ? OR i.inviter_organization_id IN (SELECT organization_id FROM organization_memberships WHERE user_id = ? AND status = 'active')
      GROUP BY i.id

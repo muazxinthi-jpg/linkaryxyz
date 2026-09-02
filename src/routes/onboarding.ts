@@ -144,11 +144,12 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
   if (!entitlement.allowedAccountTypes.includes(body.accountType)) {
     throw new HttpError(403, 'This access path does not allow the selected account type', 'account_type_not_allowed');
   }
-  if (!body.username) throw new HttpError(400, 'Choose your Linkary username', 'username_required');
-  const username = normalizeProfileUsername(body.username);
+  const identity = await primaryXIdentity(db, auth.user.id);
+  const username = body.accountType === 'creator' && !identity && !body.username?.trim()
+    ? `member_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+    : normalizeProfileUsername(body.username || '');
   if (isSystemRoute(username)) throw new HttpError(409, 'This username is reserved by Linkary', 'route_collision');
 
-  const identity = await primaryXIdentity(db, auth.user.id);
   if (body.accountType === 'project' && !identity) {
     throw new HttpError(403, 'Sign in with the Project’s X account to register this Project on Linkary', 'project_x_identity_required');
   }
