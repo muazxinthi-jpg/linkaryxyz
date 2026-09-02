@@ -76,10 +76,45 @@ export async function listNetworkEntities(request: Request, env: Env): Promise<R
 export async function createNetworkEntity(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
-  const body = await readJson<{ organizationId?: string; entityType?: 'creator' | 'community'; displayName?: string; handle?: string; url?: string; notes?: string }>(request);
+  const body = await readJson<{
+    organizationId?: string;
+    entityId?: string;
+    entityType?: 'creator' | 'community';
+    displayName?: string;
+    handle?: string;
+    url?: string;
+    notes?: string;
+    requestVerification?: boolean;
+  }>(request);
+  const db = new Db(requireDb(env));
+
+  if (body.entityId) {
+    const entity = await db.first<{ organization_id: string; display_name: string; primary_handle: string | null; primary_url: string | null; notes: string; verification_status: string }>(
+      'SELECT organization_id, display_name, primary_handle, primary_url, notes, verification_status FROM project_network_entities WHERE id = ?',
+      [body.entityId],
+    );
+    if (!entity) throw new HttpError(404, 'Network record not found', 'network_entity_not_found');
+    await requireOperationalProjectAccess(db, auth.user.id, entity.organization_id, true);
+    const displayName = body.displayName === undefined ? entity.display_name : body.displayName.trim().slice(0, 120);
+    if (!displayName) throw new HttpError(400, 'Name is required', 'invalid_network_entity');
+    const handle = body.handle === undefined ? entity.primary_handle : body.handle.trim().replace(/^@/, '').slice(0, 80) || null;
+    const profileUrl = body.url === undefined ? entity.primary_url : validateProfileUrl(body.url);
+    const notes = body.notes === undefined ? entity.notes : body.notes.trim().slice(0, 500);
+    let verificationStatus = entity.verification_status;
+    const identityChanged = handle !== entity.primary_handle || profileUrl !== entity.primary_url;
+    if (identityChanged && verificationStatus === 'verified') verificationStatus = 'unverified';
+    if (body.requestVerification === true && verificationStatus !== 'verified') verificationStatus = 'submitted';
+    await db.run(
+      `UPDATE project_network_entities
+          SET display_name = ?, primary_handle = ?, primary_url = ?, notes = ?, verification_status = ?, updated_at = ?
+        WHERE id = ?`,
+      [displayName, handle, profileUrl, notes, verificationStatus, now(), body.entityId],
+    );
+    return json({ ok: true, id: body.entityId, verificationStatus });
+  }
+
   if (!body.organizationId || !['creator', 'community'].includes(body.entityType || '') || !body.displayName?.trim()) throw new HttpError(400, 'Project, type, and name are required', 'invalid_network_entity');
   const profileUrl = validateProfileUrl(body.url);
-  const db = new Db(requireDb(env));
   await requireOperationalProjectAccess(db, auth.user.id, body.organizationId, true);
   const timestamp = now();
   const entityId = id('net');
@@ -89,37 +124,6 @@ export async function createNetworkEntity(request: Request, env: Env): Promise<R
     [entityId, body.organizationId, body.entityType, body.displayName.trim().slice(0, 120), body.handle?.trim().replace(/^@/, '').slice(0, 80) || null, profileUrl, body.notes?.trim().slice(0, 500) || '', auth.user.id, timestamp, timestamp],
   );
   return json({ id: entityId }, { status: 201 });
-}
-
-export async function updateNetworkEntity(request: Request, env: Env, entityId: string): Promise<Response> {
-  const auth = await requireAuth(request, env);
-  await verifyCsrf(request, env, auth);
-  const body = await readJson<{ displayName?: string; handle?: string; url?: string; notes?: string; requestVerification?: boolean }>(request);
-  const db = new Db(requireDb(env));
-  const entity = await db.first<{ organization_id: string; display_name: string; primary_handle: string | null; primary_url: string | null; notes: string; verification_status: string }>(
-    'SELECT organization_id, display_name, primary_handle, primary_url, notes, verification_status FROM project_network_entities WHERE id = ?',
-    [entityId],
-  );
-  if (!entity) throw new HttpError(404, 'Network record not found', 'network_entity_not_found');
-  await requireOperationalProjectAccess(db, auth.user.id, entity.organization_id, true);
-
-  const displayName = body.displayName === undefined ? entity.display_name : body.displayName.trim().slice(0, 120);
-  if (!displayName) throw new HttpError(400, 'Name is required', 'invalid_network_entity');
-  const handle = body.handle === undefined ? entity.primary_handle : body.handle.trim().replace(/^@/, '').slice(0, 80) || null;
-  const profileUrl = body.url === undefined ? entity.primary_url : validateProfileUrl(body.url);
-  const notes = body.notes === undefined ? entity.notes : body.notes.trim().slice(0, 500);
-  let verificationStatus = entity.verification_status;
-  const identityChanged = handle !== entity.primary_handle || profileUrl !== entity.primary_url;
-  if (identityChanged && verificationStatus === 'verified') verificationStatus = 'unverified';
-  if (body.requestVerification === true && verificationStatus !== 'verified') verificationStatus = 'submitted';
-
-  await db.run(
-    `UPDATE project_network_entities
-        SET display_name = ?, primary_handle = ?, primary_url = ?, notes = ?, verification_status = ?, updated_at = ?
-      WHERE id = ?`,
-    [displayName, handle, profileUrl, notes, verificationStatus, now(), entityId],
-  );
-  return json({ ok: true, verificationStatus });
 }
 
 export async function assignNetworkEntity(request: Request, env: Env): Promise<Response> {
