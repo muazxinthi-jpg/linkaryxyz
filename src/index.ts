@@ -24,6 +24,7 @@ import {
   renderSitemap,
   reorderProfileBlocks,
   updateProfile,
+  getEditableProfile,
   listProfileBlocks,
   updateProfileBlock,
 } from './routes/profiles';
@@ -123,7 +124,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/campaign-activities') { if (request.method === 'GET') return listActivities(request, env); if (request.method === 'POST') return createActivity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
-  if (profilePatch) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateProfile(request, env, decodeURIComponent(profilePatch[1])); }
+  if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
   const profileBlocks = path.match(/^\/api\/profiles\/([^/]+)\/blocks$/);
   if (profileBlocks) { if (request.method === 'GET') return listProfileBlocks(request, env, decodeURIComponent(profileBlocks[1])); if (request.method === 'POST') return addProfileBlock(request, env, decodeURIComponent(profileBlocks[1])); return methodNotAllowed(['GET', 'POST']); }
   const profileBlock = path.match(/^\/api\/profiles\/([^/]+)\/blocks\/([^/]+)$/);
