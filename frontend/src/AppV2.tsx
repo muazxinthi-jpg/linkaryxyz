@@ -532,6 +532,7 @@ function InviteDashboard({ profile }: { profile: ProfileSummary }) {
 
 function AdminPage() {
   const [claims, setClaims] = useState<CreatorClaim[]>([]);
+  const [users, setUsers] = useState<Array<{ id: string; email: string | null; display_name: string; status: string }>>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [reasons, setReasons] = useState<Record<string, string>>({});
@@ -539,11 +540,12 @@ function AdminPage() {
 
   async function load() {
     try {
-      const [queue, verification] = await Promise.all([
+      const [queue, verification, userList] = await Promise.all([
         apiJson<{ claims: CreatorClaim[] }>('/api/admin/creator-access?status=submitted'),
         apiJson<{ mode: string; automationAvailable: boolean }>('/api/admin/settings/creator-access-verification'),
+        apiJson<{ users: Array<{ id: string; email: string | null; display_name: string; status: string }> }>('/api/admin/users'),
       ]);
-      setClaims(queue.claims); setSetting(verification); setError('');
+      setClaims(queue.claims); setSetting(verification); setUsers(userList.users); setError('');
     } catch (err) { setError(publicError(err, 'Unable to load the review queue.')); }
   }
   useEffect(() => { void load(); }, []);
@@ -561,6 +563,7 @@ function AdminPage() {
     } catch (err) { setError(publicError(err, `Unable to ${decision} this claim.`)); }
     finally { setBusy(null); }
   }
+  async function changeUserStatus(userId: string, status: 'active' | 'suspended') { const csrf = readCookie('__Host-linkary_csrf'); if (!csrf) return; try { await apiJson(`/api/admin/users/${encodeURIComponent(userId)}/status`, { method: 'POST', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ status }) }); await load(); } catch (err) { setError(publicError(err, 'Unable to update user status.')); } }
 
   return (
     <div className="admin-review-page">
@@ -576,6 +579,7 @@ function AdminPage() {
           </article>
         ))}
       </div>
+      <section className="feature-form"><div><span className="section-label">USER MODERATION</span><h2>Network users</h2></div>{users.map((user) => <div className="link-row" key={user.id}><span><strong>{user.display_name || user.email || 'Linkary user'}</strong><small>{user.email || 'No email'} · {user.status}</small></span><button className="button secondary" disabled={busy !== null} onClick={() => void changeUserStatus(user.id, user.status === 'active' ? 'suspended' : 'active')}>{user.status === 'active' ? 'Suspend' : 'Restore'}</button></div>)}</section>
     </div>
   );
 }
