@@ -24,6 +24,9 @@ interface ProfileSummary {
   profile_type: AccountType;
   username: string;
   display_name: string;
+  bio: string;
+  seo_title: string | null;
+  seo_description: string | null;
   visibility: string;
   organization_id: string | null;
 }
@@ -469,11 +472,12 @@ function CampaignPage() {
 }
 
 function ProfileEditor({ profile }: { profile: ProfileSummary }) {
-  const [form, setForm] = useState({ displayName: profile.display_name, bio: '', seoTitle: '', seoDescription: '' });
+  const [form, setForm] = useState({ displayName: profile.display_name, bio: profile.bio || '', seoTitle: profile.seo_title || '', seoDescription: profile.seo_description || '' });
   const [blocks, setBlocks] = useState<Array<{ id: string; title: string | null; url: string | null; enabled: boolean }>>([]);
   const [newLink, setNewLink] = useState({ title: '', url: '' });
   const [message, setMessage] = useState('');
   const csrf = () => readCookie('__Host-linkary_csrf');
+  useEffect(() => { setForm({ displayName: profile.display_name, bio: profile.bio || '', seoTitle: profile.seo_title || '', seoDescription: profile.seo_description || '' }); }, [profile.id, profile.display_name, profile.bio, profile.seo_title, profile.seo_description]);
   useEffect(() => { apiJson<{ blocks: typeof blocks }>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`).then((r) => setBlocks(r.blocks)).catch(() => undefined); }, [profile.id]);
   async function save(event: React.FormEvent) { event.preventDefault(); const csrf = readCookie('__Host-linkary_csrf'); if (!csrf) { setMessage('Please sign in again.'); return; } try { await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}`, { method: 'PATCH', headers: { 'x-csrf-token': csrf }, body: JSON.stringify(form) }); setMessage('Profile saved.'); } catch (err) { setMessage(publicError(err, 'Unable to save profile.')); } }
   async function addLink(event: React.FormEvent) { event.preventDefault(); const token = csrf(); if (!token) return setMessage('Please sign in again.'); try { const r = await apiJson<{ id: string }>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`, { method: 'POST', headers: { 'x-csrf-token': token }, body: JSON.stringify({ type: 'link', title: newLink.title, url: newLink.url }) }); setBlocks([...blocks, { id: r.id, title: newLink.title, url: newLink.url, enabled: true }]); setNewLink({ title: '', url: '' }); } catch (err) { setMessage(publicError(err, 'Unable to add link.')); } }
