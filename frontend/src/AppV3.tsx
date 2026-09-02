@@ -8,7 +8,7 @@ import WalletExperience from './WalletExperience';
 import DashboardExperience from './DashboardExperience';
 import GrowthExperience from './GrowthExperience';
 import PartnerDirectoryExperience from './PartnerDirectoryExperience';
-import ProfileExperience from './ProfileExperience';
+import ProfileExperienceBeta from './ProfileExperienceBeta';
 import ProjectExperience from './ProjectExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
@@ -49,7 +49,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'growth') return <GrowthExperience me={me} status={status} />;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'partners') return <PartnerDirectoryExperience me={me} status={status} />;
-    if (experience === 'profile') return <ProfileExperience me={me} status={status} />;
+    if (experience === 'profile') return <ProfileExperienceBeta me={me} status={status} />;
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperience me={me} status={status} />;
