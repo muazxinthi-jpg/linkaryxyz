@@ -39,6 +39,7 @@ import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTracked
 import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
 import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
 import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, savePartnerManagerAsset } from './routes/partnerDirectory';
+import { partnerManagerReputation, recordPartnerManagerCollaboration } from './routes/partnerReputation';
 import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
 import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
 import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
@@ -152,6 +153,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
 
   if (path === '/api/partner-managers') { if (request.method === 'GET') return listPartnerManagers(request, env); if (request.method === 'POST') return savePartnerManager(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/partner-manager-assets') { if (request.method === 'GET') return listPartnerManagerAssets(request, env); if (request.method === 'POST') return savePartnerManagerAsset(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/partner-manager-reputation') { if (request.method === 'GET') return partnerManagerReputation(request, env); if (request.method === 'POST') return recordPartnerManagerCollaboration(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-opportunities') { if (request.method === 'GET') return listCampaignOpportunities(request, env); if (request.method === 'POST') return saveCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-opportunity-applications') { if (request.method === 'GET') return listCampaignOpportunityApplications(request, env); if (request.method === 'POST') return applyToCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
   const opportunityApplicationReview = path.match(/^\/api\/campaign-opportunity-applications\/([^/]+)$/);
@@ -169,7 +171,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (profileBlock) {
     if (request.method === 'PATCH') return updateProfileBlock(request, env, decodeURIComponent(profileBlock[1]), decodeURIComponent(profileBlock[2]));
     if (request.method === 'DELETE') return deleteProfileBlock(request, env, decodeURIComponent(profileBlock[1]), decodeURIComponent(profileBlock[2]));
-    return methodNotAllowed(['PATCH', 'DELETE']);
+    return methodNotAllowed(['GET', 'PATCH']);
   }
   const profileReorder = path.match(/^\/api\/profiles\/([^/]+)\/blocks-reorder$/);
   if (profileReorder) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reorderProfileBlocks(request, env, decodeURIComponent(profileReorder[1])); }
