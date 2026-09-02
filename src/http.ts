@@ -4,22 +4,43 @@ export class HttpError extends Error {
   }
 }
 
+function mergeHeaders(defaults: HeadersInit, provided?: HeadersInit): Headers {
+  const headers = new Headers(defaults);
+  if (!provided) return headers;
+
+  const incoming = provided instanceof Headers ? provided : new Headers(provided);
+  const getSetCookie = (incoming as Headers & { getSetCookie?: () => string[] }).getSetCookie;
+  const setCookies = typeof getSetCookie === 'function' ? getSetCookie.call(incoming) : [];
+
+  incoming.forEach((value, key) => {
+    if (key.toLowerCase() === 'set-cookie') return;
+    headers.set(key, value);
+  });
+
+  if (setCookies.length) {
+    for (const cookie of setCookies) headers.append('set-cookie', cookie);
+  } else {
+    const cookie = incoming.get('set-cookie');
+    if (cookie) headers.append('set-cookie', cookie);
+  }
+
+  return headers;
+}
+
 export function json(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: {
+  const headers = mergeHeaders(
+    {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
-      ...init.headers,
     },
-  });
+    init.headers,
+  );
+  return new Response(JSON.stringify(body), { ...init, headers });
 }
 
 export function html(body: string, init: ResponseInit = {}): Response {
-  return new Response(body, {
-    ...init,
-    headers: { 'content-type': 'text/html; charset=utf-8', ...init.headers },
-  });
+  const headers = mergeHeaders({ 'content-type': 'text/html; charset=utf-8' }, init.headers);
+  return new Response(body, { ...init, headers });
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
