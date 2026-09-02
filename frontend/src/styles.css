@@ -162,6 +162,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .link-row span { display: grid; gap: 4px; min-width: 0; }
 .link-row small { overflow: hidden; color: #858078; text-overflow: ellipsis; white-space: nowrap; }
 .add-link input { flex: 1 1 160px; min-width: 0; }
+.preset-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-actions { display: flex; align-items: center; gap: 6px; }
+.link-actions > button:not(.button) { width: 32px; height: 32px; border: 1px solid #d8d5ce; border-radius: 7px; background: #fff; cursor: pointer; }
 .app-sidebar nav { display: grid; gap: 3px; }
 .app-sidebar nav a, .admin-link { min-height: 40px; padding: 0 11px; display: flex; align-items: center; border-radius: 7px; color: #828a95; font-size: 12px; }
 .app-sidebar nav a.active, .app-sidebar nav a:hover { color: white; background: #171d24; }
