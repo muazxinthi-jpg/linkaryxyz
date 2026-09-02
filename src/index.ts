@@ -171,7 +171,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (profileBlock) {
     if (request.method === 'PATCH') return updateProfileBlock(request, env, decodeURIComponent(profileBlock[1]), decodeURIComponent(profileBlock[2]));
     if (request.method === 'DELETE') return deleteProfileBlock(request, env, decodeURIComponent(profileBlock[1]), decodeURIComponent(profileBlock[2]));
-    return methodNotAllowed(['GET', 'PATCH']);
+    return methodNotAllowed(['PATCH', 'DELETE']);
   }
   const profileReorder = path.match(/^\/api\/profiles\/([^/]+)\/blocks-reorder$/);
   if (profileReorder) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reorderProfileBlocks(request, env, decodeURIComponent(profileReorder[1])); }
