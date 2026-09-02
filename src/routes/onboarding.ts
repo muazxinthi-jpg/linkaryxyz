@@ -103,6 +103,33 @@ interface CompleteBody {
   displayName?: string;
 }
 
+async function recoverLegacyProject(
+  db: Db,
+  auth: { user: { id: string } },
+  identity: PlatformIdentityRow,
+  profile: { id: string; organization_id: string | null },
+  username: string,
+): Promise<Response> {
+  if (!profile.organization_id) throw new HttpError(409, 'This username is not a recoverable Project', 'username_claimed');
+  const linkedIdentity = await db.first<{ id: string }>(`SELECT id FROM platform_identity_links WHERE organization_id = ? AND ended_at IS NULL LIMIT 1`, [profile.organization_id]);
+  const organization = await db.first<{ verification_status: string }>(`SELECT verification_status FROM organizations WHERE id = ?`, [profile.organization_id]);
+  if (linkedIdentity || organization?.verification_status === 'verified_x') {
+    throw new HttpError(409, 'This Project is already claimed through a verified X identity', 'project_already_verified');
+  }
+  const timestamp = now();
+  await db.batch([
+    db.statement(`UPDATE organizations SET status = 'active', verification_status = 'verified_x', updated_at = ? WHERE id = ?`, [timestamp, profile.organization_id]),
+    db.statement(`UPDATE profiles SET primary_platform_identity_id = ?, verification_status = 'verified_x', updated_at = ? WHERE id = ?`, [identity.id, timestamp, profile.id]),
+    db.statement(`UPDATE organization_memberships SET role = 'admin', billing_manager = 0, updated_at = ? WHERE organization_id = ? AND status = 'active' AND role = 'owner' AND user_id != ?`, [timestamp, profile.organization_id, auth.user.id]),
+    db.statement(`INSERT INTO organization_memberships (id, user_id, organization_id, role, billing_manager, status, created_at, updated_at) VALUES (?, ?, ?, 'owner', 1, 'active', ?, ?) ON CONFLICT(user_id, organization_id) DO UPDATE SET role = 'owner', billing_manager = 1, status = 'active', updated_at = excluded.updated_at`, [id('mem'), auth.user.id, profile.organization_id, timestamp, timestamp]),
+    db.statement(`INSERT INTO platform_identity_links (id, platform_identity_id, user_id, organization_id, profile_id, link_type, verified_at, ended_at) VALUES (?, ?, ?, ?, ?, 'represents', ?, NULL)`, [id('pil'), identity.id, auth.user.id, profile.organization_id, profile.id, timestamp]),
+    db.statement(`UPDATE access_post_submissions SET status = 'consumed', consumed_at = ? WHERE user_id = ? AND status = 'authenticated'`, [timestamp, auth.user.id]),
+    db.statement(`UPDATE invite_redemptions SET chosen_account_type = 'project', organization_id = COALESCE(organization_id, ?) WHERE user_id = ? AND chosen_account_type IS NULL`, [profile.organization_id, auth.user.id]),
+    db.statement(`INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at) VALUES (?, ?, 'user', 'project.legacy_recovered_by_verified_x', 'profile', ?, ?, ?, ?)`, [id('aud'), auth.user.id, profile.id, profile.organization_id, JSON.stringify({ username, platformIdentityId: identity.id }), timestamp]),
+  ]);
+  return json({ profileId: profile.id, organizationId: profile.organization_id, username, profileType: 'project', visibility: 'private', verificationStatus: 'verified_x', recovered: true });
+}
+
 export async function completeOnboarding(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
@@ -120,9 +147,6 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
   if (!body.username) throw new HttpError(400, 'Choose your Linkary username', 'username_required');
   const username = normalizeProfileUsername(body.username);
   if (isSystemRoute(username)) throw new HttpError(409, 'This username is reserved by Linkary', 'route_collision');
-  if (await db.first<{ id: string }>(`SELECT id FROM profiles WHERE username = ?`, [username])) {
-    throw new HttpError(409, 'This Linkary username is already claimed', 'username_claimed');
-  }
 
   const identity = await primaryXIdentity(db, auth.user.id);
   if (body.accountType === 'project' && !identity) {
@@ -131,6 +155,13 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
   if (body.accountType === 'project') {
     const verifiedHandle = identity?.current_handle ? normalizeProfileUsername(identity.current_handle) : null;
     if (!verifiedHandle || username !== verifiedHandle) throw new HttpError(409, 'A Project Linkary username must match the verified Project X handle', 'project_handle_mismatch');
+  }
+  const claimedProfile = await db.first<{ id: string; profile_type: AccountType; organization_id: string | null }>(`SELECT id, profile_type, organization_id FROM profiles WHERE username = ?`, [username]);
+  if (claimedProfile) {
+    if (body.accountType === 'project' && claimedProfile.profile_type === 'project' && identity) {
+      return recoverLegacyProject(db, auth, identity, claimedProfile, username);
+    }
+    throw new HttpError(409, 'This Linkary username is already claimed', 'username_claimed');
   }
   const verificationStatus = identity ? 'verified_x' : 'pending';
   const timestamp = now();
