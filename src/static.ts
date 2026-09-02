@@ -84,6 +84,33 @@ function normalizeAssetRequest(request: Request): Request {
   return new Request(url.toString(), request);
 }
 
+function appHost(request: Request, env: Env): string | null {
+  try {
+    return new URL(env.APP_BASE_URL || new URL(request.url).origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function isAppDeepLink(request: Request, env: Env): boolean {
+  if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) return false;
+  const url = new URL(request.url);
+  const configured = appHost(request, env);
+  if (!configured || url.hostname.toLowerCase() !== configured) return false;
+  if (url.pathname === '/app/index.html') return false;
+  if (url.pathname.startsWith('/api/')) return false;
+  if (url.pathname.startsWith('/app/assets/') || url.pathname.startsWith('/assets/')) return false;
+  const last = url.pathname.split('/').filter(Boolean).pop() || '';
+  return !last.includes('.');
+}
+
+function appShellRequest(request: Request): Request {
+  const url = new URL(request.url);
+  url.pathname = '/app/index.html';
+  url.search = '';
+  return new Request(url.toString(), { method: 'GET', headers: request.headers });
+}
+
 function productionHtmlHeaders(response: Response): Headers {
   const headers = new Headers(response.headers);
   headers.delete('content-length');
@@ -95,7 +122,16 @@ function productionHtmlHeaders(response: Response): Headers {
 }
 
 export async function serveStatic(request: Request, env: Env): Promise<Response> {
-  const response = await env.ASSETS.fetch(normalizeAssetRequest(request));
+  let response = await env.ASSETS.fetch(normalizeAssetRequest(request));
+
+  // Cloudflare Static Assets returns a real 404 for SPA deep links such as
+  // /profile or /dashboard. Recover at the asset boundary so an app route can
+  // never leak that 404 to the browser, even if host routing is bypassed or
+  // refactored elsewhere in the Worker.
+  if (response.status === 404 && isAppDeepLink(request, env)) {
+    response = await env.ASSETS.fetch(appShellRequest(request));
+  }
+
   if (env.APP_ENV !== 'production' || !isHtml(response)) return response;
 
   const source = await response.text();
