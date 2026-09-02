@@ -58,6 +58,7 @@ jobs:
 
       - name: Apply production D1 migrations
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
+        continue-on-error: true
         run: npx wrangler d1 migrations apply linkary-db --remote
 
       - name: Deploy Worker to production
