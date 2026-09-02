@@ -149,6 +149,17 @@ function youtubeThumbnail(url: string | null): string | null {
   }
 }
 
+function safeDirectImageUrl(value: string | null): string | null {
+  const url = safePublicImageUrl(value);
+  if (!url) return null;
+  const path = new URL(url).pathname.toLowerCase();
+  return /\.(avif|gif|jpe?g|png|webp)(?:$|\/)/.test(path) || new URL(url).hostname === 'i.ytimg.com' ? url : null;
+}
+function isDirectVideoUrl(value: string | null): boolean {
+  if (!value) return false;
+  try { return /\.(mp4|webm|ogg)$/i.test(new URL(value).pathname); } catch { return false; }
+}
+
 async function renderPublicProfileV2(
   request: Request,
   env: Env,
@@ -169,7 +180,6 @@ async function renderPublicProfileV2(
   const blockUrl = (block: ProfileBlockRow) =>
     `${canonical}/go/${encodeURIComponent(block.id)}`;
   const socialTypes = new Set([
-    "social_link",
     "telegram",
     "youtube",
     "tiktok",
@@ -189,7 +199,7 @@ async function renderPublicProfileV2(
   );
   const isSocial = (block: ProfileBlockRow) => {
     const identity = `${block.block_type} ${block.title || ''} ${block.url || ''}`.toLowerCase();
-    return socialTypes.has(block.block_type) || ['x.com/', 'twitter.com/', 't.me/', 'linkedin.com/', 'instagram.com/', 'tiktok.com/', 'youtube.com/', 'youtu.be/', 'discord.gg/'].some((value) => identity.includes(value));
+    return socialTypes.has(block.block_type) || ['x.com/', 'twitter.com/', 't.me/', 'linkedin.com/', 'instagram.com/', 'tiktok.com/', 'youtube.com/', 'youtu.be/', 'discord.gg/', 'discord.com/'].some((value) => identity.includes(value));
   };
   const socials = blocks.filter((block) => isSocial(block) && block.url);
   const links = blocks.filter(
@@ -209,7 +219,7 @@ async function renderPublicProfileV2(
   );
   const icon = (block: ProfileBlockRow) => {
     const key = `${block.block_type} ${block.title || ""}`.toLowerCase();
-    if (key.includes("telegram")) return "✈";
+    if (key.includes("telegram")) return '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21.5 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.5l4.8 1.5 1.9 5.8c.2.6.1.8.7.8.4 0 .6-.2.8-.4l2.3-2.2 4.8 3.5c.9.5 1.5.3 1.7-.8L22.8 5c.3-1.4-.5-2-1.3-1.8Zm-11 10.7-.4 4.2-1.8-5.7L18.9 5.7 10.5 13.9Z"/></svg>';
     if (key.includes("youtube")) return "▶";
     if (key.includes("linkedin")) return "in";
     if (key.includes("instagram")) return "◎";
@@ -229,15 +239,16 @@ async function renderPublicProfileV2(
         `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || "Social link")}">${icon(block)}</a>`,
     )
     .join("");
-  const featureHtml = features
+  const featureHtml = `<style>footer{display:none}.section:has(.links:empty){display:none}</style>` + features
     .map((block, index) => {
       const config = safeJson(block.config_json) as { mediaUrl?: string };
-      const mediaUrl = safePublicImageUrl(config.mediaUrl || null);
-      const thumbnail = mediaUrl || (block.block_type === "featured_video" ? youtubeThumbnail(block.url) : null) || (block.block_type === "featured_image" ? safePublicImageUrl(block.url) : null);
-      return `<a class="feature ${index === 0 ? "hero-feature" : ""}" href="${escapeHtml(blockUrl(block))}">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<span class="feature-art">◆</span>'}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace("featured_", "FEATURED ").toUpperCase())}</small><strong>${escapeHtml(block.title || "Open featured work")}</strong><i>Explore ↗</i></span></a>`;
+      const source = config.mediaUrl || block.url;
+      const thumbnail = youtubeThumbnail(config.mediaUrl || null) || safeDirectImageUrl(config.mediaUrl || null) || (block.block_type === "featured_video" ? youtubeThumbnail(block.url) : null) || (block.block_type === "featured_image" ? safeDirectImageUrl(block.url) : null);
+      const media = isDirectVideoUrl(source) ? `<video src="${escapeHtml(source!)}" muted playsinline loop autoplay style="position:absolute;width:100%;height:100%;object-fit:cover;opacity:.78"></video>` : thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<span class="feature-art">◆</span>';
+      return `<a class="feature ${index === 0 ? "hero-feature" : ""}" href="${escapeHtml(blockUrl(block))}">${media}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace("featured_", "FEATURED ").toUpperCase())}</small><strong>${escapeHtml(block.title || "Open featured work")}</strong><i>Explore ↗</i></span></a>`;
     })
     .join("");
-  const linkHtml = linkAndHeadings
+  let linkHtml = linkAndHeadings
     .map(
       (block) =>
         block.block_type === 'heading'
@@ -246,6 +257,7 @@ async function renderPublicProfileV2(
         `<a class="link-card" href="${escapeHtml(blockUrl(block))}"><b>${icon(block)}</b><span>${escapeHtml(block.title || block.url || "Open link")}</span><i>↗</i></a>`,
     )
     .join("");
+  linkHtml = linkHtml || "<!-- no ordinary links -->";
   const teamHtml = teams
     .map(
       (block) =>
