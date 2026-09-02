@@ -43,6 +43,7 @@ export function ProductWorkspace({
     ['/tracking', 'Tracking'],
     ['/creators', 'Network'],
     ['/profile', 'Profile'],
+    ['/wallets', 'Wallets'],
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
   ];
