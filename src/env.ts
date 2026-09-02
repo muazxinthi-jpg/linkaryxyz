@@ -13,6 +13,8 @@ export interface Env {
 
   SESSION_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;
+  // Server-only salt for privacy-preserving tracking visitor pseudonyms.
+  TRACKING_HASH_SALT?: string;
 
   // Legacy direct-X OAuth boundary. Keep temporarily until the CDP cutover is
   // deployed and verified, then retire these variables and routes deliberately.
