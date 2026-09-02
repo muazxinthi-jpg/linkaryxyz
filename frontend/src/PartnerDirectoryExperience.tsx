@@ -104,6 +104,7 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
   const [listingForm, setListingForm] = useState({ displayName: '', headline: '', bio: '', xHandle: '', telegramContact: '', email: '', websiteUrl: '', estimatedUniqueAudience: '', audienceMethodology: '', openToCampaigns: true });
   const [assetForm, setAssetForm] = useState({ name: '', platform: 'X', handle: '', url: '', audienceSize: '', notes: '' });
   const [performanceForm, setPerformanceForm] = useState({ organizationId: '', campaignId: '', spendUsd: '', clicks: '', outcomes: '', valueUsd: '', occurredAt: new Date().toISOString().slice(0, 10), notes: '' });
+  const [shortlistProjectId, setShortlistProjectId] = useState('');
 
   const myListing = useMemo(() => personalProfile ? managers.find((manager) => manager.profile_id === personalProfile.id && manager.manager_type === type) : undefined, [managers, personalProfile?.id, type]);
   const writableProjects = useMemo(() => projects.filter(writable), [projects]);
@@ -138,6 +139,11 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
       ]);
       setAssets(assetResult.assets);
     } catch { setMessage('Portfolio details are temporarily unavailable.'); }
+  }
+  async function shortlistSelected() {
+    const token = csrf(); if (!token || !selected || !shortlistProjectId) return;
+    try { await api('/api/project-partner-shortlists', { method: 'POST', headers: { 'x-csrf-token': token }, body: JSON.stringify({ organizationId: shortlistProjectId, partnerManagerId: selected.id, partnerKind: selected.manager_type }) }); setMessage(`${selected.display_name} saved to the Project shortlist.`); }
+    catch (error) { setMessage(error instanceof ApiError && error.code === 'partner_already_shortlisted' ? 'This partner is already on the Project shortlist.' : 'This partner could not be saved to the Project shortlist.'); }
   }
 
   function openListingEditor() {
@@ -247,6 +253,7 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
         {selected.overlap_rate !== null && <div className="partner-evidence-note">Unique audience estimate: {human(selected.audience_confidence || 'manual')}. {selected.audience_methodology || 'Methodology not supplied.'}</div>}
         <div className="partner-contact-row">{selected.x_handle && <a href={`https://x.com/${selected.x_handle}`} target="_blank" rel="noreferrer">X @{selected.x_handle}</a>}{selected.telegram_contact && <a href={selected.telegram_contact.startsWith('http') ? selected.telegram_contact : `https://t.me/${selected.telegram_contact.replace(/^@/,'')}`} target="_blank" rel="noreferrer">Telegram</a>}{selected.email && <a href={`mailto:${selected.email}`}>Email</a>}{selected.website_url && <a href={selected.website_url} target="_blank" rel="noreferrer">Website</a>}</div>
 
+        {writableProjects.length > 0 && <section className="partner-shortlist-action"><div><span className="ops-kicker">PROJECT SHORTLIST</span><strong>Save this partner for a Project</strong><small>Private notes and collaboration status stay inside the selected Project.</small></div><div><select value={shortlistProjectId} onChange={(event) => setShortlistProjectId(event.target.value)}><option value="">Select Project</option>{writableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button className="ops-button secondary" disabled={!shortlistProjectId} onClick={() => void shortlistSelected()}>Save to shortlist</button></div></section>}
         <section className="partner-performance">
           <div className="partner-performance-title"><div><h3>Performance history</h3><span className={`partner-evidence-level ${reputation.summary.evidence_level}`}>{reputation.summary.evidence_level === 'none' ? 'No evidence yet' : `${human(reputation.summary.evidence_level)} evidence`}</span></div>{writableProjects.length > 0 && <button className="ops-button small" onClick={() => void openPerformanceEditor()}>+ Add result</button>}</div>
           <div className="partner-performance-metrics"><div><span>COLLABORATIONS</span><strong>{reputation.summary.collaborations}</strong></div><div><span>PROJECTS</span><strong>{reputation.summary.projects}</strong></div><div><span>CLICKS</span><strong>{reputation.summary.tracked_clicks.toLocaleString()}</strong></div><div><span>OUTCOMES</span><strong>{reputation.summary.outcomes.toLocaleString()}</strong></div><div><span>ATTRIBUTED VALUE</span><strong>{money(reputation.summary.attributed_value_usd)}</strong></div></div>
