@@ -35,8 +35,8 @@ import { archiveOrganization, createOrganization, listOrganizations, restoreOrga
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
-import { createTrackedLink, listTrackedLinks, redirectTrackedLink } from './routes/tracking';
-import { campaignOutcomeSummary, createConversion } from './routes/conversions';
+import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
+import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
 import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
@@ -140,7 +140,9 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/campaigns') { if (request.method === 'GET') return listCampaigns(request, env); if (request.method === 'POST') return createCampaign(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-activities') { if (request.method === 'GET') return listActivities(request, env); if (request.method === 'POST') return createActivity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/tracked-links') { if (request.method === 'GET') return listTrackedLinks(request, env); if (request.method === 'POST') return createTrackedLink(request, env); return methodNotAllowed(['GET', 'POST']); }
-  if (path === '/api/conversions') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createConversion(request, env); }
+  const trackedLinkStatus = path.match(/^\/api\/tracked-links\/([^/]+)\/status$/);
+  if (trackedLinkStatus) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateTrackedLinkStatus(request, env, decodeURIComponent(trackedLinkStatus[1])); }
+  if (path === '/api/conversions') { if (request.method === 'GET') return listConversions(request, env); if (request.method === 'POST') return createConversion(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
