@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSignOut } from '@coinbase/cdp-hooks';
+import './workspace-mobile.css';
 
 export type AccountType = 'creator' | 'project';
 export type ProductMe = { authenticated: boolean; user: { id: string; displayName: string; superadmin: boolean } | null };
