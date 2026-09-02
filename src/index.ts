@@ -34,6 +34,7 @@ import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLa
 import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, redirectTrackedLink } from './routes/tracking';
+import { campaignOutcomeSummary, createConversion } from './routes/conversions';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -124,6 +125,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/campaigns') { if (request.method === 'GET') return listCampaigns(request, env); if (request.method === 'POST') return createCampaign(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-activities') { if (request.method === 'GET') return listActivities(request, env); if (request.method === 'POST') return createActivity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/tracked-links') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createTrackedLink(request, env); }
+  if (path === '/api/conversions') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createConversion(request, env); }
+  if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
