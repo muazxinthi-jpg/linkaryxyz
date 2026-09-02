@@ -28,7 +28,7 @@ import {
   listProfileBlocks,
   updateProfileBlock,
 } from './routes/profiles';
-import { adminHealth } from './routes/admin';
+import { adminHealth, listAdminUsers, setAdminUserStatus } from './routes/admin';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
@@ -146,6 +146,9 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (profileUnpublish) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return publishProfile(request, env, decodeURIComponent(profileUnpublish[1]), false); }
 
   if (path === '/api/admin/health') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return adminHealth(request, env); }
+  if (path === '/api/admin/users') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listAdminUsers(request, env); }
+  const adminUser = path.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
+  if (adminUser) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return setAdminUserStatus(request, env, decodeURIComponent(adminUser[1])); }
   if (path === '/api/admin/creator-access') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listCreatorAccessClaims(request, env); }
   const approveClaim = path.match(/^\/api\/admin\/creator-access\/([^/]+)\/approve$/);
   if (approveClaim) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return approveCreatorAccessClaim(request, env, decodeURIComponent(approveClaim[1])); }
