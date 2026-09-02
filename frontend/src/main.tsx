@@ -13,6 +13,9 @@ import './network.css';
 import './invites.css';
 import './wallets.css';
 import './dashboard-next.css';
+import './profile-next.css';
+import './growth.css';
+import './partners.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
