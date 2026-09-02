@@ -89,6 +89,16 @@ test('app host serves the React shell for signup deep links', async () => {
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
 });
 
+test('app host serves the React shell for authenticated product deep links', async () => {
+  for (const pathname of ['/dashboard', '/campaigns', '/tracking', '/partners', '/profile', '/wallets', '/invites', '/settings']) {
+    const { env, requestedPaths } = makeEnv();
+    const response = await worker.fetch(new Request(`https://app.linkary.xyz${pathname}`), env, ctx);
+    assert.equal(response.status, 200, pathname);
+    assert.deepEqual(requestedPaths, ['/app/index.html'], pathname);
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow', pathname);
+  }
+});
+
 test('legacy app subdirectory canonicalizes to app host root without a loop', async () => {
   const { env, requestedPaths } = makeEnv();
   const response = await worker.fetch(new Request('https://app.linkary.xyz/app/'), env, ctx);
@@ -123,4 +133,22 @@ test('Project registration remains official-X-only and free-form creation stays 
 test('personal creator profiles are ordered ahead of managed Project workspaces', () => {
   const onboarding = readFileSync(new URL('../src/routes/onboarding.ts', import.meta.url), 'utf8');
   assert.equal(onboarding.includes("CASE WHEN owner_user_id = ? AND profile_type = 'creator' THEN 0"), true);
+});
+
+test('growth product keeps tracking primary and Linkary execution optional', () => {
+  const campaigns = readFileSync(new URL('../src/routes/campaigns.ts', import.meta.url), 'utf8');
+  const growth = readFileSync(new URL('../frontend/src/GrowthExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(campaigns.includes("'tracked_elsewhere'"), true);
+  assert.equal(campaigns.includes("'run_on_linkary'"), true);
+  assert.equal(growth.includes('Run anywhere. Track here.'), true);
+  assert.equal(growth.includes('Campaign execution on Linkary is optional'), true);
+});
+
+test('partner directory models managers, portfolios, combined audience and evidence-based overlap', () => {
+  const migration = readFileSync(new URL('../migrations/0015_partner_directory_and_opportunities.sql', import.meta.url), 'utf8');
+  assert.equal(migration.includes('partner_managers'), true);
+  assert.equal(migration.includes('partner_manager_assets'), true);
+  assert.equal(migration.includes('telegram_community'), true);
+  assert.equal(migration.includes('kol_creator'), true);
+  assert.equal(migration.includes('partner_manager_audience_estimates'), true);
 });
