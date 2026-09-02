@@ -1,290 +1,249 @@
 # Linkary Codex Next Build
 
-Date: 2026-09-02
+Updated: 2026-09-02
 
-This file is the current implementation handoff for the next engineering batch. Read `IMPLEMENTATION_STATUS.md`, `uilib.md`, and the Linkary Technical Product & Engineering Paper v1.1 as the product/design sources of truth. Do not redesign the architecture from scratch.
+This handoff reflects the current repository. Read `IMPLEMENTATION_STATUS.md`, `uilib.md`, and the Linkary Technical Product & Engineering Paper v1.2 before changing architecture.
 
-## Confirmed production state
+Do not rebuild features marked complete in `IMPLEMENTATION_STATUS.md`.
 
-- `linkary.xyz` is the public marketing/profile host.
-- `app.linkary.xyz` is the authenticated React + TypeScript app.
-- Cloudflare Worker `linkary-xyz` deploys from GitHub `main` through GitHub Actions.
-- Production D1 is `linkary-db`, binding `DB`.
-- CDP authentication is working in production.
-- A real production user successfully authenticated with X, redeemed the bootstrap invite, completed Creator onboarding, claimed `linkary.xyz/muazxinthi`, received 10 creator invite credits, and reached `/dashboard`.
-- The auth loop was fixed by preserving both `Set-Cookie` headers from `POST /api/auth/cdp/session`. Do not regress this.
-- Human `LNK-...` invite codes are case-insensitive. Non-invite security tokens remain exact/case-sensitive.
-- Creator Earn Access is manual-review-first and does not depend on TwitterAPI.io.
+## Current Beta product
 
-## Owner / Superadmin bootstrap
+Linkary is now substantially beyond the old onboarding prototype.
 
-The real owner account is the Creator profile with username `muazxinthi` and X identity `@muazxinthi`.
+Implemented product surfaces include:
 
-Superadmin must remain a separate controlled `admin_grants` operation. Do not create a public admin signup route, magic admin URL, or invite code that grants admin rights.
+- invite-only onboarding and Creator Earn Access
+- Creator and verified Project public profiles
+- verified X avatar synchronization
+- profile completion guidance
+- Media Kit and Work With Me / collaboration CTAs
+- drag-and-drop profile ordering and mobile preview
+- automatic Creator Campaign Proof and Project Growth Proof
+- open Project campaign opportunities on public profiles
+- Project search, role requests, approvals, team roles and ownership transfer
+- workspace switching across Creator / Project relationships
+- Inbox action center
+- invite dashboard and attribution
+- campaigns, activities, tracked links, clicks, outcomes and growth reports
+- Partner directory, shortlists and Project network
+- campaign opportunity applications
+- Linkary wallet plus optional EVM/Solana reward destinations
 
-After the one-time grant exists, verify `/admin` and the Creator Earn Access review queue for this account.
+The next engineering phase is **Beta acceptance and bug fixing**, not broad new feature development.
 
-## Immediate product problem visible after first login
+## Locked identity rule
 
-The current authenticated dashboard is only a foundation. A user who joined first as a Creator cannot yet do enough useful work.
+Do not regress this:
 
-A human account is NOT permanently a Creator or Project account. The user must be able to:
+- A human account is not permanently typed as Creator or Project.
+- A Creator can belong to many Project organizations through roles.
+- A Project itself must be registered/claimed through the Project's official verified X identity.
+- The Project Linkary username must match the verified Project X handle.
+- A personal Creator account must not free-form create or impersonate a Project.
+- People manage Projects through Owner, Admin, Campaign Manager, Analyst and Viewer roles.
 
-- own a Creator profile,
-- create one or more Project/Company organizations later,
-- belong to/manage multiple organizations,
-- switch workspaces without creating a second human login.
+If a Creator cannot find a Project, the correct flow is for the Project to register with its official X identity first, then the person requests/receives a role.
 
-The first Creator-vs-Project choice only decides the first workspace.
+## Beta acceptance order
 
-## Build order
+### 1. Production migrations
 
-### 1. Complete Superadmin control plane for onboarding
+Verify the protected production D1 migration state.
 
-Build/finish the real `/admin` UI, authorized only by `admin_grants.role = superadmin`.
+Apply pending versioned migrations through the controlled migration workflow. In particular verify:
 
-First required admin screen:
+- `0017_project_partner_shortlists.sql`
+- `0018_verified_x_profile_avatars.sql`
 
-- Creator Earn Access queue
-- Submitted X URL
-- Claim code
-- submitted time
-- creator identity information available from authenticated account
-- Approve
-- Reject + reason
-- audit history
-- verification setting
+Never rewrite a migration already deployed.
 
-Manual review is the default.
+### 2. Authentication acceptance
 
-Add a Superadmin setting for Creator Earn Access verification mode:
-
-- `manual` default
-- future `twitterapi_io`
-
-TwitterAPI.io must remain disabled unless Superadmin explicitly configures/enables it. Do not require TwitterAPI.io for invite attribution, launch access, referral attribution, or X post submission.
-
-### 2. Multi-workspace / Project creation
-
-This is the highest-priority user-facing feature after Superadmin.
-
-A Creator user must be able to click something like `Create workspace` / `Add Project` and create a Company / Project without another login.
-
-Implement:
-
-- Create additional Organization
-- current user becomes Owner
-- create corresponding Project public profile
-- claim project Linkary username
-- allocate initial 50 Project network invites for the first created project workspace according to locked rules
-- workspace switcher listing Creator profile + organizations
-- selected workspace persists
-- route/dashboard context follows selected workspace
-- organization archive/restore remains supported
-
-Do not add a permanent `user_type`.
-
-### 3. Real Profile Editor
-
-Wire the existing profile APIs to a real UI.
-
-Minimum V1:
-
-- avatar/logo
-- display name
-- bio
-- username state
-- social links
-- custom links
-- blocks
-- enable/disable blocks
-- reorder blocks
-- visibility
-- publish/unpublish
-- SEO title/description
-- desktop editor + mobile preview
-- responsive mobile UI
-
-Then expand toward Linktree + Media Kit + Campaign Proof + Reputation + Work With Me + Linkary Score.
-
-### 4. Invite Dashboard
-
-The user currently sees only a balance number. Build the actual invite product.
-
-Show:
-
-- available credits
-- lifetime granted
-- lifetime used
-- active invite links/codes
-- create new invite
-- Creator / Project allowed target
-- clicks
-- registrations
-- redemption status
-- later quality state
-
-Creator initial allocation: 10.
-Project initial allocation: 50.
-Team invitations do not consume network invite credits.
-Credits are not automatically unlimited.
-
-### 5. Production authentication acceptance pass
-
-Before broad onboarding, test and fix all paths:
+Use real separate accounts and test:
 
 - Email OTP
 - Google
 - X
 - Telegram
-- login when already authenticated
-- signup when already authenticated
-- invite URL across redirect/reload
+- existing session -> login
+- existing session -> signup
 - logout
-- expired/revoked invite
+- invite URL across redirect/reload
+- expired invite
+- revoked invite
 - consumed invite
-- mobile and tablet
+- desktop and mobile
 
-Never expose CDP, access-token, TwitterAPI.io, server secret, or internal provider implementation terminology in customer-facing UI. Public wallet wording may say `Coinbase Wallet` where relevant.
+Do not expose CDP/provider/server-token terminology in customer UI.
 
-### 6. Creator Earn Access real-world acceptance test
+### 3. Creator Earn Access acceptance
 
-Run with a second real creator account:
+Run a second real Creator through:
 
-Creator -> Create account -> Creator Earn Access -> authenticate -> Linkary generates unique claim -> `Post on X` opens curated X compose -> user publishes -> submits status URL -> submission appears in Superadmin queue -> Superadmin approves -> creator receives access -> onboarding -> profile -> 10 invites.
+Create account -> Creator Earn Access -> authenticate -> generated `LKY-...` claim -> curated X post -> submit canonical X status URL -> Superadmin queue -> approve -> onboarding -> Creator profile -> 10 invite credits.
 
-Required fixed curated post rules:
+Validate:
 
 - official `@Linkaryxyz` tag
-- unique `LKY-...` claim code
-- no arbitrary creator copy for the access claim
-- only X/Twitter status URLs accepted
-- duplicate post reuse blocked
-- submission does not auto-grant access in manual mode
+- unique claim code
+- only X/Twitter status URLs
+- duplicate-post protection
+- no auto-grant while manual mode is enabled
+- rejection reason and retry behavior
 
-### 7. Campaign + Activity + Attribution V1
+TwitterAPI.io remains optional/deferred and must not become a dependency for launch access or referral attribution.
 
-After onboarding/profile/invites are stable, build the actual Linkary product.
+### 4. Real Project registration acceptance
 
-Create new migrations only. Never rewrite deployed migrations.
+Use a second Project's official X account.
 
-Core entities/features:
+Validate:
 
-- Campaign CRUD
-- Activity / deliverable records
-- Creator assignment
-- Promotional Community assignment
-- Manager / POC assignment
-- platform
-- spend
-- promised reach
-- actual reach
-- views
-- likes
-- shares
-- clicks
-- joins
-- conversion
-- revenue
-- retention where known
-- data provenance label
+- Project registers only through verified X identity
+- Linkary username equals Project X handle
+- Organization is created
+- Owner membership is created
+- Project public profile is created
+- 50 Project invite credits are allocated for first Project onboarding
+- Project avatar/logo syncs from verified X where available
+- public profile can be completed and published
 
-Labels:
+### 5. Creator -> Project relationship acceptance
 
-- Manual
-- Linkary tracked
-- Telegram verified
-- Provider verified
+With separate human accounts:
 
-### 8. `l.linkary.xyz` first-party tracking
+Creator -> Projects -> search verified Project -> request Campaign Manager/Analyst/Viewer/Admin -> Project Owner/Admin sees Inbox -> approve/reject -> Creator refreshes -> Project workspace appears -> role permissions match backend rules.
 
-Implement first-party redirect/tracking infrastructure.
+Validate:
 
-Tracked link should resolve:
+- Admin cannot approve another Admin
+- Owner can approve Admin
+- Owner/Admin can add existing Linkary members directly
+- Owner/Admin cannot alter protected Owner membership through normal role controls
+- ownership transfer demotes old Owner to Admin and promotes selected active member to Owner
 
-campaign + activity + source identity/community/POC -> record privacy-conscious click/visitor event -> append UTMs where appropriate -> immediate redirect to destination.
+### 6. Invite attribution acceptance
 
-Do not use TwitterAPI.io for this.
+Test:
 
-Then add conversion ingestion and campaign result aggregation.
+Creator/Project creates invite -> recipient clicks -> signup -> registration -> correct inviter attribution -> balance consumed -> dashboard shows clicks/registration/recipient state -> unused invite revoke returns credit.
 
-### 9. Telegram Tracker Bot
+Do not use TwitterAPI.io for this loop.
 
-Keep responsibilities separate:
+### 7. Core Linkary evidence loop
 
-- `LinkaryAuthBot` = authentication only
-- Linkary Tracker Bot = campaign attribution
+Run the full flow with real test data:
 
-A promotional Telegram community does NOT need to install the Tracker Bot.
-It posts an `l.linkary.xyz/...` link.
-The founder/project installs the Tracker Bot in the founder's destination community/channel.
-Track joins/leaves/retention where Telegram permissions allow.
+Project -> Campaign -> Activity -> Partner -> Tracking Link -> Click -> Outcome -> Growth Report -> Public Growth Proof.
 
-### 10. Reputation, billing, intelligence later
+Validate:
 
-After campaign attribution works end to end:
+- destination redirect works immediately
+- click counts increment exactly once per stored event
+- outcomes attach to the correct campaign/activity/link where supplied
+- evidence confidence/source is preserved
+- report calculations do not invent spend, conversions, outcomes or attributed value
+- CSV output matches the on-screen report
+- manual outcome/value records never appear as verified public Project proof
 
-- POC reputation
-- Promotional Platform reputation
-- verified campaign reviews
-- Creator campaign history
-- Creator Score
-- referral quality scoring
-- billing/subscriptions
-- referral revenue ledger
-- provider cost ledger
-- advanced intelligence
+### 8. Creator campaign opportunity loop
 
-POC reputation and Promotional Platform reputation must remain separate.
+Project -> Campaign -> publish Opportunity -> public Project profile shows open opportunity -> Creator applies -> Project Inbox receives application -> Project accepts/rejects -> accepted relationship appears in Creator Campaign Proof when applicable.
 
-## UX requirements
+### 9. Public profile acceptance
 
-Treat onboarding and dashboard UX as a first-class product problem.
+Test both Creator and Project profiles:
 
-- no dead ends
-- no raw provider errors
-- no duplicate login/signup confusion
-- never ask the user to repair authentication state manually
-- one obvious primary action per onboarding screen
-- desktop, tablet, and mobile must all be intentionally designed
-- no prototype/debug navigation in production
-- no em dash in user-facing copy
-- use `uilib.md` visual language
+- verified X avatar/logo
+- custom image override
+- socials
+- featured media
+- Media Kit
+- Work With Me / collaboration CTA
+- Project/Community cards
+- Team cards
+- drag/reorder
+- hide/show
+- SEO title/description
+- publish/unpublish
+- canonical URL
+- share metadata
+- Creator Campaign Proof
+- Project Growth Proof
+- open Project Opportunities
 
-Dashboard must become a command center, not an analytics dump.
+Never add editable fake proof metrics.
 
-For a Creator, likely next actions include completing profile, publishing profile, creating invites, and creating a Project workspace.
-For a Project, likely next actions include completing project profile, creating first campaign, adding activities/partners, and generating tracking links.
+### 10. Mobile acceptance
+
+Test at minimum:
+
+- 320px
+- 375px
+- 390px
+- 430px
+- tablet
+- desktop
+
+Primary phone nav intentionally shows:
+
+- Overview
+- Inbox
+- Growth
+- Profile
+- Invites
+- Projects
+
+Evidence, Partners and Wallets remain accessible from relevant flows without overcrowding the bottom nav.
+
+## Bug-fix priorities
+
+During acceptance, fix in this order:
+
+1. authentication/session blockers
+2. onboarding dead ends
+3. permission/security errors
+4. incorrect attribution/evidence
+5. data loss or duplicate writes
+6. mobile usability blockers
+7. confusing empty/error states
+8. cosmetic polish
+
+Do not start Alchemy automation, Telegram Tracker Bot automation, reputation voting, AI recommendations, billing or payouts while a P0/P1 acceptance bug remains open.
 
 ## Security rules
 
 - backend remains authority
-- validate CDP access token server-side
+- validate CDP access tokens server-side
 - preserve secure Linkary session cookies and CSRF protection
 - never trust client-supplied user IDs
-- no public privilege-escalation route
-- no server wallet authority for trade/transfer/export/manage policies
+- no public privilege escalation
 - stable X/Telegram provider UID is canonical, not mutable username
+- Project identity remains tied to verified Project X ownership
+- no server authority for wallet trade, transfer, private-key export or policy management
+- additional EVM/Solana wallet destinations do not connect those wallets to Linkary
 - do not expose secrets
-- do not rewrite migrations already deployed
+- do not rewrite deployed migrations
 
-## CI / deployment
+## CI and deployment
 
-- PRs: tests + TypeScript + Wrangler dry-run, no production deployment
-- `main`: tests + TypeScript + dry-run + Cloudflare deployment
-- do not automatically apply production D1 migrations until the migration deployment strategy is explicitly approved
+- Pull requests: regression tests + frontend TypeScript + Wrangler dry-run, no production deployment.
+- `main`: verification + Cloudflare production deployment.
+- Production D1 migrations stay controlled and are not silently auto-applied by normal app deploys.
 
-## Definition of next milestone complete
+## Definition of Beta-ready
 
-Do not call the next milestone complete until all are true:
+Do not call broad Creator/Project onboarding ready until all are true:
 
-1. `muazxinthi` is Superadmin through `admin_grants`.
-2. `/admin` Creator Access queue works.
-3. Creator can create a Project workspace from the same human account.
-4. Workspace switcher works.
-5. Profile Editor works.
-6. Invite Dashboard works.
-7. A second real Creator completes Earn Access through Superadmin approval.
-8. Email, Google, X, and Telegram login are acceptance-tested.
+1. protected production migrations are current
+2. Email, Google, X and Telegram auth pass real-account acceptance
+3. second real Creator completes Earn Access
+4. second real Project completes official-X registration
+5. Creator -> Project request/approval/role switching passes with separate users
+6. invite attribution passes end to end
+7. core campaign evidence loop passes end to end
+8. opportunity/application loop passes end to end
+9. Creator and Project public profiles pass mobile/share acceptance
+10. no open P0 security, auth, permission, attribution or data-integrity bug remains
 
-Then begin Campaign + Activity + `l.linkary.xyz` attribution as the next milestone.
+After that, begin controlled Beta onboarding. Only then revisit deferred automation and intelligence features.
