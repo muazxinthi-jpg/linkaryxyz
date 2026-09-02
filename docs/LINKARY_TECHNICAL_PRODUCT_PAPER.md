@@ -115,7 +115,7 @@ The long-term value is historical intelligence, not merely a contact list. Linka
 
 ## 6. Partner Directory
 
-Linkary also maintains a cross-Project Partner Directory for discoverable points of contact.
+Linkary maintains a cross-Project Partner Directory for discoverable points of contact.
 
 Initial manager types:
 
@@ -202,7 +202,44 @@ If no defensible unique-audience estimate exists, the UI shows `Not measured` ra
 
 Future integrations may improve overlap estimation using consented/available platform analytics, first-party click identities, Telegram attribution, wallet/onchain correlation or other privacy-safe signals.
 
-## 8. Optional Linkary campaign execution
+## 8. Partner performance history and reputation
+
+Linkary reputation is evidence-based performance history. It must not be reduced to an unexplained or opaque reputation score.
+
+Community Managers and KOL Managers can accumulate collaboration history containing:
+
+- number of recorded collaborations
+- number of Projects worked with
+- campaign relationship when available
+- recorded spend
+- tracked clicks
+- outcomes
+- attributed value
+- return on spend when spend and attributed value both exist
+- notes and date
+- evidence source
+
+Initial evidence sources for manager collaboration history:
+
+- Manual
+- Tracked
+- Verified
+
+A normal Project user may enter a historical collaboration manually, but the record must remain visibly labeled `Manual`. Manual evidence can never silently become verified evidence.
+
+Tracked and verified states should only come from stronger evidence workflows or future integrations.
+
+The product should help a founder answer:
+
+- Has this manager worked with Projects before?
+- What measurable results have been recorded?
+- Is the evidence manual, tracked or verified?
+- What was the historical attributed value?
+- Does the available evidence justify repeating the relationship?
+
+This performance history should eventually connect directly to campaign activity and conversion evidence so Linkary can reduce reliance on manually entered history over time.
+
+## 9. Optional Linkary campaign execution
 
 Campaign execution is an additional feature built on top of an existing tracked campaign.
 
@@ -223,16 +260,19 @@ Project teams can review and accept/reject applications.
 
 The opportunity layer should reuse the same campaign, activity, tracking and outcome records. Linkary must not create a separate attribution silo for campaigns executed through Linkary.
 
-## 9. Founder Growth Intelligence
+## 10. Founder Growth Intelligence and Growth Report
 
-Project-level reporting should aggregate across campaigns and answer:
+Project-level reporting aggregates across campaigns and answers:
 
-- total campaign spend recorded
+- total recorded campaign spend
 - active and completed campaigns
 - tracked clicks
 - outcomes
 - conversion rate
 - attributed value
+- return on spend when spend is known
+- cost per outcome when spend and outcomes are known
+- top channels / sources
 - top activities
 - top creators
 - top communities
@@ -240,9 +280,28 @@ Project-level reporting should aggregate across campaigns and answer:
 - evidence confidence mix
 - source and execution mode
 
+The Founder Growth Report is part of the Growth workspace and is designed to summarize real Project evidence without requiring the founder to understand the underlying tracking model.
+
+Current report capabilities include:
+
+- campaign-by-campaign comparison
+- source/channel performance comparison
+- creator/community partner performance
+- tracked spend
+- clicks
+- outcomes
+- attributed value
+- conversion rate
+- return on spend
+- cost per outcome
+- copyable summary
+- CSV export
+
+The report must not estimate missing financial or outcome data. If spend, clicks or outcomes are unavailable, Linkary leaves the related metric unavailable rather than fabricating a value.
+
 The founder should be able to understand both an individual campaign and the Project's historical growth performance.
 
-## 10. Tracking and outcomes
+## 11. Tracking and outcomes
 
 Linkary first-party tracking URLs are used instead of raw destination URLs when possible.
 
@@ -267,7 +326,7 @@ Outcome records support:
 
 External outcome IDs are idempotent so the same conversion is not counted repeatedly.
 
-## 11. Invite and reputation graph
+## 12. Invite and network graph
 
 Linkary remains invite-only.
 
@@ -280,7 +339,7 @@ Invites are not automatically unlimited. Future refresh/increase can depend on t
 
 Linkary tracks invite clicks, registrations, use and referral quality through Linkary-owned infrastructure. TwitterAPI.io is not required for the invite/referral onboarding loop.
 
-## 12. Wallet architecture
+## 13. Wallet architecture
 
 Coinbase CDP remains Linkary's embedded wallet infrastructure.
 
@@ -295,7 +354,9 @@ These addresses do not need to be connected wallets.
 
 The UI must clearly warn users that future rewards or airdrops may be sent to the saved addresses and that users are responsible for entering an address they control. Blockchain transfers cannot generally be reversed.
 
-## 13. Telegram attribution
+Customer-facing wallet UI should use simple product language such as `Your Linkary wallet`, `Additional EVM wallet` and `Additional Solana wallet`. Provider or infrastructure details are not necessary in normal user flows.
+
+## 14. Telegram attribution
 
 Future Telegram attribution should use shared Project-level bot/webhook infrastructure rather than creating duplicate bots per Linkary user.
 
@@ -309,7 +370,7 @@ Signals may include:
 
 Telegram signals feed the same attribution confidence model.
 
-## 14. Onchain attribution
+## 15. Onchain attribution
 
 Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
 
@@ -325,7 +386,7 @@ Use shared Project-level subscriptions/webhooks where possible.
 
 Onchain signals should be matched to Project activities, campaigns and outcomes using confidence labels and a review path for ambiguous attribution.
 
-## 15. Infrastructure principles
+## 16. Infrastructure principles
 
 Current delivery stack includes:
 
@@ -341,23 +402,57 @@ Production D1 migrations are manual and versioned. They must not automatically r
 
 Secrets such as tracking salts and database deployment credentials stay server-side and must never reach browser code.
 
-## 16. UI principles
+## 17. UI and UX principles
 
 Linkary should remain visually consistent:
 
 - black / white foundation
 - restrained Linkary orange accents
-- compact information hierarchy
-- clear whitespace
+- clear information hierarchy
+- generous enough whitespace for scanning
 - evidence-first metrics
 - no infrastructure terminology in customer UI
 - no fabricated metrics
 - useful empty states
-- mobile responsive
+- mobile, tablet and desktop responsive
 
-Never expose D1, SQL, migrations, Wrangler, API tokens, stack traces, database schema errors or provider implementation details to normal users.
+Readability is a product requirement, not cosmetic polish.
 
-## 17. Beta launch boundary
+Typography rules for authenticated product screens:
+
+- primary readable text should not use tiny 8px, 9px or 10px production sizes
+- normal body and helper text should generally render around 13px to 15px
+- labels should generally render around 12px to 13px
+- navigation should generally render around 13px to 14px
+- form controls should generally render around 13px to 14px
+- headings should use responsive sizing rather than fixed desktop-only sizes
+- responsive font sizing may use `clamp()` or equivalent techniques
+- text must remain readable at tablet and mobile widths
+
+Interaction rules:
+
+- important buttons and controls should have comfortable click/tap targets
+- form controls should generally have at least about 40px height, with mobile interactions targeting about 44px where practical
+- focus states must be visible for keyboard users
+- forms should stack cleanly on narrow screens
+- modal interactions should remain usable on mobile
+- navigation must remain usable without shrinking text to fit
+
+Customer-facing UI must never expose infrastructure details such as:
+
+- D1
+- SQL
+- migrations
+- Wrangler
+- API tokens or secrets
+- database schema errors
+- stack traces
+- internal webhook secrets
+- provider configuration identifiers
+
+Backend terminology may exist in technical documentation and admin/developer tooling, but normal creators, founders and Project users should see product language only.
+
+## 18. Beta launch boundary
 
 Before broad onboarding, Linkary should prioritize a complete core loop over more integrations.
 
@@ -370,10 +465,13 @@ Beta-ready core:
 5. Founder Growth Tracking
 6. Campaign/activity tracking links
 7. Outcome Ledger
-8. Creator/community relationship history
-9. Partner Directory with manager portfolios
-10. Shareable/exportable campaign reporting
-11. Wallet reward destinations
-12. Basic admin/recovery/verification controls
+8. Founder Growth Report
+9. Creator/community relationship history
+10. Partner Directory with manager portfolios
+11. Partner performance history with evidence labels
+12. Shareable/exportable campaign reporting
+13. Wallet reward destinations
+14. Basic admin/recovery/verification controls
+15. Responsive readable UX across desktop, tablet and mobile
 
 Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior.
