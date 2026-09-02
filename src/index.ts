@@ -38,6 +38,7 @@ import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
 import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
+import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
 import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
@@ -45,7 +46,7 @@ import { getLinkaryUrls } from './urls';
 const STATIC_OR_SYSTEM = new Set([
   '', 'index.html', 'styles.css', 'script.js', 'uilib.md', 'favicon.ico', 'assets', 'api', 'onboarding', 'admin', 'app', 'i',
   'robots.txt', 'sitemap.xml', 'pricing', 'about', 'blog', 'privacy', 'terms', 'support', 'help', 'status', 'security',
-  'login', 'signup', 'dashboard', 'campaigns', 'creators', 'communities', 'tracking', 'profile', 'invites', 'settings',
+  'login', 'signup', 'dashboard', 'campaigns', 'creators', 'communities', 'tracking', 'profile', 'invites', 'settings', 'wallets',
 ]);
 
 function singleSegmentProfilePath(pathname: string): string | null {
@@ -148,6 +149,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/campaign-activity-participants') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return assignNetworkEntity(request, env); }
   if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
+  if (path === '/api/profile-wallets') { if (request.method === 'GET') return listProfileWalletDestinations(request, env); if (request.method === 'POST') return saveProfileWalletDestination(request, env); return methodNotAllowed(['GET', 'POST']); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
   const profileAnalyticsRoute = path.match(/^\/api\/profiles\/([^/]+)\/analytics$/);
