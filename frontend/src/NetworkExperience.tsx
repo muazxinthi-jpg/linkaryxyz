@@ -46,9 +46,10 @@ export default function NetworkExperience({ me, status }: { me: ProductMe; statu
   const location = useLocation();
   const navigate = useNavigate();
   const creatorFirst = status.profiles.find((p) => p.profile_type === 'creator') || status.profiles[0];
+  const projectFirst = status.profiles.find((p) => p.profile_type === 'project') || creatorFirst;
   const stored = window.localStorage.getItem('linkary.active.profile');
-  const [profileId, setProfileId] = useState(stored && status.profiles.some((p) => p.id === stored) ? stored : creatorFirst?.id || '');
-  const profile = status.profiles.find((p) => p.id === profileId) || creatorFirst;
+  const [profileId, setProfileId] = useState(stored && status.profiles.some((p) => p.id === stored && p.profile_type === 'project') ? stored : projectFirst?.id || '');
+  const profile = status.profiles.find((p) => p.id === profileId) || projectFirst;
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
   const [tab, setTab] = useState<EntityType>(location.pathname === '/communities' ? 'community' : 'creator');

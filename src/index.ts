@@ -42,7 +42,7 @@ import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, save
 import { partnerManagerReputation, recordPartnerManagerCollaboration } from './routes/partnerReputation';
 import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
 import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
-import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, transferProjectOwnership, updateProjectMember } from './routes/projectAccess';
+import { addProjectMember, cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchEligibleProjectMembers, searchRegisteredProjects, transferProjectOwnership, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -132,7 +132,9 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   const projectAccessReview = path.match(/^\/api\/projects\/access-requests\/([^/]+)\/(approve|reject)$/);
   if (projectAccessReview) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reviewProjectAccessRequest(request, env, decodeURIComponent(projectAccessReview[1]), projectAccessReview[2] as 'approve' | 'reject'); }
   const projectMembers = path.match(/^\/api\/projects\/([^/]+)\/members$/);
-  if (projectMembers) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listProjectMembers(request, env, decodeURIComponent(projectMembers[1])); }
+  if (projectMembers) { if (request.method === 'GET') return listProjectMembers(request, env, decodeURIComponent(projectMembers[1])); if (request.method === 'POST') return addProjectMember(request, env, decodeURIComponent(projectMembers[1])); return methodNotAllowed(['GET', 'POST']); }
+  const eligibleProjectMembers = path.match(/^\/api\/projects\/([^/]+)\/eligible-members$/);
+  if (eligibleProjectMembers) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return searchEligibleProjectMembers(request, env, decodeURIComponent(eligibleProjectMembers[1])); }
   const projectMember = path.match(/^\/api\/projects\/([^/]+)\/members\/([^/]+)$/);
   if (projectMember) { if (request.method === 'PATCH') return updateProjectMember(request, env, decodeURIComponent(projectMember[1]), decodeURIComponent(projectMember[2])); if (request.method === 'DELETE') return removeProjectMember(request, env, decodeURIComponent(projectMember[1]), decodeURIComponent(projectMember[2])); return methodNotAllowed(['PATCH', 'DELETE']); }
   const transferProjectOwner = path.match(/^\/api\/projects\/([^/]+)\/transfer-ownership$/);

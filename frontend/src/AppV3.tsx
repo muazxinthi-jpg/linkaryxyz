@@ -9,6 +9,7 @@ import DashboardExperience from './DashboardExperience';
 import GrowthExperience from './GrowthExperience';
 import PartnerDirectoryExperience from './PartnerDirectoryExperience';
 import ProfileExperience from './ProfileExperience';
+import ProjectExperience from './ProjectExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -17,7 +18,7 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-type Experience = 'dashboard' | 'growth' | 'operations' | 'network' | 'partners' | 'profile' | 'invites' | 'wallets';
+type Experience = 'dashboard' | 'growth' | 'operations' | 'network' | 'partners' | 'profile' | 'invites' | 'wallets' | 'projects';
 
 function ProductGate({ experience }: { experience: Experience }) {
   const [state, setState] = useState<'loading' | 'legacy' | 'ready'>('loading');
@@ -51,6 +52,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'profile') return <ProfileExperience me={me} status={status} />;
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
+    if (experience === 'projects') return <ProjectExperience me={me} status={status} />;
     return <OperationsExperience me={me} status={status} />;
   }
   return <main className="loading-screen"><div className="spinner" /><p>Opening Linkary</p></main>;
@@ -66,5 +68,6 @@ export default function AppV3() {
   if (location.pathname === '/profile') return <ProductGate experience="profile" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
+  if (location.pathname === '/settings') return <ProductGate experience="projects" />;
   return <AppV2 />;
 }

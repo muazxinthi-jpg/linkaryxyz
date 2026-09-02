@@ -38,6 +38,41 @@ export async function listProjectMembers(request: Request, env: Env, organizatio
   return json({ members });
 }
 
+export async function searchEligibleProjectMembers(request: Request, env: Env, organizationId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  await requireProjectAdmin(db, auth.user.id, organizationId);
+  const query = new URL(request.url).searchParams.get('query')?.trim() || '';
+  if (query.length < 2) return json({ users: [] });
+  const like = `%${query.toLowerCase()}%`;
+  const users = await db.all<{ id: string; display_name: string; email: string | null }>(
+    `SELECT u.id, u.display_name, u.email FROM users u
+     WHERE u.status = 'active' AND (lower(u.display_name) LIKE ? OR lower(COALESCE(u.email, '')) LIKE ?)
+       AND NOT EXISTS (SELECT 1 FROM organization_memberships m WHERE m.organization_id = ? AND m.user_id = u.id AND m.status = 'active')
+     ORDER BY u.display_name ASC LIMIT 12`,
+    [like, like, organizationId],
+  );
+  return json({ users });
+}
+
+export async function addProjectMember(request: Request, env: Env, organizationId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  await verifyCsrf(request, env, auth);
+  const body = await readJson<{ userId?: string; role?: RequestedRole }>(request);
+  if (!body.userId || !roles.has(body.role || 'viewer')) throw new HttpError(400, 'Choose a Linkary member and Project role', 'invalid_project_member');
+  const db = new Db(requireDb(env));
+  const actor = await requireProjectAdmin(db, auth.user.id, organizationId);
+  if (actor.role === 'admin' && body.role === 'admin') throw new HttpError(403, 'Only a Project Owner can add a Project Admin', 'owner_required');
+  const user = await db.first<{ id: string }>(`SELECT id FROM users WHERE id = ? AND status = 'active'`, [body.userId]);
+  if (!user) throw new HttpError(404, 'Active Linkary member not found', 'user_not_found');
+  const timestamp = now();
+  await db.batch([
+    db.statement(`INSERT INTO organization_memberships (id, user_id, organization_id, role, billing_manager, status, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', ?, ?) ON CONFLICT(user_id, organization_id) DO UPDATE SET role = excluded.role, billing_manager = 0, status = 'active', updated_at = excluded.updated_at`, [id('mem'), body.userId, organizationId, body.role, timestamp, timestamp]),
+    db.statement(`INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at) VALUES (?, ?, 'user', 'project_member.added', 'organization_membership', ?, ?, ?, ?)`, [id('aud'), auth.user.id, `${organizationId}:${body.userId}`, organizationId, JSON.stringify({ role: body.role }), timestamp]),
+  ]);
+  return json({ ok: true });
+}
+
 export async function updateProjectMember(request: Request, env: Env, organizationId: string, userId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);

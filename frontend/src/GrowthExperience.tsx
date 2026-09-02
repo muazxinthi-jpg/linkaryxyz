@@ -26,10 +26,10 @@ const emptySummary: OutcomeSummary={conversions:0,value_usd:0,tracked_clicks:0,t
 
 export default function GrowthExperience({me,status}:{me:ProductMe;status:ProductStatus}){
  const navigate=useNavigate();
- const creatorFirst=status.profiles.find((p)=>p.profile_type==='creator')||status.profiles[0];
+ const creatorFirst=status.profiles.find((p)=>p.profile_type==='creator')||status.profiles[0];const projectFirst=status.profiles.find((p)=>p.profile_type==='project')||creatorFirst;
  const stored=window.localStorage.getItem('linkary.active.profile');
- const [profileId,setProfileId]=useState(stored&&status.profiles.some((p)=>p.id===stored)?stored:creatorFirst?.id||'');
- const profile=status.profiles.find((p)=>p.id===profileId)||creatorFirst;
+ const [profileId,setProfileId]=useState(stored&&status.profiles.some((p)=>p.id===stored&&p.profile_type==='project')?stored:projectFirst?.id||'');
+ const profile=status.profiles.find((p)=>p.id===profileId)||projectFirst;
  const personalProfile=status.profiles.find((p)=>p.profile_type==='creator');
  const [projects,setProjects]=useState<Project[]>([]); const [projectId,setProjectId]=useState(''); const project=projects.find((p)=>p.id===projectId);
  const [tab,setTab]=useState<'tracking'|'report'|'opportunities'>('tracking'); const [campaigns,setCampaigns]=useState<Campaign[]>([]); const [opportunities,setOpportunities]=useState<Opportunity[]>([]); const [managers,setManagers]=useState<Manager[]>([]);
