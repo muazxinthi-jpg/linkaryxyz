@@ -19,6 +19,21 @@ function safeReturnTo(value: string | null): string | undefined {
   return value;
 }
 
+export function normalizedXProfileImage(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return null;
+    const host = url.hostname.toLowerCase();
+    if (host !== 'pbs.twimg.com') return null;
+    if (!url.pathname.startsWith('/profile_images/')) return null;
+    url.pathname = url.pathname.replace(/_normal(?=\.[a-z0-9]+$)/i, '_400x400');
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function startXOAuth(request: Request, env: Env): Promise<Response> {
   const { clientId } = requireXConfig(env);
   const db = new Db(requireDb(env));
@@ -73,7 +88,24 @@ export async function finishXOAuth(request: Request, env: Env): Promise<Response
   const meJson = (await meResponse.json()) as { data?: { id?: string; name?: string; username?: string; profile_image_url?: string } };
   const data = meJson.data;
   if (!data?.id || !data.username) throw new HttpError(502, 'X identity payload was incomplete', 'x_identity_failed');
-  const { user } = await upsertXUser(db, { providerUserId: data.id, username: data.username.toLowerCase(), displayName: data.name || data.username, raw: data as Record<string, unknown> });
+  const { user, platformIdentity } = await upsertXUser(db, { providerUserId: data.id, username: data.username.toLowerCase(), displayName: data.name || data.username, raw: data as Record<string, unknown> });
+
+  const verifiedAvatar = normalizedXProfileImage(data.profile_image_url);
+  if (verifiedAvatar) {
+    const timestamp = new Date().toISOString();
+    await db.run(
+      `UPDATE profiles
+       SET avatar_url = ?, updated_at = ?
+       WHERE primary_platform_identity_id = ?
+         AND (
+           avatar_url IS NULL
+           OR TRIM(avatar_url) = ''
+           OR LOWER(avatar_url) LIKE 'https://x.com/%'
+           OR LOWER(avatar_url) LIKE 'https://twitter.com/%'
+         )`,
+      [verifiedAvatar, timestamp, platformIdentity.id],
+    );
+  }
 
   if (context.inviteCode) {
     const invite = await db.first<{ id: string }>(`SELECT id FROM invites WHERE code_hash = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`, [await sha256(context.inviteCode), new Date().toISOString()]);
