@@ -5,25 +5,14 @@ export class HttpError extends Error {
 }
 
 function mergeHeaders(defaults: HeadersInit, provided?: HeadersInit): Headers {
-  const headers = new Headers(defaults);
-  if (!provided) return headers;
-
-  const incoming = provided instanceof Headers ? provided : new Headers(provided);
-  const getSetCookie = (incoming as Headers & { getSetCookie?: () => string[] }).getSetCookie;
-  const setCookies = typeof getSetCookie === 'function' ? getSetCookie.call(incoming) : [];
-
-  incoming.forEach((value, key) => {
-    if (key.toLowerCase() === 'set-cookie') return;
-    headers.set(key, value);
+  // Reuse an existing Headers instance instead of object-spreading or cloning it.
+  // Auth responses append two separate Set-Cookie values. Keeping the original
+  // header list guarantees those values remain distinct for the browser.
+  const headers = provided instanceof Headers ? provided : new Headers(provided);
+  const fallback = new Headers(defaults);
+  fallback.forEach((value, key) => {
+    if (!headers.has(key)) headers.set(key, value);
   });
-
-  if (setCookies.length) {
-    for (const cookie of setCookies) headers.append('set-cookie', cookie);
-  } else {
-    const cookie = incoming.get('set-cookie');
-    if (cookie) headers.append('set-cookie', cookie);
-  }
-
   return headers;
 }
 
