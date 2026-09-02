@@ -1,6 +1,7 @@
 import type { Env } from '../env';
 import { requireDb } from '../env';
 import { Db } from '../db/client';
+import { ensureAttributionSchema } from '../db/attributionSchema';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { hmacSha256, randomToken } from '../security/crypto';
@@ -17,6 +18,7 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
   if (!body.activityId) throw new HttpError(400, 'activityId is required', 'activity_required');
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const activity = await db.first<{ campaign_id: string; organization_id: string; destination_url: string | null }>(
     'SELECT a.campaign_id, c.organization_id, a.destination_url FROM campaign_activities a JOIN campaigns c ON c.id = a.campaign_id WHERE a.id = ?',
     [body.activityId],
@@ -43,6 +45,7 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const campaign = await db.first<{ organization_id: string }>('SELECT organization_id FROM campaigns WHERE id = ?', [campaignId]);
   if (!campaign || !(await organizationMembership(db, auth.user.id, campaign.organization_id))) {
     throw new HttpError(403, 'Tracking access denied', 'forbidden');
@@ -97,6 +100,7 @@ export async function updateTrackedLinkStatus(request: Request, env: Env, linkId
   }
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const link = await db.first<{ organization_id: string }>('SELECT organization_id FROM tracked_links WHERE id = ?', [linkId]);
   if (!link) throw new HttpError(404, 'Tracking link not found', 'tracking_not_found');
   await requireOperationalProjectAccess(db, auth.user.id, link.organization_id, true);
@@ -108,6 +112,7 @@ export async function updateTrackedLinkStatus(request: Request, env: Env, linkId
 
 export async function redirectTrackedLink(request: Request, env: Env, code: string): Promise<Response> {
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
   const link = await db.first<{ id: string; destination_url: string; status: string }>(
     'SELECT id, destination_url, status FROM tracked_links WHERE code = ?',
     [code],
