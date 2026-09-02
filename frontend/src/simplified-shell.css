@@ -32,7 +32,13 @@
 .workspace-picker label {
   margin: 0 8px 7px;
   color: #646c75;
-  font-size: 8px;
+  font-size: 0;
+  letter-spacing: .08em;
+}
+
+.workspace-picker label::after {
+  content: 'VIEW AS';
+  font: 500 8px var(--mono);
   letter-spacing: .08em;
 }
 
@@ -55,6 +61,16 @@
 .app-sidebar nav a[href="/creators"],
 .app-sidebar nav a[href="/communities"] {
   display: none;
+}
+
+/* Project access is a first-class workspace action, not a buried account setting. */
+.app-sidebar nav a[href="/settings"] {
+  font-size: 0;
+}
+
+.app-sidebar nav a[href="/settings"]::after {
+  content: 'Projects';
+  font-size: 12px;
 }
 
 .app-sidebar nav {
@@ -143,9 +159,9 @@
   font-size: 12px;
 }
 
-/* Two useful signals are enough on the home screen. Workspace type is already
-   obvious from the workspace picker, so the third metric is deliberately hidden. */
-.real-metrics {
+/* Only the home dashboard is intentionally reduced to two useful signals.
+   Campaign and tracking metric groups keep all of their data. */
+.page-stack > .real-metrics {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   overflow: visible;
@@ -153,7 +169,7 @@
   background: transparent;
 }
 
-.real-metrics article {
+.page-stack > .real-metrics article {
   min-height: 104px;
   padding: 18px 20px;
   border: 1px solid #e1e1df;
@@ -161,22 +177,32 @@
   background: #fff;
 }
 
-.real-metrics article:nth-child(3) {
+.page-stack > .real-metrics article:nth-child(3) {
   display: none;
 }
 
-.real-metrics span {
+.page-stack > .real-metrics span {
   font-size: 8px;
   letter-spacing: .06em;
 }
 
-.real-metrics strong {
+.page-stack > .real-metrics strong {
   margin: 9px 0 4px;
   font-size: 22px;
 }
 
-.real-metrics small {
+.page-stack > .real-metrics small {
   font-size: 10px;
+}
+
+.feature-page .real-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: 12px;
+}
+
+.feature-page .real-metrics article {
+  min-height: 110px;
+  padding: 18px;
 }
 
 /* A single onboarding action is calmer than a three-step checklist on day one.
@@ -225,10 +251,10 @@
   font-size: 15px;
 }
 
-/* Give feature pages the same quieter content density. */
+/* Give operational pages a cleaner, wider working area. */
 .foundation-page,
 .feature-page {
-  max-width: 860px;
+  max-width: 960px;
 }
 
 .foundation-page h1,
@@ -236,10 +262,55 @@
   font-size: 34px;
 }
 
+.feature-page > p {
+  max-width: 660px;
+  margin-top: 0;
+}
+
+.feature-page > label {
+  max-width: 680px;
+  display: grid;
+  gap: 7px;
+  color: #5f646a;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.feature-page > label select,
+.feature-page > label input {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid #d8d8d5;
+  border-radius: 9px;
+  background: #fff;
+}
+
 .foundation-box,
 .feature-form {
+  max-width: 680px;
   border-color: #e3e3e0;
   box-shadow: 0 1px 2px rgba(0,0,0,.015);
+}
+
+.feature-form {
+  padding: 20px;
+}
+
+/* On the Projects page, always explain the ownership rule at the exact moment
+   someone is searching for a Project. This is intentionally instructional,
+   because a personal account must never free-form create a Project. */
+.app-shell:has(.app-sidebar nav a[href="/settings"].active) .feature-page > .feature-form:first-of-type::after {
+  content: "Can't find the Project? Do not create it from your personal account. Sign out of Linkary, choose Continue with X, and sign in with the Project's official X account first. That official X identity must register the Project before anyone else can request access.";
+  display: block;
+  margin-top: 4px;
+  padding: 13px 14px;
+  border: 1px solid #e8ddd7;
+  border-radius: 9px;
+  color: #695f59;
+  background: #fff9f5;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 @media (max-width: 980px) and (min-width: 721px) {
@@ -256,12 +327,19 @@
   }
 
   .app-sidebar .brand span,
-  .workspace-picker label,
   .workspace-picker select,
   .app-sidebar nav a,
   .admin-link,
   .sidebar-user {
     font-size: revert;
+  }
+
+  .workspace-picker label {
+    font-size: 0;
+  }
+
+  .app-sidebar nav a[href="/settings"] {
+    font-size: 0;
   }
 
   .workspace-picker {
@@ -348,6 +426,14 @@
     white-space: nowrap;
   }
 
+  .app-sidebar nav a[href="/settings"] {
+    font-size: 0;
+  }
+
+  .app-sidebar nav a[href="/settings"]::after {
+    font-size: 11px;
+  }
+
   .app-sidebar nav a:before {
     display: none;
     content: none;
@@ -380,19 +466,23 @@
     font-size: 12px;
   }
 
-  .real-metrics {
+  .page-stack > .real-metrics {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
 
-  .real-metrics article {
+  .page-stack > .real-metrics article {
     min-height: 94px;
     padding: 15px;
     border-bottom: 1px solid #e1e1df;
   }
 
-  .real-metrics strong {
+  .page-stack > .real-metrics strong {
     font-size: 19px;
+  }
+
+  .feature-page .real-metrics {
+    grid-template-columns: 1fr;
   }
 
   .command-card > header {
@@ -405,7 +495,7 @@
 }
 
 @media (max-width: 430px) {
-  .real-metrics {
+  .page-stack > .real-metrics {
     grid-template-columns: 1fr;
   }
 
