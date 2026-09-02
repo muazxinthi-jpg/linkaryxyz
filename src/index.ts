@@ -37,7 +37,7 @@ import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion } from './routes/conversions';
-import { listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
+import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -120,6 +120,9 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return methodNotAllowed(['GET', 'POST']);
   }
   if (path === '/api/projects/search') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return searchRegisteredProjects(request, env); }
+  if (path === '/api/projects/access-requests/mine') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listMyProjectAccessRequests(request, env); }
+  const cancelProjectAccessRequest = path.match(/^\/api\/projects\/access-requests\/([^/]+)\/cancel$/);
+  if (cancelProjectAccessRequest) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return cancelMyProjectAccessRequest(request, env, decodeURIComponent(cancelProjectAccessRequest[1])); }
   const projectAccessRequests = path.match(/^\/api\/projects\/([^/]+)\/access-requests$/);
   if (projectAccessRequests) { if (request.method === 'GET') return listProjectAccessRequests(request, env, decodeURIComponent(projectAccessRequests[1])); if (request.method === 'POST') return requestProjectAccess(request, env, decodeURIComponent(projectAccessRequests[1])); return methodNotAllowed(['GET', 'POST']); }
   const projectAccessReview = path.match(/^\/api\/projects\/access-requests\/([^/]+)\/(approve|reject)$/);
