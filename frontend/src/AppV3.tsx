@@ -9,7 +9,7 @@ import DashboardExperience from './DashboardExperience';
 import GrowthExperience from './GrowthExperience';
 import PartnerDirectoryExperience from './PartnerDirectoryExperience';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
-import ProjectExperience from './ProjectExperience';
+import ProjectExperienceBeta from './ProjectExperienceBeta';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -52,7 +52,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'profile') return <ProfileExperienceBeta me={me} status={status} />;
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
-    if (experience === 'projects') return <ProjectExperience me={me} status={status} />;
+    if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     return <OperationsExperience me={me} status={status} />;
   }
   return <main className="loading-screen"><div className="spinner" /><p>Opening Linkary</p></main>;
