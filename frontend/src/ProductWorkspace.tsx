@@ -39,14 +39,14 @@ export function ProductWorkspace({
 
   const nav = [
     ['/dashboard', 'Overview'],
-    ['/campaigns', 'Campaigns'],
-    ['/tracking', 'Tracking'],
-    ['/creators', 'Network'],
+    ['/campaigns', 'Growth'],
+    ['/partners', 'Partners'],
     ['/profile', 'Profile'],
     ['/wallets', 'Wallets'],
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
   ];
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 
   return (
     <main className="ops-shell">
@@ -58,7 +58,7 @@ export function ProductWorkspace({
             {status.profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
           </select>
         </div>
-        <nav className="ops-nav">{nav.map(([path, label]) => <NavLink key={path} to={path} className={({ isActive }) => isActive || (path === '/creators' && window.location.pathname === '/communities') ? 'active' : ''}>{label}</NavLink>)}</nav>
+        <nav className="ops-nav">{nav.map(([path, label]) => <NavLink key={path} to={path} className={({ isActive }) => isActive || (path === '/campaigns' && currentPath === '/tracking') ? 'active' : ''}>{label}</NavLink>)}</nav>
         <div className="ops-sidebar-footer">{me.user?.superadmin && <NavLink to="/admin">Admin</NavLink>}<button type="button" onClick={() => void logout()}>Log out</button></div>
       </aside>
       <section className="ops-main"><header className="ops-topbar"><div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div><a href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a></header><div className="ops-page">{children}</div></section>
