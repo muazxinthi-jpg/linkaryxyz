@@ -201,7 +201,7 @@ async function renderPublicProfileV2(
     const identity = `${block.block_type} ${block.title || ''} ${block.url || ''}`.toLowerCase();
     return socialTypes.has(block.block_type) || ['x.com/', 'twitter.com/', 't.me/', 'linkedin.com/', 'instagram.com/', 'tiktok.com/', 'youtube.com/', 'youtu.be/', 'discord.gg/', 'discord.com/'].some((value) => identity.includes(value));
   };
-  const socials = blocks.filter((block) => isSocial(block) && block.url);
+  const socials = blocks.filter((block) => isSocial(block) && block.url && !['featured_video', 'featured_article', 'featured_image', 'team_member', 'heading'].includes(block.block_type));
   const links = blocks.filter(
     (block) =>
       !isSocial(block) &&
@@ -239,7 +239,7 @@ async function renderPublicProfileV2(
         `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || "Social link")}">${icon(block)}</a>`,
     )
     .join("");
-  const featureHtml = `<style>footer{display:none}.section:has(.links:empty){display:none}</style>` + features
+  const featureHtml = `<style>footer{display:none}</style>` + features
     .map((block, index) => {
       const config = safeJson(block.config_json) as { mediaUrl?: string };
       const source = config.mediaUrl || block.url;
@@ -257,7 +257,7 @@ async function renderPublicProfileV2(
         `<a class="link-card" href="${escapeHtml(blockUrl(block))}"><b>${icon(block)}</b><span>${escapeHtml(block.title || block.url || "Open link")}</span><i>↗</i></a>`,
     )
     .join("");
-  linkHtml = linkHtml || "<!-- no ordinary links -->";
+  linkHtml = linkHtml || "<style>.features + .section{display:none}</style>";
   const teamHtml = teams
     .map(
       (block) =>

@@ -19,6 +19,7 @@ type Block = {
   title: string | null;
   url: string | null;
   enabled: boolean;
+  config: { mediaUrl?: string; role?: string };
 };
 class ApiError extends Error {
   constructor(
@@ -106,6 +107,7 @@ export default function ProfileExperience({
   const [busy, setBusy] = useState("");
   const [showSeo, setShowSeo] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<Block | null>(null);
   const [newBlock, setNewBlock] = useState({
     type: "link",
     title: "",
@@ -245,6 +247,23 @@ export default function ProfileExperience({
     } catch {
       setMessage("This profile item could not be updated.");
     }
+  }
+  function openEdit(block: Block) {
+    setNewBlock({ type: block.type, title: block.title || '', url: block.url || '', mediaUrl: block.config?.mediaUrl || '', role: block.config?.role || 'Team member' });
+    setEditing(block);
+    setShowAdd(true);
+  }
+  async function saveBlock(event: React.FormEvent) {
+    event.preventDefault();
+    if (!profile) return;
+    if (!editing) return add(event);
+    const csrf = cookie('__Host-linkary_csrf');
+    if (!csrf) return;
+    setBusy('add');
+    try {
+      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(editing.id)}`, { method: 'PATCH', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ title: newBlock.title, url: newBlock.type === 'heading' ? '' : newBlock.url, config: { ...(newBlock.type === 'team_member' ? { role: newBlock.role } : {}), ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}) } }) });
+      setEditing(null); setShowAdd(false); await load(); setMessage('Profile item updated.');
+    } catch (error) { setMessage(safeError(error, 'This profile item could not be updated.')); } finally { setBusy(''); }
   }
   async function remove(block: Block) {
     if (!profile || !window.confirm("Remove this item from the profile?"))
@@ -429,6 +448,7 @@ export default function ProfileExperience({
                     <button onClick={() => void toggle(block)}>
                       {block.enabled ? "Hide" : "Show"}
                     </button>
+                    <button onClick={() => openEdit(block)}>Edit</button>
                     <button
                       className="danger"
                       onClick={() => void remove(block)}
@@ -493,13 +513,13 @@ export default function ProfileExperience({
             if (e.currentTarget === e.target) setShowAdd(false);
           }}
         >
-          <form className="ops-modal" onSubmit={add}>
+          <form className="ops-modal" onSubmit={saveBlock}>
             <div className="ops-modal-head">
               <div>
                 <span className="ops-kicker">PROFILE ITEM</span>
-                <h2>Add to profile</h2>
+                <h2>{editing ? 'Edit profile item' : 'Add to profile'}</h2>
               </div>
-              <button type="button" onClick={() => setShowAdd(false)}>
+              <button type="button" onClick={() => { setShowAdd(false); setEditing(null); }}>
                 ×
               </button>
             </div>
@@ -507,6 +527,7 @@ export default function ProfileExperience({
               Type
               <select
                 value={newBlock.type}
+                disabled={Boolean(editing)}
                 onChange={(e) =>
                   setNewBlock({ ...newBlock, type: e.target.value })
                 }
@@ -558,12 +579,12 @@ export default function ProfileExperience({
               <button
                 type="button"
                 className="ops-button ghost"
-                onClick={() => setShowAdd(false)}
+                onClick={() => { setShowAdd(false); setEditing(null); }}
               >
                 Cancel
               </button>
               <button className="ops-button primary" disabled={busy === "add"}>
-                {busy === "add" ? "Adding..." : "Add item"}
+                {busy === "add" ? "Saving..." : editing ? "Save item" : "Add item"}
               </button>
             </div>
           </form>
