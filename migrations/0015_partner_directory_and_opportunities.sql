@@ -1,3 +1,6 @@
+ALTER TABLE campaigns ADD COLUMN source_type TEXT NOT NULL DEFAULT 'external';
+ALTER TABLE campaigns ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'tracked_elsewhere';
+
 CREATE TABLE IF NOT EXISTS partner_managers (
   id TEXT PRIMARY KEY NOT NULL,
   profile_id TEXT NOT NULL REFERENCES profiles(id),
