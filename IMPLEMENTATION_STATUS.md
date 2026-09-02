@@ -1,6 +1,6 @@
 # Linkary implementation status
 
-The Technical Product and Engineering Paper v1.1 and `uilib.md` are the product and design sources of truth. This file records repository state and production state separately.
+The Technical Product and Engineering Paper v1.2 and `uilib.md` are the product and design sources of truth. This file records repository state and production state separately.
 
 Fresh-start rule: old Linkary implementation decisions are not authoritative unless they independently match the current specification.
 
@@ -178,6 +178,16 @@ POC reputation and Promotional Platform reputation must remain separate.
 - [ ] Subscription payment authorization is future work.
 - [ ] Creator payout authorization is future work.
 - [ ] Delegated signing is not enabled.
+
+## v1.2 external wallets and onchain attribution
+
+- [ ] Manual EVM/Solana external wallet model and management UI.
+- [ ] External wallets remain private, unverified, and separate from the Linkary Wallet.
+- [ ] Preferred airdrop destination requires explicit acknowledgement and audit history.
+- [ ] Alchemy onchain attribution adapter and normalized D1 event model.
+- [ ] Shared network webhooks only: Base, BNB Chain, Solana, Arbitrum, Robinhood Chain.
+- [ ] Feature flags, usage controls, webhook signature validation, and idempotent ingestion.
+- [ ] Onchain metrics feed campaign analytics only when attribution evidence is defensible.
 
 ## Immediate next milestone
 
