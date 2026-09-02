@@ -5,6 +5,7 @@ import { OperationsExperience } from './OperationsExperience';
 import NetworkExperience from './NetworkExperience';
 import InviteExperience from './InviteExperience';
 import WalletExperience from './WalletExperience';
+import DashboardExperience from './DashboardExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -13,7 +14,7 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-type Experience = 'operations' | 'network' | 'invites' | 'wallets';
+type Experience = 'dashboard' | 'operations' | 'network' | 'invites' | 'wallets';
 
 function ProductGate({ experience }: { experience: Experience }) {
   const [state, setState] = useState<'loading' | 'legacy' | 'ready'>('loading');
@@ -40,6 +41,7 @@ function ProductGate({ experience }: { experience: Experience }) {
 
   if (state === 'legacy') return <AppV2 />;
   if (state === 'ready' && me && status) {
+    if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
@@ -50,6 +52,7 @@ function ProductGate({ experience }: { experience: Experience }) {
 
 export default function AppV3() {
   const location = useLocation();
+  if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/campaigns' || location.pathname === '/tracking') return <ProductGate experience="operations" />;
   if (location.pathname === '/creators' || location.pathname === '/communities') return <ProductGate experience="network" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
