@@ -354,6 +354,7 @@ export async function getEditableProfile(
       id: profile.id,
       displayName: profile.display_name,
       bio: profile.bio,
+      avatarUrl: profile.avatar_url,
       seoTitle: profile.seo_title,
       seoDescription: profile.seo_description,
       visibility: profile.visibility,
@@ -380,6 +381,15 @@ function validateDestination(value: unknown): string | null {
     throw new HttpError(400, "Only HTTP(S) links are supported", "invalid_url");
   return url.toString();
 }
+function validateProfileImage(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string")
+    throw new HttpError(400, "Invalid image URL", "invalid_url");
+  const safe = safeHttpsUrl(value);
+  if (!safe)
+    throw new HttpError(400, "Use a secure HTTPS image URL", "invalid_url");
+  return safe;
+}
 
 export async function updateProfile(
   request: Request,
@@ -393,14 +403,19 @@ export async function updateProfile(
   const body = await readJson<{
     displayName?: string;
     bio?: string;
+    avatarUrl?: string | null;
     seoTitle?: string;
     seoDescription?: string;
   }>(request);
+  const avatarProvided = body.avatarUrl !== undefined;
+  const avatarValue = avatarProvided ? validateProfileImage(body.avatarUrl) : null;
   await db.run(
-    `UPDATE profiles SET display_name = COALESCE(?, display_name), bio = COALESCE(?, bio), seo_title = ?, seo_description = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE profiles SET display_name = COALESCE(?, display_name), bio = COALESCE(?, bio), avatar_url = CASE WHEN ? = 1 THEN ? ELSE avatar_url END, seo_title = ?, seo_description = ?, updated_at = ? WHERE id = ?`,
     [
       cleanText(body.displayName, 80),
       cleanText(body.bio, 500),
+      avatarProvided ? 1 : 0,
+      avatarValue,
       cleanText(body.seoTitle, 70),
       cleanText(body.seoDescription, 180),
       new Date().toISOString(),
