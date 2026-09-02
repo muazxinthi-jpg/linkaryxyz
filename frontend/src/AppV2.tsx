@@ -459,8 +459,13 @@ const pageCopy: Record<string, { eyebrow: string; title: string; body: string }>
 };
 
 function FoundationPage({ name }: { name: keyof typeof pageCopy }) {
+  if (name === 'campaigns') return <CampaignPage />;
   const copy = pageCopy[name];
   return <div className="foundation-page"><span className="section-label">{copy.eyebrow}</span><h1>{copy.title}</h1><p>{copy.body}</p><div className="foundation-box"><strong>Foundation ready</strong><span>This route is part of the real authenticated Linkary shell. The feature workflow is intentionally next, not simulated.</span></div></div>;
+}
+
+function CampaignPage() {
+  return <div className="feature-page"><span className="section-label">CAMPAIGNS</span><h1>Campaign operations</h1><p>Create a Project workspace first, then add a campaign with a clear objective, budget, dates, creators, and tracked activities.</p><div className="foundation-box"><strong>Campaign foundation is deploying</strong><span>The secured campaign API and versioned production migration are in this release. Complete the manual D1 migration before campaign creation is enabled in the app.</span></div></div>;
 }
 
 function ProfileEditor({ profile }: { profile: ProfileSummary }) {

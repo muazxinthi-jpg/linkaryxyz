@@ -30,6 +30,7 @@ import {
 import { adminHealth } from './routes/admin';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
+import { createCampaign, listCampaigns } from './routes/campaigns';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -117,6 +118,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (restoreOrg) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return restoreOrganization(request, env, decodeURIComponent(restoreOrg[1])); }
   if (path === '/api/invites/balances') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return inviteBalances(request, env); }
   if (path === '/api/invites/list') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listNetworkInvites(request, env); }
+  if (path === '/api/campaigns') { if (request.method === 'GET') return listCampaigns(request, env); if (request.method === 'POST') return createCampaign(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateProfile(request, env, decodeURIComponent(profilePatch[1])); }
