@@ -4,22 +4,32 @@ export class HttpError extends Error {
   }
 }
 
+function mergeHeaders(defaults: HeadersInit, provided?: HeadersInit): Headers {
+  // Reuse an existing Headers instance instead of object-spreading or cloning it.
+  // Auth responses append two separate Set-Cookie values. Keeping the original
+  // header list guarantees those values remain distinct for the browser.
+  const headers = provided instanceof Headers ? provided : new Headers(provided);
+  const fallback = new Headers(defaults);
+  fallback.forEach((value, key) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return headers;
+}
+
 export function json(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: {
+  const headers = mergeHeaders(
+    {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
-      ...init.headers,
     },
-  });
+    init.headers,
+  );
+  return new Response(JSON.stringify(body), { ...init, headers });
 }
 
 export function html(body: string, init: ResponseInit = {}): Response {
-  return new Response(body, {
-    ...init,
-    headers: { 'content-type': 'text/html; charset=utf-8', ...init.headers },
-  });
+  const headers = mergeHeaders({ 'content-type': 'text/html; charset=utf-8' }, init.headers);
+  return new Response(body, { ...init, headers });
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
