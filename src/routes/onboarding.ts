@@ -72,8 +72,13 @@ export async function onboardingStatus(request: Request, env: Env): Promise<Resp
   const db = new Db(requireDb(env));
   const profiles = await db.all<{ id: string; profile_type: string; username: string; display_name: string; bio: string; seo_title: string | null; seo_description: string | null; visibility: string; organization_id: string | null }>(
     `SELECT id, profile_type, username, display_name, bio, seo_title, seo_description, visibility, organization_id FROM profiles
-     WHERE owner_user_id = ? OR organization_id IN (SELECT organization_id FROM organization_memberships WHERE user_id = ? AND status = 'active')`,
-    [auth.user.id, auth.user.id],
+     WHERE owner_user_id = ? OR organization_id IN (
+       SELECT m.organization_id FROM organization_memberships m
+       JOIN organizations o ON o.id = m.organization_id
+       WHERE m.user_id = ? AND m.status = 'active' AND o.status = 'active'
+     )
+     ORDER BY CASE WHEN owner_user_id = ? AND profile_type = 'creator' THEN 0 WHEN profile_type = 'creator' THEN 1 ELSE 2 END, created_at ASC`,
+    [auth.user.id, auth.user.id, auth.user.id],
   );
   const entitlement = await accessEntitlement(db, auth.user.id);
   const xIdentity = await primaryXIdentity(db, auth.user.id);
