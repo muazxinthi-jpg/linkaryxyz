@@ -2,12 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
-import App from './AppV2';
+import App from './AppV3';
 import AuthSessionContinuity from './AuthSessionContinuity';
 import UiSafetyGuard from './UiSafetyGuard';
 import './styles.css';
 import './creator-access.css';
 import './simplified-shell.css';
+import './operations.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
