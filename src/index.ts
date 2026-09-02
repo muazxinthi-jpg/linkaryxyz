@@ -26,6 +26,8 @@ import {
   updateProfile,
   getEditableProfile,
   listProfileBlocks,
+  profileAnalytics,
+  redirectPublicProfileBlock,
   updateProfileBlock,
 } from './routes/profiles';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
@@ -130,6 +132,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
+  const profileAnalyticsRoute = path.match(/^\/api\/profiles\/([^/]+)\/analytics$/);
+  if (profileAnalyticsRoute) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return profileAnalytics(request, env, decodeURIComponent(profileAnalyticsRoute[1])); }
   const profileBlocks = path.match(/^\/api\/profiles\/([^/]+)\/blocks$/);
   if (profileBlocks) { if (request.method === 'GET') return listProfileBlocks(request, env, decodeURIComponent(profileBlocks[1])); if (request.method === 'POST') return addProfileBlock(request, env, decodeURIComponent(profileBlocks[1])); return methodNotAllowed(['GET', 'POST']); }
   const profileBlock = path.match(/^\/api\/profiles\/([^/]+)\/blocks\/([^/]+)$/);
@@ -203,6 +207,8 @@ async function handle(request: Request, env: Env, _ctx: ExecutionContextLike): P
   if (inviteLanding) return renderInviteLanding(request, env, decodeURIComponent(inviteLanding[1]));
   const trackedRedirect = url.pathname.match(/^\/r\/([^/]+)$/);
   if (trackedRedirect) return redirectTrackedLink(request, env, decodeURIComponent(trackedRedirect[1]));
+  const profileBlockRedirect = url.pathname.match(/^\/([^/]+)\/go\/([^/]+)$/);
+  if (profileBlockRedirect && env.DB) return redirectPublicProfileBlock(request, env, decodeURIComponent(profileBlockRedirect[1]), decodeURIComponent(profileBlockRedirect[2]));
 
   if (url.pathname.startsWith('/app') || url.pathname.startsWith('/admin')) {
     return Response.redirect(`${urls.app}${url.pathname.startsWith('/admin') ? url.pathname : '/'}${url.search}`, 302);
