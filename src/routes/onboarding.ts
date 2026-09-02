@@ -123,6 +123,10 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
   if (body.accountType === 'project' && !identity) {
     throw new HttpError(403, 'Sign in with the Project’s X account to register this Project on Linkary', 'project_x_identity_required');
   }
+  if (body.accountType === 'project') {
+    const verifiedHandle = identity?.current_handle ? normalizeProfileUsername(identity.current_handle) : null;
+    if (!verifiedHandle || username !== verifiedHandle) throw new HttpError(409, 'A Project Linkary username must match the verified Project X handle', 'project_handle_mismatch');
+  }
   const verificationStatus = identity ? 'verified_x' : 'pending';
   const timestamp = now();
   let profileId: string;

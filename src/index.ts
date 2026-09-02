@@ -37,7 +37,7 @@ import { createCampaign, listCampaigns } from './routes/campaigns';
 import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion } from './routes/conversions';
-import { listProjectAccessRequests, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects } from './routes/projectAccess';
+import { listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
 
@@ -124,6 +124,10 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (projectAccessRequests) { if (request.method === 'GET') return listProjectAccessRequests(request, env, decodeURIComponent(projectAccessRequests[1])); if (request.method === 'POST') return requestProjectAccess(request, env, decodeURIComponent(projectAccessRequests[1])); return methodNotAllowed(['GET', 'POST']); }
   const projectAccessReview = path.match(/^\/api\/projects\/access-requests\/([^/]+)\/(approve|reject)$/);
   if (projectAccessReview) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reviewProjectAccessRequest(request, env, decodeURIComponent(projectAccessReview[1]), projectAccessReview[2] as 'approve' | 'reject'); }
+  const projectMembers = path.match(/^\/api\/projects\/([^/]+)\/members$/);
+  if (projectMembers) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listProjectMembers(request, env, decodeURIComponent(projectMembers[1])); }
+  const projectMember = path.match(/^\/api\/projects\/([^/]+)\/members\/([^/]+)$/);
+  if (projectMember) { if (request.method === 'PATCH') return updateProjectMember(request, env, decodeURIComponent(projectMember[1]), decodeURIComponent(projectMember[2])); if (request.method === 'DELETE') return removeProjectMember(request, env, decodeURIComponent(projectMember[1]), decodeURIComponent(projectMember[2])); return methodNotAllowed(['PATCH', 'DELETE']); }
   const archiveOrg = path.match(/^\/api\/organizations\/([^/]+)\/archive$/);
   if (archiveOrg) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return archiveOrganization(request, env, decodeURIComponent(archiveOrg[1])); }
   const restoreOrg = path.match(/^\/api\/organizations\/([^/]+)\/restore$/);
