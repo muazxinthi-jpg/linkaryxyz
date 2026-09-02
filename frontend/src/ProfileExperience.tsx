@@ -9,6 +9,7 @@ import {
 type ProfileData = {
   displayName: string;
   bio: string;
+  avatarUrl: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
   visibility: string;
@@ -19,7 +20,7 @@ type Block = {
   title: string | null;
   url: string | null;
   enabled: boolean;
-  config: { mediaUrl?: string; role?: string };
+  config: { mediaUrl?: string; role?: string; avatarUrl?: string };
 };
 class ApiError extends Error {
   constructor(
@@ -61,7 +62,7 @@ function safeError(error: unknown, fallback: string) {
     return "Verify the X identity for this profile before publishing.";
   if (error.code === "forbidden")
     return "Your current role cannot edit this profile.";
-  if (error.code === "invalid_url") return "Enter a valid link URL.";
+  if (error.code === "invalid_url") return "Enter a valid HTTPS image or link URL.";
   return fallback;
 }
 function blockLabel(type: string) {
@@ -74,6 +75,47 @@ function blockLabel(type: string) {
     team_member: "Team member",
   };
   return labels[type] || type.replace(/_/g, " ");
+}
+function safeHttpsPreview(value: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+function youtubePreview(value: string): string | null {
+  const safe = safeHttpsPreview(value);
+  if (!safe) return null;
+  try {
+    const url = new URL(safe);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
+    let id: string | null = null;
+    if (host === "youtu.be") {
+      id = url.pathname.split("/").filter(Boolean)[0] || null;
+    } else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      if (url.pathname === "/watch") id = url.searchParams.get("v");
+      if (!id) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (["shorts", "embed", "live"].includes(parts[0] || "")) id = parts[1] || null;
+      }
+    }
+    return id && /^[a-zA-Z0-9_-]{6,20}$/.test(id)
+      ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+      : null;
+  } catch {
+    return null;
+  }
+}
+function directVideoPreview(value: string): string | null {
+  const safe = safeHttpsPreview(value);
+  if (!safe) return null;
+  try {
+    return /\.(mp4|webm|ogg)$/i.test(new URL(safe).pathname) ? safe : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function ProfileExperience({
@@ -97,6 +139,7 @@ export default function ProfileExperience({
   const [data, setData] = useState<ProfileData>({
     displayName: "",
     bio: "",
+    avatarUrl: "",
     seoTitle: "",
     seoDescription: "",
     visibility: "private",
@@ -108,13 +151,32 @@ export default function ProfileExperience({
   const [showSeo, setShowSeo] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Block | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [avatarPreviewFailed, setAvatarPreviewFailed] = useState(false);
   const [newBlock, setNewBlock] = useState({
     type: "link",
     title: "",
     url: "",
     mediaUrl: "",
     role: "Team member",
+    avatarUrl: "",
   });
+  function resetBlock() {
+    setNewBlock({
+      type: "link",
+      title: "",
+      url: "",
+      mediaUrl: "",
+      role: "Team member",
+      avatarUrl: "",
+    });
+    setPreviewFailed(false);
+  }
+  function closeBlockEditor() {
+    setShowAdd(false);
+    setEditing(null);
+    resetBlock();
+  }
   function changeProfile(id: string) {
     setProfileId(id);
     window.localStorage.setItem("linkary.active.profile", id);
@@ -137,9 +199,11 @@ export default function ProfileExperience({
       setData({
         ...p.profile,
         bio: p.profile.bio || "",
+        avatarUrl: p.profile.avatarUrl || "",
         seoTitle: p.profile.seoTitle || "",
         seoDescription: p.profile.seoDescription || "",
       });
+      setAvatarPreviewFailed(false);
       setBlocks(b.blocks);
       setClicks(a.linkClicks);
     } catch {
@@ -164,6 +228,7 @@ export default function ProfileExperience({
         body: JSON.stringify({
           displayName: data.displayName,
           bio: data.bio,
+          avatarUrl: data.avatarUrl || "",
           seoTitle: data.seoTitle,
           seoDescription: data.seoDescription,
         }),
@@ -201,6 +266,17 @@ export default function ProfileExperience({
       setBusy("");
     }
   }
+  function blockConfig() {
+    return {
+      ...(newBlock.type === "team_member"
+        ? {
+            role: newBlock.role,
+            ...(newBlock.avatarUrl ? { avatarUrl: newBlock.avatarUrl } : {}),
+          }
+        : {}),
+      ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}),
+    };
+  }
   async function add(event: React.FormEvent) {
     event.preventDefault();
     if (!profile) return;
@@ -215,14 +291,10 @@ export default function ProfileExperience({
           type: newBlock.type,
           title: newBlock.title,
           url: newBlock.type === "heading" ? "" : newBlock.url,
-          config: {
-            ...(newBlock.type === "team_member" ? { role: newBlock.role } : {}),
-            ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}),
-          },
+          config: blockConfig(),
         }),
       });
-      setNewBlock({ type: "link", title: "", url: "", mediaUrl: "", role: "Team member" });
-      setShowAdd(false);
+      closeBlockEditor();
       await load();
     } catch (error) {
       setMessage(safeError(error, "This profile item could not be added."));
@@ -249,7 +321,15 @@ export default function ProfileExperience({
     }
   }
   function openEdit(block: Block) {
-    setNewBlock({ type: block.type, title: block.title || '', url: block.url || '', mediaUrl: block.config?.mediaUrl || '', role: block.config?.role || 'Team member' });
+    setNewBlock({
+      type: block.type,
+      title: block.title || "",
+      url: block.url || "",
+      mediaUrl: block.config?.mediaUrl || "",
+      role: block.config?.role || "Team member",
+      avatarUrl: block.config?.avatarUrl || "",
+    });
+    setPreviewFailed(false);
     setEditing(block);
     setShowAdd(true);
   }
@@ -257,13 +337,30 @@ export default function ProfileExperience({
     event.preventDefault();
     if (!profile) return;
     if (!editing) return add(event);
-    const csrf = cookie('__Host-linkary_csrf');
+    const csrf = cookie("__Host-linkary_csrf");
     if (!csrf) return;
-    setBusy('add');
+    setBusy("add");
     try {
-      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(editing.id)}`, { method: 'PATCH', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ title: newBlock.title, url: newBlock.type === 'heading' ? '' : newBlock.url, config: { ...(newBlock.type === 'team_member' ? { role: newBlock.role } : {}), ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}) } }) });
-      setEditing(null); setShowAdd(false); await load(); setMessage('Profile item updated.');
-    } catch (error) { setMessage(safeError(error, 'This profile item could not be updated.')); } finally { setBusy(''); }
+      await apiJson(
+        `/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(editing.id)}`,
+        {
+          method: "PATCH",
+          headers: { "x-csrf-token": csrf },
+          body: JSON.stringify({
+            title: newBlock.title,
+            url: newBlock.type === "heading" ? "" : newBlock.url,
+            config: blockConfig(),
+          }),
+        },
+      );
+      closeBlockEditor();
+      await load();
+      setMessage("Profile item updated.");
+    } catch (error) {
+      setMessage(safeError(error, "This profile item could not be updated."));
+    } finally {
+      setBusy("");
+    }
   }
   async function remove(block: Block) {
     if (!profile || !window.confirm("Remove this item from the profile?"))
@@ -307,6 +404,16 @@ export default function ProfileExperience({
     }
   }
   if (!profile) return null;
+
+  const featuredType = ["featured_video", "featured_image", "featured_article"].includes(
+    newBlock.type,
+  );
+  const previewUrl = safeHttpsPreview(newBlock.mediaUrl);
+  const previewVideo = previewUrl ? directVideoPreview(previewUrl) : null;
+  const previewImage = previewUrl ? youtubePreview(previewUrl) || previewUrl : null;
+  const teamAvatarPreview = safeHttpsPreview(newBlock.avatarUrl);
+  const profileAvatarPreview = safeHttpsPreview(data.avatarUrl || "");
+
   return (
     <ProductWorkspace
       me={me}
@@ -347,9 +454,16 @@ export default function ProfileExperience({
         <section className="profile-next-grid">
           <article className="profile-identity-card">
             <div className="profile-avatar-next">
-              {(data.displayName || profile.display_name)
-                .slice(0, 1)
-                .toUpperCase()}
+              {profileAvatarPreview && !avatarPreviewFailed ? (
+                <img
+                  src={profileAvatarPreview}
+                  alt="Profile preview"
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarPreviewFailed(true)}
+                />
+              ) : (
+                (data.displayName || profile.display_name).slice(0, 1).toUpperCase()
+              )}
             </div>
             <label>
               Display name
@@ -368,6 +482,19 @@ export default function ProfileExperience({
                 maxLength={500}
                 placeholder="What should people know about you?"
               />
+            </label>
+            <label className="profile-avatar-url-field">
+              {profile.profile_type === "project" ? "Project logo" : "Profile image"}
+              <input
+                type="url"
+                value={data.avatarUrl || ""}
+                onChange={(e) => {
+                  setAvatarPreviewFailed(false);
+                  setData({ ...data, avatarUrl: e.target.value });
+                }}
+                placeholder="https://..."
+              />
+              <small>Use a secure HTTPS image URL. Leave blank to use your initial.</small>
             </label>
             <div className="profile-save-row">
               <span>
@@ -401,7 +528,11 @@ export default function ProfileExperience({
             </div>
             <button
               className="ops-button secondary"
-              onClick={() => setShowAdd(true)}
+              onClick={() => {
+                resetBlock();
+                setEditing(null);
+                setShowAdd(true);
+              }}
             >
               + Add item
             </button>
@@ -415,7 +546,11 @@ export default function ProfileExperience({
               </p>
               <button
                 className="ops-button secondary"
-                onClick={() => setShowAdd(true)}
+                onClick={() => {
+                  resetBlock();
+                  setEditing(null);
+                  setShowAdd(true);
+                }}
               >
                 Add first item
               </button>
@@ -510,16 +645,16 @@ export default function ProfileExperience({
         <div
           className="ops-modal-backdrop"
           onMouseDown={(e) => {
-            if (e.currentTarget === e.target) setShowAdd(false);
+            if (e.currentTarget === e.target) closeBlockEditor();
           }}
         >
           <form className="ops-modal" onSubmit={saveBlock}>
             <div className="ops-modal-head">
               <div>
                 <span className="ops-kicker">PROFILE ITEM</span>
-                <h2>{editing ? 'Edit profile item' : 'Add to profile'}</h2>
+                <h2>{editing ? "Edit profile item" : "Add to profile"}</h2>
               </div>
-              <button type="button" onClick={() => { setShowAdd(false); setEditing(null); }}>
+              <button type="button" onClick={closeBlockEditor}>
                 ×
               </button>
             </div>
@@ -528,9 +663,10 @@ export default function ProfileExperience({
               <select
                 value={newBlock.type}
                 disabled={Boolean(editing)}
-                onChange={(e) =>
-                  setNewBlock({ ...newBlock, type: e.target.value })
-                }
+                onChange={(e) => {
+                  setPreviewFailed(false);
+                  setNewBlock({ ...newBlock, type: e.target.value });
+                }}
               >
                 <option value="social_link">Social link</option>
                 <option value="link">Link</option>
@@ -550,36 +686,128 @@ export default function ProfileExperience({
                 onChange={(e) =>
                   setNewBlock({ ...newBlock, title: e.target.value })
                 }
-                placeholder={newBlock.type === "heading" ? "Official links, Community, Featured work..." : "X, Website, Launch thread..."}
+                placeholder={
+                  newBlock.type === "heading"
+                    ? "Official links, Community, Featured work..."
+                    : "X, Website, Launch thread..."
+                }
                 required
               />
             </label>
-            {newBlock.type !== "heading" && <label>
-              URL
-              <input
-                type="url"
-                value={newBlock.url}
-                onChange={(e) =>
-                  setNewBlock({ ...newBlock, url: e.target.value })
-                }
-                placeholder={newBlock.type === "team_member" ? "https://linkary.xyz/username or social profile" : "https://..."}
-                required
-              />
-            </label>}
-            {['featured_video','featured_image'].includes(newBlock.type) && <label>
-              {newBlock.type === 'featured_video' ? 'Video or cover image URL' : 'Image URL'}
-              <input type="url" value={newBlock.mediaUrl} onChange={(e) => setNewBlock({ ...newBlock, mediaUrl: e.target.value })} placeholder="https://..." />
-              <small>Use a direct image URL or a YouTube link for a visual preview.</small>
-            </label>}
-            {newBlock.type === "team_member" && <label>
-              Role on this Project
-              <input value={newBlock.role} onChange={(e) => setNewBlock({ ...newBlock, role: e.target.value })} placeholder="Founder, Community lead, Growth..." />
-            </label>}
+            {newBlock.type !== "heading" && (
+              <label>
+                Destination URL
+                <input
+                  type="url"
+                  value={newBlock.url}
+                  onChange={(e) =>
+                    setNewBlock({ ...newBlock, url: e.target.value })
+                  }
+                  placeholder={
+                    newBlock.type === "team_member"
+                      ? "https://linkary.xyz/username or social profile"
+                      : "https://..."
+                  }
+                  required
+                />
+                <small>This is where visitors go after clicking the card.</small>
+              </label>
+            )}
+            {featuredType && (
+              <label>
+                Preview media
+                <input
+                  type="url"
+                  value={newBlock.mediaUrl}
+                  onChange={(e) => {
+                    setPreviewFailed(false);
+                    setNewBlock({ ...newBlock, mediaUrl: e.target.value });
+                  }}
+                  placeholder="https://..."
+                />
+                <small>
+                  Add a direct image, direct video, or YouTube URL. CDN image URLs without a file extension are supported.
+                </small>
+              </label>
+            )}
+            {featuredType && newBlock.mediaUrl && (
+              <div className="profile-media-preview-wrap">
+                <span className="ops-kicker">PREVIEW</span>
+                {previewFailed || !previewUrl ? (
+                  <div className="profile-media-preview-fallback">
+                    Preview unavailable. The destination link will still work.
+                  </div>
+                ) : previewVideo ? (
+                  <video
+                    className="profile-media-preview"
+                    src={previewVideo}
+                    muted
+                    playsInline
+                    loop
+                    autoPlay
+                    onError={() => setPreviewFailed(true)}
+                  />
+                ) : previewImage ? (
+                  <img
+                    className="profile-media-preview"
+                    src={previewImage}
+                    alt="Featured preview"
+                    referrerPolicy="no-referrer"
+                    onError={() => setPreviewFailed(true)}
+                  />
+                ) : (
+                  <div className="profile-media-preview-fallback">
+                    Preview unavailable. The destination link will still work.
+                  </div>
+                )}
+              </div>
+            )}
+            {newBlock.type === "team_member" && (
+              <>
+                <label>
+                  Role on this Project
+                  <input
+                    value={newBlock.role}
+                    onChange={(e) =>
+                      setNewBlock({ ...newBlock, role: e.target.value })
+                    }
+                    placeholder="Founder, Community lead, Growth..."
+                  />
+                </label>
+                <label>
+                  Team member photo
+                  <input
+                    type="url"
+                    value={newBlock.avatarUrl}
+                    onChange={(e) => {
+                      setPreviewFailed(false);
+                      setNewBlock({ ...newBlock, avatarUrl: e.target.value });
+                    }}
+                    placeholder="https://..."
+                  />
+                  <small>Optional HTTPS image URL. Initials are used when no photo is provided.</small>
+                </label>
+                {newBlock.avatarUrl && (
+                  <div className="profile-team-avatar-preview">
+                    {previewFailed || !teamAvatarPreview ? (
+                      <span>{(newBlock.title || "?").slice(0, 1).toUpperCase()}</span>
+                    ) : (
+                      <img
+                        src={teamAvatarPreview}
+                        alt="Team member preview"
+                        referrerPolicy="no-referrer"
+                        onError={() => setPreviewFailed(true)}
+                      />
+                    )}
+                  </div>
+                )}
+              </>
+            )}
             <div className="ops-form-actions">
               <button
                 type="button"
                 className="ops-button ghost"
-                onClick={() => { setShowAdd(false); setEditing(null); }}
+                onClick={closeBlockEditor}
               >
                 Cancel
               </button>
