@@ -1,27 +1,574 @@
-import { useEffect, useState } from 'react';
-import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import { useEffect, useState } from "react";
+import {
+  ProductWorkspace,
+  type ProductMe,
+  type ProductProfile,
+  type ProductStatus,
+} from "./ProductWorkspace";
 
-type ProfileData={displayName:string;bio:string;seoTitle:string|null;seoDescription:string|null;visibility:string};
-type Block={id:string;type:string;title:string|null;url:string|null;enabled:boolean};
-class ApiError extends Error{constructor(readonly code:string,message:string){super(message);}}
-async function apiJson<T>(path:string,init?:RequestInit):Promise<T>{const headers=new Headers(init?.headers);if(init?.body&&!headers.has('content-type'))headers.set('content-type','application/json');const response=await fetch(path,{...init,headers,credentials:'same-origin'});const payload=(await response.json().catch(()=>({}))) as {error?:string;message?:string}&T;if(!response.ok)throw new ApiError(payload.error||'request_failed',payload.message||'Request failed');return payload;}
-function cookie(name:string){const match=document.cookie.split('; ').find((part)=>part.startsWith(`${name}=`));return match?decodeURIComponent(match.slice(name.length+1)):null;}
-function safeError(error:unknown,fallback:string){if(!(error instanceof ApiError))return fallback;if(error.code==='verification_required')return 'Verify the X identity for this profile before publishing.';if(error.code==='forbidden')return 'Your current role cannot edit this profile.';if(error.code==='invalid_url')return 'Enter a valid link URL.';return fallback;}
-function blockLabel(type:string){const labels:Record<string,string>={link:'Link',social_link:'Social',featured_video:'Featured video',featured_article:'Featured article',featured_image:'Featured work',team_member:'Team member'};return labels[type]||type.replace(/_/g,' ');}
+type ProfileData = {
+  displayName: string;
+  bio: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  visibility: string;
+};
+type Block = {
+  id: string;
+  type: string;
+  title: string | null;
+  url: string | null;
+  enabled: boolean;
+};
+class ApiError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has("content-type"))
+    headers.set("content-type", "application/json");
+  const response = await fetch(path, {
+    ...init,
+    headers,
+    credentials: "same-origin",
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  } & T;
+  if (!response.ok)
+    throw new ApiError(
+      payload.error || "request_failed",
+      payload.message || "Request failed",
+    );
+  return payload;
+}
+function cookie(name: string) {
+  const match = document.cookie
+    .split("; ")
+    .find((part) => part.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+function safeError(error: unknown, fallback: string) {
+  if (!(error instanceof ApiError)) return fallback;
+  if (error.code === "verification_required")
+    return "Verify the X identity for this profile before publishing.";
+  if (error.code === "forbidden")
+    return "Your current role cannot edit this profile.";
+  if (error.code === "invalid_url") return "Enter a valid link URL.";
+  return fallback;
+}
+function blockLabel(type: string) {
+  const labels: Record<string, string> = {
+    link: "Link",
+    social_link: "Social",
+    featured_video: "Featured video",
+    featured_article: "Featured article",
+    featured_image: "Featured work",
+    team_member: "Team member",
+  };
+  return labels[type] || type.replace(/_/g, " ");
+}
 
-export default function ProfileExperience({me,status}:{me:ProductMe;status:ProductStatus}){
-  const creatorFirst=status.profiles.find((p)=>p.profile_type==='creator')||status.profiles[0];const stored=window.localStorage.getItem('linkary.active.profile');
-  const [profileId,setProfileId]=useState(stored&&status.profiles.some((p)=>p.id===stored)?stored:creatorFirst?.id||'');const profile=status.profiles.find((p)=>p.id===profileId)||creatorFirst;
-  const [data,setData]=useState<ProfileData>({displayName:'',bio:'',seoTitle:'',seoDescription:'',visibility:'private'});const [blocks,setBlocks]=useState<Block[]>([]);const [clicks,setClicks]=useState<number|null>(null);const [message,setMessage]=useState('');const [busy,setBusy]=useState('');const [showSeo,setShowSeo]=useState(false);const [showAdd,setShowAdd]=useState(false);const [newBlock,setNewBlock]=useState({type:'link',title:'',url:''});
-  function changeProfile(id:string){setProfileId(id);window.localStorage.setItem('linkary.active.profile',id);}
-  async function load(){if(!profile)return;setMessage('');try{const [p,b,a]=await Promise.all([apiJson<{profile:ProfileData}>(`/api/profiles/${encodeURIComponent(profile.id)}`),apiJson<{blocks:Block[]}>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`),apiJson<{linkClicks:number}>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(()=>({linkClicks:0}))]);setData({...p.profile,bio:p.profile.bio||'',seoTitle:p.profile.seoTitle||'',seoDescription:p.profile.seoDescription||''});setBlocks(b.blocks);setClicks(a.linkClicks);}catch{setMessage('Profile settings are temporarily unavailable. Please try again shortly.');}}
-  useEffect(()=>{void load();},[profileId]);
-  async function save(){if(!profile)return;const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;setBusy('save');setMessage('');try{await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}`,{method:'PATCH',headers:{'x-csrf-token':csrf},body:JSON.stringify({displayName:data.displayName,bio:data.bio,seoTitle:data.seoTitle,seoDescription:data.seoDescription})});setMessage('Profile saved.');await load();}catch(error){setMessage(safeError(error,'The profile could not be saved.'));}finally{setBusy('');}}
-  async function publish(){if(!profile)return;const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;setBusy('publish');try{const path=data.visibility==='published'?'unpublish':'publish';await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/${path}`,{method:'POST',headers:{'x-csrf-token':csrf}});setMessage(data.visibility==='published'?'Profile moved back to draft.':'Profile published.');await load();}catch(error){setMessage(safeError(error,'The profile visibility could not be changed.'));}finally{setBusy('');}}
-  async function add(event:React.FormEvent){event.preventDefault();if(!profile)return;const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;setBusy('add');try{await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`,{method:'POST',headers:{'x-csrf-token':csrf},body:JSON.stringify({type:newBlock.type,title:newBlock.title,url:newBlock.url,config:newBlock.type==='team_member'?{role:'Team member'}:{}})});setNewBlock({type:'link',title:'',url:''});setShowAdd(false);await load();}catch(error){setMessage(safeError(error,'This profile item could not be added.'));}finally{setBusy('');}}
-  async function toggle(block:Block){if(!profile)return;const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;try{await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`,{method:'PATCH',headers:{'x-csrf-token':csrf},body:JSON.stringify({enabled:!block.enabled})});await load();}catch{setMessage('This profile item could not be updated.');}}
-  async function remove(block:Block){if(!profile||!window.confirm('Remove this item from the profile?'))return;const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;try{await fetch(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`,{method:'DELETE',headers:{'x-csrf-token':csrf},credentials:'same-origin'});await load();}catch{setMessage('This profile item could not be removed.');}}
-  async function move(index:number,by:-1|1){if(!profile)return;const next=index+by;if(next<0||next>=blocks.length)return;const ordered=[...blocks];[ordered[index],ordered[next]]=[ordered[next],ordered[index]];const csrf=cookie('__Host-linkary_csrf');if(!csrf)return;try{await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks-reorder`,{method:'POST',headers:{'x-csrf-token':csrf},body:JSON.stringify({blockIds:ordered.map((b)=>b.id)})});setBlocks(ordered);}catch{setMessage('The profile order could not be updated.');}}
-  if(!profile)return null;
-  return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}><div className="ops-stack profile-next"><div className="ops-heading-row"><div><span className="ops-kicker">PUBLIC IDENTITY</span><h1>Profile</h1><p>Keep the page people see simple, credible and useful.</p></div><div className="profile-next-head-actions"><a className="ops-button secondary" href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Preview ↗</a><button className="ops-button primary" onClick={()=>void publish()} disabled={busy==='publish'}>{busy==='publish'?'Saving...':data.visibility==='published'?'Move to draft':'Publish'}</button></div></div>{message&&<div className="ops-message">{message}</div>}<section className="profile-next-grid"><article className="profile-identity-card"><div className="profile-avatar-next">{(data.displayName||profile.display_name).slice(0,1).toUpperCase()}</div><label>Display name<input value={data.displayName} onChange={(e)=>setData({...data,displayName:e.target.value})}/></label><label>Bio<textarea value={data.bio} onChange={(e)=>setData({...data,bio:e.target.value})} maxLength={500} placeholder="What should people know about you?"/></label><div className="profile-save-row"><span>{clicks??0} measured link click{clicks===1?'':'s'}</span><button className="ops-button primary" onClick={()=>void save()} disabled={busy==='save'}>{busy==='save'?'Saving...':'Save profile'}</button></div></article><article className="profile-preview-card"><span className="ops-kicker">PUBLIC URL</span><strong>linkary.xyz/{profile.username}</strong><p>{data.bio||'Your bio will appear here.'}</p><div><span className={`profile-live-state ${data.visibility}`}>{data.visibility==='published'?'Live':'Private draft'}</span></div></article></section><section className="ops-section"><div className="ops-section-title"><div><h2>Links & showcase</h2><p>Add the places, work and proof that matter most.</p></div><button className="ops-button secondary" onClick={()=>setShowAdd(true)}>+ Add item</button></div>{!blocks.length?<div className="ops-empty"><div className="ops-empty-icon">＋</div><h3>No profile items yet</h3><p>Add your X profile, website, featured work, articles or videos.</p><button className="ops-button secondary" onClick={()=>setShowAdd(true)}>Add first item</button></div>:<div className="profile-block-list">{blocks.map((block,index)=><article key={block.id} className={!block.enabled?'disabled':''}><div><span>{blockLabel(block.type)}</span><strong>{block.title||'Untitled'}</strong><small>{block.url}</small></div><div className="profile-block-actions"><button disabled={index===0} onClick={()=>void move(index,-1)}>↑</button><button disabled={index===blocks.length-1} onClick={()=>void move(index,1)}>↓</button><button onClick={()=>void toggle(block)}>{block.enabled?'Hide':'Show'}</button><button className="danger" onClick={()=>void remove(block)}>Remove</button></div></article>)}</div>}</section><section className="profile-seo-card"><button className="profile-seo-toggle" onClick={()=>setShowSeo((v)=>!v)}><span><strong>Search & share preview</strong><small>Optional title and description used when this profile is shared.</small></span><b>{showSeo?'−':'+'}</b></button>{showSeo&&<div className="profile-seo-fields"><label>SEO title<input value={data.seoTitle||''} onChange={(e)=>setData({...data,seoTitle:e.target.value})} maxLength={70}/></label><label>SEO description<textarea value={data.seoDescription||''} onChange={(e)=>setData({...data,seoDescription:e.target.value})} maxLength={180}/></label><button className="ops-button primary" onClick={()=>void save()}>Save</button></div>}</section></div>{showAdd&&<div className="ops-modal-backdrop" onMouseDown={(e)=>{if(e.currentTarget===e.target)setShowAdd(false);}}><form className="ops-modal" onSubmit={add}><div className="ops-modal-head"><div><span className="ops-kicker">PROFILE ITEM</span><h2>Add to profile</h2></div><button type="button" onClick={()=>setShowAdd(false)}>×</button></div><label>Type<select value={newBlock.type} onChange={(e)=>setNewBlock({...newBlock,type:e.target.value})}><option value="social_link">Social link</option><option value="link">Link</option><option value="featured_video">Featured video</option><option value="featured_article">Featured article</option><option value="featured_image">Featured work</option>{profile.profile_type==='project'&&<option value="team_member">Team member</option>}</select></label><label>Title<input value={newBlock.title} onChange={(e)=>setNewBlock({...newBlock,title:e.target.value})} placeholder="X, Website, Launch thread..." required/></label><label>URL<input type="url" value={newBlock.url} onChange={(e)=>setNewBlock({...newBlock,url:e.target.value})} placeholder="https://..." required/></label><div className="ops-form-actions"><button type="button" className="ops-button ghost" onClick={()=>setShowAdd(false)}>Cancel</button><button className="ops-button primary" disabled={busy==='add'}>{busy==='add'?'Adding...':'Add item'}</button></div></form></div>}</ProductWorkspace>;
+export default function ProfileExperience({
+  me,
+  status,
+}: {
+  me: ProductMe;
+  status: ProductStatus;
+}) {
+  const creatorFirst =
+    status.profiles.find((p) => p.profile_type === "creator") ||
+    status.profiles[0];
+  const stored = window.localStorage.getItem("linkary.active.profile");
+  const [profileId, setProfileId] = useState(
+    stored && status.profiles.some((p) => p.id === stored)
+      ? stored
+      : creatorFirst?.id || "",
+  );
+  const profile =
+    status.profiles.find((p) => p.id === profileId) || creatorFirst;
+  const [data, setData] = useState<ProfileData>({
+    displayName: "",
+    bio: "",
+    seoTitle: "",
+    seoDescription: "",
+    visibility: "private",
+  });
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [clicks, setClicks] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState("");
+  const [showSeo, setShowSeo] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newBlock, setNewBlock] = useState({
+    type: "link",
+    title: "",
+    url: "",
+    mediaUrl: "",
+    role: "Team member",
+  });
+  function changeProfile(id: string) {
+    setProfileId(id);
+    window.localStorage.setItem("linkary.active.profile", id);
+  }
+  async function load() {
+    if (!profile) return;
+    setMessage("");
+    try {
+      const [p, b, a] = await Promise.all([
+        apiJson<{ profile: ProfileData }>(
+          `/api/profiles/${encodeURIComponent(profile.id)}`,
+        ),
+        apiJson<{ blocks: Block[] }>(
+          `/api/profiles/${encodeURIComponent(profile.id)}/blocks`,
+        ),
+        apiJson<{ linkClicks: number }>(
+          `/api/profiles/${encodeURIComponent(profile.id)}/analytics`,
+        ).catch(() => ({ linkClicks: 0 })),
+      ]);
+      setData({
+        ...p.profile,
+        bio: p.profile.bio || "",
+        seoTitle: p.profile.seoTitle || "",
+        seoDescription: p.profile.seoDescription || "",
+      });
+      setBlocks(b.blocks);
+      setClicks(a.linkClicks);
+    } catch {
+      setMessage(
+        "Profile settings are temporarily unavailable. Please try again shortly.",
+      );
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [profileId]);
+  async function save() {
+    if (!profile) return;
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    setBusy("save");
+    setMessage("");
+    try {
+      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}`, {
+        method: "PATCH",
+        headers: { "x-csrf-token": csrf },
+        body: JSON.stringify({
+          displayName: data.displayName,
+          bio: data.bio,
+          seoTitle: data.seoTitle,
+          seoDescription: data.seoDescription,
+        }),
+      });
+      setMessage("Profile saved.");
+      await load();
+    } catch (error) {
+      setMessage(safeError(error, "The profile could not be saved."));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function publish() {
+    if (!profile) return;
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    setBusy("publish");
+    try {
+      const path = data.visibility === "published" ? "unpublish" : "publish";
+      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/${path}`, {
+        method: "POST",
+        headers: { "x-csrf-token": csrf },
+      });
+      setMessage(
+        data.visibility === "published"
+          ? "Profile moved back to draft."
+          : "Profile published.",
+      );
+      await load();
+    } catch (error) {
+      setMessage(
+        safeError(error, "The profile visibility could not be changed."),
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+  async function add(event: React.FormEvent) {
+    event.preventDefault();
+    if (!profile) return;
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    setBusy("add");
+    try {
+      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`, {
+        method: "POST",
+        headers: { "x-csrf-token": csrf },
+        body: JSON.stringify({
+          type: newBlock.type,
+          title: newBlock.title,
+          url: newBlock.type === "heading" ? "" : newBlock.url,
+          config: {
+            ...(newBlock.type === "team_member" ? { role: newBlock.role } : {}),
+            ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}),
+          },
+        }),
+      });
+      setNewBlock({ type: "link", title: "", url: "", mediaUrl: "", role: "Team member" });
+      setShowAdd(false);
+      await load();
+    } catch (error) {
+      setMessage(safeError(error, "This profile item could not be added."));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function toggle(block: Block) {
+    if (!profile) return;
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    try {
+      await apiJson(
+        `/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`,
+        {
+          method: "PATCH",
+          headers: { "x-csrf-token": csrf },
+          body: JSON.stringify({ enabled: !block.enabled }),
+        },
+      );
+      await load();
+    } catch {
+      setMessage("This profile item could not be updated.");
+    }
+  }
+  async function remove(block: Block) {
+    if (!profile || !window.confirm("Remove this item from the profile?"))
+      return;
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    try {
+      await fetch(
+        `/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`,
+        {
+          method: "DELETE",
+          headers: { "x-csrf-token": csrf },
+          credentials: "same-origin",
+        },
+      );
+      await load();
+    } catch {
+      setMessage("This profile item could not be removed.");
+    }
+  }
+  async function move(index: number, by: -1 | 1) {
+    if (!profile) return;
+    const next = index + by;
+    if (next < 0 || next >= blocks.length) return;
+    const ordered = [...blocks];
+    [ordered[index], ordered[next]] = [ordered[next], ordered[index]];
+    const csrf = cookie("__Host-linkary_csrf");
+    if (!csrf) return;
+    try {
+      await apiJson(
+        `/api/profiles/${encodeURIComponent(profile.id)}/blocks-reorder`,
+        {
+          method: "POST",
+          headers: { "x-csrf-token": csrf },
+          body: JSON.stringify({ blockIds: ordered.map((b) => b.id) }),
+        },
+      );
+      setBlocks(ordered);
+    } catch {
+      setMessage("The profile order could not be updated.");
+    }
+  }
+  if (!profile) return null;
+  return (
+    <ProductWorkspace
+      me={me}
+      status={status}
+      profile={profile as ProductProfile}
+      onProfileChange={changeProfile}
+    >
+      <div className="ops-stack profile-next">
+        <div className="ops-heading-row">
+          <div>
+            <span className="ops-kicker">PUBLIC IDENTITY</span>
+            <h1>Profile</h1>
+            <p>Keep the page people see simple, credible and useful.</p>
+          </div>
+          <div className="profile-next-head-actions">
+            <a
+              className="ops-button secondary"
+              href={`https://linkary.xyz/${profile.username}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Preview ↗
+            </a>
+            <button
+              className="ops-button primary"
+              onClick={() => void publish()}
+              disabled={busy === "publish"}
+            >
+              {busy === "publish"
+                ? "Saving..."
+                : data.visibility === "published"
+                  ? "Move to draft"
+                  : "Publish"}
+            </button>
+          </div>
+        </div>
+        {message && <div className="ops-message">{message}</div>}
+        <section className="profile-next-grid">
+          <article className="profile-identity-card">
+            <div className="profile-avatar-next">
+              {(data.displayName || profile.display_name)
+                .slice(0, 1)
+                .toUpperCase()}
+            </div>
+            <label>
+              Display name
+              <input
+                value={data.displayName}
+                onChange={(e) =>
+                  setData({ ...data, displayName: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Bio
+              <textarea
+                value={data.bio}
+                onChange={(e) => setData({ ...data, bio: e.target.value })}
+                maxLength={500}
+                placeholder="What should people know about you?"
+              />
+            </label>
+            <div className="profile-save-row">
+              <span>
+                {clicks ?? 0} measured link click{clicks === 1 ? "" : "s"}
+              </span>
+              <button
+                className="ops-button primary"
+                onClick={() => void save()}
+                disabled={busy === "save"}
+              >
+                {busy === "save" ? "Saving..." : "Save profile"}
+              </button>
+            </div>
+          </article>
+          <article className="profile-preview-card">
+            <span className="ops-kicker">PUBLIC URL</span>
+            <strong>linkary.xyz/{profile.username}</strong>
+            <p>{data.bio || "Your bio will appear here."}</p>
+            <div>
+              <span className={`profile-live-state ${data.visibility}`}>
+                {data.visibility === "published" ? "Live" : "Private draft"}
+              </span>
+            </div>
+          </article>
+        </section>
+        <section className="ops-section">
+          <div className="ops-section-title">
+            <div>
+              <h2>Links & showcase</h2>
+              <p>Add the places, work and proof that matter most.</p>
+            </div>
+            <button
+              className="ops-button secondary"
+              onClick={() => setShowAdd(true)}
+            >
+              + Add item
+            </button>
+          </div>
+          {!blocks.length ? (
+            <div className="ops-empty">
+              <div className="ops-empty-icon">＋</div>
+              <h3>No profile items yet</h3>
+              <p>
+                Add your X profile, website, featured work, articles or videos.
+              </p>
+              <button
+                className="ops-button secondary"
+                onClick={() => setShowAdd(true)}
+              >
+                Add first item
+              </button>
+            </div>
+          ) : (
+            <div className="profile-block-list">
+              {blocks.map((block, index) => (
+                <article
+                  key={block.id}
+                  className={!block.enabled ? "disabled" : ""}
+                >
+                  <div>
+                    <span>{blockLabel(block.type)}</span>
+                    <strong>{block.title || "Untitled"}</strong>
+                    <small>{block.url}</small>
+                  </div>
+                  <div className="profile-block-actions">
+                    <button
+                      disabled={index === 0}
+                      onClick={() => void move(index, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      disabled={index === blocks.length - 1}
+                      onClick={() => void move(index, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button onClick={() => void toggle(block)}>
+                      {block.enabled ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => void remove(block)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="profile-seo-card">
+          <button
+            className="profile-seo-toggle"
+            onClick={() => setShowSeo((v) => !v)}
+          >
+            <span>
+              <strong>Search & share preview</strong>
+              <small>
+                Optional title and description used when this profile is shared.
+              </small>
+            </span>
+            <b>{showSeo ? "−" : "+"}</b>
+          </button>
+          {showSeo && (
+            <div className="profile-seo-fields">
+              <label>
+                SEO title
+                <input
+                  value={data.seoTitle || ""}
+                  onChange={(e) =>
+                    setData({ ...data, seoTitle: e.target.value })
+                  }
+                  maxLength={70}
+                />
+              </label>
+              <label>
+                SEO description
+                <textarea
+                  value={data.seoDescription || ""}
+                  onChange={(e) =>
+                    setData({ ...data, seoDescription: e.target.value })
+                  }
+                  maxLength={180}
+                />
+              </label>
+              <button
+                className="ops-button primary"
+                onClick={() => void save()}
+              >
+                Save
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+      {showAdd && (
+        <div
+          className="ops-modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.currentTarget === e.target) setShowAdd(false);
+          }}
+        >
+          <form className="ops-modal" onSubmit={add}>
+            <div className="ops-modal-head">
+              <div>
+                <span className="ops-kicker">PROFILE ITEM</span>
+                <h2>Add to profile</h2>
+              </div>
+              <button type="button" onClick={() => setShowAdd(false)}>
+                ×
+              </button>
+            </div>
+            <label>
+              Type
+              <select
+                value={newBlock.type}
+                onChange={(e) =>
+                  setNewBlock({ ...newBlock, type: e.target.value })
+                }
+              >
+                <option value="social_link">Social link</option>
+                <option value="link">Link</option>
+                <option value="featured_video">Featured video</option>
+                <option value="featured_article">Featured article</option>
+                <option value="featured_image">Featured work</option>
+                <option value="heading">Section heading</option>
+                {profile.profile_type === "project" && (
+                  <option value="team_member">Team member</option>
+                )}
+              </select>
+            </label>
+            <label>
+              Title
+              <input
+                value={newBlock.title}
+                onChange={(e) =>
+                  setNewBlock({ ...newBlock, title: e.target.value })
+                }
+                placeholder={newBlock.type === "heading" ? "Official links, Community, Featured work..." : "X, Website, Launch thread..."}
+                required
+              />
+            </label>
+            {newBlock.type !== "heading" && <label>
+              URL
+              <input
+                type="url"
+                value={newBlock.url}
+                onChange={(e) =>
+                  setNewBlock({ ...newBlock, url: e.target.value })
+                }
+                placeholder={newBlock.type === "team_member" ? "https://linkary.xyz/username or social profile" : "https://..."}
+                required
+              />
+            </label>}
+            {['featured_video','featured_image'].includes(newBlock.type) && <label>
+              {newBlock.type === 'featured_video' ? 'Video or cover image URL' : 'Image URL'}
+              <input type="url" value={newBlock.mediaUrl} onChange={(e) => setNewBlock({ ...newBlock, mediaUrl: e.target.value })} placeholder="https://..." />
+              <small>Use a direct image URL or a YouTube link for a visual preview.</small>
+            </label>}
+            {newBlock.type === "team_member" && <label>
+              Role on this Project
+              <input value={newBlock.role} onChange={(e) => setNewBlock({ ...newBlock, role: e.target.value })} placeholder="Founder, Community lead, Growth..." />
+            </label>}
+            <div className="ops-form-actions">
+              <button
+                type="button"
+                className="ops-button ghost"
+                onClick={() => setShowAdd(false)}
+              >
+                Cancel
+              </button>
+              <button className="ops-button primary" disabled={busy === "add"}>
+                {busy === "add" ? "Adding..." : "Add item"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </ProductWorkspace>
+  );
 }
