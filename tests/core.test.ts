@@ -63,15 +63,27 @@ test('URL configuration is domain-agnostic until production domains are attached
   });
 });
 
-test('Cloudflare assets are configured without automatic HTML redirects', () => {
+test('Cloudflare assets and app subdomain route are explicitly configured', () => {
   const wrangler = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'));
   assert.equal(wrangler.assets.run_worker_first, true);
   assert.equal(wrangler.assets.html_handling, 'none');
+  assert.equal(
+    wrangler.routes.some((route: { pattern?: string; zone_name?: string }) => route.pattern === 'app.linkary.xyz/*' && route.zone_name === 'linkary.xyz'),
+    true,
+  );
 });
 
 test('app host serves the React shell at the clean root URL', async () => {
   const { env, requestedPaths } = makeEnv();
   const response = await worker.fetch(new Request('https://app.linkary.xyz/'), env, ctx);
+  assert.equal(response.status, 200);
+  assert.deepEqual(requestedPaths, ['/app/index.html']);
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+});
+
+test('app host serves the React shell for signup deep links', async () => {
+  const { env, requestedPaths } = makeEnv();
+  const response = await worker.fetch(new Request('https://app.linkary.xyz/signup'), env, ctx);
   assert.equal(response.status, 200);
   assert.deepEqual(requestedPaths, ['/app/index.html']);
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
