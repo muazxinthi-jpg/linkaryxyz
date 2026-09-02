@@ -38,6 +38,8 @@ import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
 import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
+import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, savePartnerManagerAsset } from './routes/partnerDirectory';
+import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
 import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
 import { cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchRegisteredProjects, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
@@ -46,7 +48,7 @@ import { getLinkaryUrls } from './urls';
 const STATIC_OR_SYSTEM = new Set([
   '', 'index.html', 'styles.css', 'script.js', 'uilib.md', 'favicon.ico', 'assets', 'api', 'onboarding', 'admin', 'app', 'i',
   'robots.txt', 'sitemap.xml', 'pricing', 'about', 'blog', 'privacy', 'terms', 'support', 'help', 'status', 'security',
-  'login', 'signup', 'dashboard', 'campaigns', 'creators', 'communities', 'tracking', 'profile', 'invites', 'settings', 'wallets',
+  'login', 'signup', 'dashboard', 'campaigns', 'creators', 'communities', 'tracking', 'profile', 'invites', 'settings', 'wallets', 'partners', 'opportunities',
 ]);
 
 function singleSegmentProfilePath(pathname: string): string | null {
@@ -98,7 +100,6 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json({ ok: true }, { headers });
   }
 
-  // Legacy endpoint intentionally remains non-granting for cached clients.
   if (path === '/api/access/earned') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createEarnedAccess(request, env); }
   if (path === '/api/access/creator/claim') {
     if (request.method === 'POST') return startCreatorAccessClaim(request, env);
@@ -148,6 +149,14 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/network-entities') { if (request.method === 'GET') return listNetworkEntities(request, env); if (request.method === 'POST') return createNetworkEntity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-activity-participants') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return assignNetworkEntity(request, env); }
   if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
+
+  if (path === '/api/partner-managers') { if (request.method === 'GET') return listPartnerManagers(request, env); if (request.method === 'POST') return savePartnerManager(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/partner-manager-assets') { if (request.method === 'GET') return listPartnerManagerAssets(request, env); if (request.method === 'POST') return savePartnerManagerAsset(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/campaign-opportunities') { if (request.method === 'GET') return listCampaignOpportunities(request, env); if (request.method === 'POST') return saveCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/campaign-opportunity-applications') { if (request.method === 'GET') return listCampaignOpportunityApplications(request, env); if (request.method === 'POST') return applyToCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
+  const opportunityApplicationReview = path.match(/^\/api\/campaign-opportunity-applications\/([^/]+)$/);
+  if (opportunityApplicationReview) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return reviewCampaignOpportunityApplication(request, env, decodeURIComponent(opportunityApplicationReview[1])); }
+
   if (path === '/api/invites') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createNetworkInvite(request, env); }
   if (path === '/api/profile-wallets') { if (request.method === 'GET') return listProfileWalletDestinations(request, env); if (request.method === 'POST') return saveProfileWalletDestination(request, env); return methodNotAllowed(['GET', 'POST']); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
