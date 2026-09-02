@@ -27,6 +27,12 @@ export async function inviteBalances(request: Request, env: Env): Promise<Respon
   return json({ balances: rows });
 }
 
+export async function listNetworkInvites(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env); const db = new Db(requireDb(env));
+  const rows = await db.all<{ id: string; invite_type: string; status: string; uses: number; max_uses: number; created_at: string; clicks: number; registrations: number; chosen_account_type: string | null }>(`SELECT i.id, i.invite_type, i.status, i.uses, i.max_uses, i.created_at, COUNT(DISTINCT c.id) AS clicks, COUNT(DISTINCT r.id) AS registrations, MAX(r.chosen_account_type) AS chosen_account_type FROM invites i LEFT JOIN invite_click_events c ON c.invite_id = i.id LEFT JOIN invite_redemptions r ON r.invite_id = i.id WHERE i.inviter_user_id = ? OR i.inviter_organization_id IN (SELECT organization_id FROM organization_memberships WHERE user_id = ? AND status = 'active') GROUP BY i.id ORDER BY i.created_at DESC LIMIT 100`, [auth.user.id, auth.user.id]);
+  return json({ invites: rows });
+}
+
 export async function createNetworkInvite(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env); await verifyCsrf(request, env, auth); const body = await readJson<CreateInviteBody>(request);
   if ((body.ownerType !== 'profile' && body.ownerType !== 'organization') || !body.ownerId) throw new HttpError(400, 'ownerType and ownerId are required', 'invalid_invite_owner');
