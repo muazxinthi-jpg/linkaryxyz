@@ -266,6 +266,27 @@ async function renderPublicProfileV2(
     profile.profile_type === "project"
       ? "PROJECT IDENTITY"
       : "CREATOR IDENTITY";
+  let ecosystemTokens = ["LINKARY", "IDENTITY", "ATTRIBUTION", "EVIDENCE", "GROWTH"];
+  try {
+    const db = new Db(requireDb(env));
+    const [users, communities, creators] = await Promise.all([
+      db.first<{ total: number }>("SELECT COUNT(*) AS total FROM users WHERE status = 'active'"),
+      db.first<{ total: number }>("SELECT COUNT(*) AS total FROM project_network_entities WHERE entity_type = 'community'"),
+      db.first<{ total: number }>("SELECT COUNT(*) AS total FROM project_network_entities WHERE entity_type = 'creator'"),
+    ]);
+    ecosystemTokens = [
+      `${users?.total || 0} MEMBERS`,
+      `${communities?.total || 0} COMMUNITIES`,
+      `${creators?.total || 0} CREATORS`,
+      "LINKARY",
+      "IDENTITY",
+      "ATTRIBUTION",
+      "EVIDENCE",
+      "GROWTH",
+    ];
+  } catch {
+    // Public profiles stay available while an optional network metric is not yet migrated.
+  }
   // The motion layer is deliberately profile-scoped. Project pages never pull in
   // other project names; creator pages use only public display names from the
   // creator's active project memberships and their fellow members (never email).
@@ -274,11 +295,7 @@ async function renderPublicProfileV2(
     rainTokens = [
       profile.display_name,
       `@${profile.username}`,
-      "LINKARY",
-      "IDENTITY",
-      "ATTRIBUTION",
-      "EVIDENCE",
-      "GROWTH",
+      ...ecosystemTokens,
       "OUTCOMES",
       "NETWORK",
       "TRACKING",
@@ -315,15 +332,13 @@ async function renderPublicProfileV2(
         `@${profile.username}`,
         ...projects.map((row) => row.name),
         ...people.map((row) => row.name),
-        "LINKARY",
-        "IDENTITY",
-        "PROOF",
+        ...ecosystemTokens,
         "CONNECTIONS",
         "01",
         "02",
       ];
     } catch {
-      rainTokens = [profile.display_name, `@${profile.username}`, "LINKARY", "IDENTITY", "PROOF", "CONNECTIONS", "01", "02"];
+      rainTokens = [profile.display_name, `@${profile.username}`, ...ecosystemTokens, "CONNECTIONS", "01", "02"];
     }
   }
   rainTokens = Array.from(new Set(rainTokens.map((token) => token.trim()).filter(Boolean))).slice(0, 16);
@@ -333,7 +348,8 @@ async function renderPublicProfileV2(
     const x = 2 + ((index * 37) % 94);
     const delay = -((index * 1.73) % 16).toFixed(2);
     const duration = (11 + ((index * 7) % 10)).toFixed(2);
-    return `<span style="--rain-x:${x};--rain-delay:${delay}s;--rain-duration:${duration}s">${escapeHtml(`${token}\n${String(index + 1).padStart(2, "0")}\n${next}`)}</span>`;
+    const glyphStream = Array.from(`${token}${String(index + 1).padStart(2, "0")}${next}`.toUpperCase()).join("\n");
+    return `<span style="--rain-x:${x};--rain-delay:${delay}s;--rain-duration:${duration}s">${escapeHtml(glyphStream)}</span>`;
   }).join("");
   const matrixHtml = `<style>.matrix-rain{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:.48}.matrix-rain span{position:absolute;top:-45vh;left:calc(var(--rain-x) * 1%);display:block;white-space:pre;color:#ff6847;font:700 9px/1.36 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 0 16px #ff593788;animation:linkary-rain var(--rain-duration) linear var(--rain-delay) infinite;opacity:.48}.page{position:relative;z-index:1}@keyframes linkary-rain{to{transform:translateY(190vh)}}@media(max-width:560px){.matrix-rain span:nth-child(2n){display:none}.matrix-rain{opacity:.32}}@media(prefers-reduced-motion:reduce){.matrix-rain{display:none}}</style><div class="matrix-rain" aria-hidden="true">${matrixColumns}</div>`;
   featureHtml = matrixHtml + featureHtml;
