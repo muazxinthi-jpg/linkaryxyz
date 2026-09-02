@@ -135,6 +135,27 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .workspace-picker { margin: 30px 0 20px; padding: 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; background: #11151b; }
 .workspace-picker label { display: block; margin-bottom: 6px; color: #68717c; font: 500 9px var(--mono); }
 .workspace-picker select { width: 100%; border: 0; color: white; background: #11151b; font-size: 12px; font-weight: 600; }
+.workspace-add { width: 100%; margin-top: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; padding: 8px 9px; color: #aeb6c1; background: transparent; text-align: left; font-size: 11px; cursor: pointer; }
+.workspace-add:hover { color: white; border-color: rgba(255,138,99,.55); }
+.workspace-modal-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(5,7,10,.62); }
+.workspace-modal { position: relative; width: min(460px, 100%); display: grid; gap: 14px; padding: 28px; border-radius: 18px; background: #fff; color: #171717; box-shadow: 0 28px 90px rgba(0,0,0,.3); }
+.workspace-modal h2 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+.workspace-modal p { margin: -4px 0 4px; color: #746f67; line-height: 1.5; }
+.workspace-modal label { display: grid; gap: 7px; font-size: 13px; font-weight: 700; }
+.workspace-modal input { width: 100%; box-sizing: border-box; border: 1px solid #d8d5ce; border-radius: 10px; padding: 12px 13px; color: #171717; font: inherit; }
+.workspace-modal-close { position: absolute; top: 14px; right: 16px; border: 0; background: transparent; color: #746f67; font-size: 24px; cursor: pointer; }
+.feature-page { max-width: 760px; display: grid; gap: 14px; }
+.feature-page h1 { margin: 0; font-size: 42px; letter-spacing: -.05em; }
+.feature-page > p { max-width: 600px; color: #7f8791; line-height: 1.6; }
+.feature-form { display: grid; gap: 16px; max-width: 560px; padding: 24px; border: 1px solid #e5e1d9; border-radius: 16px; background: #fff; }
+.feature-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+.feature-form input, .feature-form textarea, .created-invite input { width: 100%; box-sizing: border-box; border: 1px solid #d8d5ce; border-radius: 9px; padding: 11px 12px; color: #171717; font: inherit; }
+.feature-form textarea { min-height: 100px; resize: vertical; }
+.invite-balance { display: grid; gap: 5px; width: 220px; padding: 20px; border-radius: 14px; background: #171d24; color: #fff; }
+.invite-balance span { color: #aeb6c1; font: 10px var(--mono); }
+.invite-balance strong { font-size: 38px; }
+.invite-balance small { color: #aeb6c1; }
+.created-invite { display: grid; gap: 8px; max-width: 560px; padding: 16px; border: 1px solid #e5e1d9; border-radius: 12px; background: #fff; }
 .app-sidebar nav { display: grid; gap: 3px; }
 .app-sidebar nav a, .admin-link { min-height: 40px; padding: 0 11px; display: flex; align-items: center; border-radius: 7px; color: #828a95; font-size: 12px; }
 .app-sidebar nav a.active, .app-sidebar nav a:hover { color: white; background: #171d24; }

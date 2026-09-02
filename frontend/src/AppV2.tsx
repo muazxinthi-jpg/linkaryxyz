@@ -463,6 +463,21 @@ function FoundationPage({ name }: { name: keyof typeof pageCopy }) {
   return <div className="foundation-page"><span className="section-label">{copy.eyebrow}</span><h1>{copy.title}</h1><p>{copy.body}</p><div className="foundation-box"><strong>Foundation ready</strong><span>This route is part of the real authenticated Linkary shell. The feature workflow is intentionally next, not simulated.</span></div></div>;
 }
 
+function ProfileEditor({ profile }: { profile: ProfileSummary }) {
+  const [form, setForm] = useState({ displayName: profile.display_name, bio: '', seoTitle: '', seoDescription: '' });
+  const [message, setMessage] = useState('');
+  async function save(event: React.FormEvent) { event.preventDefault(); const csrf = readCookie('__Host-linkary_csrf'); if (!csrf) { setMessage('Please sign in again.'); return; } try { await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}`, { method: 'PATCH', headers: { 'x-csrf-token': csrf }, body: JSON.stringify(form) }); setMessage('Profile saved.'); } catch (err) { setMessage(publicError(err, 'Unable to save profile.')); } }
+  return <div className="feature-page"><span className="section-label">PUBLIC IDENTITY</span><h1>Profile editor</h1><p>Shape the public page people see when they discover your Linkary identity.</p><form className="feature-form" onSubmit={save}><label>Display name<input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} maxLength={80} required /></label><label>Bio<textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} maxLength={500} placeholder="What should people know about this profile?" /></label><label>SEO title<input value={form.seoTitle} onChange={(e) => setForm({ ...form, seoTitle: e.target.value })} maxLength={70} /></label><label>SEO description<textarea value={form.seoDescription} onChange={(e) => setForm({ ...form, seoDescription: e.target.value })} maxLength={180} /></label>{message && <div className="form-error">{message}</div>}<button className="button primary" type="submit">Save profile</button></form></div>;
+}
+
+function InviteDashboard({ profile }: { profile: ProfileSummary }) {
+  const [balance, setBalance] = useState<InviteBalance | null>(null); const [created, setCreated] = useState(''); const [error, setError] = useState('');
+  const ownerType = profile.profile_type === 'creator' ? 'profile' : 'organization';
+  useEffect(() => { apiJson<{ balances: InviteBalance[] }>('/api/invites/balances').then((r) => setBalance(r.balances.find((b) => b.owner_type === ownerType && b.owner_id === (ownerType === 'profile' ? profile.id : profile.organization_id)) || null)).catch(() => undefined); }, [profile.id, profile.organization_id, ownerType]);
+  async function create() { const csrf = readCookie('__Host-linkary_csrf'); if (!csrf || !balance) return; setError(''); try { const r = await apiJson<{ inviteUrl: string }>('/api/invites', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ ownerType, ownerId: ownerType === 'profile' ? profile.id : profile.organization_id }) }); setCreated(r.inviteUrl); setBalance({ ...balance, available_credits: balance.available_credits - 1, lifetime_used: balance.lifetime_used + 1 }); } catch (err) { setError(publicError(err, 'Unable to create invite.')); } }
+  return <div className="feature-page"><span className="section-label">PRIVATE NETWORK</span><h1>Invite dashboard</h1><p>Invite people into the right workspace and keep every referral attributable.</p><div className="invite-balance"><span>AVAILABLE INVITES</span><strong>{balance?.available_credits ?? '—'}</strong><small>{balance ? `${balance.lifetime_used} used of ${balance.lifetime_granted}` : 'Loading balance'}</small></div><button className="button primary" onClick={() => void create()} disabled={!balance || balance.available_credits < 1}>Generate invitation</button>{created && <div className="created-invite"><strong>Invitation ready</strong><input readOnly value={created} onFocus={(e) => e.currentTarget.select()} /></div>}{error && <div className="form-error">{error}</div>}</div>;
+}
+
 function AdminPage() {
   const [claims, setClaims] = useState<CreatorClaim[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -514,14 +529,32 @@ function AdminPage() {
 }
 
 function AppShell({ me, status, onLogout }: { me: MeResponse; status: OnboardingStatus; onLogout: () => Promise<void> }) {
+  const [profiles, setProfiles] = useState(status.profiles);
   const [profileId, setProfileId] = useState(status.profiles[0]?.id || '');
-  const profile = status.profiles.find((item) => item.id === profileId) || status.profiles[0];
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceUsername, setWorkspaceUsername] = useState('');
+  const [workspaceError, setWorkspaceError] = useState('');
+  const profile = profiles.find((item) => item.id === profileId) || profiles[0];
   if (!profile) return <Navigate to="/onboarding" replace />;
+  async function createWorkspace(event: React.FormEvent) {
+    event.preventDefault();
+    const csrf = readCookie('__Host-linkary_csrf');
+    if (!csrf) { setWorkspaceError('Your secure session expired. Please sign in again.'); return; }
+    setWorkspaceError('');
+    try {
+      const created = await apiJson<{ profileId: string }>('/api/organizations', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ name: workspaceName, username: workspaceUsername }) });
+      const refreshed = await apiJson<OnboardingStatus>('/api/onboarding/status');
+      setProfiles(refreshed.profiles);
+      setProfileId(created.profileId);
+      setWorkspaceName(''); setWorkspaceUsername(''); setCreatingWorkspace(false);
+    } catch (err) { setWorkspaceError(publicError(err, 'Unable to create this workspace.')); }
+  }
   const nav = [['dashboard', 'Overview'], ['campaigns', 'Campaigns'], ['creators', 'Creators'], ['communities', 'Communities'], ['tracking', 'Tracking'], ['profile', 'Profile'], ['invites', 'Invites'], ['settings', 'Settings']];
   return (
     <main className="app-shell">
-      <aside className="app-sidebar"><Logo /><div className="workspace-picker"><label>WORKSPACE</label><select value={profile.id} onChange={(event) => setProfileId(event.target.value)}>{status.profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></div><nav>{nav.map(([path, label]) => <NavLink key={path} to={`/${path}`} className={({ isActive }) => isActive ? 'active' : ''}>{label}</NavLink>)}</nav>{me.user?.superadmin && <NavLink className="admin-link" to="/admin">Superadmin</NavLink>}<div className="sidebar-user"><span>{status.user.displayName || status.user.email || 'Linkary user'}</span><button onClick={onLogout}>Log out</button></div></aside>
-      <section className="app-content"><header className="app-topbar"><div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div><a href="https://linkary.xyz" target="_blank" rel="noreferrer">linkary.xyz ↗</a></header><div className="app-page"><Routes><Route path="/" element={<Navigate to="/dashboard" replace />} /><Route path="/dashboard" element={<Dashboard status={status} profile={profile} />} /><Route path="/campaigns" element={<FoundationPage name="campaigns" />} /><Route path="/creators" element={<FoundationPage name="creators" />} /><Route path="/communities" element={<FoundationPage name="communities" />} /><Route path="/tracking" element={<FoundationPage name="tracking" />} /><Route path="/profile" element={<FoundationPage name="profile" />} /><Route path="/invites" element={<FoundationPage name="invites" />} /><Route path="/settings" element={<FoundationPage name="settings" />} /><Route path="/admin/*" element={me.user?.superadmin ? <AdminPage /> : <Navigate to="/dashboard" replace />} /><Route path="*" element={<Navigate to="/dashboard" replace />} /></Routes></div></section>
+      <aside className="app-sidebar"><Logo /><div className="workspace-picker"><label>WORKSPACE</label><select value={profile.id} onChange={(event) => setProfileId(event.target.value)}>{profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select><button className="workspace-add" type="button" onClick={() => { setWorkspaceError(''); setCreatingWorkspace(true); }}>+ Create workspace</button></div><nav>{nav.map(([path, label]) => <NavLink key={path} to={`/${path}`} className={({ isActive }) => isActive ? 'active' : ''}>{label}</NavLink>)}</nav>{me.user?.superadmin && <NavLink className="admin-link" to="/admin">Superadmin</NavLink>}<div className="sidebar-user"><span>{status.user.displayName || status.user.email || 'Linkary user'}</span><button onClick={onLogout}>Log out</button></div>{creatingWorkspace && <div className="workspace-modal-backdrop"><form className="workspace-modal" onSubmit={createWorkspace}><button className="workspace-modal-close" type="button" onClick={() => setCreatingWorkspace(false)}>×</button><span className="section-label">NEW PROJECT WORKSPACE</span><h2>Create a project</h2><p>Your human account stays the same. This adds a Project profile and 50 network invites.</p><label>Project name<input value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} placeholder="e.g. KlineO" minLength={2} maxLength={100} required /></label><label>Linkary username<input value={workspaceUsername} onChange={(event) => setWorkspaceUsername(event.target.value.toLowerCase())} placeholder="e.g. klineo" pattern="[a-z0-9_]{3,30}" required /></label>{workspaceError && <div className="form-error">{workspaceError}</div>}<button className="button primary full" disabled={!workspaceName.trim() || !workspaceUsername.trim()}>Create workspace</button></form></div>}</aside>
+      <section className="app-content"><header className="app-topbar"><div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div><a href="https://linkary.xyz" target="_blank" rel="noreferrer">linkary.xyz ↗</a></header><div className="app-page"><Routes><Route path="/" element={<Navigate to="/dashboard" replace />} /><Route path="/dashboard" element={<Dashboard status={status} profile={profile} />} /><Route path="/campaigns" element={<FoundationPage name="campaigns" />} /><Route path="/creators" element={<FoundationPage name="creators" />} /><Route path="/communities" element={<FoundationPage name="communities" />} /><Route path="/tracking" element={<FoundationPage name="tracking" />} /><Route path="/profile" element={<ProfileEditor profile={profile} />} /><Route path="/invites" element={<InviteDashboard profile={profile} />} /><Route path="/settings" element={<FoundationPage name="settings" />} /><Route path="/admin/*" element={me.user?.superadmin ? <AdminPage /> : <Navigate to="/dashboard" replace />} /><Route path="*" element={<Navigate to="/dashboard" replace />} /></Routes></div></section>
     </main>
   );
 }

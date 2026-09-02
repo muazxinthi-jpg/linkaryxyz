@@ -27,7 +27,7 @@ import {
   updateProfileBlock,
 } from './routes/profiles';
 import { adminHealth } from './routes/admin';
-import { archiveOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
+import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, renderInviteLanding } from './routes/invites';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
@@ -105,7 +105,11 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/onboarding/complete') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return completeOnboarding(request, env); }
   const publicProfile = path.match(/^\/api\/public\/profiles\/([^/]+)$/);
   if (publicProfile) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return publicProfileJson(decodeURIComponent(publicProfile[1]), env); }
-  if (path === '/api/organizations') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listOrganizations(request, env); }
+  if (path === '/api/organizations') {
+    if (request.method === 'GET') return listOrganizations(request, env);
+    if (request.method === 'POST') return createOrganization(request, env);
+    return methodNotAllowed(['GET', 'POST']);
+  }
   const archiveOrg = path.match(/^\/api\/organizations\/([^/]+)\/archive$/);
   if (archiveOrg) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return archiveOrganization(request, env, decodeURIComponent(archiveOrg[1])); }
   const restoreOrg = path.match(/^\/api\/organizations\/([^/]+)\/restore$/);
