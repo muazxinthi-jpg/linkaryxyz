@@ -38,6 +38,7 @@ import { createActivity, listActivities } from './routes/activities';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
 import { campaignOutcomeSummary, createConversion, listConversions } from './routes/conversions';
 import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
+import { listProjectShortlist, saveProjectShortlist } from './routes/shortlists';
 import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, savePartnerManagerAsset } from './routes/partnerDirectory';
 import { partnerManagerReputation, recordPartnerManagerCollaboration } from './routes/partnerReputation';
 import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
@@ -152,6 +153,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (trackedLinkStatus) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateTrackedLinkStatus(request, env, decodeURIComponent(trackedLinkStatus[1])); }
   if (path === '/api/conversions') { if (request.method === 'GET') return listConversions(request, env); if (request.method === 'POST') return createConversion(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/network-entities') { if (request.method === 'GET') return listNetworkEntities(request, env); if (request.method === 'POST') return createNetworkEntity(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/project-partner-shortlists') { if (request.method === 'GET') return listProjectShortlist(request, env); if (request.method === 'POST') return saveProjectShortlist(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-activity-participants') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return assignNetworkEntity(request, env); }
   if (path === '/api/campaign-outcomes') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return campaignOutcomeSummary(request, env); }
 
