@@ -29,6 +29,8 @@ export async function listOrganizations(request: Request, env: Env): Promise<Res
 export async function createOrganization(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
+  throw new HttpError(403, 'Projects must be registered through their own authenticated X identity before they can be managed in a workspace', 'project_registration_required');
+  /* Legacy free-form creation remains below temporarily for schema reference; it is intentionally unreachable. */
   const body = await readJson<CreateOrganizationBody>(request);
   const name = body.name?.trim() || body.displayName?.trim() || '';
   if (name.length < 2 || name.length > 100) throw new HttpError(400, 'Project name must be 2 to 100 characters', 'invalid_organization_name');

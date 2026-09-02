@@ -120,6 +120,9 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
   }
 
   const identity = await primaryXIdentity(db, auth.user.id);
+  if (body.accountType === 'project' && !identity) {
+    throw new HttpError(403, 'Sign in with the Project’s X account to register this Project on Linkary', 'project_x_identity_required');
+  }
   const verificationStatus = identity ? 'verified_x' : 'pending';
   const timestamp = now();
   let profileId: string;
