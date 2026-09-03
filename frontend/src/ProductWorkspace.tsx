@@ -46,7 +46,17 @@ export function ProductWorkspace({
     window.location.reload();
   }
 
-  const nav = [
+  const creatorNav = [
+    ['/dashboard', 'Overview'],
+    ['/dashboard/inbox', 'Inbox'],
+    ['/opportunities', 'Opportunities'],
+    ['/partners', 'Partners'],
+    ['/profile', 'Profile'],
+    ['/wallets', 'Wallets'],
+    ['/invites', 'Invites'],
+    ['/settings', 'Projects'],
+  ];
+  const projectNav = [
     ['/dashboard', 'Overview'],
     ['/dashboard/inbox', 'Inbox'],
     ['/campaigns', 'Growth'],
@@ -57,10 +67,11 @@ export function ProductWorkspace({
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
   ];
+  const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 
   return (
-    <main className="ops-shell">
+    <main className={`ops-shell workspace-${profile.profile_type}`}>
       <aside className="ops-sidebar">
         <a className="ops-brand" href="https://linkary.xyz" aria-label="Linkary home">
           <img src="/assets/brand/linkary-icon-black.png" alt="" />
@@ -76,11 +87,7 @@ export function ProductWorkspace({
         </div>
         <nav className="ops-nav">
           {nav.map(([path, label]) => (
-            <NavLink
-              key={path}
-              to={path}
-              className={() => currentPath === path || (path === '/campaigns' && currentPath === '/tracking') ? 'active' : ''}
-            >
+            <NavLink key={path} to={path} className={() => currentPath === path ? 'active' : ''}>
               {label}
             </NavLink>
           ))}
