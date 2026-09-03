@@ -40,6 +40,7 @@ import { campaignOutcomeSummary, createConversion, listConversions } from './rou
 import { assignNetworkEntity, createNetworkEntity, listNetworkEntities } from './routes/network';
 import { listProjectShortlist, promoteShortlistPartner, saveProjectShortlist } from './routes/shortlists';
 import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, savePartnerManagerAsset } from './routes/partnerDirectory';
+import { communityVerificationStatus, listCommunityVerificationReviews, reviewCommunityVerification, submitCommunityVerification } from './routes/communityVerification';
 import { partnerManagerReputation, recordPartnerManagerCollaboration } from './routes/partnerReputation';
 import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
 import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
@@ -161,6 +162,11 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
 
   if (path === '/api/partner-managers') { if (request.method === 'GET') return listPartnerManagers(request, env); if (request.method === 'POST') return savePartnerManager(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/partner-manager-assets') { if (request.method === 'GET') return listPartnerManagerAssets(request, env); if (request.method === 'POST') return savePartnerManagerAsset(request, env); return methodNotAllowed(['GET', 'POST']); }
+  if (path === '/api/community-verifications') {
+    if (request.method === 'GET') return communityVerificationStatus(request, env);
+    if (request.method === 'POST') return submitCommunityVerification(request, env);
+    return methodNotAllowed(['GET', 'POST']);
+  }
   if (path === '/api/partner-manager-reputation') { if (request.method === 'GET') return partnerManagerReputation(request, env); if (request.method === 'POST') return recordPartnerManagerCollaboration(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-opportunities') { if (request.method === 'GET') return listCampaignOpportunities(request, env); if (request.method === 'POST') return saveCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
   if (path === '/api/campaign-opportunity-applications') { if (request.method === 'GET') return listCampaignOpportunityApplications(request, env); if (request.method === 'POST') return applyToCampaignOpportunity(request, env); return methodNotAllowed(['GET', 'POST']); }
@@ -192,6 +198,9 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/admin/users') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listAdminUsers(request, env); }
   if (path === '/api/admin/invite-credit-owners') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listInviteCreditOwners(request, env); }
   if (path === '/api/admin/invite-credits/adjust') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return adjustInviteCredits(request, env); }
+  if (path === '/api/admin/community-verifications') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listCommunityVerificationReviews(request, env); }
+  const communityVerificationReview = path.match(/^\/api\/admin\/community-verifications\/([^/]+)\/(approve|reject)$/);
+  if (communityVerificationReview) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reviewCommunityVerification(request, env, decodeURIComponent(communityVerificationReview[1]), communityVerificationReview[2] as 'approve' | 'reject'); }
   const adminUser = path.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
   if (adminUser) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return setAdminUserStatus(request, env, decodeURIComponent(adminUser[1])); }
   if (path === '/api/admin/creator-access') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listCreatorAccessClaims(request, env); }
