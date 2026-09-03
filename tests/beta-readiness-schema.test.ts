@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { assessBetaSchema, REQUIRED_BETA_TABLES, REQUIRED_BETA_TRIGGERS } from '../src/betaReadiness';
 
 test('Beta schema readiness fails closed when required capabilities are absent', () => {
@@ -35,4 +36,18 @@ test('migration ledger alone never makes an incomplete production schema ready',
   assert.equal(readiness.ready, false);
   assert.equal(readiness.migrationLedgerPresent, true);
   assert.equal(readiness.missingTables.length, REQUIRED_BETA_TABLES.length);
+});
+
+test('Superadmins can reach a dedicated Beta readiness workspace', () => {
+  const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  const readinessUi = readFileSync(new URL('../frontend/src/AdminReadinessExperience.tsx', import.meta.url), 'utf8');
+  const admin = readFileSync(new URL('../src/routes/admin.ts', import.meta.url), 'utf8');
+
+  assert.equal(app.includes("location.pathname === '/admin/readiness'"), true);
+  assert.equal(app.includes("if (!me.user?.superadmin)"), true);
+  assert.equal(workspace.includes('Beta readiness'), true);
+  assert.equal(readinessUi.includes('/api/admin/health'), true);
+  assert.equal(readinessUi.includes('Ready for Beta'), true);
+  assert.equal(admin.includes('readBetaSchemaReadiness'), true);
 });
