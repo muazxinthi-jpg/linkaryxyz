@@ -176,8 +176,7 @@ export async function renderPublicProfileEnhanced(request: Request, env: Env, us
     else if (html.includes('</section>')) html = html.replace('</section>', `</section>${ctaHtml}`);
   }
 
-  if (html.includes('</style>')) html = html.replace('</style>', `${extraCss()}</style>`);
-  else html = html.replace('</head>', `<style>${extraCss()}</style></head>`);
+  html = html.replace('</head>', `<style id="linkary-enhanced-theme">${extraCss()}</style></head>`);
 
   const headers = new Headers(base.headers);
   headers.delete('content-length');
