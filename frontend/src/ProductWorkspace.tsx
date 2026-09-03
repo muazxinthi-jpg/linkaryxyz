@@ -50,6 +50,7 @@ export function ProductWorkspace({
     ['/dashboard', 'Overview'],
     ['/dashboard/inbox', 'Inbox'],
     ['/opportunities', 'Opportunities'],
+    ['/communities', 'Communities'],
     ['/partners', 'Partners'],
     ['/profile', 'Profile'],
     ['/wallets', 'Wallets'],

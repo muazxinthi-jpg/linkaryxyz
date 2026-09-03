@@ -13,6 +13,7 @@ import ProjectExperienceBeta from './ProjectExperienceBeta';
 import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
+import CommunityManagerExperience from './CommunityManagerExperience';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
@@ -26,6 +27,7 @@ type Experience =
   | 'dashboard'
   | 'inbox'
   | 'opportunities'
+  | 'communities'
   | 'growth'
   | 'operations'
   | 'network'
@@ -75,6 +77,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
     if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
+    if (experience === 'communities') return <CommunityManagerExperience me={me} status={status} />;
     if (experience === 'growth') return <GrowthExperience me={me} status={status} />;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'partners') return <PartnerDirectoryExperience me={me} status={status} />;
@@ -119,10 +122,11 @@ export default function AppV3() {
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
   if (location.pathname === '/opportunities') return <ProductGate experience="opportunities" />;
+  if (location.pathname === '/communities') return <ProductGate experience="communities" />;
   if (location.pathname === '/campaigns') return <ProductGate experience="growth" />;
   if (location.pathname === '/tracking') return <ProductGate experience="operations" />;
   if (location.pathname === '/partners') return <ProductGate experience="partners" />;
-  if (location.pathname === '/creators' || location.pathname === '/communities') return <ProductGate experience="network" />;
+  if (location.pathname === '/creators') return <ProductGate experience="network" />;
   if (location.pathname === '/profile') return <ProductGate experience="profile" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
