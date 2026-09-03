@@ -12,6 +12,7 @@ import ProfileExperienceBeta from './ProfileExperienceBeta';
 import ProjectExperienceBeta from './ProjectExperienceBeta';
 import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
+import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -23,6 +24,7 @@ async function getJson<T>(path: string): Promise<T> {
 type Experience =
   | 'dashboard'
   | 'inbox'
+  | 'opportunities'
   | 'growth'
   | 'operations'
   | 'network'
@@ -70,6 +72,7 @@ function ProductGate({ experience }: { experience: Experience }) {
   if (state === 'ready' && me && status) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
+    if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
     if (experience === 'growth') return <GrowthExperience me={me} status={status} />;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'partners') return <PartnerDirectoryExperience me={me} status={status} />;
@@ -95,6 +98,7 @@ export default function AppV3() {
   const location = useLocation();
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
+  if (location.pathname === '/opportunities') return <ProductGate experience="opportunities" />;
   if (location.pathname === '/campaigns') return <ProductGate experience="growth" />;
   if (location.pathname === '/tracking') return <ProductGate experience="operations" />;
   if (location.pathname === '/partners') return <ProductGate experience="partners" />;
