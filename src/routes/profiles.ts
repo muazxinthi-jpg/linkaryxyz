@@ -410,9 +410,9 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
 
   const avatar = avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">` : escapeHtml((profile.display_name || profile.username).slice(0, 1).toUpperCase());
   const socialHtml = socials.map((block) => `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || 'Social link')}">${publicIcon(block)}</a>`).join('');
-  const featureCards = features.map((block, index) => {
+  const featureCards = (await Promise.all(features.map(async (block, index) => {
     const config = safeJson(block.config_json) as { mediaUrl?: string };
-    const resolved = resolveFeaturedMedia(config.mediaUrl, block.url, block.block_type);
+    const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
     const fallback = '<span class="feature-art">◆</span>';
     const media = resolved?.kind === 'video'
       ? `<video src="${escapeHtml(resolved.src)}" muted playsinline loop autoplay preload="metadata" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"></video><span class="feature-art" hidden>◆</span>`
@@ -420,12 +420,35 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
         ? `<img src="${escapeHtml(resolved.src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"><span class="feature-art" hidden>◆</span>${resolved.youtube ? '<span class="feature-play">▶</span>' : ''}`
         : fallback;
     return `<a class="feature ${index === 0 ? 'hero-feature' : ''}" href="${escapeHtml(blockUrl(block))}">${media}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
-  }).join('');
+  }))).join('');
   const galleryStyle = `<style>.showcase{margin-top:22px}.showcase-title{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:0 4px 10px;color:#ffc4b4;font:700 11px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em}.showcase-title span:first-child{grid-column:2;text-align:center}.showcase-title span:last-child{grid-column:3;justify-self:end;font-size:9px}.showcase-grid,.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.showcase-item,.product-item{position:relative;min-height:180px;overflow:hidden;border:1px solid #ffffff28;border-radius:20px;background:#2a1713;color:#fff;text-decoration:none;box-shadow:0 14px 32px #0005}.showcase-item img,.product-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.84}.showcase-item:after,.product-item:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#100b09e8,transparent 65%)}.showcase-item span,.product-item span{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;display:grid;gap:4px}.showcase-item strong,.product-item strong{font-size:14px;line-height:1.15}.showcase-item small{color:#ffc4b4;font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.product-item i{font-size:12px;font-style:normal;color:#ffe0d6}.showcase-art{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;color:#ff654833}@media(min-width:680px){.nft-showcase .showcase-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nft-showcase .showcase-item{min-height:132px}}@media(max-width:650px){.showcase-item{min-height:142px;border-radius:15px}.nft-showcase .showcase-item{min-height:108px}.showcase-item strong{font-size:12px}.product-item{min-height:135px}}</style>`;
   const galleryRefinement = `<style>.image-showcase .showcase-item{min-height:230px;background:#eee9e5;border-color:#ffffff3b}.image-showcase .showcase-item img{object-fit:contain;opacity:1;padding:14px}.image-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09dd,transparent 52%)}.nft-showcase .showcase-item img{object-fit:cover;opacity:1}.nft-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09d9,transparent 55%)}</style>`;
-  const gallery = (items: ProfileBlockRow[], className: string, label: string) => !items.length ? '' : `<section class="showcase ${className}"><div class="showcase-title"><span>${label}</span><span>${items.length}</span></div><div class="showcase-grid">${items.map((block) => { const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string }; const media = resolveFeaturedMedia(config.mediaUrl, block.url, 'featured_image'); const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◇</b>'; return `<a class="showcase-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`; }).join('')}</div></section>`;
-  const productGallery = !productFeatures.length ? '' : `<section class="showcase product-showcase"><div class="showcase-title"><span>PRODUCT FEATURES</span><span>${productFeatures.length}</span></div><div class="product-grid">${productFeatures.map((block) => { const config = safeJson(block.config_json) as { mediaUrl?: string }; const media = resolveFeaturedMedia(config.mediaUrl, block.url, 'featured_image'); const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◆</b>'; return `<a class="product-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Product feature')}</strong><i>Explore ↗</i></span></a>`; }).join('')}</div></section>`;
-  const featureHtml = featureCards + (productGallery || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productGallery}${gallery(featuredImages, 'image-showcase', 'FEATURED IMAGES')}${gallery(nftItems, 'nft-showcase', 'COLLECTED IDENTITY')}` : '');
+  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {
+    if (!items.length) return '';
+    const cards = await Promise.all(items.map(async (block) => {
+      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string };
+      const media = await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
+      const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◇</b>';
+      return `<a class="showcase-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
+    }));
+    return `<section class="showcase ${className}"><div class="showcase-title"><span>${label}</span><span>${items.length}</span></div><div class="showcase-grid">${cards.join('')}</div></section>`;
+  };
+  const productGallery = async () => {
+    if (!productFeatures.length) return '';
+    const cards = await Promise.all(productFeatures.map(async (block) => {
+      const config = safeJson(block.config_json) as { mediaUrl?: string };
+      const media = await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
+      const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◆</b>';
+      return `<a class="product-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Product feature')}</strong><i>Explore ↗</i></span></a>`;
+    }));
+    return `<section class="showcase product-showcase"><div class="showcase-title"><span>PRODUCT FEATURES</span><span>${productFeatures.length}</span></div><div class="product-grid">${cards.join('')}</div></section>`;
+  };
+  const [productHtml, imageHtml, nftHtml] = await Promise.all([
+    productGallery(),
+    gallery(featuredImages, 'image-showcase', 'FEATURED IMAGES'),
+    gallery(nftItems, 'nft-showcase', 'COLLECTED IDENTITY'),
+  ]);
+  const featureHtml = featureCards + (productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : '');
 
   const ctaHtml = ctas.length ? `<section class="cta-grid">${ctas.map((block) => `<a class="cta-card ${block.block_type}" href="${escapeHtml(blockUrl(block))}"><span>${publicIcon(block)}</span><div><small>${block.block_type === 'media_kit' ? 'MEDIA KIT' : profile.profile_type === 'project' ? 'COLLABORATE' : 'AVAILABLE FOR WORK'}</small><strong>${escapeHtml(block.title || (block.block_type === 'media_kit' ? 'View media kit' : 'Work with me'))}</strong></div><i>↗</i></a>`).join('')}</section>` : '';
   const relationshipHtml = relationshipCards.length ? `<section class="section"><div class="section-title"><span>RELATIONSHIPS</span><h2>${profile.profile_type === 'project' ? 'Community' : 'Projects & communities'}</h2></div><div class="relationship-grid">${relationshipCards.map((block) => `<a class="relationship-card" href="${escapeHtml(blockUrl(block))}"><b>${publicIcon(block)}</b><span><small>${block.block_type === 'project_card' ? 'PROJECT' : 'COMMUNITY'}</small><strong>${escapeHtml(block.title || 'Open')}</strong></span><i>↗</i></a>`).join('')}</div></section>` : '';

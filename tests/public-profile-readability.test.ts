@@ -8,8 +8,8 @@ test('public profile keeps a wide light canvas with visible orange matrix rain',
   assert.equal(enhancer.includes('width:min(1180px,calc(100% - 64px))!important'), true);
   assert.equal(enhancer.includes('background:rgba(255,255,255,.92)!important'), true);
   assert.equal(enhancer.includes('background-image:none!important'), true);
-  assert.equal(enhancer.includes('.matrix{display:block!important;z-index:0!important;opacity:.64!important;mix-blend-mode:multiply!important'), true);
-  assert.equal(enhancer.includes('filter:saturate(1.55) contrast(1.18)!important'), true);
+  assert.equal(enhancer.includes('.matrix{display:block!important;z-index:2!important;opacity:.38!important;mix-blend-mode:multiply!important'), true);
+  assert.equal(enhancer.includes('filter:saturate(1.6) contrast(1.22)!important'), true);
 });
 
 test('hero typography is dark, readable and smaller than the previous oversized treatment', () => {
