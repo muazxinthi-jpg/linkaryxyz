@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
+const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
 
 test('public profile keeps a wide light canvas with visible orange matrix rain', () => {
   assert.equal(enhancer.includes('width:min(1180px,calc(100% - 64px))!important'), true);
@@ -50,4 +51,8 @@ test('desktop galleries stay expanded and public profile cache turns over quickl
   assert.equal(enhancer.includes('.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important'), true);
   assert.equal(enhancer.includes('@media(max-width:650px)'), true);
   assert.equal(enhancer.includes("headers.set('cache-control', 'public, max-age=30, s-maxage=60')"), true);
+});
+
+test('matrix canvas script closes the stream iterator before scheduling its next frame', () => {
+  assert.equal(profiles.includes("}});if(!reduced)requestAnimationFrame(draw);"), true);
 });
