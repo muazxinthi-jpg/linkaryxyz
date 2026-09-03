@@ -29,22 +29,44 @@ export async function listCampaignOpportunities(request: Request, env: Env): Pro
     return json({ opportunities });
   }
 
-  const creatorProfiles = await db.all<{ id: string }>("SELECT id FROM profiles WHERE owner_user_id = ? AND profile_type = 'creator'", [auth.user.id]);
-  const creatorIds = creatorProfiles.map((p) => p.id);
-  const params: unknown[] = [];
-  let mineClause = '';
-  if (mine && creatorIds.length) {
-    mineClause = `AND EXISTS (SELECT 1 FROM campaign_opportunity_applications a WHERE a.opportunity_id = o.id AND a.applicant_profile_id IN (${creatorIds.map(() => '?').join(',')}))`;
-    params.push(...creatorIds);
-  }
+  const mineClause = mine
+    ? `AND EXISTS (
+         SELECT 1
+           FROM campaign_opportunity_applications mine_app
+           JOIN profiles mine_profile ON mine_profile.id = mine_app.applicant_profile_id
+          WHERE mine_app.opportunity_id = o.id
+            AND mine_profile.owner_user_id = ?
+            AND mine_profile.profile_type = 'creator'
+       )`
+    : '';
+  const timestamp = now();
+  const params: unknown[] = [auth.user.id, auth.user.id, timestamp];
+  if (mine) params.push(auth.user.id);
+
   const opportunities = await db.all(
     `SELECT o.id, o.campaign_id, o.organization_id, o.title, o.brief, o.compensation_text, o.deliverables_text, o.status, o.application_deadline, o.created_at,
             c.name AS campaign_name, org.name AS project_name,
-            (SELECT COUNT(*) FROM campaign_opportunity_applications a WHERE a.opportunity_id = o.id AND a.status != 'withdrawn') AS applications
+            (SELECT COUNT(*) FROM campaign_opportunity_applications a WHERE a.opportunity_id = o.id AND a.status != 'withdrawn') AS applications,
+            (SELECT mine_app.id
+               FROM campaign_opportunity_applications mine_app
+               JOIN profiles mine_profile ON mine_profile.id = mine_app.applicant_profile_id
+              WHERE mine_app.opportunity_id = o.id
+                AND mine_profile.owner_user_id = ?
+                AND mine_profile.profile_type = 'creator'
+              ORDER BY mine_app.updated_at DESC LIMIT 1) AS my_application_id,
+            (SELECT mine_app.status
+               FROM campaign_opportunity_applications mine_app
+               JOIN profiles mine_profile ON mine_profile.id = mine_app.applicant_profile_id
+              WHERE mine_app.opportunity_id = o.id
+                AND mine_profile.owner_user_id = ?
+                AND mine_profile.profile_type = 'creator'
+              ORDER BY mine_app.updated_at DESC LIMIT 1) AS my_application_status
        FROM campaign_opportunities o
        JOIN campaigns c ON c.id = o.campaign_id
        JOIN organizations org ON org.id = o.organization_id
-      WHERE o.status = 'open' ${mineClause}
+      WHERE o.status = 'open'
+        AND (o.application_deadline IS NULL OR o.application_deadline >= ?)
+        ${mineClause}
       ORDER BY o.created_at DESC LIMIT 200`,
     params,
   );
@@ -114,8 +136,8 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
     const manager = await db.first<{ id: string }>(`SELECT m.id FROM partner_managers m JOIN profiles p ON p.id = m.profile_id WHERE m.id = ? AND p.owner_user_id = ?`, [body.managerId, auth.user.id]);
     if (!manager) throw new HttpError(403, 'Manager listing access denied', 'forbidden');
   }
-  const opportunity = await db.first<{ status: string }>('SELECT status FROM campaign_opportunities WHERE id = ?', [body.opportunityId]);
-  if (!opportunity || opportunity.status !== 'open') throw new HttpError(409, 'This opportunity is not accepting applications', 'opportunity_closed');
+  const opportunity = await db.first<{ status: string; application_deadline: string | null }>('SELECT status, application_deadline FROM campaign_opportunities WHERE id = ?', [body.opportunityId]);
+  if (!opportunity || opportunity.status !== 'open' || (opportunity.application_deadline && opportunity.application_deadline < now())) throw new HttpError(409, 'This opportunity is not accepting applications', 'opportunity_closed');
   const existing = await db.first<{ id: string }>(
     'SELECT id FROM campaign_opportunity_applications WHERE opportunity_id = ? AND applicant_profile_id = ? AND COALESCE(manager_id,\'\') = COALESCE(?,\'\')',
     [body.opportunityId, body.profileId, body.managerId || null],
@@ -123,7 +145,7 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
   const timestamp = now();
   if (existing) {
     await db.run('UPDATE campaign_opportunity_applications SET note = ?, status = ?, updated_at = ? WHERE id = ?', [body.note?.trim().slice(0, 1000) || '', body.withdraw ? 'withdrawn' : 'pending', timestamp, existing.id]);
-    return json({ ok: true, id: existing.id });
+    return json({ ok: true, id: existing.id, status: body.withdraw ? 'withdrawn' : 'pending' });
   }
   if (body.withdraw) throw new HttpError(404, 'Application not found', 'application_not_found');
   const applicationId = id('app');
@@ -132,7 +154,7 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
     [applicationId, body.opportunityId, body.profileId, body.managerId || null, body.note?.trim().slice(0, 1000) || '', timestamp, timestamp],
   );
-  return json({ id: applicationId }, { status: 201 });
+  return json({ id: applicationId, status: 'pending' }, { status: 201 });
 }
 
 export async function listCampaignOpportunityApplications(request: Request, env: Env): Promise<Response> {
