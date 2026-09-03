@@ -574,6 +574,17 @@ export async function listProfileBlocks(request: Request, env: Env, profileId: s
 
 const ALLOWED_BLOCK_TYPES = new Set(['link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin','website','booking','custom_button','featured_article','featured_video','featured_image','product_feature','nft_item','campaign_proof','media_kit','work_with_me','project_card','community_card','team_member','heading']);
 
+function validateNftItemUrl(value: string | null | undefined): string | null {
+  const destination = validateDestination(value);
+  if (!destination) return destination;
+  const url = new URL(destination);
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  if (host === 'opensea.io' && /^\/collection\//i.test(url.pathname)) {
+    throw new HttpError(400, 'Use an individual NFT item URL, not a collection URL', 'nft_item_url_required');
+  }
+  return destination;
+}
+
 export async function addProfileBlock(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
@@ -585,7 +596,8 @@ export async function addProfileBlock(request: Request, env: Env, profileId: str
   const positionRow = await db.first<{ next_position: number }>(`SELECT COALESCE(MAX(position), -1) + 1 AS next_position FROM profile_blocks WHERE profile_id = ?`, [profileId]);
   const blockId = `blk_${crypto.randomUUID().replace(/-/g, '')}`;
   const timestamp = new Date().toISOString();
-  await db.run(`INSERT INTO profile_blocks (id, profile_id, block_type, position, enabled, title, url, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`, [blockId, profileId, body.type, positionRow?.next_position || 0, cleanText(body.title,120), validateDestination(body.url), JSON.stringify(body.config || {}), timestamp, timestamp]);
+  const destination = body.type === 'nft_item' ? validateNftItemUrl(body.url) : validateDestination(body.url);
+  await db.run(`INSERT INTO profile_blocks (id, profile_id, block_type, position, enabled, title, url, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`, [blockId, profileId, body.type, positionRow?.next_position || 0, cleanText(body.title,120), destination, JSON.stringify(body.config || {}), timestamp, timestamp]);
   return json({ id: blockId }, { status: 201 });
 }
 
@@ -594,10 +606,11 @@ export async function updateProfileBlock(request: Request, env: Env, profileId: 
   await verifyCsrf(request, env, auth);
   const db = new Db(requireDb(env));
   await requireEditableProfile(db, auth.user.id, profileId);
-  if (!(await db.first<{ id: string }>(`SELECT id FROM profile_blocks WHERE id = ? AND profile_id = ?`, [blockId, profileId]))) throw new HttpError(404, 'Block not found', 'block_not_found');
+  const existing = await db.first<{ id: string; block_type: string }>(`SELECT id, block_type FROM profile_blocks WHERE id = ? AND profile_id = ?`, [blockId, profileId]);
+  if (!existing) throw new HttpError(404, 'Block not found', 'block_not_found');
   const body = await readJson<{ title?: string; url?: string | null; enabled?: boolean; config?: unknown }>(request);
   const urlProvided = body.url !== undefined;
-  const nextUrl = urlProvided ? validateDestination(body.url) : null;
+  const nextUrl = urlProvided ? existing.block_type === 'nft_item' ? validateNftItemUrl(body.url) : validateDestination(body.url) : null;
   await db.run(`UPDATE profile_blocks SET title = COALESCE(?, title), url = CASE WHEN ? = 1 THEN ? ELSE url END, enabled = COALESCE(?, enabled), config_json = COALESCE(?, config_json), updated_at = ? WHERE id = ? AND profile_id = ?`, [cleanText(body.title,120), urlProvided ? 1 : 0, nextUrl, body.enabled === undefined ? null : body.enabled ? 1 : 0, body.config === undefined ? null : JSON.stringify(body.config), new Date().toISOString(), blockId, profileId]);
   return json({ ok: true });
 }

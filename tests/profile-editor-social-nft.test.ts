@@ -25,6 +25,15 @@ test('live Beta profile editor exposes NFT showcase and NFT avatar selection', (
   assert.equal(beta.includes('includeNfts=1'), true);
   assert.equal(beta.includes('setData({ ...data, avatarUrl: nft.imageUrl })'), true);
   assert.equal(beta.includes('Or add manually'), true);
+  assert.equal(beta.includes('NFT item URL'), true);
+  assert.equal(beta.includes('NFT artwork or item URL'), true);
+});
+
+test('NFT showcases reject collection pages where a specific owned item is required', () => {
+  const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
+  assert.equal(profiles.includes("function validateNftItemUrl"), true);
+  assert.equal(profiles.includes("'nft_item_url_required'"), true);
+  assert.equal(profiles.includes("/^\\/collection\\//i.test(url.pathname)"), true);
 });
 
 test('wallet NFT discovery stays server-side and uses attached profile wallets', () => {
