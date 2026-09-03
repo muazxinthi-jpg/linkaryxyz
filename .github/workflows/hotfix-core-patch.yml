@@ -1,0 +1,41 @@
+name: Patch app shell regression expectations
+
+on:
+  push:
+    branches:
+      - hotfix/app-static-asset-prefix
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/app-static-asset-prefix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Update regression expectations
+        run: perl -0pi -e 's#/app/index\.html#/assets/linkary-app/index.html#g' tests/core.test.ts
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run regression tests
+        run: npm test
+      - name: Type-check app
+        run: npm run app:check
+      - name: Wrangler dry run
+        run: npm run deploy:dry
+      - name: Commit regression update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/core.test.ts
+          if git diff --cached --quiet; then
+            echo 'No test changes to commit.'
+            exit 0
+          fi
+          git commit -m 'test: expect stable app shell asset path'
+          git push origin HEAD:hotfix/app-static-asset-prefix
