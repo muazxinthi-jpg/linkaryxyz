@@ -1,0 +1,114 @@
+name: Apply NFT artwork resolver patch
+
+on:
+  push:
+    branches:
+      - fix/nft-artwork-resolution
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/nft-artwork-resolution
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply exact NFT artwork fix
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceExact(path, before, after) {
+            let source = fs.readFileSync(path, 'utf8');
+            if (!source.includes(before)) throw new Error(`Expected source not found in ${path}: ${before.slice(0, 100)}`);
+            source = source.replace(before, after);
+            fs.writeFileSync(path, source);
+          }
+
+          function replaceAllExact(path, before, after, expectedCount) {
+            let source = fs.readFileSync(path, 'utf8');
+            const count = source.split(before).length - 1;
+            if (count !== expectedCount) throw new Error(`Expected ${expectedCount} matches in ${path}, found ${count}`);
+            source = source.split(before).join(after);
+            fs.writeFileSync(path, source);
+          }
+
+          const mediaPath = 'src/profileMedia.ts';
+          replaceExact(mediaPath,
+            'export type FeaturedMedia =',
+            "import type { Env } from './env';\n\nexport type FeaturedMedia ="
+          );
+
+          const nftResolver = `type NftMetadataLocator = {\n  chain: string;\n  contractAddress: string;\n  tokenId: string;\n};\n\nconst ALCHEMY_NFT_HOSTS: Record<string, string> = {\n  ethereum: 'eth-mainnet',\n  eth: 'eth-mainnet',\n  base: 'base-mainnet',\n  arbitrum: 'arb-mainnet',\n  bsc: 'bnb-mainnet',\n  bnb: 'bnb-mainnet',\n  'bnb chain': 'bnb-mainnet',\n  polygon: 'polygon-mainnet',\n  optimism: 'opt-mainnet',\n};\n\nfunction nftGatewayUrl(value: unknown): string | null {\n  if (typeof value !== 'string' || !value.trim()) return null;\n  const raw = value.trim();\n  if (raw.startsWith('ipfs://')) return \`https://ipfs.io/ipfs/\${raw.slice(7).replace(/^ipfs\\//, '')}\`;\n  if (raw.startsWith('ar://')) return \`https://arweave.net/\${raw.slice(5)}\`;\n  return safeHttpsUrl(raw);\n}\n\nfunction firstNftArtworkUrl(...values: unknown[]): string | null {\n  for (const value of values) {\n    const url = nftGatewayUrl(value);\n    if (url) return url;\n  }\n  return null;\n}\n\nfunction parseOpenSeaNftItemUrl(value: string): NftMetadataLocator | null {\n  try {\n    const url = new URL(value);\n    const host = url.hostname.toLowerCase().replace(/^www\\./, '');\n    if (host !== 'opensea.io') return null;\n    const parts = url.pathname.split('/').filter(Boolean);\n    if (!['item', 'assets'].includes(parts[0] || '') || parts.length < 4) return null;\n    const chain = (parts[1] || '').toLowerCase();\n    const contractAddress = parts[2] || '';\n    const tokenId = parts[3] || '';\n    if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress) || !tokenId) return null;\n    return { chain, contractAddress, tokenId };\n  } catch {\n    return null;\n  }\n}\n\nfunction metadataLocatorFromConfig(chain: string | null | undefined, contractAddress: string | null | undefined, tokenId: string | null | undefined): NftMetadataLocator | null {\n  const contract = contractAddress?.trim() || '';\n  const token = tokenId?.trim() || '';\n  if (!/^0x[a-fA-F0-9]{40}$/.test(contract) || !token) return null;\n  return { chain: (chain || 'ethereum').trim().toLowerCase(), contractAddress: contract, tokenId: token };\n}\n\nasync function resolveAlchemyNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>, locator: NftMetadataLocator): Promise<string | null> {\n  const apiKey = env.ALCHEMY_API_KEY?.trim();\n  const host = ALCHEMY_NFT_HOSTS[locator.chain];\n  if (!apiKey || !host) return null;\n  try {\n    const endpoint = new URL(\`https://\${host}.g.alchemy.com/nft/v3/\${encodeURIComponent(apiKey)}/getNFTMetadata\`);\n    endpoint.searchParams.set('contractAddress', locator.contractAddress);\n    endpoint.searchParams.set('tokenId', locator.tokenId);\n    const response = await fetch(endpoint.toString(), { headers: { accept: 'application/json' } });\n    if (!response.ok) return null;\n    const payload = await response.json() as {\n      image?: { originalUrl?: unknown; pngUrl?: unknown; cachedUrl?: unknown; thumbnailUrl?: unknown };\n      raw?: { metadata?: { image?: unknown; image_url?: unknown } };\n    };\n    const image = payload.image || {};\n    const metadata = payload.raw?.metadata || {};\n    return firstNftArtworkUrl(image.originalUrl, image.pngUrl, image.cachedUrl, image.thumbnailUrl, metadata.image, metadata.image_url);\n  } catch {\n    return null;\n  }\n}\n\n/** Resolve only the artwork for an NFT card. The click destination is deliberately\n * not accepted here, so a collection page can never become the NFT preview image. */\nexport async function resolveNftArtworkPreview(\n  env: Pick<Env, 'ALCHEMY_API_KEY'>,\n  artworkSource: string | null | undefined,\n  chain?: string | null,\n  nftContract?: string | null,\n  nftTokenId?: string | null,\n): Promise<FeaturedMedia | null> {\n  const source = safeHttpsUrl(artworkSource);\n  if (!source) return null;\n\n  const direct = safeDirectImageUrl(source);\n  if (direct) return { kind: 'image', src: direct, youtube: false };\n\n  const openSeaItem = parseOpenSeaNftItemUrl(source);\n  const locator = openSeaItem || metadataLocatorFromConfig(chain, nftContract, nftTokenId);\n  if (locator) {\n    const artwork = await resolveAlchemyNftArtwork(env, locator);\n    if (artwork) return { kind: 'image', src: artwork, youtube: false };\n    if (openSeaItem) return null;\n  }\n\n  // Extensionless CDN artwork is common. Verify that the explicit artwork source\n  // itself is an image, but never parse a marketplace page's social metadata.\n  try {\n    const sourceUrl = new URL(source);\n    if (!isPublicWebHost(sourceUrl.hostname)) return null;\n    const response = await fetch(source, { headers: { accept: 'image/avif,image/webp,image/*;q=0.9,*/*;q=0.2' }, redirect: 'follow' });\n    if (!response.ok) return null;\n    const contentType = (response.headers.get('content-type') || '').toLowerCase();\n    if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };\n  } catch {\n    // Broken third-party artwork must never make the public profile unavailable.\n  }\n  return null;\n}\n\n`;
+          replaceExact(mediaPath, '/** Resolve an Open Graph poster from a public feature page without ever exposing', nftResolver + '/** Resolve an Open Graph poster from a public feature page without ever exposing');
+
+          const profilesPath = 'src/routes/profiles.ts';
+          replaceExact(profilesPath,
+            "import { resolveFeaturedMedia, resolveFeaturedPreview, safeHttpsUrl } from '../profileMedia';",
+            "import { resolveFeaturedMedia, resolveFeaturedPreview, resolveNftArtworkPreview, safeHttpsUrl } from '../profileMedia';"
+          );
+
+          replaceExact(profilesPath,
+`  const gallery = async (items: ProfileBlockRow[], label: string, className = '') => {\n    if (!items.length) return '';\n    const cards = await Promise.all(items.map(async (block) => {\n      const config = safeJson(block.config_json) as { mediaUrl?: string };\n      const media = await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');`,
+`  const gallery = async (items: ProfileBlockRow[], label: string, className = '') => {\n    if (!items.length) return '';\n    const cards = await Promise.all(items.map(async (block) => {\n      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };\n      const media = className === 'nfts'\n        ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)\n        : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');`
+          );
+
+          replaceExact(profilesPath,
+`  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {\n    if (!items.length) return '';\n    const cards = await Promise.all(items.map(async (block) => {\n      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string };\n      const media = await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');`,
+`  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {\n    if (!items.length) return '';\n    const cards = await Promise.all(items.map(async (block) => {\n      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };\n      const media = className === 'nft-showcase'\n        ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)\n        : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');`
+          );
+
+          replaceExact(profilesPath,
+`function validateNftItemUrl(value: string | null | undefined): string | null {\n  const destination = validateDestination(value);\n  if (!destination) return destination;\n  const url = new URL(destination);\n  const host = url.hostname.toLowerCase().replace(/^www\\./, '');\n  if (host === 'opensea.io' && /^\\/collection\\//i.test(url.pathname)) {\n    throw new HttpError(400, 'Use an individual NFT item URL, not a collection URL', 'nft_item_url_required');\n  }\n  return destination;\n}`,
+`function validateNftDestinationUrl(value: string | null | undefined): string | null {\n  return validateDestination(value);\n}`
+          );
+          replaceAllExact(profilesPath, 'validateNftItemUrl(body.url)', 'validateNftDestinationUrl(body.url)', 2);
+
+          const betaPath = 'frontend/src/ProfileExperienceBeta.tsx';
+          replaceExact(betaPath,
+`    if (draft.type === 'nft_item' && /(^|\\.)opensea\\.io$/i.test(new URL(draft.url).hostname) && /^\\/collection\\//i.test(new URL(draft.url).pathname)) {\n      setMessage('Use the individual NFT item URL, not the collection page. The collection name can be saved below.');\n      return;\n    }`,
+`    if (draft.type === 'nft_item') {\n      const artwork = safeHttps(draft.mediaUrl);\n      if (!artwork) {\n        setMessage('Add a secure NFT artwork source. Use a direct image URL or an individual NFT item URL.');\n        return;\n      }\n      const artworkUrl = new URL(artwork);\n      const artworkHost = artworkUrl.hostname.toLowerCase().replace(/^www\\./, '');\n      if (artworkHost === 'opensea.io' && /^\\/collection\\//i.test(artworkUrl.pathname)) {\n        setMessage('The artwork source must identify one NFT. Use a direct image URL or the individual OpenSea item URL.');\n        return;\n      }\n    }`
+          );
+
+          replaceExact(betaPath,
+`        {draft.type !== 'heading' && <label>{nftType ? 'NFT item URL' : 'Destination URL'}<input required type="url" value={draft.url} placeholder={nftType ? 'https://opensea.io/assets/... or your NFT page' : socialType ? selectedSocial?.placeholder || 'https://...' : 'https://...'} onChange={(event) => setDraft({ ...draft, url: event.target.value })} /><small>{nftType ? 'Use the individual NFT item page. Do not use a collection URL here.' : socialType ? 'Visitors are sent to this social profile.' : 'Visitors are sent here after clicking this section.'}</small></label>}`,
+`        {draft.type !== 'heading' && <label>Destination URL<input required type="url" value={draft.url} placeholder={nftType ? 'https://opensea.io/collection/... or an individual NFT page' : socialType ? selectedSocial?.placeholder || 'https://...' : 'https://...'} onChange={(event) => setDraft({ ...draft, url: event.target.value })} /><small>{nftType ? 'Where visitors go after clicking the NFT. A collection page, individual NFT page, or another relevant destination is allowed.' : socialType ? 'Visitors are sent to this social profile.' : 'Visitors are sent here after clicking this section.'}</small></label>}`
+          );
+
+          replaceExact(betaPath,
+`<label>NFT artwork or item URL<input type="url" value={draft.mediaUrl} placeholder="Direct image or individual marketplace item URL" onChange={(event) => setDraft({ ...draft, mediaUrl: event.target.value, nftSource: '' })} /><small>The public page extracts the individual artwork from an item page; a direct image is used as-is.</small></label>`,
+`<label>NFT artwork source<input required type="url" value={draft.mediaUrl} placeholder="Direct image or individual marketplace item URL" onChange={(event) => setDraft({ ...draft, mediaUrl: event.target.value, nftSource: '' })} /><small>Paste a direct HTTPS image URL or the individual NFT item URL. Linkary uses this only to resolve the artwork; it does not control where the card clicks.</small></label>`
+          );
+
+          const testPath = 'tests/profile-editor-social-nft.test.ts';
+          let tests = fs.readFileSync(testPath, 'utf8');
+          tests = tests.replace(
+            "const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');",
+            "const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');\nconst media = readFileSync(new URL('../src/profileMedia.ts', import.meta.url), 'utf8');\nconst profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');"
+          );
+          tests = tests.replace("  assert.equal(beta.includes('NFT item URL'), true);\n  assert.equal(beta.includes('NFT artwork or item URL'), true);", "  assert.equal(beta.includes('Destination URL'), true);\n  assert.equal(beta.includes('NFT artwork source'), true);");
+          tests = tests.replace(
+`test('NFT showcases reject collection pages where a specific owned item is required', () => {\n  const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');\n  assert.equal(profiles.includes("function validateNftItemUrl"), true);\n  assert.equal(profiles.includes("'nft_item_url_required'"), true);\n  assert.equal(profiles.includes("/^\\\\/collection\\\\//i.test(url.pathname)"), true);\n});`,
+`test('NFT click destination stays separate from the artwork source', () => {\n  assert.equal(beta.includes('A collection page, individual NFT page, or another relevant destination is allowed.'), true);\n  assert.equal(beta.includes('Linkary uses this only to resolve the artwork; it does not control where the card clicks.'), true);\n  assert.equal(profiles.includes('function validateNftDestinationUrl'), true);\n  assert.equal(profiles.includes("'nft_item_url_required'"), false);\n});\n\ntest('NFT item pages resolve real token artwork through Alchemy metadata instead of social preview cards', () => {\n  assert.equal(media.includes('resolveNftArtworkPreview'), true);\n  assert.equal(media.includes('parseOpenSeaNftItemUrl'), true);\n  assert.equal(media.includes('getNFTMetadata'), true);\n  assert.equal(media.includes('image.originalUrl'), true);\n  assert.equal(profiles.includes("className === 'nft-showcase'"), true);\n  assert.equal(profiles.includes("className === 'nfts'"), true);\n});`
+          );
+          fs.writeFileSync(testPath, tests);
+          NODE
+      - name: Verify patch shape
+        run: |
+          git diff --check
+          git diff -- src/profileMedia.ts src/routes/profiles.ts frontend/src/ProfileExperienceBeta.tsx tests/profile-editor-social-nft.test.ts
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/profileMedia.ts src/routes/profiles.ts frontend/src/ProfileExperienceBeta.tsx tests/profile-editor-social-nft.test.ts
+          git commit -m "fix: resolve exact NFT artwork separately from destination [nft-patch-applied]"
+          git push origin HEAD:fix/nft-artwork-resolution
