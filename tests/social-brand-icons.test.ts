@@ -15,12 +15,12 @@ test('known social networks ship local brand SVG assets', () => {
 
 test('public social links use the same brand SVG assets rather than text marks', () => {
   assert.equal(enhancer.includes('/assets/social/${escapeHtml(platform)}.svg'), true);
-  for (const placeholder of ["profile-social-letter">r/", "profile-social-letter">GH", "profile-social-letter">F"]) {
+  for (const placeholder of ['profile-social-letter', "reddit: '<span", "github: '<span", "farcaster: '<span"]) {
     assert.equal(enhancer.includes(placeholder), false, `legacy placeholder remains: ${placeholder}`);
   }
 });
 
 test('social picker selected state preserves brand artwork', () => {
-  assert.equal(css.includes("button.active{border-color:#111517;background:#f5f5f2"), true);
+  assert.equal(css.includes('button.active{border-color:#111517;background:#f5f5f2'), true);
   assert.equal(css.includes("button:nth-child(13) b:after{content:'+'"), true);
 });
