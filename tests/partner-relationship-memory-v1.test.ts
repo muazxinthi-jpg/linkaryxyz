@@ -35,7 +35,8 @@ test('relationship lifecycle does not promote cancelled work or accepted-only di
   assert.equal(memory.includes("ci.status = 'accepted' AND ia.inquiry_id IS NULL"), true);
   assert.equal(memory.includes("if (openAccepted > 0) return 'in_discussion'"), true);
   assert.equal(memory.includes("if (summary.active_activities > 0) return 'active'"), true);
-  assert.equal(memory.includes("if (summary.completed_activities > 0 || summary.activated_inquiries > 0) return 'worked_before'"), true);
+  assert.equal(memory.includes("if (summary.completed_activities > 0) return 'worked_before'"), true);
+  assert.equal(memory.includes("summary.completed_activities > 0 || summary.activated_inquiries > 0"), false);
 });
 
 test('relationship endpoint is Project-private and supports one batch summary request plus detail on demand', () => {
