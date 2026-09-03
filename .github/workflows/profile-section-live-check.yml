@@ -12,20 +12,37 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect live app routes and assets
+      - name: Verify post-hotfix production app
         shell: bash
         run: |
-          check() {
-            url="$1"
-            echo "=== $url ==="
-            curl -sS -o /tmp/body -D /tmp/headers -w 'STATUS=%{http_code} SIZE=%{size_download} TYPE=%{content_type}\n' "$url"
-            grep -Ei '^(HTTP/|content-type:|content-length:|location:|x-robots-tag:|cf-ray:|server:)' /tmp/headers || true
-            head -c 220 /tmp/body || true
-            echo
-          }
-          check 'https://app.linkary.xyz/profile?diagnostic=2'
-          check 'https://app.linkary.xyz/?diagnostic=2'
-          check 'https://app.linkary.xyz/app/index.html?diagnostic=2'
-          check 'https://app.linkary.xyz/app/assets/index-D9Zpcjle.js?diagnostic=2'
-          check 'https://app.linkary.xyz/app/assets/index-ClxE31P1.css?diagnostic=2'
-          check 'https://app.linkary.xyz/assets/social/x.svg?diagnostic=2'
+          set -euo pipefail
+          stamp=$(date +%s)
+
+          curl -sS -f "https://app.linkary.xyz/?posthotfix=${stamp}" -o /tmp/app.html
+          grep -q 'id="root"' /tmp/app.html
+
+          curl -sS -f "https://app.linkary.xyz/profile?posthotfix=${stamp}" -o /tmp/profile.html
+          grep -q 'id="root"' /tmp/profile.html
+
+          script=$(grep -oE '/assets/linkary-app/assets/[^" ]+\.js' /tmp/app.html | head -1)
+          style=$(grep -oE '/assets/linkary-app/assets/[^" ]+\.css' /tmp/app.html | head -1)
+          test -n "$script"
+          test -n "$style"
+          echo "SCRIPT=$script"
+          echo "STYLE=$style"
+          curl -sS -f -I "https://app.linkary.xyz${script}" | head
+          curl -sS -f -I "https://app.linkary.xyz${style}" | head
+
+          curl -sS -f "https://linkary.xyz/muazxinthi?posthotfix=${stamp}" -o /tmp/public.html
+          python3 - <<'PY'
+          html = open('/tmp/public.html', encoding='utf-8').read()
+          print('NFT_COLLECTION_COUNT=', html.count('NFT COLLECTION'))
+          print('COLLECTED_IDENTITY_COUNT=', html.count('COLLECTED IDENTITY'))
+          print('LINKS_WORK_COUNT=', html.count('Links & work'))
+          if 'NFT COLLECTION' not in html:
+              raise SystemExit('NFT COLLECTION missing')
+          if 'COLLECTED IDENTITY' in html:
+              raise SystemExit('old NFT label returned')
+          if 'Links & work' in html:
+              raise SystemExit('unwanted Links & work returned')
+          PY
