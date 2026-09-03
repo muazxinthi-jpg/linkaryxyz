@@ -65,6 +65,37 @@ test('Community Manager V1 reuses the existing evidence-aware partner schema', (
   assert.equal(route.includes("manager.manager_type === 'community_manager' ? 'Telegram'"), true);
 });
 
+test('Community Manager requires a verified personal Telegram identity server-side', () => {
+  const route = readFileSync(new URL('../src/routes/partnerDirectory.ts', import.meta.url), 'utf8');
+  assert.equal(route.includes("pi.platform = 'telegram'"), true);
+  assert.equal(route.includes("pi.provider_object_type = 'person'"), true);
+  assert.equal(route.includes("pil.link_type = 'owns'"), true);
+  assert.equal(route.includes('pi.ownership_verified_at IS NOT NULL'), true);
+  assert.equal(route.includes("'telegram_identity_required'"), true);
+  assert.equal(route.includes("manager.manager_type === 'community_manager') await requireTelegramIdentity"), true);
+});
+
+test('Community Manager UI links Telegram instead of trusting a typed personal handle', () => {
+  const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(ui.includes('useLinkOAuth'), true);
+  assert.equal(ui.includes("linkOAuth('telegram')"), true);
+  assert.equal(ui.includes('Verify your Telegram account'), true);
+  assert.equal(ui.includes('A typed Telegram username does not count as verification.'), true);
+  assert.equal(ui.includes('telegramContact: managerForm.telegramContact'), false);
+  assert.equal(ui.includes('<label>Telegram contact<input'), false);
+  assert.equal(ui.includes('stable account ID is kept private'), true);
+});
+
+test('Community identity and Community verification remain separate and TrackerBot stays optional', () => {
+  const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
+  const verification = readFileSync(new URL('../src/routes/communityVerification.ts', import.meta.url), 'utf8');
+  assert.equal(ui.includes('Community ownership is verified separately.'), true);
+  assert.equal(ui.includes('LinkaryTrackerBot is optional'), true);
+  assert.equal(ui.includes('You do not need to install LinkaryTrackerBot to create or verify a Community.'), true);
+  assert.equal(verification.includes("verification_status = 'submitted'"), true);
+  assert.equal(verification.includes("community_verification.approved"), true);
+});
+
 test('Community Manager workspace supports multiple communities and public profile cards', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(ui.includes("managerType: 'community_manager'"), true);
@@ -74,5 +105,5 @@ test('Community Manager workspace supports multiple communities and public profi
   assert.equal(ui.includes("type: 'community_card'"), true);
   assert.equal(ui.includes('Add to public profile'), true);
   assert.equal(ui.includes('CommunityVerificationPanel'), true);
-  assert.equal(ui.includes('Verified means Linkary reviewed a public Telegram proof'), true);
+  assert.equal(ui.includes('Verified means Linkary separately reviewed public Telegram proof'), true);
 });
