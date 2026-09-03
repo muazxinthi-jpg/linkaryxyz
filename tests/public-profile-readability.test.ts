@@ -62,3 +62,12 @@ test('matrix canvas script closes the stream iterator before scheduling its next
   assert.equal(profiles.includes("}});if(!reduced)requestAnimationFrame(draw);"), true);
   assert.equal(profiles.includes("speed:reduced?0:.22+(i%7)*.065"), true);
 });
+
+
+test('custom section headings label the real content section instead of creating a Links & work divider', () => {
+  assert.equal(profiles.includes('const headingTitleBefore'), true);
+  assert.equal(profiles.includes("galleryLabel(nftItems, 'COLLECTED IDENTITY')"), true);
+  assert.equal(profiles.includes("const regularGroups: Array<{ title: string | null; items: ProfileBlockRow[] }>"), true);
+  assert.equal(profiles.includes("const kicker = group.title ? 'PROFILE SECTION' : 'LINKARY PROFILE'"), true);
+  assert.equal(profiles.includes("regular.map((block) => block.block_type === 'heading'"), false);
+});

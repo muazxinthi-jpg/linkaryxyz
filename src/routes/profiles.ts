@@ -402,6 +402,23 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
   const teams = blocks.filter((block) => block.block_type === 'team_member' && block.url);
   const excluded = new Set(['featured_video','featured_article','featured_image','product_feature','nft_item','team_member','work_with_me','media_kit','project_card','community_card']);
   const regular = blocks.filter((block) => !isSocialBlock(block) && !excluded.has(block.block_type) && (block.block_type === 'heading' || block.url));
+  const headingTitleBefore = (item: ProfileBlockRow, fallback: string): string => {
+    const index = blocks.findIndex((candidate) => candidate.id === item.id);
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const candidate = blocks[cursor];
+      if (candidate.block_type !== 'heading') continue;
+      return candidate.title?.trim() || fallback;
+    }
+    return fallback;
+  };
+  const galleryLabel = (items: ProfileBlockRow[], fallback: string): string => {
+    if (!items.length) return fallback;
+    const configured = items
+      .map((item) => safeJson(item.config_json) as { sectionTitle?: unknown })
+      .find((config) => typeof config.sectionTitle === 'string' && config.sectionTitle.trim());
+    if (configured && typeof configured.sectionTitle === 'string') return configured.sectionTitle.trim();
+    return headingTitleBefore(items[0], fallback);
+  };
 
   const firstFeatureImage = features.map((block) => {
     const config = safeJson(block.config_json) as { mediaUrl?: string };
@@ -445,12 +462,12 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
       const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◆</b>';
       return `<a class="product-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Product feature')}</strong><i>Explore ↗</i></span></a>`;
     }));
-    return `<section class="showcase product-showcase"><div class="showcase-title"><span>PRODUCT FEATURES</span><span>${productFeatures.length}</span></div><div class="product-grid">${cards.join('')}</div></section>`;
+    return `<section class="showcase product-showcase"><div class="showcase-title"><span>${escapeHtml(galleryLabel(productFeatures, 'PRODUCT FEATURES'))}</span><span>${productFeatures.length}</span></div><div class="product-grid">${cards.join('')}</div></section>`;
   };
   const [productHtml, imageHtml, nftHtml] = await Promise.all([
     productGallery(),
-    gallery(featuredImages, 'image-showcase', 'FEATURED IMAGES'),
-    gallery(nftItems, 'nft-showcase', 'COLLECTED IDENTITY'),
+    gallery(featuredImages, 'image-showcase', escapeHtml(galleryLabel(featuredImages, 'FEATURED IMAGES'))),
+    gallery(nftItems, 'nft-showcase', escapeHtml(galleryLabel(nftItems, 'COLLECTED IDENTITY'))),
   ]);
   const featureHtml = featureCards + (productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : '');
 
@@ -463,10 +480,29 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
     return `<a class="team-card" href="${escapeHtml(blockUrl(block))}"><b>${image}</b><span><strong>${escapeHtml(block.title || 'Team member')}</strong><small>${escapeHtml(String(config.role || 'Team member'))}</small></span><i>↗</i></a>`;
   }).join('');
   const teamSection = teamHtml ? `<section class="section"><div class="section-title"><span>THE PEOPLE</span><h2>Team</h2></div><div class="team-grid">${teamHtml}</div></section>` : '';
-  const regularHtml = regular.map((block) => block.block_type === 'heading'
-    ? `<div class="section-break">${escapeHtml(block.title || 'More')}</div>`
-    : `<a class="link-card" href="${escapeHtml(blockUrl(block))}"><b>${publicIcon(block)}</b><span>${escapeHtml(block.title || block.url || 'Open link')}</span><i>↗</i></a>`).join('');
-  const regularSection = regularHtml ? `<section class="section"><div class="section-title"><span>LINKARY PROFILE</span><h2>${profile.profile_type === 'project' ? 'Official links' : 'Links & work'}</h2></div><div class="links">${regularHtml}</div></section>` : '';
+  const regularGroups: Array<{ title: string | null; items: ProfileBlockRow[] }> = [];
+  let currentRegularTitle: string | null = null;
+  let currentRegularItems: ProfileBlockRow[] = [];
+  const flushRegularGroup = () => {
+    if (!currentRegularItems.length) return;
+    regularGroups.push({ title: currentRegularTitle, items: currentRegularItems });
+    currentRegularItems = [];
+  };
+  for (const block of regular) {
+    if (block.block_type === 'heading') {
+      flushRegularGroup();
+      currentRegularTitle = block.title?.trim() || null;
+      continue;
+    }
+    currentRegularItems.push(block);
+  }
+  flushRegularGroup();
+  const regularSection = regularGroups.map((group) => {
+    const heading = group.title || (profile.profile_type === 'project' ? 'Official links' : 'Links & work');
+    const kicker = group.title ? 'PROFILE SECTION' : 'LINKARY PROFILE';
+    const cards = group.items.map((block) => `<a class="link-card" href="${escapeHtml(blockUrl(block))}"><b>${publicIcon(block)}</b><span>${escapeHtml(block.title || block.url || 'Open link')}</span><i>↗</i></a>`).join('');
+    return `<section class="section"><div class="section-title"><span>${kicker}</span><h2>${escapeHtml(heading)}</h2></div><div class="links">${cards}</div></section>`;
+  }).join('');
 
   const structuredData = safeScriptJson({ '@context': 'https://schema.org', '@type': profile.profile_type === 'project' ? 'Organization' : 'Person', name: profile.display_name, url: canonical, description, ...(avatarUrl ? { image: avatarUrl } : {}) });
   const shareData = safeScriptJson({ title, text: description, url: canonical });

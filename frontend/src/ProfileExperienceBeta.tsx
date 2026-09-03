@@ -189,6 +189,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
   const [nftConfigured, setNftConfigured] = useState<boolean | null>(null);
   const [nftMessage, setNftMessage] = useState('');
   const [ownedNfts, setOwnedNfts] = useState<OwnedNft[]>([]);
+  const [previewRevision, setPreviewRevision] = useState(() => Date.now());
 
   function changeProfile(id: string) {
     setProfileId(id);
@@ -209,6 +210,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
       setAvatarFailed(false);
       setBlocks(blockResult.blocks);
       setClicks(analyticsResult.linkClicks || 0);
+      setPreviewRevision(Date.now());
     } catch { setMessage('Profile settings are temporarily unavailable. Please try again shortly.'); }
   }
 
@@ -373,9 +375,6 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
   const completed = completion.filter((item) => item.done).length;
   const completionPercent = completion.length ? Math.round((completed / completion.length) * 100) : 0;
   const enabledBlocks = blocks.filter((block) => block.enabled);
-  const previewBase = enabledBlocks.slice(0, 7);
-  const pinnedCta = enabledBlocks.find((block) => ['work_with_me', 'media_kit'].includes(block.type) && !previewBase.some((item) => item.id === block.id));
-  const previewBlocks = pinnedCta ? [...previewBase, pinnedCta] : enabledBlocks.slice(0, 8);
   const avatar = safeHttps(data.avatarUrl);
   const featureType = ['featured_video', 'featured_article', 'featured_image'].includes(draft.type);
   const teamType = draft.type === 'team_member';
@@ -434,7 +433,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
             <section className="profile-beta-seo"><button className="profile-beta-seo-toggle" onClick={() => setShowSeo((value) => !value)}><span><strong>Search & share preview</strong><small>Optional title and description for search engines and social sharing.</small></span><b>{showSeo ? '−' : '+'}</b></button>{showSeo && <div className="profile-beta-seo-fields"><label>SEO title<input value={data.seoTitle || ''} maxLength={70} onChange={(event) => setData({ ...data, seoTitle: event.target.value })} /></label><label>SEO description<textarea value={data.seoDescription || ''} maxLength={180} onChange={(event) => setData({ ...data, seoDescription: event.target.value })} /></label><button className="ops-button primary" onClick={() => void saveProfile()}>Save</button></div>}</section>
           </div>
 
-          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">LIVE MOBILE PREVIEW</span><small>Editor preview</small></div><div className="profile-beta-phone"><div className="profile-beta-phone-top"><b>Linkary</b><span>•••</span></div><div className="profile-beta-phone-avatar">{avatar && !avatarFailed ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : (data.displayName || profile.display_name).slice(0, 1).toUpperCase()}</div><strong className="profile-beta-phone-name">{data.displayName || profile.display_name}</strong><span className="profile-beta-phone-handle">@{profile.username}</span><p>{data.bio || 'Your bio will appear here.'}</p><div className="profile-beta-phone-items">{previewBlocks.map((block) => block.type === 'heading' ? <small className="profile-beta-phone-heading" key={block.id}>{block.title || 'More'}</small> : <div className={`profile-beta-phone-item ${['work_with_me', 'media_kit'].includes(block.type) ? 'cta' : ''}`} key={block.id}><b>{iconFor(block)}</b><span>{block.title || blockLabel(block.type)}</span><i>↗</i></div>)}</div>{!previewBlocks.length && <div className="profile-beta-phone-empty">Your public sections will appear here.</div>}<div className="profile-beta-phone-proof"><span>LINKARY PROOF</span><small>Verified campaign evidence appears here automatically when available.</small></div></div></div></aside>
+          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}</div></aside>
         </div>
       </div>
 
