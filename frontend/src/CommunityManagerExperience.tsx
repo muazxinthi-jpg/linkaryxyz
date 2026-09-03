@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import CommunityVerificationPanel from './CommunityVerificationPanel';
 import './community-manager.css';
 
 type Manager = {
@@ -317,7 +318,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                   {assets.map((asset) => (
                     <article className="community-row" key={asset.id}>
                       <div className="community-avatar">{asset.name.slice(0, 2).toUpperCase()}</div>
-                      <div className="community-main"><div><strong>{asset.name}</strong><span className={`community-status status-${asset.verification_status}`}>{verificationLabel(asset.verification_status)}</span></div><small>{asset.handle ? `@${asset.handle.replace(/^@/, '')}` : 'Telegram community'} · {compact(asset.audience_size)} audience</small>{asset.notes && <p>{asset.notes}</p>}</div>
+                      <div className="community-main"><div><strong>{asset.name}</strong><span className={`community-status status-${asset.verification_status}`}>{verificationLabel(asset.verification_status)}</span></div><small>{asset.handle ? `@${asset.handle.replace(/^@/, '')}` : 'Telegram community'} · {compact(asset.audience_size)} audience</small>{asset.notes && <p>{asset.notes}</p>}<CommunityVerificationPanel asset={asset} onChanged={load} /></div>
                       <div className="community-row-actions">
                         {asset.url && <a href={asset.url} target="_blank" rel="noreferrer">Open ↗</a>}
                         <button type="button" onClick={() => editCommunity(asset)}>Edit</button>
@@ -328,7 +329,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                   ))}
                 </div>
               )}
-              <div className="community-verification-note"><strong>Verification</strong><span>New communities are shown as Listed. Telegram admin ownership and Linkary Tracker verification will be added as the next verification layer, and Linkary will never label an unverified audience as verified.</span></div>
+              <div className="community-verification-note"><strong>Verification</strong><span>Listed means the manager supplied this community. Verified means Linkary reviewed a public Telegram proof showing the manager controls that community. Linkary Tracker verification can later add stronger automated evidence.</span></div>
             </section>
           </>
         )}

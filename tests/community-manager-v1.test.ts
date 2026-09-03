@@ -73,6 +73,6 @@ test('Community Manager workspace supports multiple communities and public profi
   assert.equal(ui.includes('MANAGED COMMUNITIES'), true);
   assert.equal(ui.includes("type: 'community_card'"), true);
   assert.equal(ui.includes('Add to public profile'), true);
-  assert.equal(ui.includes('Telegram admin ownership and Linkary Tracker verification will be added'), true);
-  assert.equal(ui.includes('Linkary will never label an unverified audience as verified'), true);
+  assert.equal(ui.includes('CommunityVerificationPanel'), true);
+  assert.equal(ui.includes('Verified means Linkary reviewed a public Telegram proof'), true);
 });
