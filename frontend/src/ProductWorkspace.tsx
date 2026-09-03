@@ -31,9 +31,17 @@ export function ProductWorkspace({
   async function logout() {
     try {
       const csrf = readCookie('__Host-linkary_csrf');
-      if (csrf) await fetch('/api/auth/logout', { method: 'POST', headers: { 'x-csrf-token': csrf }, credentials: 'same-origin' });
+      if (csrf) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'x-csrf-token': csrf },
+          credentials: 'same-origin',
+        });
+      }
     } catch {}
-    try { await signOut(); } catch {}
+    try {
+      await signOut();
+    } catch {}
     navigate('/login', { replace: true });
     window.location.reload();
   }
@@ -54,17 +62,46 @@ export function ProductWorkspace({
   return (
     <main className="ops-shell">
       <aside className="ops-sidebar">
-        <a className="ops-brand" href="https://linkary.xyz" aria-label="Linkary home"><img src="/assets/brand/linkary-icon-black.png" alt="" /><span>Linkary</span></a>
+        <a className="ops-brand" href="https://linkary.xyz" aria-label="Linkary home">
+          <img src="/assets/brand/linkary-icon-black.png" alt="" />
+          <span>Linkary</span>
+        </a>
         <div className="ops-view-as">
           <label htmlFor="product-profile">VIEW AS</label>
           <select id="product-profile" value={profile.id} onChange={(event) => onProfileChange(event.target.value)}>
-            {status.profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
+            {status.profiles.map((item) => (
+              <option key={item.id} value={item.id}>{item.display_name}</option>
+            ))}
           </select>
         </div>
-        <nav className="ops-nav">{nav.map(([path, label]) => <NavLink key={path} to={path} className={() => currentPath === path || (path === '/campaigns' && currentPath === '/tracking') ? 'active' : ''}>{label}</NavLink>)}</nav>
-        <div className="ops-sidebar-footer">{me.user?.superadmin && <NavLink to="/admin">Admin</NavLink>}<button type="button" onClick={() => void logout()}>Log out</button></div>
+        <nav className="ops-nav">
+          {nav.map(([path, label]) => (
+            <NavLink
+              key={path}
+              to={path}
+              className={() => currentPath === path || (path === '/campaigns' && currentPath === '/tracking') ? 'active' : ''}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="ops-sidebar-footer">
+          {me.user?.superadmin && (
+            <>
+              <NavLink to="/admin/readiness">Beta readiness</NavLink>
+              <NavLink to="/admin">Admin review</NavLink>
+            </>
+          )}
+          <button type="button" onClick={() => void logout()}>Log out</button>
+        </div>
       </aside>
-      <section className="ops-main"><header className="ops-topbar"><div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div><a href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a></header><div className="ops-page">{children}</div></section>
+      <section className="ops-main">
+        <header className="ops-topbar">
+          <div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div>
+          <a href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a>
+        </header>
+        <div className="ops-page">{children}</div>
+      </section>
     </main>
   );
 }
