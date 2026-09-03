@@ -1,6 +1,7 @@
 import type { Env } from '../env';
 import { requireDb } from '../env';
 import { Db } from '../db/client';
+import { ensureAttributionSchema } from '../db/attributionSchema';
 import { exactCommunityCampaignProof } from '../communityCampaignProof';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
@@ -23,6 +24,7 @@ export async function partnerManagerReputation(request: Request, env: Env): Prom
   const assetId = url.searchParams.get('assetId');
   if (!managerIdParam && !assetId) throw new HttpError(400, 'Manager or Community is required', 'manager_required');
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
 
   const resolved = assetId
     ? await db.first<{ id: string; visibility: string; asset_id: string; asset_type: string }>(
