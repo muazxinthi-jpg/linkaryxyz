@@ -72,6 +72,85 @@ type CollaborationInquiry = {
   deliverables: string;
   status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'closed';
   updated_at: string;
+  activated_activity_id: string | null;
+  activated_activity_title: string | null;
+  activated_campaign_id: string | null;
+  activated_campaign_name: string | null;
+  activated_at: string | null;
+};
+type RelationshipState = 'new' | 'inquiry_pending' | 'in_discussion' | 'active' | 'worked_before';
+type RelationshipSummary = {
+  kind: DiscoveryType;
+  target_id: string;
+  state: RelationshipState;
+  inquiries_sent: number;
+  accepted_inquiries: number;
+  activated_inquiries: number;
+  campaigns: number;
+  activities: number;
+  active_activities: number;
+  completed_activities: number;
+  communities_used: number;
+  tracked_clicks: number;
+  verified_outcomes: number;
+  attributed_value_usd: number;
+  manual_outcomes: number;
+  manual_value_usd: number;
+  planned_cost_usd: number;
+  last_activity_at: string | null;
+};
+type RelationshipActivity = {
+  activity_id: string;
+  activity_title: string;
+  activity_type: string;
+  activity_status: string;
+  campaign_id: string;
+  campaign_name: string;
+  partner_asset_id: string | null;
+  community_name: string | null;
+  community_verification_status: string | null;
+  planned_cost_usd: number | null;
+  tracked_clicks: number;
+  verified_outcomes: number;
+  attributed_value_usd: number;
+  manual_outcomes: number;
+  manual_value_usd: number;
+  updated_at: string;
+};
+type RelationshipInquiry = {
+  inquiry_id: string;
+  inquiry_type: string;
+  status: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  partner_asset_id: string | null;
+  community_name: string | null;
+  community_verification_status: string | null;
+  budget_usd: number | null;
+  created_at: string;
+  responded_at: string | null;
+  activated_activity_id: string | null;
+  activated_activity_title: string | null;
+  activated_campaign_name: string | null;
+  activated_at: string | null;
+};
+type RelationshipCommunity = {
+  asset_id: string;
+  community_name: string;
+  verification_status: string;
+  campaigns: number;
+  activities: number;
+  tracked_clicks: number;
+  verified_outcomes: number;
+  attributed_value_usd: number;
+  last_activity_at: string | null;
+};
+type RelationshipDetail = {
+  summary: Omit<RelationshipSummary, 'kind' | 'target_id'>;
+  activities: RelationshipActivity[];
+  inquiries: RelationshipInquiry[];
+  communities: RelationshipCommunity[];
+  evidence_note: string;
 };
 
 type InquiryForm = {
@@ -115,8 +194,25 @@ function compact(value: number) {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
 }
 
+function money(value: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+}
+
 function human(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function date(value: string | null) {
+  if (!value) return 'Not recorded';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 'Recently' : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function relationshipLabel(value: RelationshipState) {
+  if (value === 'inquiry_pending') return 'Inquiry pending';
+  if (value === 'in_discussion') return 'In discussion';
+  if (value === 'worked_before') return 'Worked before';
+  return human(value);
 }
 
 function canManage(project?: Project) {
@@ -151,6 +247,10 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
   const [message, setMessage] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [outgoingInquiries, setOutgoingInquiries] = useState<CollaborationInquiry[]>([]);
+  const [relationships, setRelationships] = useState<Map<string, RelationshipSummary>>(new Map());
+  const [relationshipTarget, setRelationshipTarget] = useState<Partner | null>(null);
+  const [relationshipDetail, setRelationshipDetail] = useState<RelationshipDetail | null>(null);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
   const [inquiryTarget, setInquiryTarget] = useState<Partner | null>(null);
   const [inquiryCommunities, setInquiryCommunities] = useState<CommunityAsset[]>([]);
   const [campaignOptions, setCampaignOptions] = useState<CampaignOption[]>([]);
@@ -194,6 +294,16 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
     }
   }
 
+  async function loadRelationships() {
+    if (!organizationId) { setRelationships(new Map()); return; }
+    try {
+      const result = await api<{ relationships: RelationshipSummary[] }>(`/api/partner-relationships?organizationId=${encodeURIComponent(organizationId)}&kind=${encodeURIComponent(type)}`);
+      setRelationships(new Map(result.relationships.map((item) => [item.target_id, item])));
+    } catch {
+      setRelationships(new Map());
+    }
+  }
+
   async function loadOutgoingInquiries() {
     if (!organizationId) { setOutgoingInquiries([]); return; }
     try {
@@ -216,8 +326,9 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
   useEffect(() => {
     setSelected(null);
     setCommunities([]);
-    void loadPartners();
-    void loadOutgoingInquiries();
+    setRelationshipTarget(null);
+    setRelationshipDetail(null);
+    void Promise.all([loadPartners(), loadOutgoingInquiries(), loadRelationships()]);
   }, [organizationId, type]);
 
   async function openPartner(partner: CommunityPartner) {
@@ -252,6 +363,27 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
 
   function latestInquiry(partner: Partner): CollaborationInquiry | undefined {
     return outgoingInquiries.find((item) => item.target_profile_id === partner.profile_id && (partner.kind === 'creator' ? item.target_kind === 'creator' : item.partner_manager_id === partner.manager_id));
+  }
+
+  function relationshipFor(partner: Partner): RelationshipSummary | undefined {
+    return relationships.get(partner.kind === 'creator' ? partner.profile_id : partner.manager_id);
+  }
+
+  async function openRelationship(partner: Partner) {
+    if (!organizationId) return;
+    setRelationshipTarget(partner);
+    setRelationshipDetail(null);
+    setRelationshipLoading(true);
+    const targetId = partner.kind === 'creator' ? partner.profile_id : partner.manager_id;
+    try {
+      const result = await api<{ relationship: RelationshipDetail }>(`/api/partner-relationships?organizationId=${encodeURIComponent(organizationId)}&kind=${encodeURIComponent(partner.kind)}&targetId=${encodeURIComponent(targetId)}`);
+      setRelationshipDetail(result.relationship);
+    } catch {
+      setMessage('Relationship history is temporarily unavailable.');
+      setRelationshipTarget(null);
+    } finally {
+      setRelationshipLoading(false);
+    }
   }
 
   async function openInquiry(partner: Partner, preselectedCommunityId = '') {
@@ -311,7 +443,7 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
       });
       setMessage(`Collaboration inquiry sent to ${inquiryTarget.display_name}. It will appear in their Linkary Inbox.`);
       setInquiryTarget(null);
-      await loadOutgoingInquiries();
+      await Promise.all([loadOutgoingInquiries(), loadRelationships()]);
     } catch (error) {
       if (error instanceof ApiError && error.code === 'inquiry_already_pending') setMessage('A collaboration inquiry is already waiting for this partner.');
       else if (error instanceof ApiError) setMessage(error.message);
@@ -325,14 +457,14 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
 
   return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
     <div className="ops-stack partner-directory partner-discovery-v1">
-      <div className="ops-heading-row"><div><span className="ops-kicker">PARTNER DISCOVERY</span><h1>Find creators and Community Managers</h1><p>Search Linkary identities, inspect the exact Telegram Communities a manager represents, save the right partner, and send a focused collaboration inquiry before campaign assignment.</p></div></div>
+      <div className="ops-heading-row"><div><span className="ops-kicker">PARTNER DISCOVERY</span><h1>Find creators and Community Managers</h1><p>Discover Linkary partners, remember what your Project has already done with them, and start the next collaboration from real evidence.</p></div></div>
 
-      {!firstProject ? <section className="ops-empty prominent"><div className="ops-empty-icon">◎</div><h2>Connect a Project first</h2><p>Partner discovery is a Project workspace. Create or join a verified Project before building a shortlist.</p><a className="ops-button primary" href="/settings">Manage Projects</a></section> : profile.profile_type !== 'project' ? <section className="ops-callout verification"><div><span className="ops-kicker">PROJECT WORKSPACE REQUIRED</span><h3>Switch “View as” to a Project</h3><p>Discovery, private partner shortlists and collaboration inquiries belong to Projects.</p></div></section> : <>
+      {!firstProject ? <section className="ops-empty prominent"><div className="ops-empty-icon">◎</div><h2>Connect a Project first</h2><p>Partner discovery is a Project workspace. Create or join a verified Project before building a shortlist.</p><a className="ops-button primary" href="/settings">Manage Projects</a></section> : profile.profile_type !== 'project' ? <section className="ops-callout verification"><div><span className="ops-kicker">PROJECT WORKSPACE REQUIRED</span><h3>Switch “View as” to a Project</h3><p>Discovery, private relationship memory and collaboration inquiries belong to Projects.</p></div></section> : <>
         <div className="ops-project-toolbar"><div><span className="ops-kicker">PROJECT</span><strong>{project?.name || profile.display_name}</strong></div>{project && <div className={`ops-project-state ${project.verification_status === 'verified_x' ? 'verified' : 'pending'}`}>{project.verification_status === 'verified_x' ? 'Verified on X' : 'X verification required'}</div>}</div>
 
-        {project && project.verification_status !== 'verified_x' && <section className="ops-callout verification"><div><span className="ops-kicker">BROWSE ONLY</span><h3>Verify {project.name} before contacting partners</h3><p>You can discover profiles now. Project verification is required before changing the private shortlist or sending collaboration inquiries.</p></div><a className="ops-button secondary" href="/settings">Open Projects</a></section>}
+        {project && project.verification_status !== 'verified_x' && <section className="ops-callout verification"><div><span className="ops-kicker">BROWSE ONLY</span><h3>Verify {project.name} before contacting partners</h3><p>You can discover profiles and inspect existing relationship memory now. Project verification is required before changing the shortlist or sending collaboration inquiries.</p></div><a className="ops-button secondary" href="/settings">Open Projects</a></section>}
 
-        <section className="partner-summary-strip"><div><strong>Creators</strong><span>Published Linkary Creator profiles with identity and collaboration signals.</span></div><div><strong>Community Managers</strong><span>See the exact Telegram Communities each manager has listed and their individual verification states.</span></div><div><strong>Evidence first</strong><span>An accepted inquiry means open to discussion. It never becomes verified campaign proof automatically.</span></div></section>
+        <section className="partner-summary-strip"><div><strong>Discover</strong><span>Find published Creators and Community Managers with canonical Linkary identities.</span></div><div><strong>Remember</strong><span>See your Project's prior campaigns, tracked clicks, verified outcomes and exact Communities used.</span></div><div><strong>Work again</strong><span>Previously activated relationships can start a fresh inquiry without rewriting historical proof.</span></div></section>
 
         <section className="ops-section">
           <div className="partner-toolbar"><nav className="ops-tabs"><button className={type === 'creator' ? 'active' : ''} onClick={() => setType('creator')}>Creators</button><button className={type === 'community_manager' ? 'active' : ''} onClick={() => setType('community_manager')}>Community Managers</button></nav><form onSubmit={(event) => { event.preventDefault(); void loadPartners(); }}><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={type === 'creator' ? 'Search creator, @handle or bio' : 'Search manager, Community or @handle'} /><button className="ops-button small">Search</button></form></div>
@@ -342,11 +474,15 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
 
           {loading ? <div className="ops-loading">Loading partners...</div> : !partners.length ? <div className="ops-empty"><div className="ops-empty-icon">◇</div><h3>No matching partners yet</h3><p>Try widening the filters. Discovery only shows real published Creator profiles and public Community Manager portfolios.</p></div> : <div className="partner-grid">{partners.map((partner) => {
             const inquiry = latestInquiry(partner);
-            const inquiryLocked = inquiry?.status === 'pending' || inquiry?.status === 'accepted';
+            const relationship = relationshipFor(partner);
+            const inquiryLocked = inquiry?.status === 'pending' || (inquiry?.status === 'accepted' && !inquiry.activated_activity_id);
+            const workedBefore = Boolean(relationship && ['active', 'worked_before'].includes(relationship.state)) || Boolean(inquiry?.activated_activity_id);
+            const rehireCommunity = partner.kind === 'community_manager' && inquiry?.activated_activity_id ? inquiry.partner_asset_id || '' : '';
             return <article className="partner-card" key={`${partner.kind}:${partner.id}`}>
               <div className="partner-card-head"><Avatar src={partner.avatar_url} name={partner.display_name} /><div><strong>{partner.display_name}</strong><span>{partner.kind === 'creator' ? `@${partner.username}` : partner.headline || 'Community Manager'}</span></div><span className={`partner-verify ${partner.kind === 'creator' ? (partner.verified ? 'verified' : 'unverified') : (partner.verified_communities > 0 ? 'verified' : 'unverified')}`}>{partner.kind === 'creator' ? (partner.verified ? 'Verified' : 'Listed') : `${partner.verified_communities} verified`}</span></div>
               {partner.kind === 'creator' ? <><p>{partner.bio || 'Published Linkary Creator profile.'}</p><div className="partner-metrics"><div><span>COLLABORATION</span><strong>{partner.open_to_collaborations ? 'Open' : 'Profile only'}</strong></div><div><span>ACCEPTED CAMPAIGNS</span><strong>{partner.accepted_campaigns}</strong></div><div><span>X IDENTITY</span><strong>{partner.x_handle ? `@${partner.x_handle}` : 'Linked'}</strong></div></div></> : <><p>{partner.bio || partner.headline || 'Public Community Manager portfolio.'}</p><div className="partner-metrics"><div><span>COMMUNITIES</span><strong>{partner.community_count}</strong></div><div><span>VERIFIED</span><strong>{partner.verified_communities}</strong></div><div><span>COMBINED AUDIENCE</span><strong>{compact(partner.combined_audience)}</strong></div><div><span>PERSONAL TELEGRAM</span><strong>{partner.telegram_verified ? 'Verified' : 'Not verified'}</strong></div></div></>}
-              <div className="partner-card-foot"><span>{inquiry ? <span className={`collab-inquiry-status ${inquiry.status}`}>{inquiry.status === 'pending' ? 'Inquiry pending' : human(inquiry.status)}</span> : partner.kind === 'creator' ? (partner.open_to_collaborations ? 'Open to collaboration' : 'Published Creator') : (partner.open_to_campaigns ? 'Open to campaigns' : 'Directory listing')}</span><div className="network-actions"><a className="ops-button ghost small" href={partner.public_url} target="_blank" rel="noreferrer">View profile ↗</a>{partner.kind === 'community_manager' && <button type="button" onClick={() => void openPartner(partner)}>View Communities</button>}<button type="button" disabled={!canManage(project) || savingId === partner.id} onClick={() => void shortlist(partner)}>{savingId === partner.id ? 'Saving...' : 'Shortlist'}</button><button className="collab-inquiry-open" type="button" disabled={!canManage(project) || inquiryLocked} onClick={() => void openInquiry(partner)}>{inquiry?.status === 'pending' ? 'Inquiry pending' : inquiry?.status === 'accepted' ? 'Accepted' : inquiry?.status === 'declined' ? 'New inquiry' : 'Start inquiry'}</button></div></div>
+              {relationship && relationship.state !== 'new' && <div className="partner-relationship-snapshot"><span className={`partner-relationship-state ${relationship.state}`}>{relationshipLabel(relationship.state)}</span><div>{relationship.campaigns > 0 && <span><b>{relationship.campaigns}</b> campaign{relationship.campaigns === 1 ? '' : 's'}</span>}<span><b>{compact(relationship.tracked_clicks)}</b> tracked clicks</span><span><b>{compact(relationship.verified_outcomes)}</b> verified outcomes</span>{relationship.attributed_value_usd > 0 && <span><b>{money(relationship.attributed_value_usd)}</b> value</span>}</div></div>}
+              <div className="partner-card-foot"><span>{inquiry?.status === 'pending' ? <span className="collab-inquiry-status pending">Inquiry pending</span> : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? <span className="collab-inquiry-status accepted">Accepted · activate in Inbox</span> : relationship && relationship.state !== 'new' ? <span className={`partner-relationship-state compact ${relationship.state}`}>{relationshipLabel(relationship.state)}</span> : partner.kind === 'creator' ? (partner.open_to_collaborations ? 'Open to collaboration' : 'Published Creator') : (partner.open_to_campaigns ? 'Open to campaigns' : 'Directory listing')}</span><div className="network-actions"><a className="ops-button ghost small" href={partner.public_url} target="_blank" rel="noreferrer">View profile ↗</a>{partner.kind === 'community_manager' && <button type="button" onClick={() => void openPartner(partner)}>View Communities</button>}{relationship && relationship.state !== 'new' && <button type="button" onClick={() => void openRelationship(partner)}>View relationship</button>}<button type="button" disabled={!canManage(project) || savingId === partner.id} onClick={() => void shortlist(partner)}>{savingId === partner.id ? 'Saving...' : 'Shortlist'}</button><button className="collab-inquiry-open" type="button" disabled={!canManage(project) || inquiryLocked} onClick={() => void openInquiry(partner, rehireCommunity)}>{inquiry?.status === 'pending' ? 'Inquiry pending' : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? 'Accepted' : workedBefore ? 'Work again' : inquiry?.status === 'declined' || inquiry?.status === 'withdrawn' ? 'New inquiry' : 'Start inquiry'}</button></div></div>
             </article>;
           })}</div>}
         </section>
@@ -361,7 +497,21 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
         <div className="partner-evidence-note">Personal Telegram verification proves the manager's human identity/contact. Each Community keeps its own separate verification state.</div>
         <div className="partner-portfolio-title"><div><h3>Telegram Communities</h3><span>{communities.length} listed</span></div></div>
         {!communities.length ? <div className="ops-empty compact"><p>No Communities are publicly listed for this manager yet.</p></div> : <div className="partner-asset-list">{communities.map((community) => <article key={community.id}><div><strong>{community.name}</strong><span>{community.handle ? `@${community.handle}` : 'Telegram'}</span></div><div><strong>{compact(community.audience_size)}</strong><span>estimated audience</span></div><span className={`partner-verify ${community.verification_status}`}>{human(community.verification_status)}</span>{community.url && <a href={community.url} target="_blank" rel="noreferrer">Visit Community ↗</a>}{canManage(project) && <button className="ops-button small" onClick={() => { setSelected(null); void openInquiry(selected, community.id); }}>Inquire about this Community</button>}</article>)}</div>}
-        <div className="ops-form-actions"><a className="ops-button ghost" href={selected.public_url} target="_blank" rel="noreferrer">View public portfolio ↗</a><button className="ops-button secondary" disabled={!canManage(project) || savingId === selected.id} onClick={() => void shortlist(selected)}>{savingId === selected.id ? 'Saving...' : 'Save to Project shortlist'}</button><button className="ops-button primary" disabled={!canManage(project) || latestInquiry(selected)?.status === 'pending' || latestInquiry(selected)?.status === 'accepted'} onClick={() => { setSelected(null); void openInquiry(selected); }}>Start inquiry</button></div>
+        <div className="ops-form-actions"><a className="ops-button ghost" href={selected.public_url} target="_blank" rel="noreferrer">View public portfolio ↗</a><button className="ops-button secondary" disabled={!canManage(project) || savingId === selected.id} onClick={() => void shortlist(selected)}>{savingId === selected.id ? 'Saving...' : 'Save to Project shortlist'}</button>{relationshipFor(selected) && relationshipFor(selected)?.state !== 'new' && <button className="ops-button secondary" onClick={() => { setSelected(null); void openRelationship(selected); }}>View relationship</button>}<button className="ops-button primary" disabled={!canManage(project) || latestInquiry(selected)?.status === 'pending' || (latestInquiry(selected)?.status === 'accepted' && !latestInquiry(selected)?.activated_activity_id)} onClick={() => { const latest = latestInquiry(selected); setSelected(null); void openInquiry(selected, latest?.activated_activity_id ? latest.partner_asset_id || '' : ''); }}>{latestInquiry(selected)?.activated_activity_id ? 'Work again' : 'Start inquiry'}</button></div>
+      </section></div>}
+
+      {relationshipTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setRelationshipTarget(null); }}><section className="ops-modal partner-relationship-modal">
+        <div className="ops-modal-head"><div><span className="ops-kicker">PROJECT RELATIONSHIP MEMORY</span><h2>{relationshipTarget.display_name}</h2></div><button onClick={() => setRelationshipTarget(null)}>×</button></div>
+        {relationshipLoading || !relationshipDetail ? <div className="ops-loading">Loading relationship history...</div> : <>
+          <div className="partner-relationship-hero"><span className={`partner-relationship-state ${relationshipDetail.summary.state}`}>{relationshipLabel(relationshipDetail.summary.state)}</span><div><strong>{relationshipDetail.summary.campaigns} campaign{relationshipDetail.summary.campaigns === 1 ? '' : 's'} · {relationshipDetail.summary.activities} exact activit{relationshipDetail.summary.activities === 1 ? 'y' : 'ies'}</strong><small>Last activity: {date(relationshipDetail.summary.last_activity_at)}</small></div></div>
+          <div className="partner-relationship-metrics"><div><span>TRACKED CLICKS</span><strong>{compact(relationshipDetail.summary.tracked_clicks)}</strong></div><div><span>VERIFIED OUTCOMES</span><strong>{compact(relationshipDetail.summary.verified_outcomes)}</strong></div><div><span>ATTRIBUTED VALUE</span><strong>{money(relationshipDetail.summary.attributed_value_usd)}</strong></div><div><span>ACTIVATED INQUIRIES</span><strong>{relationshipDetail.summary.activated_inquiries}</strong></div>{relationshipTarget.kind === 'community_manager' && <div><span>COMMUNITIES USED</span><strong>{relationshipDetail.summary.communities_used}</strong></div>}{relationshipDetail.summary.planned_cost_usd > 0 && <div><span>PLANNED COST</span><strong>{money(relationshipDetail.summary.planned_cost_usd)}</strong></div>}</div>
+          {relationshipDetail.summary.manual_outcomes > 0 && <div className="partner-relationship-manual"><strong>Manual evidence</strong><span>{relationshipDetail.summary.manual_outcomes} manually recorded outcome{relationshipDetail.summary.manual_outcomes === 1 ? '' : 's'} · {money(relationshipDetail.summary.manual_value_usd)} recorded value. This is not included in Verified outcomes or attributed value above.</span></div>}
+          {relationshipDetail.communities.length > 0 && <section className="partner-relationship-section"><div className="partner-relationship-title"><span>EXACT COMMUNITIES USED</span><h3>Community history</h3></div><div className="partner-relationship-community-list">{relationshipDetail.communities.map((community) => <article key={community.asset_id}><div><strong>{community.community_name}</strong><small>{human(community.verification_status)} · Last activity {date(community.last_activity_at)}</small></div><div><span>{community.campaigns} campaigns</span><span>{compact(community.tracked_clicks)} clicks</span><span>{compact(community.verified_outcomes)} verified outcomes</span>{community.attributed_value_usd > 0 && <span>{money(community.attributed_value_usd)} value</span>}</div></article>)}</div></section>}
+          <section className="partner-relationship-section"><div className="partner-relationship-title"><span>CAMPAIGN HISTORY</span><h3>Recent exact activities</h3></div>{!relationshipDetail.activities.length ? <div className="ops-empty compact"><p>No exact campaign activity has been recorded yet.</p></div> : <div className="partner-relationship-history">{relationshipDetail.activities.slice(0, 12).map((activity) => <article key={activity.activity_id}><div><strong>{activity.campaign_name}</strong><span>{activity.activity_title}{activity.community_name ? ` · ${activity.community_name}` : ''}</span><small>{human(activity.activity_status)} · {date(activity.updated_at)}{activity.planned_cost_usd !== null ? ` · ${money(activity.planned_cost_usd)} planned` : ''}</small></div><div className="partner-relationship-evidence"><span className={activity.tracked_clicks > 0 ? 'tracked' : ''}>{compact(activity.tracked_clicks)} clicks</span><span className={activity.verified_outcomes > 0 ? 'verified' : ''}>{compact(activity.verified_outcomes)} verified outcomes</span>{activity.attributed_value_usd > 0 && <span className="verified">{money(activity.attributed_value_usd)} value</span>}{activity.manual_outcomes > 0 && <span className="manual">Manual: {activity.manual_outcomes} outcomes · {money(activity.manual_value_usd)}</span>}</div></article>)}</div>}</section>
+          <section className="partner-relationship-section"><div className="partner-relationship-title"><span>COLLABORATION HISTORY</span><h3>Recent inquiries</h3></div>{!relationshipDetail.inquiries.length ? <div className="ops-empty compact"><p>No Linkary collaboration inquiries recorded for this relationship.</p></div> : <div className="partner-relationship-inquiries">{relationshipDetail.inquiries.slice(0, 10).map((item) => <article key={item.inquiry_id}><span className={`collab-inquiry-status ${item.status}`}>{human(item.status)}</span><div><strong>{human(item.inquiry_type)}{item.community_name ? ` · ${item.community_name}` : ''}</strong><small>{item.campaign_name || 'No campaign selected'} · {date(item.created_at)}{item.budget_usd !== null ? ` · ${money(item.budget_usd)}` : ''}</small>{item.activated_activity_id && <span>Activated: {item.activated_campaign_name} · {item.activated_activity_title}</span>}</div></article>)}</div>}</section>
+          <div className="partner-evidence-note">{relationshipDetail.evidence_note}</div>
+          <div className="ops-form-actions"><button className="ops-button secondary" onClick={() => setRelationshipTarget(null)}>Close</button>{canManage(project) && !latestInquiry(relationshipTarget)?.status.includes('pending') && !(latestInquiry(relationshipTarget)?.status === 'accepted' && !latestInquiry(relationshipTarget)?.activated_activity_id) && <button className="ops-button primary" onClick={() => { const target = relationshipTarget; const latest = latestInquiry(target); setRelationshipTarget(null); void openInquiry(target, target.kind === 'community_manager' && latest?.activated_activity_id ? latest.partner_asset_id || '' : ''); }}>Work again</button>}</div>
+        </>}
       </section></div>}
 
       {inquiryTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !sendingInquiry) setInquiryTarget(null); }}><section className="ops-modal collab-inquiry-modal">
