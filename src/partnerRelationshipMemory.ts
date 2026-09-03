@@ -128,7 +128,7 @@ function relationshipState(summary: PartnerRelationshipSummary, pending: number,
   if (pending > 0) return 'inquiry_pending';
   if (openAccepted > 0) return 'in_discussion';
   if (summary.active_activities > 0) return 'active';
-  if (summary.completed_activities > 0 || summary.activated_inquiries > 0) return 'worked_before';
+  if (summary.completed_activities > 0) return 'worked_before';
   return 'new';
 }
 
