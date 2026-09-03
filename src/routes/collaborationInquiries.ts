@@ -10,8 +10,9 @@ const inquiryId = () => `inq_${crypto.randomUUID().replace(/-/g, '')}`;
 const inquiryTypes = new Set(['content_collaboration', 'telegram_promotion', 'community_activation', 'x_campaign', 'ambassador', 'partnership', 'other']);
 
 export type CollaborationInquiryMutationBody = {
-  action?: 'send_inquiry' | 'review_inquiry' | 'withdraw_inquiry';
+  action?: 'send_inquiry' | 'review_inquiry' | 'withdraw_inquiry' | 'record_activation';
   inquiryId?: string;
+  activityId?: string;
   decision?: 'accepted' | 'declined';
   organizationId?: string;
   targetKind?: 'creator' | 'community_manager';
@@ -48,6 +49,11 @@ type InquiryRow = {
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  activated_activity_id: string | null;
+  activated_activity_title: string | null;
+  activated_campaign_id: string | null;
+  activated_campaign_name: string | null;
+  activated_at: string | null;
 };
 
 const inquirySelect = `SELECT ci.id,
@@ -71,13 +77,21 @@ const inquirySelect = `SELECT ci.id,
        ci.status,
        ci.responded_at,
        ci.created_at,
-       ci.updated_at
+       ci.updated_at,
+       ia.activity_id AS activated_activity_id,
+       aa.title AS activated_activity_title,
+       aa.campaign_id AS activated_campaign_id,
+       ac.name AS activated_campaign_name,
+       ia.activated_at
   FROM collaboration_inquiries ci
   JOIN organizations o ON o.id = ci.organization_id
   JOIN profiles tp ON tp.id = ci.target_profile_id
   LEFT JOIN partner_managers pm ON pm.id = ci.partner_manager_id
   LEFT JOIN partner_manager_assets pa ON pa.id = ci.partner_asset_id
-  LEFT JOIN campaigns c ON c.id = ci.campaign_id`;
+  LEFT JOIN campaigns c ON c.id = ci.campaign_id
+  LEFT JOIN collaboration_inquiry_activations ia ON ia.inquiry_id = ci.id
+  LEFT JOIN campaign_activities aa ON aa.id = ia.activity_id
+  LEFT JOIN campaigns ac ON ac.id = aa.campaign_id`;
 
 export async function listCollaborationInquiries(request: Request, env: Env, userId: string, db: Db): Promise<Response> {
   await ensureCollaborationInquirySchema(db);
@@ -147,6 +161,29 @@ async function markShortlistInDiscussion(db: Db, request: Request, env: Env, org
         SET status = 'negotiating', updated_at = ?
       WHERE organization_id = ?
         AND status IN ('interested','contacted')
+        AND network_entity_id IN (
+          SELECT id FROM project_network_entities WHERE organization_id = ? AND entity_type = 'creator' AND primary_url = ?
+        )`,
+    [now(), organizationId, organizationId, profileUrl],
+  );
+}
+
+async function markShortlistActive(db: Db, request: Request, env: Env, organizationId: string, targetKind: 'creator' | 'community_manager', targetUsername: string, partnerManagerId: string | null): Promise<void> {
+  if (targetKind === 'community_manager' && partnerManagerId) {
+    await db.run(
+      `UPDATE project_partner_shortlists
+          SET status = 'active', updated_at = ?
+        WHERE organization_id = ? AND partner_manager_id = ? AND status IN ('interested','contacted','negotiating')`,
+      [now(), organizationId, partnerManagerId],
+    );
+    return;
+  }
+  const profileUrl = publicProfileUrl(request, env, targetUsername);
+  await db.run(
+    `UPDATE project_partner_shortlists
+        SET status = 'active', updated_at = ?
+      WHERE organization_id = ?
+        AND status IN ('interested','contacted','negotiating')
         AND network_entity_id IN (
           SELECT id FROM project_network_entities WHERE organization_id = ? AND entity_type = 'creator' AND primary_url = ?
         )`,
@@ -277,6 +314,90 @@ export async function handleCollaborationInquiryMutation(
       await markShortlistInDiscussion(db, request, env, inquiry.organization_id, inquiry.target_kind, inquiry.target_username, inquiry.partner_manager_id);
     }
     return json({ ok: true, id: inquiry.id, status: body.decision });
+  }
+
+  if (body.action === 'record_activation') {
+    if (!body.inquiryId || !body.activityId) throw new HttpError(400, 'Inquiry and activity are required', 'invalid_inquiry_activation');
+    const inquiry = await db.first<{
+      id: string;
+      organization_id: string;
+      target_kind: 'creator' | 'community_manager';
+      target_profile_id: string;
+      target_username: string;
+      partner_manager_id: string | null;
+      partner_asset_id: string | null;
+      status: string;
+    }>(
+      `SELECT ci.id, ci.organization_id, ci.target_kind, ci.target_profile_id, p.username AS target_username,
+              ci.partner_manager_id, ci.partner_asset_id, ci.status
+         FROM collaboration_inquiries ci
+         JOIN profiles p ON p.id = ci.target_profile_id
+        WHERE ci.id = ?`,
+      [body.inquiryId],
+    );
+    if (!inquiry) throw new HttpError(404, 'Collaboration inquiry not found', 'inquiry_not_found');
+    await requireOperationalProjectAccess(db, userId, inquiry.organization_id, true);
+    if (inquiry.status !== 'accepted') throw new HttpError(409, 'Only accepted collaboration inquiries can be activated', 'inquiry_not_accepted');
+
+    const existing = await db.first<{ activity_id: string }>('SELECT activity_id FROM collaboration_inquiry_activations WHERE inquiry_id = ?', [inquiry.id]);
+    if (existing) {
+      if (existing.activity_id === body.activityId) return json({ ok: true, inquiryId: inquiry.id, activityId: existing.activity_id, existing: true });
+      throw new HttpError(409, 'This collaboration inquiry is already activated in another activity', 'inquiry_already_activated');
+    }
+    const claimed = await db.first<{ inquiry_id: string }>('SELECT inquiry_id FROM collaboration_inquiry_activations WHERE activity_id = ?', [body.activityId]);
+    if (claimed) throw new HttpError(409, 'This activity is already linked to another collaboration inquiry', 'activity_already_activated');
+
+    const activity = await db.first<{
+      id: string;
+      campaign_id: string;
+      campaign_name: string;
+      organization_id: string;
+      assignment_kind: 'creator' | 'community' | null;
+      creator_profile_id: string | null;
+      partner_manager_id: string | null;
+      partner_asset_id: string | null;
+    }>(
+      `SELECT a.id, a.campaign_id, c.name AS campaign_name, c.organization_id,
+              la.assignment_kind, la.creator_profile_id, la.partner_manager_id, la.partner_asset_id
+         FROM campaign_activities a
+         JOIN campaigns c ON c.id = a.campaign_id
+         LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = a.id
+        WHERE a.id = ?`,
+      [body.activityId],
+    );
+    if (!activity || activity.organization_id !== inquiry.organization_id) throw new HttpError(404, 'Activity not found for this Project', 'activity_not_found');
+
+    const matchesAcceptedPartner = inquiry.target_kind === 'creator'
+      ? activity.assignment_kind === 'creator'
+        && activity.creator_profile_id === inquiry.target_profile_id
+        && !activity.partner_manager_id
+        && !activity.partner_asset_id
+      : activity.assignment_kind === 'community'
+        && activity.partner_manager_id === inquiry.partner_manager_id
+        && Boolean(activity.partner_asset_id)
+        && (!inquiry.partner_asset_id || activity.partner_asset_id === inquiry.partner_asset_id);
+
+    if (!matchesAcceptedPartner) {
+      throw new HttpError(409, 'Assign the accepted inquiry partner to this exact activity before activation.', 'activation_partner_mismatch');
+    }
+
+    const timestamp = now();
+    await db.run(
+      `INSERT INTO collaboration_inquiry_activations
+        (inquiry_id, activity_id, organization_id, activated_by_user_id, activated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [inquiry.id, activity.id, inquiry.organization_id, userId, timestamp],
+    );
+    await markShortlistActive(db, request, env, inquiry.organization_id, inquiry.target_kind, inquiry.target_username, inquiry.partner_manager_id);
+    return json({
+      ok: true,
+      inquiryId: inquiry.id,
+      activityId: activity.id,
+      campaignId: activity.campaign_id,
+      campaignName: activity.campaign_name,
+      activatedAt: timestamp,
+      existing: false,
+    }, { status: 201 });
   }
 
   if (body.action === 'withdraw_inquiry') {
