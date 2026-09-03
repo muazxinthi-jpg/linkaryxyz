@@ -39,8 +39,6 @@ type CommunityAsset = {
   notes: string;
 };
 
-type ProfileBlock = { id: string; type: string; title: string | null; url: string | null; enabled: boolean };
-
 type CommunityDraft = {
   assetId: string | null;
   name: string;
@@ -109,7 +107,6 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
   const [telegramIdentity, setTelegramIdentity] = useState<TelegramIdentity | null>(null);
   const [manager, setManager] = useState<Manager | null>(null);
   const [assets, setAssets] = useState<CommunityAsset[]>([]);
-  const [blocks, setBlocks] = useState<ProfileBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -117,7 +114,6 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
   const [draft, setDraft] = useState<CommunityDraft>(emptyCommunity());
 
   const combinedAudience = useMemo(() => assets.reduce((sum, item) => sum + Number(item.audience_size || 0), 0), [assets]);
-  const publicUrls = useMemo(() => new Set(blocks.filter((item) => item.type === 'community_card' && item.enabled && item.url).map((item) => item.url as string)), [blocks]);
 
   function changeProfile(id: string) {
     setProfileId(id);
@@ -131,14 +127,10 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
     }
     setLoading(true);
     try {
-      const [managerResult, blockResult] = await Promise.all([
-        api<{ managers: Manager[]; telegram_identity: TelegramIdentity | null }>('/api/partner-managers?type=community_manager'),
-        api<{ blocks: ProfileBlock[] }>(`/api/profiles/${encodeURIComponent(personalProfile.id)}/blocks`).catch(() => ({ blocks: [] })),
-      ]);
+      const managerResult = await api<{ managers: Manager[]; telegram_identity: TelegramIdentity | null }>('/api/partner-managers?type=community_manager');
       const mine = managerResult.managers.find((item) => item.profile_id === personalProfile.id) || null;
       setTelegramIdentity(managerResult.telegram_identity || null);
       setManager(mine);
-      setBlocks(blockResult.blocks || []);
       if (mine) {
         setManagerForm({
           headline: mine.headline || 'Telegram Community Manager',
@@ -265,7 +257,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
         }),
       });
       setDraft(emptyCommunity());
-      setMessage(draft.assetId ? 'Community updated.' : 'Community added to your portfolio.');
+      setMessage(draft.assetId ? 'Community updated. Your public Community Portfolio will reflect the change automatically.' : 'Community added. It will appear automatically on your public Linkary profile.');
       await load();
     } catch (error) {
       setMessage(friendly(error, 'Community could not be saved.'));
@@ -297,30 +289,10 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
         headers: { 'x-csrf-token': token },
         body: JSON.stringify({ managerId: manager.id, assetId: asset.id, remove: true }),
       });
-      setMessage('Community removed from the manager portfolio. Existing public-profile cards are not deleted automatically.');
+      setMessage('Community removed. It will also disappear from your automatic public Community Portfolio.');
       await load();
     } catch (error) {
       setMessage(friendly(error, 'Community could not be removed.'));
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function addToPublicProfile(asset: CommunityAsset) {
-    if (!personalProfile || !asset.url || publicUrls.has(asset.url)) return;
-    const token = csrf();
-    if (!token) return;
-    setBusy(`profile:${asset.id}`);
-    try {
-      await api(`/api/profiles/${encodeURIComponent(personalProfile.id)}/blocks`, {
-        method: 'POST',
-        headers: { 'x-csrf-token': token },
-        body: JSON.stringify({ type: 'community_card', title: asset.name, url: asset.url, config: {} }),
-      });
-      setMessage(`${asset.name} was added to your public Linkary profile.`);
-      await load();
-    } catch (error) {
-      setMessage(friendly(error, 'Community could not be added to your public profile.'));
     } finally {
       setBusy('');
     }
@@ -339,7 +311,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
           <div>
             <span className="ops-kicker">COMMUNITY PORTFOLIO</span>
             <h1>Communities</h1>
-            <p>List every Telegram community you manage, make your portfolio discoverable to Projects, and add selected communities to your public Linkary profile.</p>
+            <p>List every Telegram community you manage. Your Community Portfolio is automatically published on your public Linkary profile and stays in sync with the communities you manage here.</p>
           </div>
           {manager && <div className="community-manager-stats"><strong>{assets.length}</strong><span>communities</span><strong>{compact(combinedAudience)}</strong><span>combined audience</span></div>}
         </header>
@@ -395,8 +367,8 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
             </section>
 
             <section className="ops-card community-list-card">
-              <div className="ops-card-title"><div><span>MANAGED COMMUNITIES</span><h2>Your portfolio</h2></div><small>{assets.length ? 'Visible to Projects in Linkary discovery' : 'Add your first Telegram community'}</small></div>
-              {!assets.length ? <div className="ops-empty"><strong>No communities listed yet</strong><p>Add the communities you manage. They will appear under your Community Manager listing and can be selected for Project campaigns.</p></div> : (
+              <div className="ops-card-title"><div><span>MANAGED COMMUNITIES</span><h2>Your portfolio</h2></div><small>{assets.length ? 'Automatically shown on your public Linkary profile' : 'Add your first Telegram community'}</small></div>
+              {!assets.length ? <div className="ops-empty"><strong>No communities listed yet</strong><p>Add the communities you manage. They will appear automatically on your public Linkary profile and can be discovered by Projects.</p></div> : (
                 <div className="community-list">
                   {assets.map((asset) => (
                     <article className="community-row" key={asset.id}>
@@ -405,13 +377,13 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                       <div className="community-row-actions">
                         {asset.url && <a href={asset.url} target="_blank" rel="noreferrer">Open ↗</a>}
                         <button type="button" onClick={() => editCommunity(asset)}>Edit</button>
-                        {asset.url && <button type="button" disabled={publicUrls.has(asset.url) || busy === `profile:${asset.id}`} onClick={() => void addToPublicProfile(asset)}>{publicUrls.has(asset.url) ? 'On public profile' : 'Add to public profile'}</button>}
                         <button type="button" disabled={busy === `remove:${asset.id}`} onClick={() => void removeCommunity(asset)}>Remove</button>
                       </div>
                     </article>
                   ))}
                 </div>
               )}
+              <div className="community-verification-note"><strong>Public profile</strong><span>Your listed communities appear automatically on your public Linkary profile. Update or remove them here and the public Community Portfolio follows the same source of truth.</span></div>
               <div className="community-verification-note"><strong>Community verification</strong><span>Listed means the verified Telegram account holder supplied this community. Verified means Linkary separately reviewed public Telegram proof showing the manager controls that community. LinkaryTrackerBot remains optional and can later add stronger automated evidence.</span></div>
             </section>
           </>
