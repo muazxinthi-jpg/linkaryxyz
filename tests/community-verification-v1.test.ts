@@ -14,7 +14,7 @@ function appEnv() {
         const request = typeof input === 'string' ? new Request(input) : input;
         const pathname = new URL(request.url).pathname;
         requestedPaths.push(pathname);
-        if (pathname === '/app/index.html') return new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'content-type': 'text/html' } });
+        if (pathname === '/assets/linkary-app/index.html') return new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'content-type': 'text/html' } });
         return new Response('not found', { status: 404 });
       },
     },
@@ -29,7 +29,7 @@ test('Community verification admin is a real app deep link', async () => {
   const { env, requestedPaths } = appEnv();
   const response = await worker.fetch(new Request('https://app.linkary.xyz/admin/community-verifications'), env, ctx);
   assert.equal(response.status, 200);
-  assert.deepEqual(requestedPaths, ['/app/index.html']);
+  assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
   const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
   assert.equal(app.includes("location.pathname === '/admin/community-verifications'"), true);
   assert.equal(app.includes('AdminCommunityVerificationExperience'), true);

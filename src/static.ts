@@ -1,6 +1,8 @@
 import type { Env } from './env';
 import { getLinkaryUrls } from './urls';
 
+const APP_SHELL_ASSET = '/assets/linkary-app/index.html';
+
 const productionShellCss = `
 @media (max-width: 900px) {
   .auth-page.active { display: block; min-height: 100svh; }
@@ -79,6 +81,11 @@ function productionHtml(html: string, appBase: string, publicSite: string): stri
 
 function normalizeAssetRequest(request: Request): Request {
   const url = new URL(request.url);
+  if (url.pathname === '/app/index.html') {
+    url.pathname = APP_SHELL_ASSET;
+    url.search = '';
+    return new Request(url.toString(), request);
+  }
   if (url.pathname !== '/') return request;
   url.pathname = '/index.html';
   return new Request(url.toString(), request);
@@ -97,7 +104,7 @@ function isAppDeepLink(request: Request, env: Env): boolean {
   const url = new URL(request.url);
   const configured = appHost(request, env);
   if (!configured || url.hostname.toLowerCase() !== configured) return false;
-  if (url.pathname === '/app/index.html') return false;
+  if (url.pathname === '/app/index.html' || url.pathname === APP_SHELL_ASSET) return false;
   if (url.pathname.startsWith('/api/')) return false;
   if (url.pathname.startsWith('/app/assets/') || url.pathname.startsWith('/assets/')) return false;
   const last = url.pathname.split('/').filter(Boolean).pop() || '';
@@ -106,7 +113,7 @@ function isAppDeepLink(request: Request, env: Env): boolean {
 
 function appShellRequest(request: Request): Request {
   const url = new URL(request.url);
-  url.pathname = '/app/index.html';
+  url.pathname = APP_SHELL_ASSET;
   url.search = '';
   return new Request(url.toString(), { method: 'GET', headers: request.headers });
 }

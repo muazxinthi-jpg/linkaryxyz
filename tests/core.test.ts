@@ -19,7 +19,7 @@ function makeEnv() {
         const request = typeof input === 'string' ? new Request(input) : input;
         const pathname = new URL(request.url).pathname;
         requestedPaths.push(pathname);
-        const body = pathname === '/app/index.html' ? appShell : publicPrototype;
+        const body = pathname === '/assets/linkary-app/index.html' ? appShell : publicPrototype;
         return new Response(body, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
       },
     },
@@ -77,7 +77,7 @@ test('app host serves the React shell at the clean root URL', async () => {
   const { env, requestedPaths } = makeEnv();
   const response = await worker.fetch(new Request('https://app.linkary.xyz/'), env, ctx);
   assert.equal(response.status, 200);
-  assert.deepEqual(requestedPaths, ['/app/index.html']);
+  assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
 });
 
@@ -85,7 +85,7 @@ test('app host serves the React shell for signup deep links', async () => {
   const { env, requestedPaths } = makeEnv();
   const response = await worker.fetch(new Request('https://app.linkary.xyz/signup'), env, ctx);
   assert.equal(response.status, 200);
-  assert.deepEqual(requestedPaths, ['/app/index.html']);
+  assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
 });
 
@@ -94,7 +94,7 @@ test('app host serves the React shell for authenticated product deep links', asy
     const { env, requestedPaths } = makeEnv();
     const response = await worker.fetch(new Request(`https://app.linkary.xyz${pathname}`), env, ctx);
     assert.equal(response.status, 200, pathname);
-    assert.deepEqual(requestedPaths, ['/app/index.html'], pathname);
+    assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html'], pathname);
     assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow', pathname);
   }
 });

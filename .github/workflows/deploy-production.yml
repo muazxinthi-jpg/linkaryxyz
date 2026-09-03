@@ -60,6 +60,30 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         run: npm run deploy
 
+      - name: Verify production app health
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /profile; do
+            ok=false
+            for attempt in {1..12}; do
+              body="/tmp/linkary-health-${attempt}.html"
+              status=$(curl -sS -o "$body" -w '%{http_code}' "https://app.linkary.xyz${path}?deploycheck=${GITHUB_SHA}-${attempt}") || status=000
+              if [[ "$status" == "200" ]] && grep -q 'id="root"' "$body"; then
+                echo "Healthy: https://app.linkary.xyz${path}"
+                ok=true
+                break
+              fi
+              echo "Waiting for app route ${path}, attempt ${attempt}, status ${status}"
+              sleep 5
+            done
+            if [[ "$ok" != "true" ]]; then
+              echo "Production app health check failed for https://app.linkary.xyz${path}"
+              exit 1
+            fi
+          done
+
       - name: Deployment skipped
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready != 'true'
         run: echo "Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets to enable automatic production deployment."

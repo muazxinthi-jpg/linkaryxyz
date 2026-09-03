@@ -2,9 +2,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: 'frontend',
-  base: '/app/',
+  base: '/assets/linkary-app/',
   build: {
-    outDir: '../app',
+    outDir: '../assets/linkary-app',
     emptyOutDir: true,
     sourcemap: false,
   },
