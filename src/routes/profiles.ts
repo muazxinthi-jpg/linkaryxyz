@@ -310,13 +310,7 @@ async function renderPublicProfileV2(request: Request, env: Env, username: strin
   const products = profile.profile_type === 'project' ? blocks.filter((block) => block.block_type === 'product_feature' && block.url).slice(0, 4) : [];
   const excluded = new Set(['featured_video','featured_article','featured_image','product_feature','nft_item','team_member','work_with_me','media_kit','project_card','community_card']);
   const links = blocks.filter((block) => !isSocialBlock(block) && !excluded.has(block.block_type) && block.url).slice(0, 12);
-  const identitySignals = [
-    profile.verification_status === 'verified' ? 'VERIFIED' : 'PROFILE',
-    audience?.total ? `AUDIENCE ${compactNumber(Number(audience.total))}` : '',
-    proof?.metrics[0] ? `${proof.metrics[0].label.toUpperCase()} ${proof.metrics[0].value}` : '',
-  ].filter(Boolean);
-  const networkSignals = [`CREATORS ${compactNumber(Number(creators?.total || 0))}`, `COMMUNITIES ${compactNumber(Number(communities?.total || 0))}`, `PROJECTS ${compactNumber(Number(projects?.total || 0))}`, `VALUE ${compactUsd(Number(value?.total || 0))}`];
-  const rainWords = [profile.username.toUpperCase(), 'LINKARY', profile.profile_type === 'project' ? 'PROJECT' : 'CREATOR', ...identitySignals, ...networkSignals, 'PROOF', 'GROWTH', 'ATTRIBUTION', 'IDENTITY'];
+  const rainWords = [profile.username.toUpperCase(), 'LINKARY', profile.profile_type === 'project' ? 'PROJECT' : 'CREATOR', profile.verification_status === 'verified' ? 'VERIFIED' : 'PROFILE', 'PROOF', 'GROWTH', 'ATTRIBUTION', 'IDENTITY'];
   const rain = Array.from({ length: 32 }, (_, index) => {
     const word = rainWords[index % rainWords.length];
     const glyphs = 'ｱｲｳｴｵｶｷｸｹｺ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
