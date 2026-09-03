@@ -216,7 +216,11 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
     },
     proof,
     opportunities,
-    blocks: blocks.map((block) => ({ id: block.id, type: block.block_type, title: block.title, url: block.url, config: safeJson(block.config_json) })),
+    blocks: blocks.map((block) => {
+      const raw = safeJson(block.config_json) as { mediaUrl?: unknown; chain?: unknown; role?: unknown; avatarUrl?: unknown };
+      const config = Object.fromEntries(Object.entries({ mediaUrl: raw.mediaUrl, chain: raw.chain, role: raw.role, avatarUrl: raw.avatarUrl }).filter(([, value]) => typeof value === 'string' && value.trim()));
+      return { id: block.id, type: block.block_type, title: block.title, url: block.url, config };
+    }),
   }, { headers: { 'cache-control': 'public, max-age=60, s-maxage=300' } });
 }
 
