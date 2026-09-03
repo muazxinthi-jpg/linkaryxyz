@@ -20,7 +20,7 @@ type Block = {
   title: string | null;
   url: string | null;
   enabled: boolean;
-  config: { mediaUrl?: string; role?: string; avatarUrl?: string; chain?: string };
+  config: { mediaUrl?: string; role?: string; avatarUrl?: string; chain?: string; socialPlatform?: string; sectionTitle?: string };
 };
 class ApiError extends Error {
   constructor(
@@ -163,6 +163,8 @@ export default function ProfileExperience({
     role: "Team member",
     avatarUrl: "",
     chain: "Ethereum",
+    socialPlatform: "",
+    sectionTitle: "",
   });
   function resetBlock() {
     setNewBlock({
@@ -173,6 +175,8 @@ export default function ProfileExperience({
       role: "Team member",
       avatarUrl: "",
       chain: "Ethereum",
+      socialPlatform: "",
+      sectionTitle: "",
     });
     setPreviewFailed(false);
   }
@@ -280,11 +284,28 @@ export default function ProfileExperience({
         : {}),
       ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}),
       ...(newBlock.type === "nft_item" ? { chain: newBlock.chain } : {}),
+      ...(newBlock.type === "social_link" && newBlock.socialPlatform ? { socialPlatform: newBlock.socialPlatform } : {}),
+      ...(featuredType && newBlock.sectionTitle ? { sectionTitle: newBlock.sectionTitle } : {}),
     };
+  }
+  function exceedsNftNetworkLimit() {
+    if (newBlock.type !== "nft_item") return false;
+    const networks = new Set(
+      blocks
+        .filter((block) => block.type === "nft_item" && block.id !== editing?.id)
+        .map((block) => block.config?.chain)
+        .filter((chain): chain is string => Boolean(chain)),
+    );
+    networks.add(newBlock.chain);
+    return networks.size > 3;
   }
   async function add(event: React.FormEvent) {
     event.preventDefault();
     if (!profile) return;
+    if (exceedsNftNetworkLimit()) {
+      setMessage("NFT showcases support up to three selected networks. Choose one already in use or remove an NFT first.");
+      return;
+    }
     const csrf = cookie("__Host-linkary_csrf");
     if (!csrf) return;
     setBusy("add");
@@ -334,6 +355,8 @@ export default function ProfileExperience({
       role: block.config?.role || "Team member",
       avatarUrl: block.config?.avatarUrl || "",
       chain: block.config?.chain || "Ethereum",
+      socialPlatform: block.config?.socialPlatform || "",
+      sectionTitle: block.config?.sectionTitle || "",
     });
     setPreviewFailed(false);
     setEditing(block);
@@ -343,6 +366,10 @@ export default function ProfileExperience({
     event.preventDefault();
     if (!profile) return;
     if (!editing) return add(event);
+    if (exceedsNftNetworkLimit()) {
+      setMessage("NFT showcases support up to three selected networks. Choose one already in use or remove an NFT first.");
+      return;
+    }
     const csrf = cookie("__Host-linkary_csrf");
     if (!csrf) return;
     setBusy("add");
@@ -723,6 +750,29 @@ export default function ProfileExperience({
                 <small>This is where visitors go after clicking the card.</small>
               </label>
             )}
+            {newBlock.type === "social_link" && (
+              <label>
+                Social network
+                <select
+                  value={newBlock.socialPlatform}
+                  onChange={(e) => setNewBlock({ ...newBlock, socialPlatform: e.target.value })}
+                >
+                  <option value="">Choose from URL automatically</option>
+                  <option value="x">X</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="reddit">Reddit</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="discord">Discord</option>
+                  <option value="github">GitHub</option>
+                  <option value="website">Website</option>
+                </select>
+                <small>Use the matching network so the public profile always shows the correct icon.</small>
+              </label>
+            )}
             {featuredType && (
               <label>
                 {newBlock.type === "nft_item" ? "NFT image" : "Preview media"}
@@ -738,6 +788,17 @@ export default function ProfileExperience({
                 <small>
                   Add a direct image, direct video, or YouTube URL. CDN image URLs without a file extension are supported.
                 </small>
+              </label>
+            )}
+            {featuredType && (
+              <label>
+                Section title <small>(optional)</small>
+                <input
+                  value={newBlock.sectionTitle}
+                  onChange={(e) => setNewBlock({ ...newBlock, sectionTitle: e.target.value })}
+                  placeholder={newBlock.type === "nft_item" ? "Collected identity" : newBlock.type === "featured_image" ? "Selected work" : "Watch now"}
+                />
+                <small>Use the same title on related items to create a named public section.</small>
               </label>
             )}
             {newBlock.type === "nft_item" && (
