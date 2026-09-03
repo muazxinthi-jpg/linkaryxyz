@@ -220,6 +220,16 @@ function metadataLocatorFromConfig(
   return { chain: (chain || 'ethereum').trim().toLowerCase(), contractAddress: contract, tokenId: token };
 }
 
+function solanaMintFromConfig(
+  chain: string | null | undefined,
+  contractAddress: string | null | undefined,
+  tokenId: string | null | undefined,
+): string | null {
+  if ((chain || '').trim().toLowerCase() !== 'solana') return null;
+  const mint = tokenId?.trim() || contractAddress?.trim() || '';
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint) ? mint : null;
+}
+
 function decodeAbiString(value: unknown): string | null {
   if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) return null;
   const hex = value.slice(2);
@@ -338,6 +348,42 @@ async function resolveAlchemyNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>, locat
   }
 }
 
+async function resolveAlchemySolanaNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>, mint: string): Promise<string | null> {
+  const apiKey = env.ALCHEMY_API_KEY?.trim();
+  if (!apiKey) return null;
+  try {
+    const response = await fetch(`https://solana-mainnet.g.alchemy.com/v2/${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAsset', params: { id: mint } }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as {
+      result?: {
+        content?: {
+          links?: { image?: unknown };
+          files?: Array<{ cdn_uri?: unknown; uri?: unknown }>;
+          metadata?: { image?: unknown };
+        };
+      };
+    };
+    const content = payload.result?.content || {};
+    const files = Array.isArray(content.files) ? content.files : [];
+    return firstNftArtworkUrl(content.links?.image, files[0]?.cdn_uri, files[0]?.uri, content.metadata?.image);
+  } catch {
+    return null;
+  }
+}
+
+function isAlchemyNftCdn(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host === 'nft-cdn.alchemy.com' || host.endsWith('.alchemy.com');
+  } catch {
+    return false;
+  }
+}
+
 /** Resolve only the artwork for an NFT card. The click destination is deliberately
  * not accepted here, so a collection page can never become the NFT preview image. */
 export async function resolveNftArtworkPreview(
@@ -348,33 +394,52 @@ export async function resolveNftArtworkPreview(
   nftTokenId?: string | null,
 ): Promise<FeaturedMedia | null> {
   const source = safeHttpsUrl(artworkSource);
-  if (!source) return null;
-
-  const direct = safeDirectImageUrl(source);
-  if (direct) return { kind: 'image', src: direct, youtube: false };
-
-  const openSeaItem = parseOpenSeaNftItemUrl(source);
+  const openSeaItem = source ? parseOpenSeaNftItemUrl(source) : null;
   const locator = openSeaItem || metadataLocatorFromConfig(chain, nftContract, nftTokenId);
-  if (locator) {
-    const artwork = await resolveAlchemyNftArtwork(env, locator);
+  const solanaMint = solanaMintFromConfig(chain, nftContract, nftTokenId);
+  const preferMetadata = Boolean((locator || solanaMint) && (!source || openSeaItem || (source && isAlchemyNftCdn(source))));
+
+  const resolveMetadata = async (): Promise<string | null> => {
+    if (locator) {
+      const artwork = await resolveAlchemyNftArtwork(env, locator);
+      if (artwork) return artwork;
+      return resolveOnchainEvmNftArtwork(locator);
+    }
+    if (solanaMint) return resolveAlchemySolanaNftArtwork(env, solanaMint);
+    return null;
+  };
+
+  if (preferMetadata) {
+    const artwork = await resolveMetadata();
     if (artwork) return { kind: 'image', src: artwork, youtube: false };
-    const onchainArtwork = await resolveOnchainEvmNftArtwork(locator);
-    if (onchainArtwork) return { kind: 'image', src: onchainArtwork, youtube: false };
-    if (openSeaItem) return null;
   }
 
-  // Extensionless CDN artwork is common. Verify that the explicit artwork source
-  // itself is an image, but never parse a marketplace page's social metadata.
-  try {
-    const sourceUrl = new URL(source);
-    if (!isPublicWebHost(sourceUrl.hostname)) return null;
-    const response = await fetch(source, { headers: { accept: 'image/avif,image/webp,image/*;q=0.9,*/*;q=0.2' }, redirect: 'follow' });
-    if (!response.ok) return null;
-    const contentType = (response.headers.get('content-type') || '').toLowerCase();
-    if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };
-  } catch {
-    // Broken third-party artwork must never make the public profile unavailable.
+  if (source) {
+    const direct = safeDirectImageUrl(source);
+    if (direct) return { kind: 'image', src: direct, youtube: false };
+    if (openSeaItem) return null;
+
+    // Extensionless CDN artwork is common. Verify that the explicit artwork source
+    // itself is an image, but never parse a marketplace page's social metadata.
+    try {
+      const sourceUrl = new URL(source);
+      if (isPublicWebHost(sourceUrl.hostname)) {
+        const response = await fetch(source, { headers: { accept: 'image/avif,image/webp,image/*;q=0.9,*/*;q=0.2' }, redirect: 'follow' });
+        if (response.ok) {
+          const contentType = (response.headers.get('content-type') || '').toLowerCase();
+          if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };
+        }
+      }
+    } catch {
+      // Broken third-party artwork must never make the public profile unavailable.
+    }
   }
+
+  if (!preferMetadata && (locator || solanaMint)) {
+    const artwork = await resolveMetadata();
+    if (artwork) return { kind: 'image', src: artwork, youtube: false };
+  }
+
   return null;
 }
 
