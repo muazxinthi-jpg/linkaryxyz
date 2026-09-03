@@ -1,0 +1,38 @@
+name: NFT live after fallback
+
+on:
+  push:
+    branches:
+      - diagnostic/nft-live-after-fallback
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch live public profile NFT section
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re, urllib.request, time
+          url = 'https://linkary.xyz/muazxinthi?nftcheck=' + str(int(time.time()))
+          req = urllib.request.Request(url, headers={'User-Agent':'Linkary-Live-Check/1.0', 'Cache-Control':'no-cache'})
+          with urllib.request.urlopen(req, timeout=20) as r:
+              html = r.read().decode('utf-8', 'replace')
+          marker = 'AZUKI Elemental'
+          pos = html.find(marker)
+          if pos < 0:
+              raise SystemExit('AZUKI Elemental card not found in live HTML')
+          start = max(0, pos - 2000)
+          end = min(len(html), pos + 600)
+          chunk = html[start:end]
+          print(chunk)
+          imgs = re.findall(r'<img[^>]+src="([^"]+)"[^>]*>', chunk, flags=re.I)
+          print('NFT_NEARBY_IMG_SRCS=' + repr(imgs))
+          placeholder = 'showcase-art' in chunk and '◇' in chunk
+          print('NFT_PLACEHOLDER_NEARBY=' + str(placeholder))
+          if not imgs:
+              raise SystemExit('No NFT image found near AZUKI Elemental in live HTML')
+          PY
