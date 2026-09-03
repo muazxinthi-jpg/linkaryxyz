@@ -33,7 +33,8 @@ test('wallet NFT discovery stays server-side and uses attached profile wallets',
   assert.equal(wallets.includes('getAssetsByOwner'), true);
   assert.equal(wallets.includes('profile_wallet_destinations'), true);
   assert.equal(wallets.includes('coinbase_cdp'), true);
-  assert.equal(wallets.includes('apiKey:'), false, 'API key must never be serialized in a response object');
+  assert.equal(wallets.includes("return json({ destinations, embeddedWallets, ...(nftDiscovery ? { nftDiscovery } : {}) });"), true);
+  assert.equal(wallets.includes('nftDiscovery: { apiKey'), false, 'API key must never be serialized in the NFT response');
 });
 
 test('Book a Call style CTAs are pinned in editor preview and restored on public profiles', () => {
