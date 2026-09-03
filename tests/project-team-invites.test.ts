@@ -14,7 +14,7 @@ function appEnv() {
         const request = typeof input === 'string' ? new Request(input) : input;
         const pathname = new URL(request.url).pathname;
         requestedPaths.push(pathname);
-        if (pathname === '/app/index.html') {
+        if (pathname === '/assets/linkary-app/index.html') {
           return new Response('<!doctype html><html><body><div id="root"></div></body></html>', {
             status: 200,
             headers: { 'content-type': 'text/html; charset=utf-8' },
@@ -35,7 +35,7 @@ test('Project Team invitation routes are real app deep links', async () => {
     const { env, requestedPaths } = appEnv();
     const response = await worker.fetch(new Request(`https://app.linkary.xyz${pathname}`), env, ctx);
     assert.equal(response.status, 200);
-    assert.deepEqual(requestedPaths, ['/app/index.html']);
+    assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
     assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
   }
 

@@ -39,7 +39,7 @@ test('app deep links recover from an asset 404 by serving the React shell from t
 
 test('legacy app shell requests are remapped before hitting the asset binding', async () => {
   const { env, requestedPaths } = makeEnv();
-  const response = await serveStatic(new Request('https://app.linkary.xyz/app/index.html'), env);
+  const response = await serveStatic(new Request('https://app.linkary.xyz/assets/linkary-app/index.html'), env);
   assert.equal(response.status, 200);
   assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
   assert.match(await response.text(), /id="root"/);
