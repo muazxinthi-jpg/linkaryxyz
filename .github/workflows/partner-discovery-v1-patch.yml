@@ -1,0 +1,127 @@
+name: Patch Partner Discovery V1 integration
+
+on:
+  push:
+    branches:
+      - feature/partner-discovery-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/partner-discovery-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wire discovery API, app route and Creator shortlist support
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('frontend/src/AppV3.tsx')
+          text = app.read_text()
+          text = text.replace("import PartnerDirectoryExperience from './PartnerDirectoryExperience';", "import PartnerDiscoveryExperience from './PartnerDiscoveryExperience';")
+          text = text.replace("if (experience === 'partners') return <PartnerDirectoryExperience me={me} status={status} />;", "if (experience === 'partners') return <PartnerDiscoveryExperience me={me} status={status} />;")
+          app.write_text(text)
+
+          index = Path('src/index.ts')
+          text = index.read_text()
+          needle = "import { listPartnerManagerAssets, listPartnerManagers, savePartnerManager, savePartnerManagerAsset } from './routes/partnerDirectory';"
+          replacement = needle + "\nimport { listPartnerDiscovery } from './routes/partnerDiscovery';"
+          if "./routes/partnerDiscovery" not in text:
+              text = text.replace(needle, replacement)
+          route_needle = "  if (path === '/api/partner-managers') { if (request.method === 'GET') return listPartnerManagers(request, env); if (request.method === 'POST') return savePartnerManager(request, env); return methodNotAllowed(['GET', 'POST']); }"
+          discovery_route = "  if (path === '/api/partner-discovery') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listPartnerDiscovery(request, env); }\n"
+          if "path === '/api/partner-discovery'" not in text:
+              text = text.replace(route_needle, discovery_route + route_needle)
+          index.write_text(text)
+
+          shortlists = Path('src/routes/shortlists.ts')
+          text = shortlists.read_text()
+          if "publicProfileUrl" not in text:
+              text = text.replace("import { requireOperationalProjectAccess, organizationMembership } from './organizations';", "import { requireOperationalProjectAccess, organizationMembership } from './organizations';\nimport { publicProfileUrl } from '../urls';")
+          if "const networkId" not in text:
+              text = text.replace("const id = () => `psl_${crypto.randomUUID().replace(/-/g, '')}`;", "const id = () => `psl_${crypto.randomUUID().replace(/-/g, '')}`;\nconst networkId = () => `net_${crypto.randomUUID().replace(/-/g, '')}`;")
+          text = text.replace(
+              "const body = await readJson<{ organizationId?: string; shortlistId?: string; partnerManagerId?: string; networkEntityId?: string; partnerKind?: string; status?: string; notes?: string }>(request);",
+              "const body = await readJson<{ organizationId?: string; shortlistId?: string; partnerManagerId?: string; networkEntityId?: string; creatorProfileId?: string; partnerKind?: string; status?: string; notes?: string }>(request);",
+          )
+          old = """  if (!body.organizationId || (!body.partnerManagerId && !body.networkEntityId) || !partnerKinds.has(body.partnerKind || '')) throw new HttpError(400, 'Project and partner are required', 'invalid_shortlist');
+  await requireOperationalProjectAccess(db, auth.user.id, body.organizationId, true);
+  if (body.partnerManagerId) {
+"""
+          new = """  if (!body.organizationId || (!body.partnerManagerId && !body.networkEntityId && !body.creatorProfileId) || !partnerKinds.has(body.partnerKind || '')) throw new HttpError(400, 'Project and partner are required', 'invalid_shortlist');
+  await requireOperationalProjectAccess(db, auth.user.id, body.organizationId, true);
+  let networkEntityId = body.networkEntityId || null;
+  if (body.creatorProfileId) {
+    if (body.partnerKind !== 'creator' || body.partnerManagerId || body.networkEntityId) throw new HttpError(400, 'Creator profile shortlist data is invalid', 'invalid_shortlist');
+    const creator = await db.first<{ id: string; username: string; display_name: string; verification_status: string; current_handle: string | null }>(
+      `SELECT p.id, p.username, p.display_name, p.verification_status, pi.current_handle
+         FROM profiles p
+         LEFT JOIN platform_identities pi ON pi.id = p.primary_platform_identity_id
+        WHERE p.id = ? AND p.profile_type = 'creator' AND p.visibility = 'published'`,
+      [body.creatorProfileId],
+    );
+    if (!creator) throw new HttpError(404, 'Creator profile not found', 'partner_not_found');
+    const creatorUrl = publicProfileUrl(request, env, creator.username);
+    const existingEntity = creator.current_handle
+      ? await db.first<{ id: string }>(
+          `SELECT id FROM project_network_entities
+            WHERE organization_id = ? AND entity_type = 'creator'
+              AND (primary_url = ? OR lower(COALESCE(primary_handle,'')) = lower(?))
+            LIMIT 1`,
+          [body.organizationId, creatorUrl, creator.current_handle],
+        )
+      : await db.first<{ id: string }>(
+          `SELECT id FROM project_network_entities WHERE organization_id = ? AND entity_type = 'creator' AND primary_url = ? LIMIT 1`,
+          [body.organizationId, creatorUrl],
+        );
+    if (existingEntity) {
+      networkEntityId = existingEntity.id;
+    } else {
+      networkEntityId = networkId();
+      const timestamp = now();
+      await db.run(
+        `INSERT INTO project_network_entities (id,organization_id,entity_type,display_name,primary_handle,primary_url,verification_status,notes,created_by_user_id,created_at,updated_at)
+         VALUES (?,?,'creator',?,?,?,?,?,?,?,?)`,
+        [networkEntityId, body.organizationId, creator.display_name.slice(0, 120), creator.current_handle?.slice(0, 80) || null, creatorUrl, creator.verification_status === 'verified_x' ? 'verified' : 'unverified', 'Linked from Linkary creator profile', auth.user.id, timestamp, timestamp],
+      );
+    }
+  }
+  if (body.partnerManagerId) {
+"""
+          if old not in text:
+              raise SystemExit('shortlist integration anchor not found')
+          text = text.replace(old, new)
+          text = text.replace("  if (body.networkEntityId) {\n    const entity = await db.first<{ id: string; entity_type: string }>('SELECT id,entity_type FROM project_network_entities WHERE id=? AND organization_id=?', [body.networkEntityId, body.organizationId]);", "  if (networkEntityId && !body.creatorProfileId) {\n    const entity = await db.first<{ id: string; entity_type: string }>('SELECT id,entity_type FROM project_network_entities WHERE id=? AND organization_id=?', [networkEntityId, body.organizationId]);")
+          text = text.replace("[body.shortlistId]);\n    if (!row)", "[body.shortlistId]);\n    if (!row)", 1)
+          text = text.replace("[shortlistId, body.organizationId, body.partnerManagerId || null, body.networkEntityId || null, body.partnerKind,", "[shortlistId, body.organizationId, body.partnerManagerId || null, networkEntityId || null, body.partnerKind,")
+          text = text.replace("const entityId = id('net');", "const entityId = networkId();")
+          shortlists.write_text(text)
+          PY
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run regression tests
+        run: npm test
+      - name: Type-check authenticated app
+        run: npm run app:check
+      - name: Wrangler dry run
+        run: npm run deploy:dry
+      - name: Commit integrated Partner Discovery V1
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/AppV3.tsx src/index.ts src/routes/shortlists.ts
+          if git diff --cached --quiet; then
+            echo 'No integration changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: wire Partner Discovery V1'
+          git push origin HEAD:feature/partner-discovery-v1
