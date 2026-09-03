@@ -31,15 +31,16 @@ test('Project inquiry sending is permissioned and preserves exact Linkary partne
   assert.equal(route.includes('deliverables'), true);
 });
 
-test('pending duplicate inquiries are blocked and acceptance never creates active campaign proof', () => {
+test('pending duplicate inquiries are blocked and acceptance itself remains discussion-only', () => {
   assert.equal(route.includes("status = 'pending'"), true);
   assert.equal(route.includes("'inquiry_already_pending'"), true);
-  assert.equal(route.includes("SET status = 'negotiating'"), true);
-  assert.equal(route.includes("SET status = 'active'"), false);
-  assert.equal(route.includes('conversion_events'), false);
-  assert.equal(route.includes('campaign_activity_linkary_assignments'), false);
-  assert.equal(route.includes('attribution_confidence'), false);
-  assert.equal(route.includes('verification_status = \'verified\''), false);
+  const acceptance = route.slice(route.indexOf("if (body.action === 'review_inquiry')"), route.indexOf("if (body.action === 'record_activation')"));
+  assert.equal(acceptance.includes("SET status = 'negotiating'"), true);
+  assert.equal(acceptance.includes("SET status = 'active'"), false);
+  assert.equal(acceptance.includes('conversion_events'), false);
+  assert.equal(acceptance.includes('campaign_activity_linkary_assignments'), false);
+  assert.equal(acceptance.includes('attribution_confidence'), false);
+  assert.equal(acceptance.includes("verification_status = 'verified'"), false);
 });
 
 test('existing shortlist endpoint carries inquiry lifecycle without adding a parallel API surface', () => {
@@ -67,7 +68,8 @@ test('Inbox remains an action center and adds collaboration Accept Decline and s
   assert.equal(inbox.includes('COLLABORATION INQUIRY'), true);
   assert.equal(inbox.includes('Collaboration inquiries you sent'), true);
   assert.equal(inbox.includes('noisy chat feed'), true);
-  assert.equal(inbox.includes('active campaign evidence'), true);
+  assert.equal(inbox.includes('Accepted means the partner is open to discussion.'), true);
+  assert.equal(inbox.includes('proof still requires tracked or verified evidence'), true);
 });
 
 test('Collaboration Inquiry V1 meets the required mobile acceptance protections', () => {
