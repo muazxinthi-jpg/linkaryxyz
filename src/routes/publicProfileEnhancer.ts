@@ -47,7 +47,11 @@ function isSocial(block: ProfileBlockRow): boolean {
   // explicit metadata, but do not infer a social account from featured content.
   const config = safeJson(block.config_json);
   const configured = typeof config.socialPlatform === 'string' ? config.socialPlatform.toLowerCase().trim() : '';
-  return ['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster'].includes(configured);
+  const known = ['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster'];
+  if (known.includes(configured)) return true;
+  // Legacy profiles used generic "link" blocks for socials. Restrict URL
+  // inference to that legacy type so a featured X post is still never a social.
+  return block.block_type === 'link' && known.includes(socialPlatform(block));
 }
 
 const KNOWN_SOCIALS = new Set(['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster']);

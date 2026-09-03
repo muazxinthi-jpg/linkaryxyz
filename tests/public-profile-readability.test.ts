@@ -36,6 +36,7 @@ test('Book a Call and other conversion CTAs fill the row and stay readable', () 
 test('featured X posts never become duplicate X profile icons', () => {
   assert.equal(enhancer.includes("if (block.block_type === 'social_link') return true;"), true);
   assert.equal(enhancer.includes("['telegram', 'youtube', 'tiktok', 'instagram', 'facebook', 'reddit', 'linkedin'].includes(block.block_type)"), true);
+  assert.equal(enhancer.includes("return block.block_type === 'link' && known.includes(socialPlatform(block));"), true);
 });
 
 test('public content modules remain on readable white surfaces', () => {
