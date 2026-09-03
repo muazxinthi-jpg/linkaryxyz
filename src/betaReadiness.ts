@@ -39,6 +39,8 @@ export const REQUIRED_BETA_TABLES = [
 export const REQUIRED_BETA_TRIGGERS = [
   'trg_profiles_verified_x_avatar_after_insert',
   'trg_profiles_verified_x_avatar_after_identity_update',
+  'trg_team_invite_redemption_guard_before_insert',
+  'trg_team_invite_membership_after_redemption',
 ] as const;
 
 export type BetaSchemaReadiness = {
