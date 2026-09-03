@@ -20,7 +20,6 @@ import {
   deleteProfileBlock,
   publicProfileJson,
   publishProfile,
-  renderPublicProfile,
   renderSitemap,
   reorderProfileBlocks,
   updateProfile,
@@ -30,6 +29,7 @@ import {
   redirectPublicProfileBlock,
   updateProfileBlock,
 } from './routes/profiles';
+import { renderPublicProfileEnhanced } from './routes/publicProfileEnhancer';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
@@ -264,7 +264,7 @@ async function handle(request: Request, env: Env, _ctx: ExecutionContextLike): P
 
   const username = singleSegmentProfilePath(url.pathname);
   if (username && env.DB) {
-    try { return await renderPublicProfile(request, env, username); }
+    try { return await renderPublicProfileEnhanced(request, env, username); }
     catch (error) {
       if (error instanceof Error && 'status' in error && (error as { status?: number }).status === 404) return serveStatic(request, env);
       throw error;
