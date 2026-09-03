@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import AppV2 from './AppV2';
-import { OperationsExperience } from './OperationsExperience';
+import TrackingExperience from './TrackingExperience';
 import NetworkExperience from './NetworkExperience';
 import InviteExperience from './InviteExperience';
 import WalletExperience from './WalletExperience';
@@ -93,7 +93,7 @@ function ProductGate({ experience }: { experience: Experience }) {
       if (experience === 'admin-community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
       return <AdminReadinessExperience me={me} status={status} />;
     }
-    return <OperationsExperience me={me} status={status} />;
+    return <TrackingExperience me={me} status={status} />;
   }
   return (
     <main className="loading-screen">
