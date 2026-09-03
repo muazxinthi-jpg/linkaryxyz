@@ -17,7 +17,7 @@ WHEN EXISTS (
      AND i.invite_type = 'team_invite'
      AND (
        i.status != 'active'
-       OR (i.expires_at IS NOT NULL AND i.expires_at <= CURRENT_TIMESTAMP)
+       OR (i.expires_at IS NOT NULL AND datetime(i.expires_at) <= CURRENT_TIMESTAMP)
        OR i.uses >= i.max_uses
      )
 )
