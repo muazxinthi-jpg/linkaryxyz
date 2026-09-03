@@ -46,7 +46,7 @@ test('Project Team invitation routes are real app deep links', async () => {
   assert.equal(app.includes('ProjectTeamInvitesExperience'), true);
 });
 
-test('Project navigation exposes Team without changing Creator navigation', () => {
+test('Project navigation exposes Team on wider layouts without changing Creator navigation', () => {
   const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
   const creatorNav = workspace.slice(workspace.indexOf('const creatorNav'), workspace.indexOf('const projectNav'));
   const projectNav = workspace.slice(workspace.indexOf('const projectNav'), workspace.indexOf('const nav ='));
@@ -54,8 +54,8 @@ test('Project navigation exposes Team without changing Creator navigation', () =
   assert.equal(creatorNav.includes("['/settings/team-invites', 'Team']"), false);
 
   const mobile = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
-  assert.equal(mobile.includes('.workspace-creator .ops-nav{grid-template-columns:repeat(6'), true);
-  assert.equal(mobile.includes('.workspace-project .ops-nav{grid-template-columns:repeat(7'), true);
+  assert.match(mobile, /\.workspace-project\s+\.ops-nav\s+a\[href="\/settings\/team-invites"\]\s*\{[^}]*display:none!important/s);
+  assert.equal(mobile.includes('grid-template-columns:repeat(6,minmax(0,1fr))!important'), true);
 });
 
 test('Team invitations have their own role schema and automatic membership trigger', () => {
