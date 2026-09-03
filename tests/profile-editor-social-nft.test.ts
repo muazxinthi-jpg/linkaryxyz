@@ -57,12 +57,14 @@ test('wallet NFT discovery stays server-side and uses attached profile wallets',
   assert.equal(wallets.includes('nftDiscovery: { apiKey'), false, 'API key must never be serialized in the NFT response');
 });
 
-test('Book a Call style CTAs are pinned in editor preview and restored on public profiles', () => {
-  assert.equal(beta.includes('const pinnedCta'), true);
-  assert.equal(beta.includes("['work_with_me', 'media_kit']"), true);
+test('profile editor preview renders the actual saved public profile instead of a separate mock layout', () => {
+  assert.equal(beta.includes('PUBLIC PROFILE PREVIEW'), true);
+  assert.equal(beta.includes('<iframe'), true);
+  assert.equal(beta.includes('editorPreview='), true);
+  assert.equal(beta.includes('Save changes to refresh'), true);
+  assert.equal(beta.includes('const previewBlocks'), false);
   assert.equal(enhancer.includes("['work_with_me', 'media_kit']"), true);
   assert.equal(enhancer.includes('profile-enhanced-ctas'), true);
-  assert.equal(enhancer.includes('AVAILABLE FOR WORK'), true);
 });
 
 test('public profile enhancement supports WhatsApp and Farcaster without replacing Codex renderer', () => {
