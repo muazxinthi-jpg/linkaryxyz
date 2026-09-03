@@ -11,6 +11,10 @@ export interface Env {
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
 
+  // Server-only Alchemy key used for wallet asset discovery and onchain
+  // attribution. Never expose this value to the browser.
+  ALCHEMY_API_KEY?: string;
+
   SESSION_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;
   // Server-only salt for privacy-preserving tracking visitor pseudonyms.
