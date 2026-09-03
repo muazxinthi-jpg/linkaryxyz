@@ -13,6 +13,7 @@ import ProjectExperienceBeta from './ProjectExperienceBeta';
 import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
+import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -33,6 +34,7 @@ type Experience =
   | 'invites'
   | 'wallets'
   | 'projects'
+  | 'team-invites'
   | 'admin-readiness';
 
 function ProductGate({ experience }: { experience: Experience }) {
@@ -80,6 +82,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
+    if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
     if (experience === 'admin-readiness') {
       if (!me.user?.superadmin) return <AppV2 />;
       return <AdminReadinessExperience me={me} status={status} />;
@@ -94,8 +97,25 @@ function ProductGate({ experience }: { experience: Experience }) {
   );
 }
 
+function TeamInviteGate() {
+  const [state, setState] = useState<'loading' | 'legacy' | 'ready'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    void getJson<ProductMe>('/api/auth/me')
+      .then((result) => { if (!cancelled) setState(result.authenticated ? 'ready' : 'legacy'); })
+      .catch(() => { if (!cancelled) setState('legacy'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (state === 'legacy') return <AppV2 />;
+  if (state === 'ready') return <TeamInviteAcceptExperience />;
+  return <main className="loading-screen"><div className="spinner" /><p>Opening team invitation</p></main>;
+}
+
 export default function AppV3() {
   const location = useLocation();
+  if (location.pathname === '/team-invite') return <TeamInviteGate />;
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
   if (location.pathname === '/opportunities') return <ProductGate experience="opportunities" />;
@@ -106,6 +126,7 @@ export default function AppV3() {
   if (location.pathname === '/profile') return <ProductGate experience="profile" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
+  if (location.pathname === '/settings/team-invites') return <ProductGate experience="team-invites" />;
   if (location.pathname === '/settings') return <ProductGate experience="projects" />;
   if (location.pathname === '/admin/readiness') return <ProductGate experience="admin-readiness" />;
   return <AppV2 />;
