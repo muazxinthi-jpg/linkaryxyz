@@ -67,7 +67,7 @@ function extraCss(): string {
 body{min-height:100vh!important;background:radial-gradient(900px 520px at 12% 4%,rgba(255,90,54,.10),transparent 70%),radial-gradient(850px 560px at 90% 28%,rgba(255,90,54,.07),transparent 72%),#fff!important;color:#151210!important}
 body:before,body:after,.page:before,.page:after{display:none!important;content:none!important}
 .matrix{display:block!important;z-index:2!important;opacity:.38!important;mix-blend-mode:multiply!important;filter:saturate(1.6) contrast(1.22)!important;pointer-events:none!important}
-.page{position:relative!important;z-index:1!important;width:min(1180px,calc(100% - 64px))!important;margin:42px auto!important;padding:34px 46px 76px!important;overflow:hidden!important;background:rgba(255,255,255,.92)!important;background-image:none!important;color:#151210!important;border:1px solid rgba(255,90,54,.22)!important;border-radius:34px!important;box-shadow:0 24px 80px rgba(41,27,20,.12)!important;backdrop-filter:blur(2px)!important}
+.page{position:relative!important;z-index:1!important;width:min(1020px,calc(100% - 64px))!important;margin:42px auto!important;padding:34px 46px 76px!important;overflow:hidden!important;background:rgba(255,255,255,.92)!important;background-image:none!important;color:#151210!important;border:1px solid rgba(255,90,54,.22)!important;border-radius:34px!important;box-shadow:0 24px 80px rgba(41,27,20,.12)!important;backdrop-filter:blur(2px)!important}
 .page>*{position:relative;z-index:1}
 .top{color:#151210!important}
 .brand{color:#151210!important}

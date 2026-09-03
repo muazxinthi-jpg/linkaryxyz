@@ -6,7 +6,7 @@ const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', 
 const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
 
 test('public profile keeps a wide light canvas with visible orange matrix rain', () => {
-  assert.equal(enhancer.includes('width:min(1180px,calc(100% - 64px))!important'), true);
+  assert.equal(enhancer.includes('width:min(1020px,calc(100% - 64px))!important'), true);
   assert.equal(enhancer.includes('background:rgba(255,255,255,.92)!important'), true);
   assert.equal(enhancer.includes('background-image:none!important'), true);
   assert.equal(enhancer.includes('.matrix{display:block!important;z-index:2!important;opacity:.38!important;mix-blend-mode:multiply!important'), true);
@@ -55,4 +55,5 @@ test('desktop galleries stay expanded and public profile cache turns over quickl
 
 test('matrix canvas script closes the stream iterator before scheduling its next frame', () => {
   assert.equal(profiles.includes("}});if(!reduced)requestAnimationFrame(draw);"), true);
+  assert.equal(profiles.includes("speed:reduced?0:.22+(i%7)*.065"), true);
 });
