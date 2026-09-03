@@ -10,6 +10,13 @@ const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, ''
 type ManagerType = 'community_manager' | 'kol_manager';
 type AssetType = 'telegram_community' | 'kol_creator';
 
+type TelegramIdentity = {
+  id: string;
+  current_handle: string | null;
+  current_display_name: string | null;
+  ownership_verified_at: string | null;
+};
+
 function safeUrl(value: string | undefined | null): string | null {
   if (!value?.trim()) return null;
   try {
@@ -23,6 +30,32 @@ function safeUrl(value: string | undefined | null): string | null {
 
 function cleanHandle(value: string | undefined | null): string | null {
   return value?.trim().replace(/^@/, '').slice(0, 80) || null;
+}
+
+async function telegramIdentityForUser(db: Db, userId: string): Promise<TelegramIdentity | null> {
+  return db.first<TelegramIdentity>(
+    `SELECT pi.id, pi.current_handle, pi.current_display_name, pi.ownership_verified_at
+       FROM platform_identities pi
+       JOIN platform_identity_links pil ON pil.platform_identity_id = pi.id
+      WHERE pi.platform = 'telegram'
+        AND pi.provider_object_type = 'person'
+        AND pi.status = 'active'
+        AND pi.ownership_verified_at IS NOT NULL
+        AND pil.user_id = ?
+        AND pil.link_type = 'owns'
+        AND pil.ended_at IS NULL
+      ORDER BY pil.verified_at DESC
+      LIMIT 1`,
+    [userId],
+  );
+}
+
+async function requireTelegramIdentity(db: Db, userId: string): Promise<TelegramIdentity> {
+  const identity = await telegramIdentityForUser(db, userId);
+  if (!identity) {
+    throw new HttpError(403, 'Verify your personal Telegram account before listing or managing Telegram communities.', 'telegram_identity_required');
+  }
+  return identity;
 }
 
 async function requireOwnedCreatorProfile(db: Db, userId: string, profileId: string) {
@@ -49,7 +82,7 @@ async function requireOwnedManager(db: Db, userId: string, managerId: string) {
 }
 
 export async function listPartnerManagers(request: Request, env: Env): Promise<Response> {
-  await requireAuth(request, env);
+  const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
   const url = new URL(request.url);
   const type = url.searchParams.get('type') as ManagerType | null;
@@ -89,7 +122,14 @@ export async function listPartnerManagers(request: Request, env: Env): Promise<R
     params,
   );
 
+  const telegramIdentity = await telegramIdentityForUser(db, auth.user.id);
   return json({
+    telegram_identity: telegramIdentity ? {
+      verified: true,
+      current_handle: telegramIdentity.current_handle,
+      current_display_name: telegramIdentity.current_display_name,
+      ownership_verified_at: telegramIdentity.ownership_verified_at,
+    } : null,
     managers: managers.map((manager) => {
       const combined = Number(manager.combined_audience || 0);
       const unique = manager.estimated_unique_audience === null || manager.estimated_unique_audience === undefined ? null : Number(manager.estimated_unique_audience);
@@ -130,11 +170,12 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   let managerId = body.managerId;
   if (managerId) {
     const existing = await requireOwnedManager(db, auth.user.id, managerId);
+    const telegramIdentity = existing.manager_type === 'community_manager' ? await requireTelegramIdentity(db, auth.user.id) : null;
     const displayName = body.displayName?.trim().slice(0, 120);
     if (!displayName) throw new HttpError(400, 'Display name is required', 'invalid_manager');
     await db.run(
       `UPDATE partner_managers SET display_name = ?, headline = ?, bio = ?, x_handle = ?, telegram_contact = ?, email = ?, website_url = ?, visibility = ?, open_to_campaigns = ?, updated_at = ? WHERE id = ?`,
-      [displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, now(), managerId],
+      [displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramIdentity?.current_handle || body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, now(), managerId],
     );
     if (body.estimatedUniqueAudience !== undefined) await saveAudienceEstimate(db, managerId, body.estimatedUniqueAudience, body.audienceMethodology || '');
     return json({ ok: true, id: managerId, managerType: existing.manager_type });
@@ -142,6 +183,7 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
 
   if (!body.profileId || !body.managerType || !['community_manager', 'kol_manager'].includes(body.managerType)) throw new HttpError(400, 'Profile and manager type are required', 'invalid_manager');
   const profile = await requireOwnedCreatorProfile(db, auth.user.id, body.profileId);
+  const telegramIdentity = body.managerType === 'community_manager' ? await requireTelegramIdentity(db, auth.user.id) : null;
   const displayName = body.displayName?.trim().slice(0, 120) || profile.display_name;
   const existing = await db.first<{ id: string }>('SELECT id FROM partner_managers WHERE profile_id = ? AND manager_type = ?', [body.profileId, body.managerType]);
   if (existing) throw new HttpError(409, 'This manager listing already exists', 'manager_exists');
@@ -150,7 +192,7 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   await db.run(
     `INSERT INTO partner_managers (id, profile_id, manager_type, display_name, headline, bio, x_handle, telegram_contact, email, website_url, visibility, verification_status, open_to_campaigns, created_by_user_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unverified', ?, ?, ?, ?)`,
-    [managerId, body.profileId, body.managerType, displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, auth.user.id, timestamp, timestamp],
+    [managerId, body.profileId, body.managerType, displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramIdentity?.current_handle || body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, auth.user.id, timestamp, timestamp],
   );
   if (body.estimatedUniqueAudience !== undefined) await saveAudienceEstimate(db, managerId, body.estimatedUniqueAudience, body.audienceMethodology || '');
   return json({ id: managerId }, { status: 201 });
@@ -192,6 +234,7 @@ export async function savePartnerManagerAsset(request: Request, env: Env): Promi
   const db = new Db(requireDb(env));
   if (!body.managerId) throw new HttpError(400, 'Manager is required', 'manager_required');
   const manager = await requireOwnedManager(db, auth.user.id, body.managerId);
+  if (manager.manager_type === 'community_manager') await requireTelegramIdentity(db, auth.user.id);
 
   if (body.assetId) {
     const asset = await db.first<{ id: string }>('SELECT id FROM partner_manager_assets WHERE id = ? AND manager_id = ?', [body.assetId, body.managerId]);
