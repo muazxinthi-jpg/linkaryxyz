@@ -20,7 +20,7 @@ type Block = {
   title: string | null;
   url: string | null;
   enabled: boolean;
-  config: { mediaUrl?: string; role?: string; avatarUrl?: string };
+  config: { mediaUrl?: string; role?: string; avatarUrl?: string; chain?: string };
 };
 class ApiError extends Error {
   constructor(
@@ -72,6 +72,8 @@ function blockLabel(type: string) {
     featured_video: "Featured video",
     featured_article: "Featured article",
     featured_image: "Featured work",
+    product_feature: "Product feature",
+    nft_item: "NFT collectible",
     team_member: "Team member",
   };
   return labels[type] || type.replace(/_/g, " ");
@@ -160,6 +162,7 @@ export default function ProfileExperience({
     mediaUrl: "",
     role: "Team member",
     avatarUrl: "",
+    chain: "Ethereum",
   });
   function resetBlock() {
     setNewBlock({
@@ -169,6 +172,7 @@ export default function ProfileExperience({
       mediaUrl: "",
       role: "Team member",
       avatarUrl: "",
+      chain: "Ethereum",
     });
     setPreviewFailed(false);
   }
@@ -275,6 +279,7 @@ export default function ProfileExperience({
           }
         : {}),
       ...(newBlock.mediaUrl ? { mediaUrl: newBlock.mediaUrl } : {}),
+      ...(newBlock.type === "nft_item" ? { chain: newBlock.chain } : {}),
     };
   }
   async function add(event: React.FormEvent) {
@@ -328,6 +333,7 @@ export default function ProfileExperience({
       mediaUrl: block.config?.mediaUrl || "",
       role: block.config?.role || "Team member",
       avatarUrl: block.config?.avatarUrl || "",
+      chain: block.config?.chain || "Ethereum",
     });
     setPreviewFailed(false);
     setEditing(block);
@@ -405,7 +411,7 @@ export default function ProfileExperience({
   }
   if (!profile) return null;
 
-  const featuredType = ["featured_video", "featured_image", "featured_article"].includes(
+  const featuredType = ["featured_video", "featured_image", "featured_article", "product_feature", "nft_item"].includes(
     newBlock.type,
   );
   const previewUrl = safeHttpsPreview(newBlock.mediaUrl);
@@ -672,7 +678,11 @@ export default function ProfileExperience({
                 <option value="link">Link</option>
                 <option value="featured_video">Featured video</option>
                 <option value="featured_article">Featured article</option>
-                <option value="featured_image">Featured work</option>
+                <option value="featured_image">Featured image</option>
+                {profile.profile_type === "project" && (
+                  <option value="product_feature">Product feature</option>
+                )}
+                <option value="nft_item">NFT collectible</option>
                 <option value="heading">Section heading</option>
                 {profile.profile_type === "project" && (
                   <option value="team_member">Team member</option>
@@ -715,7 +725,7 @@ export default function ProfileExperience({
             )}
             {featuredType && (
               <label>
-                Preview media
+                {newBlock.type === "nft_item" ? "NFT image" : "Preview media"}
                 <input
                   type="url"
                   value={newBlock.mediaUrl}
@@ -728,6 +738,21 @@ export default function ProfileExperience({
                 <small>
                   Add a direct image, direct video, or YouTube URL. CDN image URLs without a file extension are supported.
                 </small>
+              </label>
+            )}
+            {newBlock.type === "nft_item" && (
+              <label>
+                Network
+                <select
+                  value={newBlock.chain}
+                  onChange={(e) => setNewBlock({ ...newBlock, chain: e.target.value })}
+                >
+                  <option>Ethereum</option>
+                  <option>Solana</option>
+                  <option>Base</option>
+                  <option>Robinhood Chain</option>
+                </select>
+                <small>Add an NFT you own or represent. Verified wallet selection will appear here when the onchain collection connection is enabled.</small>
               </label>
             )}
             {featuredType && newBlock.mediaUrl && (

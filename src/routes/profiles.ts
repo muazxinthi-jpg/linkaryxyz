@@ -293,12 +293,15 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
   const avatarUrl = safePublicImageUrl(profile.avatar_url);
   const blockUrl = (block: ProfileBlockRow) => `${canonical}/go/${encodeURIComponent(block.id)}`;
 
-  const features = blocks.filter((block) => ['featured_video','featured_article','featured_image'].includes(block.block_type) && block.url);
+  const features = blocks.filter((block) => ['featured_video','featured_article'].includes(block.block_type) && block.url);
+  const featuredImages = blocks.filter((block) => block.block_type === 'featured_image' && block.url).slice(0, 4);
+  const nftItems = blocks.filter((block) => block.block_type === 'nft_item' && block.url).slice(0, 8);
+  const productFeatures = profile.profile_type === 'project' ? blocks.filter((block) => block.block_type === 'product_feature' && block.url).slice(0, 4) : [];
   const socials = blocks.filter((block) => isSocialBlock(block) && block.url && !['featured_video','featured_article','featured_image','team_member'].includes(block.block_type));
   const ctas = blocks.filter((block) => ['work_with_me','media_kit'].includes(block.block_type) && block.url);
   const relationshipCards = blocks.filter((block) => ['project_card','community_card'].includes(block.block_type) && block.url);
   const teams = blocks.filter((block) => block.block_type === 'team_member' && block.url);
-  const excluded = new Set(['featured_video','featured_article','featured_image','team_member','work_with_me','media_kit','project_card','community_card']);
+  const excluded = new Set(['featured_video','featured_article','featured_image','product_feature','nft_item','team_member','work_with_me','media_kit','project_card','community_card']);
   const regular = blocks.filter((block) => !isSocialBlock(block) && !excluded.has(block.block_type) && (block.block_type === 'heading' || block.url));
 
   const firstFeatureImage = features.map((block) => {
@@ -310,7 +313,7 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
 
   const avatar = avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">` : escapeHtml((profile.display_name || profile.username).slice(0, 1).toUpperCase());
   const socialHtml = socials.map((block) => `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || 'Social link')}">${publicIcon(block)}</a>`).join('');
-  const featureHtml = features.map((block, index) => {
+  const featureCards = features.map((block, index) => {
     const config = safeJson(block.config_json) as { mediaUrl?: string };
     const resolved = resolveFeaturedMedia(config.mediaUrl, block.url, block.block_type);
     const fallback = '<span class="feature-art">◆</span>';
@@ -321,6 +324,10 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
         : fallback;
     return `<a class="feature ${index === 0 ? 'hero-feature' : ''}" href="${escapeHtml(blockUrl(block))}">${media}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
   }).join('');
+  const galleryStyle = `<style>.showcase{margin-top:22px}.showcase-title{display:flex;justify-content:space-between;margin:0 4px 10px;color:#ffc4b4;font:700 10px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em}.showcase-grid,.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.showcase-item,.product-item{position:relative;min-height:180px;overflow:hidden;border:1px solid #ffffff28;border-radius:20px;background:#2a1713;color:#fff;text-decoration:none;box-shadow:0 14px 32px #0005}.showcase-item img,.product-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.84}.showcase-item:after,.product-item:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#100b09e8,transparent 65%)}.showcase-item span,.product-item span{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;display:grid;gap:4px}.showcase-item strong,.product-item strong{font-size:14px;line-height:1.15}.showcase-item small{color:#ffc4b4;font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.product-item i{font-size:12px;font-style:normal;color:#ffe0d6}.showcase-art{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;color:#ff654833}@media(min-width:680px){.nft-showcase .showcase-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nft-showcase .showcase-item{min-height:132px}}@media(max-width:650px){.showcase-item{min-height:142px;border-radius:15px}.nft-showcase .showcase-item{min-height:108px}.showcase-item strong{font-size:12px}.product-item{min-height:135px}}</style>`;
+  const gallery = (items: ProfileBlockRow[], className: string, label: string) => !items.length ? '' : `<section class="showcase ${className}"><div class="showcase-title"><span>${label}</span><span>${items.length}</span></div><div class="showcase-grid">${items.map((block) => { const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string }; const media = resolveFeaturedMedia(config.mediaUrl, block.url, 'featured_image'); const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◇</b>'; return `<a class="showcase-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`; }).join('')}</div></section>`;
+  const productGallery = !productFeatures.length ? '' : `<section class="showcase product-showcase"><div class="showcase-title"><span>PRODUCT FEATURES</span><span>${productFeatures.length}</span></div><div class="product-grid">${productFeatures.map((block) => { const config = safeJson(block.config_json) as { mediaUrl?: string }; const media = resolveFeaturedMedia(config.mediaUrl, block.url, 'featured_image'); const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◆</b>'; return `<a class="product-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Product feature')}</strong><i>Explore ↗</i></span></a>`; }).join('')}</div></section>`;
+  const featureHtml = featureCards + (productGallery || featuredImages.length || nftItems.length ? `${galleryStyle}${productGallery}${gallery(featuredImages, 'image-showcase', 'FEATURED IMAGES')}${gallery(nftItems, 'nft-showcase', 'COLLECTED IDENTITY')}` : '');
 
   const ctaHtml = ctas.length ? `<section class="cta-grid">${ctas.map((block) => `<a class="cta-card ${block.block_type}" href="${escapeHtml(blockUrl(block))}"><span>${publicIcon(block)}</span><div><small>${block.block_type === 'media_kit' ? 'MEDIA KIT' : profile.profile_type === 'project' ? 'COLLABORATE' : 'AVAILABLE FOR WORK'}</small><strong>${escapeHtml(block.title || (block.block_type === 'media_kit' ? 'View media kit' : 'Work with me'))}</strong></div><i>↗</i></a>`).join('')}</section>` : '';
   const relationshipHtml = relationshipCards.length ? `<section class="section"><div class="section-title"><span>RELATIONSHIPS</span><h2>${profile.profile_type === 'project' ? 'Community' : 'Projects & communities'}</h2></div><div class="relationship-grid">${relationshipCards.map((block) => `<a class="relationship-card" href="${escapeHtml(blockUrl(block))}"><b>${publicIcon(block)}</b><span><small>${block.block_type === 'project_card' ? 'PROJECT' : 'COMMUNITY'}</small><strong>${escapeHtml(block.title || 'Open')}</strong></span><i>↗</i></a>`).join('')}</div></section>` : '';
@@ -425,15 +432,16 @@ export async function listProfileBlocks(request: Request, env: Env, profileId: s
   return json({ blocks: blocks.map((block) => ({ id: block.id, type: block.block_type, title: block.title, url: block.url, enabled: Boolean(block.enabled), config: safeJson(block.config_json) })) });
 }
 
-const ALLOWED_BLOCK_TYPES = new Set(['link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin','website','booking','custom_button','featured_article','featured_video','featured_image','campaign_proof','media_kit','work_with_me','project_card','community_card','team_member','heading']);
+const ALLOWED_BLOCK_TYPES = new Set(['link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin','website','booking','custom_button','featured_article','featured_video','featured_image','product_feature','nft_item','campaign_proof','media_kit','work_with_me','project_card','community_card','team_member','heading']);
 
 export async function addProfileBlock(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
   const db = new Db(requireDb(env));
-  await requireEditableProfile(db, auth.user.id, profileId);
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
   const body = await readJson<{ type?: string; title?: string; url?: string; config?: unknown }>(request);
   if (!body.type || !ALLOWED_BLOCK_TYPES.has(body.type)) throw new HttpError(400, 'Unsupported profile block type', 'invalid_block_type');
+  if (body.type === 'product_feature' && profile.profile_type !== 'project') throw new HttpError(403, 'Product features are available on Project profiles', 'project_profile_required');
   const positionRow = await db.first<{ next_position: number }>(`SELECT COALESCE(MAX(position), -1) + 1 AS next_position FROM profile_blocks WHERE profile_id = ?`, [profileId]);
   const blockId = `blk_${crypto.randomUUID().replace(/-/g, '')}`;
   const timestamp = new Date().toISOString();

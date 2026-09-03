@@ -377,7 +377,7 @@ Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
 Initial preferred chain allocation:
 
 1. Base
-2. BNB Chain
+2. Ethereum
 3. Solana
 4. Arbitrum
 5. Robinhood Chain
