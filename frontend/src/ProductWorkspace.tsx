@@ -66,6 +66,7 @@ export function ProductWorkspace({
     ['/wallets', 'Wallets'],
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
+    ['/settings/team-invites', 'Team'],
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';

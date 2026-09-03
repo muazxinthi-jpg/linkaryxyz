@@ -14,8 +14,19 @@ interface CdpSessionBody {
 }
 
 type UnknownRecord = Record<string, unknown>;
+type InviteAccessRow = {
+  id: string;
+  invite_type: string;
+  intended_email: string | null;
+  inviter_organization_id: string | null;
+  intended_project_role: string | null;
+  status: string;
+  expires_at: string | null;
+  uses: number;
+  max_uses: number;
+};
 type AccessContext =
-  | { kind: 'invite'; inviteId: string }
+  | { kind: 'invite'; inviteId: string; inviteType: string; organizationId: string | null }
   | { kind: 'earned'; submissionId: string };
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -157,18 +168,46 @@ async function hasLinkaryAccess(db: Db, userId: string): Promise<boolean> {
   );
 }
 
-async function resolveAccessContext(db: Db, inviteCode?: string, earnedGrant?: string): Promise<AccessContext> {
+function validateInviteAccess(row: InviteAccessRow, verifiedEmail: string | null): void {
+  if (row.status !== 'active' || row.uses >= row.max_uses || (row.expires_at && row.expires_at <= now())) {
+    throw new HttpError(403, 'This Linkary invitation is invalid or no longer available', 'invalid_invite');
+  }
+  if (row.invite_type === 'team_invite') {
+    if (!row.inviter_organization_id || !row.intended_project_role) {
+      throw new HttpError(403, 'This Project team invitation is incomplete', 'invalid_invite');
+    }
+    if (row.intended_email && verifiedEmail && row.intended_email.toLowerCase() !== verifiedEmail.toLowerCase()) {
+      throw new HttpError(403, 'This team invitation was prepared for a different email address', 'team_invite_email_mismatch');
+    }
+  }
+}
+
+async function inviteAccessRow(db: Db, inviteCode: string): Promise<InviteAccessRow | null> {
+  return db.first<InviteAccessRow>(
+    `SELECT id, invite_type, intended_email, inviter_organization_id, intended_project_role,
+            status, expires_at, uses, max_uses
+       FROM invites WHERE code_hash = ?`,
+    [await sha256(inviteCode)],
+  );
+}
+
+async function resolveTeamInviteForExistingAccess(db: Db, inviteCode: string, verifiedEmail: string | null): Promise<AccessContext | null> {
+  const row = await inviteAccessRow(db, inviteCode);
+  if (!row || row.invite_type !== 'team_invite') return null;
+  validateInviteAccess(row, verifiedEmail);
+  return { kind: 'invite', inviteId: row.id, inviteType: row.invite_type, organizationId: row.inviter_organization_id };
+}
+
+async function resolveAccessContext(db: Db, inviteCode?: string, earnedGrant?: string, verifiedEmail: string | null = null): Promise<AccessContext> {
   const invite = inviteCode?.trim();
   const grant = earnedGrant?.trim();
   if (invite && grant) throw new HttpError(400, 'Use one Linkary access path at a time', 'multiple_access_contexts');
 
   if (invite) {
-    const row = await db.first<{ id: string }>(
-      `SELECT id FROM invites WHERE code_hash = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) AND uses < max_uses`,
-      [await sha256(invite), now()],
-    );
+    const row = await inviteAccessRow(db, invite);
     if (!row) throw new HttpError(403, 'This Linkary invitation is invalid or no longer available', 'invalid_invite');
-    return { kind: 'invite', inviteId: row.id };
+    validateInviteAccess(row, verifiedEmail);
+    return { kind: 'invite', inviteId: row.id, inviteType: row.invite_type, organizationId: row.inviter_organization_id };
   }
 
   if (grant) {
@@ -193,11 +232,12 @@ async function attachAccessContext(db: Db, userId: string, context: AccessContex
     );
     if (existing) return;
 
+    const teamInvite = context.inviteType === 'team_invite';
     await db.batch([
       db.statement(
         `INSERT INTO invite_redemptions (id, invite_id, user_id, chosen_account_type, organization_id, quality_state, redeemed_at)
-         VALUES (?, ?, ?, NULL, NULL, 'pending', ?)`,
-        [id('red'), context.inviteId, userId, timestamp],
+         VALUES (?, ?, ?, NULL, ?, ?, ?)`,
+        [id('red'), context.inviteId, userId, teamInvite ? context.organizationId : null, teamInvite ? 'accepted_team' : 'pending', timestamp],
       ),
       db.statement(
         `UPDATE invites SET uses = uses + 1,
@@ -256,7 +296,7 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   let accessContext: AccessContext | null = null;
 
   if (!link) {
-    accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant);
+    accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
     isNewUser = true;
     const userId = id('usr');
     const linkId = id('cdp');
@@ -291,8 +331,11 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       `UPDATE auth_identities SET metadata_json = ?, updated_at = ? WHERE provider = 'coinbase_cdp' AND provider_user_id = ?`,
       [JSON.stringify({ authenticationMethods: methods }), timestamp, cdpUserId],
     );
-    if (!(await hasLinkaryAccess(db, link.user_id))) {
-      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant);
+    const alreadyHasAccess = await hasLinkaryAccess(db, link.user_id);
+    if (!alreadyHasAccess) {
+      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+    } else if (body.inviteCode?.trim()) {
+      accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
     }
   }
 

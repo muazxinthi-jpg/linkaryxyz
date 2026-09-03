@@ -115,9 +115,9 @@ export default function AdminReadinessExperience({
                 <small>Core Linkary product capabilities</small>
               </article>
               <article>
-                <span>IDENTITY AUTOMATION</span>
+                <span>REQUIRED AUTOMATION</span>
                 <strong>{health.betaReadiness.schema.presentRequiredTriggerCount}/{health.betaReadiness.schema.requiredTriggerCount}</strong>
-                <small>Verified X profile image automation</small>
+                <small>Verified-X identity and Project team access</small>
               </article>
               <article>
                 <span>USERS</span>
@@ -161,9 +161,9 @@ export default function AdminReadinessExperience({
                   {health.betaReadiness.schema.missingTriggers.map((name) => (
                     <div className="ops-activity-row" key={`trigger:${name}`}>
                       <div className="ops-activity-main">
-                        <span className="ops-type-chip">Identity</span>
+                        <span className="ops-type-chip">Automation</span>
                         <strong>{name}</strong>
-                        <small>Required for verified X profile-image automation.</small>
+                        <small>Required by the current Beta identity or Project access flow.</small>
                       </div>
                     </div>
                   ))}
@@ -184,6 +184,7 @@ export default function AdminReadinessExperience({
                     'Fresh Creator Earn Access and Superadmin approval',
                     'Official-X Project registration and ownership',
                     'Creator to Project role request and approval',
+                    'Free Project team invitation, redemption and role assignment',
                     'Invite click, signup and redemption attribution',
                     'Campaign, tracking link, click, outcome and public Proof',
                     'Campaign opportunity application and decision',

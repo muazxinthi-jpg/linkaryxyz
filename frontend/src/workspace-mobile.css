@@ -2,6 +2,7 @@
   .ops-nav a[href="/tracking"],
   .ops-nav a[href="/partners"],
   .ops-nav a[href="/wallets"]{display:none!important}
-  .ops-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .workspace-creator .ops-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .workspace-project .ops-nav{grid-template-columns:repeat(7,minmax(0,1fr))!important}
   .ops-nav a{min-width:0!important;font-size:8px!important;line-height:1.15!important;text-align:center!important}
 }

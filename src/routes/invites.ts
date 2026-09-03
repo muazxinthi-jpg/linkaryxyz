@@ -9,12 +9,28 @@ import { organizationMembership } from './organizations';
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
+type ProjectTeamRole = 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
+const PROJECT_TEAM_ROLES = new Set<ProjectTeamRole>(['admin', 'marketing_manager', 'analyst', 'viewer']);
+
 interface CreateInviteBody {
   ownerType?: 'profile' | 'organization';
   ownerId?: string;
   expiresInDays?: number | null;
-  action?: 'create' | 'revoke';
+  action?: 'create' | 'revoke' | 'create_team' | 'revoke_team' | 'accept_team';
   inviteId?: string;
+  inviteCode?: string;
+  organizationId?: string;
+  role?: ProjectTeamRole;
+  email?: string | null;
+}
+
+function normalizeOptionalEmail(value: string | null | undefined): string | null {
+  const email = value?.trim().toLowerCase() || '';
+  if (!email) return null;
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpError(400, 'Enter a valid teammate email address', 'invalid_email');
+  }
+  return email;
 }
 
 async function authorizeInviteOwner(db: Db, userId: string, ownerType: 'profile' | 'organization', ownerId: string): Promise<void> {
@@ -25,6 +41,16 @@ async function authorizeInviteOwner(db: Db, userId: string, ownerType: 'profile'
   }
   const membership = await organizationMembership(db, userId, ownerId);
   if (!membership || !['owner', 'admin', 'marketing_manager'].includes(membership.role)) throw new HttpError(403, 'Project invite access denied', 'forbidden');
+}
+
+async function requireProjectTeamInviteAdmin(db: Db, userId: string, organizationId: string) {
+  const membership = await organizationMembership(db, userId, organizationId);
+  if (!membership || !['owner', 'admin'].includes(membership.role)) throw new HttpError(403, 'Project Admin access required', 'forbidden');
+  return membership;
+}
+
+function teamInviteUrl(request: Request, env: Env, code: string): string {
+  return `${getLinkaryUrls(request, env).app}/team-invite?invite=${encodeURIComponent(code)}`;
 }
 
 export async function inviteBalances(request: Request, env: Env): Promise<Response> {
@@ -39,6 +65,9 @@ export async function listNetworkInvites(request: Request, env: Env): Promise<Re
     id: string;
     display_code: string | null;
     invite_type: string;
+    inviter_organization_id: string | null;
+    intended_email: string | null;
+    intended_project_role: string | null;
     status: string;
     uses: number;
     max_uses: number;
@@ -59,6 +88,9 @@ export async function listNetworkInvites(request: Request, env: Env): Promise<Re
        i.id,
        i.display_code,
        i.invite_type,
+       i.inviter_organization_id,
+       i.intended_email,
+       i.intended_project_role,
        CASE WHEN i.status = 'active' AND i.expires_at IS NOT NULL AND i.expires_at <= ? THEN 'expired' ELSE i.status END AS status,
        i.uses,
        i.max_uses,
@@ -80,19 +112,173 @@ export async function listNetworkInvites(request: Request, env: Env): Promise<Re
      LEFT JOIN users u ON u.id = r.user_id
      LEFT JOIN auth_identities ai ON ai.user_id = r.user_id
      LEFT JOIN invite_ledger l ON l.related_invite_id = i.id AND l.transaction_type = 'use'
-     WHERE i.inviter_user_id = ? OR i.inviter_organization_id IN (SELECT organization_id FROM organization_memberships WHERE user_id = ? AND status = 'active')
+     WHERE (
+       i.invite_type != 'team_invite'
+       AND (
+         i.inviter_user_id = ?
+         OR i.inviter_organization_id IN (SELECT organization_id FROM organization_memberships WHERE user_id = ? AND status = 'active')
+       )
+     ) OR (
+       i.invite_type = 'team_invite'
+       AND i.inviter_organization_id IN (
+         SELECT organization_id FROM organization_memberships
+          WHERE user_id = ? AND status = 'active' AND role IN ('owner','admin')
+       )
+     )
      GROUP BY i.id
      ORDER BY i.created_at DESC
-     LIMIT 200`,
-    [now(), auth.user.id, auth.user.id],
+     LIMIT 300`,
+    [now(), auth.user.id, auth.user.id, auth.user.id],
   );
-  const trackingBase = getLinkaryUrls(request, env).tracking;
-  return json({ invites: rows.map((row) => ({ ...row, invite_url: row.display_code ? `${trackingBase}/i/${encodeURIComponent(row.display_code)}` : null })) });
+  const urls = getLinkaryUrls(request, env);
+  return json({
+    invites: rows.map((row) => ({
+      ...row,
+      invite_url: row.display_code
+        ? row.invite_type === 'team_invite'
+          ? `${urls.app}/team-invite?invite=${encodeURIComponent(row.display_code)}`
+          : `${urls.tracking}/i/${encodeURIComponent(row.display_code)}`
+        : null,
+    })),
+  });
 }
 
 export async function createNetworkInvite(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env); await verifyCsrf(request, env, auth); const body = await readJson<CreateInviteBody>(request);
   const db = new Db(requireDb(env));
+
+  if (body.action === 'create_team') {
+    const organizationId = body.organizationId?.trim();
+    const role = body.role;
+    if (!organizationId || !role || !PROJECT_TEAM_ROLES.has(role)) throw new HttpError(400, 'Project and team role are required', 'invalid_team_invite');
+    const actor = await requireProjectTeamInviteAdmin(db, auth.user.id, organizationId);
+    if (actor.role === 'admin' && role === 'admin') throw new HttpError(403, 'Only a Project Owner can invite another Project Admin', 'owner_required');
+    const project = await db.first<{ id: string; name: string; status: string; verification_status: string }>(`SELECT id, name, status, verification_status FROM organizations WHERE id = ?`, [organizationId]);
+    if (!project || project.status !== 'active' || project.verification_status !== 'verified_x') throw new HttpError(409, 'Verify this Project before inviting teammates', 'project_verification_required');
+    const intendedEmail = normalizeOptionalEmail(body.email);
+    const expiryDays = body.expiresInDays === null || body.expiresInDays === undefined ? 14 : Math.max(1, Math.min(90, Math.floor(body.expiresInDays)));
+    const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+    if (intendedEmail) {
+      const existing = await db.first<{ id: string; display_code: string; expires_at: string | null }>(
+        `SELECT id, display_code, expires_at FROM invites
+          WHERE invite_type = 'team_invite' AND inviter_organization_id = ? AND intended_email = ?
+            AND intended_project_role = ? AND status = 'active' AND uses = 0
+            AND (expires_at IS NULL OR expires_at > ?)
+          ORDER BY created_at DESC LIMIT 1`,
+        [organizationId, intendedEmail, role, now()],
+      );
+      if (existing?.display_code) {
+        return json({
+          inviteId: existing.id,
+          inviteUrl: teamInviteUrl(request, env, existing.display_code),
+          organizationId,
+          projectName: project.name,
+          role,
+          intendedEmail,
+          expiresAt: existing.expires_at,
+          duplicate: true,
+          consumesNetworkCredit: false,
+        });
+      }
+    }
+
+    const rawCode = randomToken(18); const inviteId = id('inv'); const timestamp = now();
+    await db.batch([
+      db.statement(
+        `INSERT INTO invites (
+          id, code_hash, display_code, invite_type, inviter_user_id, inviter_organization_id,
+          intended_email, allowed_account_types_json, max_uses, uses, expires_at, status,
+          created_at, updated_at, intended_project_role
+        ) VALUES (?, ?, ?, 'team_invite', ?, ?, ?, '[]', 1, 0, ?, 'active', ?, ?, ?)`,
+        [inviteId, await sha256(rawCode), rawCode, auth.user.id, organizationId, intendedEmail, expiresAt, timestamp, timestamp, role],
+      ),
+      db.statement(
+        `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+         VALUES (?, ?, 'user', 'project_team_invite.created', 'invite', ?, ?, ?, ?)`,
+        [id('aud'), auth.user.id, inviteId, organizationId, JSON.stringify({ role, intendedEmail, expiresAt, consumesNetworkCredit: false }), timestamp],
+      ),
+    ]);
+    return json({
+      inviteId,
+      inviteUrl: teamInviteUrl(request, env, rawCode),
+      organizationId,
+      projectName: project.name,
+      role,
+      intendedEmail,
+      expiresAt,
+      duplicate: false,
+      consumesNetworkCredit: false,
+    }, { status: 201 });
+  }
+
+  if (body.action === 'revoke_team') {
+    if (!body.inviteId) throw new HttpError(400, 'Team invitation is required', 'invalid_team_invite');
+    const invite = await db.first<{ id: string; inviter_organization_id: string | null; intended_project_role: ProjectTeamRole | null; status: string; uses: number }>(
+      `SELECT id, inviter_organization_id, intended_project_role, status, uses FROM invites WHERE id = ? AND invite_type = 'team_invite'`,
+      [body.inviteId],
+    );
+    if (!invite?.inviter_organization_id) throw new HttpError(404, 'Team invitation not found', 'invite_not_found');
+    const actor = await requireProjectTeamInviteAdmin(db, auth.user.id, invite.inviter_organization_id);
+    if (actor.role === 'admin' && invite.intended_project_role === 'admin') throw new HttpError(403, 'Only a Project Owner can manage Project Admin invitations', 'owner_required');
+    if (invite.status !== 'active' || invite.uses > 0) throw new HttpError(409, 'Only unused active team invitations can be revoked', 'invite_not_active');
+    const timestamp = now();
+    await db.batch([
+      db.statement(`UPDATE invites SET status = 'revoked', updated_at = ? WHERE id = ? AND status = 'active' AND uses = 0`, [timestamp, body.inviteId]),
+      db.statement(
+        `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+         VALUES (?, ?, 'user', 'project_team_invite.revoked', 'invite', ?, ?, ?, ?)`,
+        [id('aud'), auth.user.id, body.inviteId, invite.inviter_organization_id, JSON.stringify({ role: invite.intended_project_role }), timestamp],
+      ),
+    ]);
+    return json({ ok: true, status: 'revoked', creditRefunded: false, consumesNetworkCredit: false });
+  }
+
+  if (body.action === 'accept_team') {
+    const code = body.inviteCode?.trim();
+    if (!code) throw new HttpError(400, 'Team invitation code is required', 'invalid_team_invite');
+    const invite = await db.first<{
+      id: string;
+      inviter_organization_id: string | null;
+      intended_project_role: ProjectTeamRole | null;
+      intended_email: string | null;
+      status: string;
+      uses: number;
+      max_uses: number;
+      expires_at: string | null;
+    }>(
+      `SELECT id, inviter_organization_id, intended_project_role, intended_email, status, uses, max_uses, expires_at
+         FROM invites WHERE code_hash = ? AND invite_type = 'team_invite'`,
+      [await sha256(code)],
+    );
+    if (!invite?.inviter_organization_id || !invite.intended_project_role) throw new HttpError(404, 'Team invitation not found', 'invite_not_found');
+    const existing = await db.first<{ id: string }>(`SELECT id FROM invite_redemptions WHERE invite_id = ? AND user_id = ?`, [invite.id, auth.user.id]);
+    if (existing) {
+      return json({ ok: true, alreadyAccepted: true, organizationId: invite.inviter_organization_id, role: invite.intended_project_role });
+    }
+    if (invite.status !== 'active' || invite.uses >= invite.max_uses || (invite.expires_at && invite.expires_at <= now())) throw new HttpError(409, 'This team invitation is no longer available', 'invite_not_active');
+    if (invite.intended_email && auth.user.email && invite.intended_email.toLowerCase() !== auth.user.email.toLowerCase()) {
+      throw new HttpError(403, 'This team invitation was prepared for a different email address', 'team_invite_email_mismatch');
+    }
+    const project = await db.first<{ id: string; name: string; status: string; verification_status: string }>(`SELECT id, name, status, verification_status FROM organizations WHERE id = ?`, [invite.inviter_organization_id]);
+    if (!project || project.status !== 'active' || project.verification_status !== 'verified_x') throw new HttpError(409, 'This Project is not currently accepting team access', 'project_not_available');
+    const timestamp = now();
+    await db.batch([
+      db.statement(
+        `INSERT INTO invite_redemptions (id, invite_id, user_id, chosen_account_type, organization_id, quality_state, redeemed_at)
+         VALUES (?, ?, ?, NULL, ?, 'accepted_team', ?)`,
+        [id('red'), invite.id, auth.user.id, invite.inviter_organization_id, timestamp],
+      ),
+      db.statement(
+        `UPDATE invites SET uses = uses + 1,
+          status = CASE WHEN uses + 1 >= max_uses THEN 'exhausted' ELSE status END,
+          updated_at = ?
+         WHERE id = ? AND status = 'active' AND uses < max_uses`,
+        [timestamp, invite.id],
+      ),
+    ]);
+    return json({ ok: true, alreadyAccepted: false, organizationId: project.id, projectName: project.name, role: invite.intended_project_role });
+  }
 
   if (body.action === 'revoke') {
     if (!body.inviteId) throw new HttpError(400, 'Invite is required', 'invalid_invite');
