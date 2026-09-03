@@ -37,7 +37,11 @@ function socialPlatform(block: ProfileBlockRow): string {
 }
 
 function isSocial(block: ProfileBlockRow): boolean {
-  return Boolean(block.url && (block.block_type === 'social_link' || socialPlatform(block)));
+  // A featured X post can be media, but it must never become a second X profile icon.
+  // Only explicit social blocks belong in the compact social navigation.
+  if (!block.url) return false;
+  if (block.block_type === 'social_link') return true;
+  return ['telegram', 'youtube', 'tiktok', 'instagram', 'facebook', 'reddit', 'linkedin'].includes(block.block_type);
 }
 
 const KNOWN_SOCIALS = new Set(['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster']);
@@ -52,7 +56,7 @@ function extraCss(): string {
 :root,html{background:#fff!important;color:#151210!important}
 body{min-height:100vh!important;background:radial-gradient(900px 520px at 12% 4%,rgba(255,90,54,.10),transparent 70%),radial-gradient(850px 560px at 90% 28%,rgba(255,90,54,.07),transparent 72%),#fff!important;color:#151210!important}
 body:before,body:after,.page:before,.page:after{display:none!important;content:none!important}
-.matrix{display:block!important;z-index:0!important;opacity:.46!important;mix-blend-mode:multiply!important;filter:saturate(1.35) contrast(1.08)!important;pointer-events:none!important}
+.matrix{display:block!important;z-index:0!important;opacity:.64!important;mix-blend-mode:multiply!important;filter:saturate(1.55) contrast(1.18)!important;pointer-events:none!important}
 .page{position:relative!important;z-index:1!important;width:min(1180px,calc(100% - 64px))!important;margin:42px auto!important;padding:34px 46px 76px!important;overflow:hidden!important;background:rgba(255,255,255,.92)!important;background-image:none!important;color:#151210!important;border:1px solid rgba(255,90,54,.22)!important;border-radius:34px!important;box-shadow:0 24px 80px rgba(41,27,20,.12)!important;backdrop-filter:blur(2px)!important}
 .page>*{position:relative;z-index:1}
 .top{color:#151210!important}
@@ -62,7 +66,7 @@ body:before,body:after,.page:before,.page:after{display:none!important;content:n
 .hero{margin:54px 0 28px!important;color:#151210!important}
 .avatar{border:2px solid #ff5a36!important;background:#fff!important;box-shadow:0 14px 38px rgba(42,28,20,.13)!important}
 .eyebrow{margin-top:15px!important;color:#ff5a36!important}
-.hero h1{margin:10px 0 6px!important;color:#111!important;font-size:clamp(42px,4.5vw,62px)!important;line-height:.98!important;letter-spacing:-.055em!important;text-shadow:none!important}
+.hero h1{margin:10px 0 6px!important;color:#111!important;font-size:clamp(34px,3.6vw,52px)!important;line-height:1.02!important;letter-spacing:-.05em!important;text-shadow:none!important}
 .handle{color:#70645e!important;font-size:14px!important}
 .bio{max-width:780px!important;margin:17px auto 0!important;color:#2b2724!important;font-size:17px!important;line-height:1.62!important;text-shadow:none!important}
 .socials{margin:24px 0 32px!important;gap:12px!important}
@@ -120,8 +124,8 @@ body:before,body:after,.page:before,.page:after{display:none!important;content:n
 footer{color:#74665f!important}
 footer strong{color:#ff5a36!important}
 @media(min-width:900px){.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-@media(max-width:899px){.page{width:calc(100% - 24px)!important;margin:18px auto!important;padding:24px 20px 48px!important;border-radius:26px!important}.hero h1{font-size:clamp(40px,7vw,56px)!important}.feature{min-height:320px!important}.showcase-item,.product-item{min-height:195px!important}.matrix{opacity:.38!important}}
-@media(max-width:650px){body{background:#fff!important}.page{width:100%!important;margin:0!important;padding:20px 15px 42px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:rgba(255,255,255,.94)!important}.hero{margin:42px 0 23px!important}.hero h1{font-size:clamp(34px,11vw,48px)!important}.bio{font-size:15px!important}.socials a,.social{width:45px!important;height:45px!important}.cta-card,.profile-enhanced-cta{min-height:86px!important;padding:14px 15px!important}.feature{min-height:270px!important;padding-bottom:86px!important}.feature img,.feature video{height:calc(100% - 100px)!important}.feature-copy strong{font-size:21px!important}.showcase-item,.product-item{min-height:172px!important;border-radius:18px!important}.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.proof-grid{gap:9px!important}.matrix{opacity:.30!important}}
+@media(max-width:899px){.page{width:calc(100% - 24px)!important;margin:18px auto!important;padding:24px 20px 48px!important;border-radius:26px!important}.hero h1{font-size:clamp(34px,6vw,48px)!important}.feature{min-height:320px!important}.showcase-item,.product-item{min-height:195px!important}.matrix{opacity:.54!important}}
+@media(max-width:650px){body{background:#fff!important}.page{width:100%!important;margin:0!important;padding:20px 15px 42px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:rgba(255,255,255,.94)!important}.hero{margin:42px 0 23px!important}.hero h1{font-size:clamp(32px,9vw,42px)!important}.bio{font-size:15px!important}.socials a,.social{width:45px!important;height:45px!important}.cta-card,.profile-enhanced-cta{min-height:86px!important;padding:14px 15px!important}.feature{min-height:270px!important;padding-bottom:86px!important}.feature img,.feature video{height:calc(100% - 100px)!important}.feature-copy strong{font-size:21px!important}.showcase-item,.product-item{min-height:172px!important;border-radius:18px!important}.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.proof-grid{gap:9px!important}.matrix{opacity:.48!important}}
 `;
 }
 

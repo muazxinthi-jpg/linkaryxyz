@@ -8,12 +8,12 @@ test('public profile keeps a wide light canvas with visible orange matrix rain',
   assert.equal(enhancer.includes('width:min(1180px,calc(100% - 64px))!important'), true);
   assert.equal(enhancer.includes('background:rgba(255,255,255,.92)!important'), true);
   assert.equal(enhancer.includes('background-image:none!important'), true);
-  assert.equal(enhancer.includes('.matrix{display:block!important;z-index:0!important;opacity:.46!important;mix-blend-mode:multiply!important'), true);
-  assert.equal(enhancer.includes('filter:saturate(1.35) contrast(1.08)!important'), true);
+  assert.equal(enhancer.includes('.matrix{display:block!important;z-index:0!important;opacity:.64!important;mix-blend-mode:multiply!important'), true);
+  assert.equal(enhancer.includes('filter:saturate(1.55) contrast(1.18)!important'), true);
 });
 
 test('hero typography is dark, readable and smaller than the previous oversized treatment', () => {
-  assert.equal(enhancer.includes('.hero h1{margin:10px 0 6px!important;color:#111!important;font-size:clamp(42px,4.5vw,62px)!important'), true);
+  assert.equal(enhancer.includes('.hero h1{margin:10px 0 6px!important;color:#111!important;font-size:clamp(34px,3.6vw,52px)!important'), true);
   assert.equal(enhancer.includes('.bio{max-width:780px!important;margin:17px auto 0!important;color:#2b2724!important'), true);
   assert.equal(enhancer.includes('.handle{color:#70645e!important'), true);
   assert.equal(enhancer.includes('.eyebrow{margin-top:15px!important;color:#ff5a36!important'), true);
@@ -31,6 +31,11 @@ test('Book a Call and other conversion CTAs fill the row and stay readable', () 
   assert.equal(enhancer.includes('min-height:96px!important'), true);
   assert.equal(enhancer.includes('.cta-card strong,.profile-enhanced-cta strong{color:#151210!important;font-size:19px!important'), true);
   assert.equal(enhancer.includes("!html.includes('class=\"cta-grid\"')"), true, 'enhancer must not duplicate a base CTA grid');
+});
+
+test('featured X posts never become duplicate X profile icons', () => {
+  assert.equal(enhancer.includes("if (block.block_type === 'social_link') return true;"), true);
+  assert.equal(enhancer.includes("['telegram', 'youtube', 'tiktok', 'instagram', 'facebook', 'reddit', 'linkedin'].includes(block.block_type)"), true);
 });
 
 test('public content modules remain on readable white surfaces', () => {

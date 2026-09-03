@@ -13,6 +13,6 @@ test('enhanced public profile stylesheet is appended after all base styles', () 
 test('light canvas and orange matrix remain explicitly enforced', () => {
   assert.equal(source.includes('background:rgba(255,255,255,.92)!important'), true);
   assert.equal(source.includes('width:min(1180px,calc(100% - 64px))!important'), true);
-  assert.equal(source.includes('opacity:.46!important;mix-blend-mode:multiply!important'), true);
-  assert.equal(source.includes('color:#111!important;font-size:clamp(42px,4.5vw,62px)!important'), true);
+  assert.equal(source.includes('opacity:.64!important;mix-blend-mode:multiply!important'), true);
+  assert.equal(source.includes('color:#111!important;font-size:clamp(34px,3.6vw,52px)!important'), true);
 });
