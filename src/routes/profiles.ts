@@ -369,12 +369,13 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
     const token = rainTokens[index % rainTokens.length];
     const x = 1 + ((index * 29) % 97);
     const delay = -((index * 1.37) % 17).toFixed(2);
-    const duration = (11 + ((index * 5) % 10)).toFixed(2);
+    const duration = (18 + ((index * 5) % 12)).toFixed(2);
     const glyphs = 'ｱｲｳｴｵｶｷｸｹｺ01ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const glyphStream = Array.from({ length: 24 }, (_, glyphIndex) => glyphs[(index * 13 + glyphIndex * 17) % glyphs.length]).join('\n');
-    const stream = index % 3 === 0
-      ? Array.from(`${token}${String(index + 1).padStart(2, '0')}LINKARY${token}`.toUpperCase()).join('\n')
-      : glyphStream;
+    const tokenChars = Array.from(`${token}${String(index + 1).padStart(2, '0')}LINKARY`.toUpperCase());
+    const stream = Array.from({ length: 42 }, (_, glyphIndex) => {
+      const useToken = index % 4 === 0 && glyphIndex % 5 === 0;
+      return useToken ? tokenChars[(glyphIndex / 5 + index) % tokenChars.length] : glyphs[(index * 13 + glyphIndex * 17) % glyphs.length];
+    }).join('\n');
     return `<span style="--x:${x};--delay:${delay}s;--duration:${duration}s">${escapeHtml(stream)}</span>`;
   }).join('');
   const rainConfig = safeScriptJson(rainTokens);
