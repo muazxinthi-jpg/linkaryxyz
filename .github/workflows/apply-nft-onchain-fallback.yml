@@ -1,0 +1,35 @@
+name: Apply NFT onchain fallback
+
+on:
+  push:
+    branches:
+      - fix/nft-onchain-metadata-fallback
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/nft-onchain-metadata-fallback
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/apply-nft-onchain-fallback.mjs
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run app:check
+      - run: npm run deploy:dry
+      - name: Commit patched files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/profileMedia.ts tests/nft-artwork-resolution.test.ts
+          git commit -m "fix: resolve EVM NFT artwork from onchain metadata without Alchemy" || exit 0
+          git push origin HEAD:fix/nft-onchain-metadata-fallback
