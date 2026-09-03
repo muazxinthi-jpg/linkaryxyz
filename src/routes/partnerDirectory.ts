@@ -204,7 +204,7 @@ export async function savePartnerManagerAsset(request: Request, env: Env): Promi
     const audience = Number(body.audienceSize || 0);
     if (!Number.isFinite(audience) || audience < 0) throw new HttpError(400, 'Audience size must be zero or greater', 'invalid_audience');
     await db.run(
-      `UPDATE partner_manager_assets SET name = ?, platform = ?, handle = ?, url = ?, audience_size = ?, notes = ?, verification_status = CASE WHEN handle != ? OR COALESCE(url,'') != COALESCE(?, '') THEN 'unverified' ELSE verification_status END, updated_at = ? WHERE id = ? AND manager_id = ?`,
+      `UPDATE partner_manager_assets SET name = ?, platform = ?, handle = ?, url = ?, audience_size = ?, notes = ?, verification_status = CASE WHEN COALESCE(handle,'') != COALESCE(?, '') OR COALESCE(url,'') != COALESCE(?, '') THEN 'unverified' ELSE verification_status END, updated_at = ? WHERE id = ? AND manager_id = ?`,
       [body.name.trim().slice(0, 140), body.platform?.trim().slice(0, 60) || '', cleanHandle(body.handle), safeUrl(body.url), Math.round(audience), body.notes?.trim().slice(0, 500) || '', cleanHandle(body.handle), safeUrl(body.url), now(), body.assetId, body.managerId],
     );
     return json({ ok: true, id: body.assetId });
