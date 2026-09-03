@@ -22,6 +22,15 @@ test('shared Community proof keeps exact assignment and verified outcome boundar
   assert.equal(shared.includes("ce.source = 'manual'"), false);
 });
 
+test('public proof reads never run schema DDL while authenticated reputation keeps schema safety', () => {
+  assert.equal(shared.includes('ensureAttributionSchema'), false);
+  assert.equal(shared.includes('CREATE TABLE'), false);
+  assert.equal(shared.includes('CREATE INDEX'), false);
+  assert.equal(reputation.includes("import { ensureAttributionSchema } from '../db/attributionSchema'"), true);
+  assert.equal(reputation.includes('await ensureAttributionSchema(db);'), true);
+  assert.equal(publicProfile.includes('exactCommunityCampaignProof(db, manager.id).catch(() => null)'), true);
+});
+
 test('public Community Portfolio shows aggregate and per-Community proof only when evidence exists', () => {
   assert.equal(publicProfile.includes('Community Campaign Proof'), true);
   assert.equal(publicProfile.includes('Exact Community activity only'), true);
