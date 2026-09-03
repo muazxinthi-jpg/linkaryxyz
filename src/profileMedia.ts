@@ -111,3 +111,64 @@ export function resolveFeaturedMedia(
 
   return null;
 }
+
+function isPublicWebHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+  if (/^(0|10|127|169\.254|172\.(1[6-9]|2\d|3[0-1])|192\.168)(\.|$)/.test(host)) return false;
+  return true;
+}
+
+function isPageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    return host === 'x.com' || host === 'twitter.com' || !IMAGE_EXTENSIONS.test(url.pathname) && !VIDEO_EXTENSIONS.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function metaContent(source: string, property: string): string | null {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return match[1].replace(/&amp;/gi, '&');
+  }
+  return null;
+}
+
+/** Resolve an Open Graph poster from a public feature page without ever exposing
+ * the upstream HTML to visitors. Direct media remains the fast path. */
+export async function resolveFeaturedPreview(
+  mediaUrl: string | null | undefined,
+  destinationUrl: string | null | undefined,
+  blockType: string,
+): Promise<FeaturedMedia | null> {
+  const direct = resolveFeaturedMedia(mediaUrl, destinationUrl, blockType);
+  if (direct && !isPageUrl(direct.src)) return direct;
+  const candidates = [mediaUrl, destinationUrl]
+    .map((value) => safeHttpsUrl(value))
+    .filter((value): value is string => Boolean(value) && isPublicWebHost(new URL(value!).hostname));
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      const response = await fetch(candidate, { headers: { accept: 'text/html,application/xhtml+xml,image/avif,image/webp,image/*;q=0.8,*/*;q=0.5' }, redirect: 'follow' });
+      if (!response.ok) continue;
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };
+      if (contentType.startsWith('video/')) return { kind: 'video', src: response.url, youtube: false };
+      if (!contentType.includes('html')) continue;
+      const source = (await response.text()).slice(0, 350_000);
+      const image = metaContent(source, 'og:image') || metaContent(source, 'twitter:image');
+      const resolved = image ? safeHttpsUrl(new URL(image, response.url).toString()) : null;
+      if (resolved && isPublicWebHost(new URL(resolved).hostname)) return { kind: 'image', src: resolved, youtube: false };
+    } catch {
+      // A third-party site must never make a Linkary profile unavailable.
+    }
+  }
+  return direct && direct.kind === 'video' ? direct : null;
+}
