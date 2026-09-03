@@ -49,8 +49,8 @@ test('Creator navigation exposes Communities without adding it to Project operat
   assert.equal(projectNav.includes("['/communities', 'Communities']"), false);
 
   const mobile = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
-  assert.equal(mobile.includes('.workspace-creator .ops-nav a[href="/settings"]{display:none!important}'), true);
-  assert.equal(mobile.includes('.workspace-creator .ops-nav{grid-template-columns:repeat(6'), true);
+  assert.match(mobile, /\.workspace-creator\s+\.ops-nav\s+a\[href="\/settings"\]\s*\{[^}]*display:none!important/s);
+  assert.equal(mobile.includes('grid-template-columns:repeat(6,minmax(0,1fr))!important'), true);
 });
 
 test('Community Manager V1 reuses the existing evidence-aware partner schema', () => {
