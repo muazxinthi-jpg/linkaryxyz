@@ -7,6 +7,8 @@ const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+const media = readFileSync(new URL('../src/profileMedia.ts', import.meta.url), 'utf8');
+const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
 
 test('live Beta profile editor exposes notable social networks and custom social naming', () => {
   assert.equal(beta.includes('const SOCIAL_OPTIONS'), true);
@@ -25,15 +27,24 @@ test('live Beta profile editor exposes NFT showcase and NFT avatar selection', (
   assert.equal(beta.includes('includeNfts=1'), true);
   assert.equal(beta.includes('setData({ ...data, avatarUrl: nft.imageUrl })'), true);
   assert.equal(beta.includes('Or add manually'), true);
-  assert.equal(beta.includes('NFT item URL'), true);
-  assert.equal(beta.includes('NFT artwork or item URL'), true);
+  assert.equal(beta.includes('Destination URL'), true);
+  assert.equal(beta.includes('NFT artwork source'), true);
 });
 
-test('NFT showcases reject collection pages where a specific owned item is required', () => {
-  const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
-  assert.equal(profiles.includes("function validateNftItemUrl"), true);
-  assert.equal(profiles.includes("'nft_item_url_required'"), true);
-  assert.equal(profiles.includes("/^\\/collection\\//i.test(url.pathname)"), true);
+test('NFT click destination stays separate from the artwork source', () => {
+  assert.equal(beta.includes('A collection page, individual NFT page, or another relevant destination is allowed.'), true);
+  assert.equal(beta.includes('Linkary uses this only to resolve the artwork; it does not control where the card clicks.'), true);
+  assert.equal(profiles.includes('function validateNftDestinationUrl'), true);
+  assert.equal(profiles.includes("'nft_item_url_required'"), false);
+});
+
+test('NFT item pages resolve real token artwork through Alchemy metadata instead of social preview cards', () => {
+  assert.equal(media.includes('resolveNftArtworkPreview'), true);
+  assert.equal(media.includes('parseOpenSeaNftItemUrl'), true);
+  assert.equal(media.includes('getNFTMetadata'), true);
+  assert.equal(media.includes('image.originalUrl'), true);
+  assert.equal(profiles.includes("className === 'nft-showcase'"), true);
+  assert.equal(profiles.includes("className === 'nfts'"), true);
 });
 
 test('wallet NFT discovery stays server-side and uses attached profile wallets', () => {
