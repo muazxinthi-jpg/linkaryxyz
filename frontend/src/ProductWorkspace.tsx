@@ -98,6 +98,7 @@ export function ProductWorkspace({
           {me.user?.superadmin && (
             <>
               <NavLink to="/admin/readiness">Beta readiness</NavLink>
+              <NavLink to="/admin/community-verifications">Community reviews</NavLink>
               <NavLink to="/admin">Admin review</NavLink>
             </>
           )}
