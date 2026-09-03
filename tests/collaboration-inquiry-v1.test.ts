@@ -34,8 +34,9 @@ test('Project inquiry sending is permissioned and preserves exact Linkary partne
 test('pending duplicate inquiries are blocked and acceptance itself remains discussion-only', () => {
   assert.equal(route.includes("status = 'pending'"), true);
   assert.equal(route.includes("'inquiry_already_pending'"), true);
+  assert.equal(route.includes("SET status = 'negotiating'"), true);
   const acceptance = route.slice(route.indexOf("if (body.action === 'review_inquiry')"), route.indexOf("if (body.action === 'record_activation')"));
-  assert.equal(acceptance.includes("SET status = 'negotiating'"), true);
+  assert.equal(acceptance.includes('markShortlistInDiscussion'), true);
   assert.equal(acceptance.includes("SET status = 'active'"), false);
   assert.equal(acceptance.includes('conversion_events'), false);
   assert.equal(acceptance.includes('campaign_activity_linkary_assignments'), false);
