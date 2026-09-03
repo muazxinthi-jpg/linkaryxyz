@@ -1,206 +1,180 @@
 # Linkary implementation status
 
-The Technical Product and Engineering Paper v1.2 and `uilib.md` are the product and design sources of truth. This file records repository state and production state separately.
+Updated: 2026-09-02
 
-Fresh-start rule: old Linkary implementation decisions are not authoritative unless they independently match the current specification.
+This file reflects the current repository after the Beta completion work. The Technical Product and Engineering Paper v1.2 and `uilib.md` remain product/design sources of truth. Do not use older handoff notes to decide whether a feature exists without checking the current repository.
+
+## Beta target
+
+Linkary Beta is an invite-only identity, relationship, growth and attribution product for Creators and Projects.
+
+The Beta loop is:
+
+Creator / Project identity -> public profile -> Project relationships -> partner discovery -> campaign activity -> first-party evidence -> outcomes -> reusable Linkary Proof.
 
 ## Production foundation
 
-- [x] Cloudflare Worker `linkary-xyz` is deployed.
-- [x] Production domains `linkary.xyz` and `app.linkary.xyz` are active.
-- [x] Production D1 database `linkary-db` is bound as `DB`.
-- [x] `migrations/0001_initial.sql` applied to production.
-- [x] `migrations/0002_cdp_auth_and_wallets.sql` applied to production.
-- [x] `migrations/0003_creator_access_review.sql` applied to production.
-- [x] CDP project, branding, frontend domains, Telegram authentication bot, and server validation credentials are configured.
-- [x] GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured.
-- [x] GitHub Actions runs tests, TypeScript checks, Wrangler dry-run, and production deployment on `main`.
-- [x] Pull requests run verification but do not deploy production.
-- [x] Production release `37add9f4ba57fc9e565ce8ebb03b594e43d0ad1b` deployed successfully through GitHub Actions.
+- [x] Cloudflare Worker production deployment from GitHub `main`.
+- [x] `linkary.xyz` public site and public profiles.
+- [x] `app.linkary.xyz` authenticated React + TypeScript workspace.
+- [x] Production D1 database `linkary-db` bound as `DB`.
+- [x] Pull requests run regression tests, frontend TypeScript checks and Wrangler dry run.
+- [x] `main` runs the same verification and deploys to Cloudflare when credentials are present.
+- [ ] Confirm protected production D1 migration state and apply all pending versioned migrations, especially `0017_project_partner_shortlists.sql` and `0018_verified_x_profile_avatars.sql` if they are not already applied.
 
 ## Authentication and identity
 
-- [x] React + TypeScript + Vite authenticated application exists in `frontend/`.
-- [x] Email OTP authentication implemented.
-- [x] Google authentication implemented.
-- [x] X authentication implemented.
-- [x] Telegram authentication implemented.
-- [x] Frontend access token is bridged to `POST /api/auth/cdp/session`.
-- [x] Linkary backend independently validates the authentication token before trusting identity data.
-- [x] Linkary server sessions use secure HTTP-only cookies, hashed session tokens, CSRF protection, logout, and revocation.
-- [x] Stable X and Telegram provider UIDs are stored separately from mutable handles.
-- [x] Handle history is preserved.
-- [x] Human accounts are not permanently typed as Creator or Project.
+- [x] Email OTP authentication.
+- [x] Google authentication.
+- [x] X authentication.
+- [x] Telegram authentication.
+- [x] CDP access tokens are validated server-side before Linkary trusts identity data.
+- [x] Secure Linkary server sessions, CSRF protection, logout and revocation.
+- [x] Stable X / Telegram provider identifiers are stored separately from mutable handles.
+- [x] X profile image synchronization uses the verified X identity and upgrades `_normal` images to higher-resolution `_400x400` URLs when possible.
+- [x] Existing custom non-X profile images remain user-controlled overrides.
+- [ ] Run final real-account acceptance QA for all four authentication paths on production.
 
-## Invite-only onboarding
+## Access and onboarding
 
-- [x] New users require a valid Linkary invitation or approved Creator Earn Access path.
-- [x] Creator first workspace receives 10 network invites.
-- [x] Company / Project first workspace receives 50 network invites.
-- [x] Creator onboarding creates a creator public profile.
-- [x] Company / Project onboarding creates an Organization, owner membership, and project public profile.
-- [x] Initial private owner bootstrap invitation exists as a single-use invitation for the first real owner account.
-- [ ] First real owner account still needs to complete registration.
-- [ ] First Superadmin grant still needs to be bootstrapped after that real user exists.
+- [x] Linkary remains invite-only.
+- [x] Creator Earn Access path with fixed X copy, unique claim code and manual Superadmin review.
+- [x] Arbitrary X URLs never auto-grant access.
+- [x] Creator first workspace receives 10 network invite credits.
+- [x] Project first workspace receives 50 network invite credits.
+- [x] Creator onboarding creates a Creator public profile.
+- [x] Project onboarding requires the Project's verified X identity and creates the Project organization/profile.
+- [x] A Project Linkary username is tied to the verified Project X handle.
+- [x] A personal Creator account must not free-form create or impersonate an unverified Project.
+- [ ] Run a second real Creator through Earn Access -> review -> approval -> onboarding end to end.
+- [ ] Run a second real Project through official-X registration end to end.
 
-## Creator Earn Access
+## Creator and Project profiles
 
-Production flow:
+- [x] Public `linkary.xyz/{username}` profiles.
+- [x] Creator and Project profile editing.
+- [x] Avatar/logo, display name, bio, SEO title/description and publish/unpublish.
+- [x] Social links, custom links, headings and featured media.
+- [x] Team member cards for Projects.
+- [x] Media Kit and Work With Me / collaboration CTA blocks.
+- [x] Project and Community relationship cards.
+- [x] Drag-and-drop ordering plus up/down controls.
+- [x] Live mobile editor preview.
+- [x] Profile completion / onboarding-readiness guidance.
+- [x] Public Creator Campaign Proof from accepted Linkary campaign relationships and tracked/verified collaboration evidence.
+- [x] Public Project Growth Proof from stored Linkary campaign/tracking evidence.
+- [x] Public Project proof excludes manual outcome/value events.
+- [x] Open Project campaign opportunities appear automatically on public Project profiles.
+- [ ] Dedicated dynamic 1200x630 profile preview artwork remains optional post-Beta polish.
+- [ ] Linkary Score remains deferred until enough defensible data exists.
 
-1. Creator opens Create account.
-2. Creator chooses Creator.
-3. Creator authenticates first.
-4. Linkary creates a unique `LKY-...` claim.
-5. Linkary shows fixed approved X copy containing `@Linkaryxyz` and the claim code.
-6. `Post on X` opens X compose with the curated copy.
-7. Creator publishes the post and returns to Linkary.
-8. Creator submits the resulting X status URL.
-9. Submission enters the Superadmin review queue.
-10. Superadmin approves or rejects the claim.
-11. Approval creates a one-time Creator-only Linkary access path.
-12. Creator continues into normal onboarding and claims a Linkary username.
+## Project relationships and permissions
 
-Current controls:
+- [x] Project Owner, Admin, Campaign Manager, Analyst and Viewer roles.
+- [x] Creator can search verified registered Projects.
+- [x] Creator can request a Project role with an optional note.
+- [x] Creator can see and cancel pending requests and see past decisions.
+- [x] Owner/Admin can review Project access requests.
+- [x] Project Admin cannot grant another Project Admin role. Owner approval is required.
+- [x] Owner/Admin can search and add existing Linkary members directly.
+- [x] Owner/Admin role-management and removal controls follow backend permission boundaries.
+- [x] Project ownership transfer exists with explicit Owner confirmation.
+- [x] Workspace switching persists the selected Creator/Project profile.
+- [ ] Real multi-account permission QA is required before broad onboarding.
 
-- [x] Arbitrary X URLs do not automatically grant access.
-- [x] Only canonical X/Twitter status URLs are accepted as evidence.
-- [x] Duplicate post reuse is blocked by the database uniqueness constraint.
-- [x] Manual Superadmin review is the default.
-- [x] Rejection reason and review history are preserved.
-- [x] Superadmin review actions are protected by the existing server-side Superadmin grant boundary.
-- [x] Legacy arbitrary-URL Earn Access endpoint is retired.
-- [x] Automated verification is represented as an admin setting but remains disabled by default.
-- [ ] TwitterAPI.io verification provider integration is deferred until Superadmin explicitly enables and configures it.
+## Inbox / action center
 
-Important rule: TwitterAPI.io is not required for launch access, referrals, invite attribution, or acquisition attribution.
+- [x] `/dashboard/inbox` exists in the authenticated app.
+- [x] Surfaces Project access requests requiring Owner/Admin action.
+- [x] Surfaces pending campaign opportunity applications for Owner/Admin/Campaign Manager.
+- [x] Access requests can be approved/rejected from Inbox.
+- [x] Campaign applications can be accepted/rejected from Inbox.
+- [x] User sees recent decisions on their own Project access requests.
+- [x] Owner-only access decisions are clearly separated.
+- [ ] Persisted read/unread notification infrastructure is intentionally deferred until Beta usage proves it is needed.
+
+## Invites and referral attribution
+
+- [x] Invite balance and ledger.
+- [x] Creator and Project invite allocations.
+- [x] Invite creation and revocation.
+- [x] First-party invite landing/click attribution.
+- [x] Invite dashboard UI.
+- [x] Click and registration counts.
+- [x] Recipient/redemption state where known.
+- [x] Privacy-conscious visitor token foundation.
+- [ ] Automatic invite quality scoring / credit refresh rules remain deferred. Superadmin can manage credits for Beta.
+
+## Growth, campaigns and attribution
+
+- [x] Campaign creation and listing.
+- [x] Campaign activities/deliverables.
+- [x] Creator/community/partner assignment foundation.
+- [x] First-party tracked links and redirects.
+- [x] Click attribution.
+- [x] Conversion/outcome ingestion.
+- [x] Evidence confidence/source labels.
+- [x] Growth report aggregation.
+- [x] Spend, tracked clicks, outcomes, attributed value and conversion calculations.
+- [x] Source performance reporting.
+- [x] CSV export.
+- [x] Campaign opportunities and Creator applications.
+- [x] Project review of campaign applications.
+- [ ] Telegram destination-community Tracker Bot automation is deferred until Beta stability.
+- [ ] Telegram join/leave/retention verification is deferred.
+
+## Partner directory and network
+
+- [x] Partner Manager directory.
+- [x] Manager represented assets.
+- [x] Project private partner shortlist.
+- [x] Shortlist status progression.
+- [x] Promote selected partner into Project campaign evidence network.
+- [x] Collaboration/performance history foundation.
+- [ ] Public voting/review reputation system, disputes and anti-brigading controls are post-Beta.
+
+## Wallets
+
+- [x] Coinbase CDP remains the Linkary wallet infrastructure.
+- [x] Linkary/Base wallet mapping foundation.
+- [x] Manual additional EVM reward destination.
+- [x] Manual additional Solana reward destination.
+- [x] Clear warning that additional wallets do not need to be connected and may receive eligible rewards/airdrops directly.
+- [x] Additional wallet destinations remain private and do not grant Linkary control over those wallets.
+- [ ] Alchemy onchain attribution automation is deferred until the core Beta is stable.
+- [ ] Payments, subscriptions, payouts and delegated signing are deferred.
+
+## Mobile UX
+
+- [x] Authenticated workspace has a phone bottom-navigation mode.
+- [x] Mobile primary navigation is limited to Overview, Inbox, Growth, Profile, Invites and Projects.
+- [x] Evidence, Partners and Wallets remain available through workspace flows without overcrowding the phone nav.
+- [x] Profile editor has a responsive mobile layout and mobile preview.
+- [ ] Final real-device QA remains required at 320, 375, 390 and 430px widths, tablet and desktop.
 
 ## Superadmin
 
-- [x] `admin_grants` architecture exists.
-- [x] `/admin/*` is isolated from normal workspaces.
-- [x] Creator Earn Access review queue backend exists.
-- [x] Approve and reject actions exist.
-- [x] Verification mode setting exists.
-- [ ] First real Superadmin user grant is not yet created.
-- [ ] Full Superadmin operations dashboard beyond Creator Access review remains to be built.
+- [x] Server-side Superadmin grant boundary.
+- [x] Creator Earn Access review queue.
+- [x] Approve/reject with rejection reason/history.
+- [x] User suspension/restoration operations foundation.
+- [x] Invite-credit adjustment operations foundation.
+- [x] Verification-mode setting exists, with manual review as default.
+- [ ] Run final production acceptance QA with the real Superadmin account.
 
-Future Superadmin controls include invite operations, account moderation, reputation moderation, provider costs, referral holds, plans/contact credits, compliance, and support tools.
+## Launch-critical work remaining
 
-## URLs and public surfaces
+1. Apply/verify protected D1 migrations, especially 0017 and 0018 if pending.
+2. Test Email, Google, X and Telegram authentication with real accounts.
+3. Test Creator Earn Access from X post through Superadmin approval and onboarding.
+4. Test official-X Project registration with a real second Project.
+5. Test invite click -> signup -> registration attribution -> recipient/quality state.
+6. Test Creator -> Project access request -> approval -> role switch.
+7. Test Owner, Admin, Campaign Manager, Analyst and Viewer permissions using separate users.
+8. Test Project -> Campaign -> Activity -> Partner -> Tracking Link -> Click -> Outcome -> Growth Report end to end.
+9. Test public Creator/Project profiles on real mobile devices and social-sharing previews.
+10. Fix only bugs found in those acceptance passes before broad onboarding.
 
-- [x] `linkary.xyz` remains the marketing and public profile host.
-- [x] `app.linkary.xyz` remains the authenticated application.
-- [x] Clean `/login` and `/signup` routes are used instead of permanent hash routes.
-- [x] Public marketing CTAs route to the authenticated application.
-- [x] `app.linkary.xyz` is noindexed.
-- [x] Production prototype toolbar is removed from normal production rendering.
-- [x] Main public page contains Open Graph and Twitter card metadata.
-- [x] Published public profile pages include canonical and SEO metadata.
-- [ ] Dedicated generated 1200x630 social preview artwork should replace the current temporary brand image.
-- [ ] Dynamic profile-specific preview images remain to be built.
+## Deliberately deferred until Beta is stable
 
-## Public profiles
-
-- [x] Public `linkary.xyz/{username}` profile rendering foundation.
-- [x] Public profile JSON read model.
-- [x] Profile edit APIs.
-- [x] Profile block create, update, delete, and reorder APIs.
-- [x] Profile publish and unpublish APIs.
-- [x] Username history foundation.
-- [x] Sitemap and robots handling.
-- [ ] Real Profile Editor UI wired to these APIs.
-- [ ] Drag and drop profile editor.
-- [ ] Appearance and SEO editor.
-- [ ] Live mobile preview.
-- [ ] Creator media kit, campaign proof, reputation, Work With Me, and Linkary Score modules.
-
-## Organizations and workspaces
-
-- [x] Organization creation during Project onboarding.
-- [x] Owner membership creation.
-- [x] Organization list API.
-- [x] Archive and restore lifecycle.
-- [x] Initial workspace selector.
-- [ ] Full multi-organization workspace switching.
-- [ ] Additional project creation.
-- [ ] Team invitation and membership management.
-
-## Invites and referrals
-
-- [x] Invite balance model.
-- [x] Invite ledger.
-- [x] Network invite creation with credit consumption.
-- [x] First-party invite landing and click attribution.
-- [x] Persistent privacy-conscious visitor token foundation.
-- [ ] Invite dashboard UI.
-- [ ] Registration and conversion reporting.
-- [ ] Referral quality scoring and credit refresh rules.
-
-## Campaign and attribution product
-
-The next product milestone after first-user onboarding is the V1 campaign operating system.
-
-Still to build in the official production stack:
-
-- [ ] Campaign CRUD.
-- [ ] Activity and deliverable tracking.
-- [ ] Creator, promotional community, and POC assignment.
-- [ ] Manual campaign spend and outcome entry.
-- [ ] `l.linkary.xyz` first-party redirect infrastructure.
-- [ ] Click and visitor attribution.
-- [ ] Conversion ingestion.
-- [ ] Telegram destination-community Tracker Bot.
-- [ ] Join, leave, and retention verification where Telegram permissions allow.
-- [ ] CPC, CPA, cost per join, cost per retained user, conversion, and ROI calculations.
-- [ ] Data labels: Manual, Linkary tracked, Telegram verified, Provider verified.
-- [ ] CSV export.
-
-## Reputation
-
-Still to build:
-
-- [ ] Manager / POC reputation entity and UI.
-- [ ] Promotional Platform reputation entity and UI.
-- [ ] Upvote and downvote system.
-- [ ] Reason tags.
-- [ ] 180 Unicode character reviews.
-- [ ] Verified campaign weighting.
-- [ ] Vote-change audit history.
-- [ ] Moderation, disputes, and anti-brigading controls.
-
-POC reputation and Promotional Platform reputation must remain separate.
-
-## Wallet and payment safety
-
-- [x] Embedded wallet mapping foundation exists.
-- [x] Current server credential does not have trade, transfer, private-key export, or policy-management authority.
-- [x] User-controlled wallet model remains the locked direction.
-- [ ] Subscription payment authorization is future work.
-- [ ] Creator payout authorization is future work.
-- [ ] Delegated signing is not enabled.
-
-## v1.2 external wallets and onchain attribution
-
-- [ ] Manual EVM/Solana external wallet model and management UI.
-- [ ] External wallets remain private, unverified, and separate from the Linkary Wallet.
-- [ ] Preferred airdrop destination requires explicit acknowledgement and audit history.
-- [ ] Alchemy onchain attribution adapter and normalized D1 event model.
-- [ ] Shared network webhooks only: Base, BNB Chain, Solana, Arbitrum, Robinhood Chain.
-- [ ] Feature flags, usage controls, webhook signature validation, and idempotent ingestion.
-- [ ] Onchain metrics feed campaign analytics only when attribution evidence is defensible.
-
-## Immediate next milestone
-
-1. Use the one-time owner invitation to create the first real Linkary account.
-2. Confirm the real user and workspace are created in production.
-3. Bootstrap that real user with an active `superadmin` grant using a controlled database operation.
-4. Verify `/admin` and the Creator Earn Access review queue end to end.
-5. Run a real Creator Earn Access test from signup through approval and onboarding.
-6. Verify Email, Google, X, and Telegram authentication paths on production.
-7. Build the real Profile Editor UI.
-8. Build the Invite dashboard.
-9. Begin the official V1 Campaign, Activity, Tracking Link, and Result stack from the Technical Product and Engineering Paper v1.1.
-
-## Deliberately deferred
-
-TwitterAPI.io automation, paid social intelligence, creator referral payouts, wallet payments, deep analytics, audience overlap, reputation scoring automation, MCP write actions, and advanced AI intelligence remain deferred until identity, onboarding, profiles, invites, and first-party campaign attribution are production-stable.
+TwitterAPI.io automation, Telegram Tracker Bot automation, Alchemy webhooks/onchain attribution, advanced audience overlap, full reputation voting/moderation, AI recommendations, dedicated `admin.linkary.xyz`, subscription billing, payouts, referral revenue automation and delegated signing.
