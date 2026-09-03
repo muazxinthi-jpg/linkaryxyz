@@ -40,8 +40,14 @@ function isSocial(block: ProfileBlockRow): boolean {
   // A featured X post can be media, but it must never become a second X profile icon.
   // Only explicit social blocks belong in the compact social navigation.
   if (!block.url) return false;
+  if (['featured_video', 'featured_article', 'featured_image', 'product_feature', 'nft_item', 'team_member'].includes(block.block_type)) return false;
   if (block.block_type === 'social_link') return true;
-  return ['telegram', 'youtube', 'tiktok', 'instagram', 'facebook', 'reddit', 'linkedin'].includes(block.block_type);
+  if (['telegram', 'youtube', 'tiktok', 'instagram', 'facebook', 'reddit', 'linkedin'].includes(block.block_type)) return true;
+  // Earlier profiles saved their network choice on a generic link. Honour that
+  // explicit metadata, but do not infer a social account from featured content.
+  const config = safeJson(block.config_json);
+  const configured = typeof config.socialPlatform === 'string' ? config.socialPlatform.toLowerCase().trim() : '';
+  return ['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster'].includes(configured);
 }
 
 const KNOWN_SOCIALS = new Set(['x', 'linkedin', 'tiktok', 'facebook', 'instagram', 'youtube', 'telegram', 'whatsapp', 'reddit', 'discord', 'github', 'farcaster']);
