@@ -11,6 +11,7 @@ import PartnerDirectoryExperience from './PartnerDirectoryExperience';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
 import ProjectExperienceBeta from './ProjectExperienceBeta';
 import InboxExperience from './InboxExperience';
+import AdminReadinessExperience from './AdminReadinessExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -19,7 +20,18 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-type Experience = 'dashboard' | 'inbox' | 'growth' | 'operations' | 'network' | 'partners' | 'profile' | 'invites' | 'wallets' | 'projects';
+type Experience =
+  | 'dashboard'
+  | 'inbox'
+  | 'growth'
+  | 'operations'
+  | 'network'
+  | 'partners'
+  | 'profile'
+  | 'invites'
+  | 'wallets'
+  | 'projects'
+  | 'admin-readiness';
 
 function ProductGate({ experience }: { experience: Experience }) {
   const [state, setState] = useState<'loading' | 'legacy' | 'ready'>('loading');
@@ -32,16 +44,26 @@ function ProductGate({ experience }: { experience: Experience }) {
       try {
         const nextMe = await getJson<ProductMe>('/api/auth/me');
         if (cancelled) return;
-        if (!nextMe.authenticated) { setState('legacy'); return; }
+        if (!nextMe.authenticated) {
+          setState('legacy');
+          return;
+        }
         const nextStatus = await getJson<ProductStatus>('/api/onboarding/status');
         if (cancelled) return;
-        if (!nextStatus.profiles?.length) { setState('legacy'); return; }
-        setMe(nextMe); setStatus(nextStatus); setState('ready');
+        if (!nextStatus.profiles?.length) {
+          setState('legacy');
+          return;
+        }
+        setMe(nextMe);
+        setStatus(nextStatus);
+        setState('ready');
       } catch {
         if (!cancelled) setState('legacy');
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (state === 'legacy') return <AppV2 />;
@@ -55,9 +77,18 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
+    if (experience === 'admin-readiness') {
+      if (!me.user?.superadmin) return <AppV2 />;
+      return <AdminReadinessExperience me={me} status={status} />;
+    }
     return <OperationsExperience me={me} status={status} />;
   }
-  return <main className="loading-screen"><div className="spinner" /><p>Opening Linkary</p></main>;
+  return (
+    <main className="loading-screen">
+      <div className="spinner" />
+      <p>Opening Linkary</p>
+    </main>
+  );
 }
 
 export default function AppV3() {
@@ -72,5 +103,6 @@ export default function AppV3() {
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
   if (location.pathname === '/settings') return <ProductGate experience="projects" />;
+  if (location.pathname === '/admin/readiness') return <ProductGate experience="admin-readiness" />;
   return <AppV2 />;
 }
