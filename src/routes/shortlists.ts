@@ -5,6 +5,7 @@ import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { requireOperationalProjectAccess, organizationMembership } from './organizations';
 import { publicProfileUrl } from '../urls';
+import { handleCollaborationInquiryMutation, listCollaborationInquiries, type CollaborationInquiryMutationBody } from './collaborationInquiries';
 
 const id = () => `psl_${crypto.randomUUID().replace(/-/g, '')}`;
 const networkId = () => `net_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -17,9 +18,11 @@ function storedStage(value: string) { return stageToStored[value] || value; }
 
 export async function listProjectShortlist(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
-  const organizationId = new URL(request.url).searchParams.get('organizationId');
-  if (!organizationId) throw new HttpError(400, 'organizationId is required', 'organization_required');
+  const url = new URL(request.url);
   const db = new Db(requireDb(env));
+  if (url.searchParams.get('inquiries')) return listCollaborationInquiries(request, env, auth.user.id, db);
+  const organizationId = url.searchParams.get('organizationId');
+  if (!organizationId) throw new HttpError(400, 'organizationId is required', 'organization_required');
   if (!(await organizationMembership(db, auth.user.id, organizationId))) throw new HttpError(403, 'Project access denied', 'forbidden');
   const partners = await db.all<Record<string, unknown>>(
     `SELECT s.*, COALESCE(m.display_name,n.display_name) AS display_name, COALESCE(m.x_handle,n.primary_handle) AS primary_handle, CASE WHEN s.partner_manager_id IS NOT NULL THEN m.manager_type ELSE n.entity_type END AS resolved_kind FROM project_partner_shortlists s LEFT JOIN partner_managers m ON m.id=s.partner_manager_id LEFT JOIN project_network_entities n ON n.id=s.network_entity_id WHERE s.organization_id=? ORDER BY s.updated_at DESC`,
@@ -40,8 +43,10 @@ export async function saveProjectShortlist(request: Request, env: Env): Promise<
     partnerKind?: string;
     status?: string;
     notes?: string;
-  }>(request);
+  } & CollaborationInquiryMutationBody>(request);
   const db = new Db(requireDb(env));
+
+  if (body.action) return handleCollaborationInquiryMutation(request, env, auth.user.id, db, body);
 
   if (body.shortlistId) {
     const row = await db.first<{ organization_id: string }>('SELECT organization_id FROM project_partner_shortlists WHERE id=?', [body.shortlistId]);
