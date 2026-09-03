@@ -70,7 +70,7 @@ test('Community Manager workspace supports multiple communities and public profi
   assert.equal(ui.includes("managerType: 'community_manager'"), true);
   assert.equal(ui.includes('/api/partner-manager-assets'), true);
   assert.equal(ui.includes('Add community'), true);
-  assert.equal(ui.includes('Managed communities'), true);
+  assert.equal(ui.includes('MANAGED COMMUNITIES'), true);
   assert.equal(ui.includes("type: 'community_card'"), true);
   assert.equal(ui.includes('Add to public profile'), true);
   assert.equal(ui.includes('Telegram admin ownership and Linkary Tracker verification will be added'), true);
