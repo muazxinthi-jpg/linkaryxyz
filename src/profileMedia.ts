@@ -1,3 +1,5 @@
+import type { Env } from './env';
+
 export type FeaturedMedia =
   | { kind: "image"; src: string; youtube: boolean }
   | { kind: "video"; src: string; youtube: false };
@@ -138,6 +140,128 @@ function metaContent(source: string, property: string): string | null {
   for (const pattern of patterns) {
     const match = source.match(pattern);
     if (match?.[1]) return match[1].replace(/&amp;/gi, '&');
+  }
+  return null;
+}
+
+type NftMetadataLocator = {
+  chain: string;
+  contractAddress: string;
+  tokenId: string;
+};
+
+const ALCHEMY_NFT_HOSTS: Record<string, string> = {
+  ethereum: 'eth-mainnet',
+  eth: 'eth-mainnet',
+  base: 'base-mainnet',
+  arbitrum: 'arb-mainnet',
+  bsc: 'bnb-mainnet',
+  bnb: 'bnb-mainnet',
+  'bnb chain': 'bnb-mainnet',
+  polygon: 'polygon-mainnet',
+  optimism: 'opt-mainnet',
+};
+
+function nftGatewayUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const raw = value.trim();
+  if (raw.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${raw.slice(7).replace(/^ipfs\//, '')}`;
+  if (raw.startsWith('ar://')) return `https://arweave.net/${raw.slice(5)}`;
+  return safeHttpsUrl(raw);
+}
+
+function firstNftArtworkUrl(...values: unknown[]): string | null {
+  for (const value of values) {
+    const url = nftGatewayUrl(value);
+    if (url) return url;
+  }
+  return null;
+}
+
+function parseOpenSeaNftItemUrl(value: string): NftMetadataLocator | null {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (host !== 'opensea.io') return null;
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (!['item', 'assets'].includes(parts[0] || '') || parts.length < 4) return null;
+    const chain = (parts[1] || '').toLowerCase();
+    const contractAddress = parts[2] || '';
+    const tokenId = parts[3] || '';
+    if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress) || !tokenId) return null;
+    return { chain, contractAddress, tokenId };
+  } catch {
+    return null;
+  }
+}
+
+function metadataLocatorFromConfig(
+  chain: string | null | undefined,
+  contractAddress: string | null | undefined,
+  tokenId: string | null | undefined,
+): NftMetadataLocator | null {
+  const contract = contractAddress?.trim() || '';
+  const token = tokenId?.trim() || '';
+  if (!/^0x[a-fA-F0-9]{40}$/.test(contract) || !token) return null;
+  return { chain: (chain || 'ethereum').trim().toLowerCase(), contractAddress: contract, tokenId: token };
+}
+
+async function resolveAlchemyNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>, locator: NftMetadataLocator): Promise<string | null> {
+  const apiKey = env.ALCHEMY_API_KEY?.trim();
+  const host = ALCHEMY_NFT_HOSTS[locator.chain];
+  if (!apiKey || !host) return null;
+  try {
+    const endpoint = new URL(`https://${host}.g.alchemy.com/nft/v3/${encodeURIComponent(apiKey)}/getNFTMetadata`);
+    endpoint.searchParams.set('contractAddress', locator.contractAddress);
+    endpoint.searchParams.set('tokenId', locator.tokenId);
+    const response = await fetch(endpoint.toString(), { headers: { accept: 'application/json' } });
+    if (!response.ok) return null;
+    const payload = await response.json() as {
+      image?: { originalUrl?: unknown; pngUrl?: unknown; cachedUrl?: unknown; thumbnailUrl?: unknown };
+      raw?: { metadata?: { image?: unknown; image_url?: unknown } };
+    };
+    const image = payload.image || {};
+    const metadata = payload.raw?.metadata || {};
+    return firstNftArtworkUrl(image.originalUrl, image.pngUrl, image.cachedUrl, image.thumbnailUrl, metadata.image, metadata.image_url);
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve only the artwork for an NFT card. The click destination is deliberately
+ * not accepted here, so a collection page can never become the NFT preview image. */
+export async function resolveNftArtworkPreview(
+  env: Pick<Env, 'ALCHEMY_API_KEY'>,
+  artworkSource: string | null | undefined,
+  chain?: string | null,
+  nftContract?: string | null,
+  nftTokenId?: string | null,
+): Promise<FeaturedMedia | null> {
+  const source = safeHttpsUrl(artworkSource);
+  if (!source) return null;
+
+  const direct = safeDirectImageUrl(source);
+  if (direct) return { kind: 'image', src: direct, youtube: false };
+
+  const openSeaItem = parseOpenSeaNftItemUrl(source);
+  const locator = openSeaItem || metadataLocatorFromConfig(chain, nftContract, nftTokenId);
+  if (locator) {
+    const artwork = await resolveAlchemyNftArtwork(env, locator);
+    if (artwork) return { kind: 'image', src: artwork, youtube: false };
+    if (openSeaItem) return null;
+  }
+
+  // Extensionless CDN artwork is common. Verify that the explicit artwork source
+  // itself is an image, but never parse a marketplace page's social metadata.
+  try {
+    const sourceUrl = new URL(source);
+    if (!isPublicWebHost(sourceUrl.hostname)) return null;
+    const response = await fetch(source, { headers: { accept: 'image/avif,image/webp,image/*;q=0.9,*/*;q=0.2' }, redirect: 'follow' });
+    if (!response.ok) return null;
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };
+  } catch {
+    // Broken third-party artwork must never make the public profile unavailable.
   }
   return null;
 }
