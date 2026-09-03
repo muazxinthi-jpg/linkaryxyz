@@ -11,7 +11,7 @@ const SYSTEM_ROUTES = new Set([
   '', 'api', 'onboarding', 'admin', 'app', 'assets', 'i', 'robots.txt', 'sitemap.xml',
   'pricing', 'about', 'blog', 'privacy', 'terms', 'support', 'help', 'status', 'security',
   'login', 'signup', 'dashboard', 'campaigns', 'creators', 'communities', 'tracking',
-  'profile', 'invites', 'settings',
+  'profile', 'invites', 'settings', 'wallets', 'partners', 'opportunities',
 ]);
 
 export function normalizeXHandle(value: string): string {
