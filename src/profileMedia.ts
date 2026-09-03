@@ -162,12 +162,26 @@ const ALCHEMY_NFT_HOSTS: Record<string, string> = {
   optimism: 'opt-mainnet',
 };
 
+const EVM_PUBLIC_RPC: Record<string, string> = {
+  ethereum: 'https://ethereum-rpc.publicnode.com',
+  eth: 'https://ethereum-rpc.publicnode.com',
+  base: 'https://mainnet.base.org',
+  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  bsc: 'https://bsc-dataseed.binance.org',
+  bnb: 'https://bsc-dataseed.binance.org',
+  'bnb chain': 'https://bsc-dataseed.binance.org',
+  polygon: 'https://polygon-rpc.com',
+  optimism: 'https://mainnet.optimism.io',
+};
+
 function nftGatewayUrl(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   const raw = value.trim();
   if (raw.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${raw.slice(7).replace(/^ipfs\//, '')}`;
   if (raw.startsWith('ar://')) return `https://arweave.net/${raw.slice(5)}`;
-  return safeHttpsUrl(raw);
+  const safe = safeHttpsUrl(raw);
+  if (!safe) return null;
+  return isPublicWebHost(new URL(safe).hostname) ? safe : null;
 }
 
 function firstNftArtworkUrl(...values: unknown[]): string | null {
@@ -204,6 +218,102 @@ function metadataLocatorFromConfig(
   const token = tokenId?.trim() || '';
   if (!/^0x[a-fA-F0-9]{40}$/.test(contract) || !token) return null;
   return { chain: (chain || 'ethereum').trim().toLowerCase(), contractAddress: contract, tokenId: token };
+}
+
+function decodeAbiString(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) return null;
+  const hex = value.slice(2);
+  if (hex.length < 128) return null;
+  try {
+    const offsetBytes = Number(BigInt('0x' + hex.slice(0, 64)));
+    const offset = offsetBytes * 2;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset + 64 > hex.length) return null;
+    const lengthBytes = Number(BigInt('0x' + hex.slice(offset, offset + 64)));
+    const start = offset + 64;
+    const end = start + lengthBytes * 2;
+    if (!Number.isSafeInteger(end) || end > hex.length) return null;
+    const bytes = new Uint8Array(lengthBytes);
+    for (let index = 0; index < lengthBytes; index += 1) {
+      bytes[index] = Number.parseInt(hex.slice(start + index * 2, start + index * 2 + 2), 16);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function nftTokenCallData(selector: string, tokenId: string): string | null {
+  try {
+    const id = BigInt(tokenId);
+    if (id < 0n) return null;
+    return selector + id.toString(16).padStart(64, '0');
+  } catch {
+    return null;
+  }
+}
+
+async function readRpcTokenUri(rpc: string, locator: NftMetadataLocator, selector: string): Promise<string | null> {
+  const data = nftTokenCallData(selector, locator.tokenId);
+  if (!data) return null;
+  try {
+    const response = await fetch(rpc, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: locator.contractAddress, data }, 'latest'] }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { result?: unknown };
+    return decodeAbiString(payload.result);
+  } catch {
+    return null;
+  }
+}
+
+function parseInlineNftMetadata(uri: string): Record<string, unknown> | null {
+  try {
+    if (uri.startsWith('data:application/json;base64,')) {
+      return JSON.parse(atob(uri.slice('data:application/json;base64,'.length))) as Record<string, unknown>;
+    }
+    if (uri.startsWith('data:application/json,')) {
+      return JSON.parse(decodeURIComponent(uri.slice('data:application/json,'.length))) as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function fetchNftMetadata(uri: string, tokenId: string): Promise<Record<string, unknown> | null> {
+  let resolvedUri = uri.trim();
+  if (!resolvedUri) return null;
+  if (resolvedUri.includes('{id}')) {
+    try { resolvedUri = resolvedUri.replaceAll('{id}', BigInt(tokenId).toString(16).padStart(64, '0')); }
+    catch { return null; }
+  }
+  const inline = parseInlineNftMetadata(resolvedUri);
+  if (inline) return inline;
+  const metadataUrl = nftGatewayUrl(resolvedUri);
+  if (!metadataUrl) return null;
+  try {
+    const response = await fetch(metadataUrl, { headers: { accept: 'application/json,application/*+json;q=0.9,*/*;q=0.2' }, redirect: 'follow' });
+    if (!response.ok) return null;
+    const finalUrl = safeHttpsUrl(response.url || metadataUrl);
+    if (!finalUrl || !isPublicWebHost(new URL(finalUrl).hostname)) return null;
+    return await response.json() as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveOnchainEvmNftArtwork(locator: NftMetadataLocator): Promise<string | null> {
+  const rpc = EVM_PUBLIC_RPC[locator.chain];
+  if (!rpc) return null;
+  const tokenUri = await readRpcTokenUri(rpc, locator, '0xc87b56dd')
+    || await readRpcTokenUri(rpc, locator, '0x0e89341c');
+  if (!tokenUri) return null;
+  const metadata = await fetchNftMetadata(tokenUri, locator.tokenId);
+  if (!metadata) return null;
+  return firstNftArtworkUrl(metadata.image, metadata.image_url, metadata.imageUrl);
 }
 
 async function resolveAlchemyNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>, locator: NftMetadataLocator): Promise<string | null> {
@@ -248,6 +358,8 @@ export async function resolveNftArtworkPreview(
   if (locator) {
     const artwork = await resolveAlchemyNftArtwork(env, locator);
     if (artwork) return { kind: 'image', src: artwork, youtube: false };
+    const onchainArtwork = await resolveOnchainEvmNftArtwork(locator);
+    if (onchainArtwork) return { kind: 'image', src: onchainArtwork, youtube: false };
     if (openSeaItem) return null;
   }
 
