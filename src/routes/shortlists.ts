@@ -4,8 +4,10 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { requireOperationalProjectAccess, organizationMembership } from './organizations';
+import { publicProfileUrl } from '../urls';
 
 const id = () => `psl_${crypto.randomUUID().replace(/-/g, '')}`;
+const networkId = () => `net_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
 const canonicalStatuses = new Set(['interested', 'contacted', 'negotiating', 'active', 'completed', 'not_a_fit']);
 const partnerKinds = new Set(['community_manager', 'kol_manager', 'creator', 'community', 'collaboration_manager']);
@@ -29,8 +31,18 @@ export async function listProjectShortlist(request: Request, env: Env): Promise<
 export async function saveProjectShortlist(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
-  const body = await readJson<{ organizationId?: string; shortlistId?: string; partnerManagerId?: string; networkEntityId?: string; partnerKind?: string; status?: string; notes?: string }>(request);
+  const body = await readJson<{
+    organizationId?: string;
+    shortlistId?: string;
+    partnerManagerId?: string;
+    networkEntityId?: string;
+    creatorProfileId?: string;
+    partnerKind?: string;
+    status?: string;
+    notes?: string;
+  }>(request);
   const db = new Db(requireDb(env));
+
   if (body.shortlistId) {
     const row = await db.first<{ organization_id: string }>('SELECT organization_id FROM project_partner_shortlists WHERE id=?', [body.shortlistId]);
     if (!row) throw new HttpError(404, 'Shortlisted partner not found', 'shortlist_not_found');
@@ -40,22 +52,98 @@ export async function saveProjectShortlist(request: Request, env: Env): Promise<
     await db.run('UPDATE project_partner_shortlists SET status=?,notes=?,updated_at=? WHERE id=?', [status, body.notes?.trim().slice(0, 1000) || '', now(), body.shortlistId]);
     return json({ ok: true, id: body.shortlistId });
   }
-  if (!body.organizationId || (!body.partnerManagerId && !body.networkEntityId) || !partnerKinds.has(body.partnerKind || '')) throw new HttpError(400, 'Project and partner are required', 'invalid_shortlist');
+
+  if (!body.organizationId || (!body.partnerManagerId && !body.networkEntityId && !body.creatorProfileId) || !partnerKinds.has(body.partnerKind || '')) {
+    throw new HttpError(400, 'Project and partner are required', 'invalid_shortlist');
+  }
   await requireOperationalProjectAccess(db, auth.user.id, body.organizationId, true);
+
+  let resolvedNetworkEntityId = body.networkEntityId || null;
+
+  if (body.creatorProfileId) {
+    if (body.partnerKind !== 'creator' || body.partnerManagerId || body.networkEntityId) {
+      throw new HttpError(400, 'Creator profile shortlist data is invalid', 'invalid_shortlist');
+    }
+    const creator = await db.first<{
+      id: string;
+      username: string;
+      display_name: string;
+      verification_status: string;
+      current_handle: string | null;
+    }>(
+      `SELECT p.id, p.username, p.display_name, p.verification_status, pi.current_handle
+         FROM profiles p
+         LEFT JOIN platform_identities pi ON pi.id = p.primary_platform_identity_id
+        WHERE p.id = ? AND p.profile_type = 'creator' AND p.visibility = 'published'`,
+      [body.creatorProfileId],
+    );
+    if (!creator) throw new HttpError(404, 'Creator profile not found', 'partner_not_found');
+
+    const creatorUrl = publicProfileUrl(request, env, creator.username);
+    const existingEntity = creator.current_handle
+      ? await db.first<{ id: string }>(
+          `SELECT id
+             FROM project_network_entities
+            WHERE organization_id = ?
+              AND entity_type = 'creator'
+              AND (primary_url = ? OR lower(COALESCE(primary_handle,'')) = lower(?))
+            LIMIT 1`,
+          [body.organizationId, creatorUrl, creator.current_handle],
+        )
+      : await db.first<{ id: string }>(
+          `SELECT id
+             FROM project_network_entities
+            WHERE organization_id = ? AND entity_type = 'creator' AND primary_url = ?
+            LIMIT 1`,
+          [body.organizationId, creatorUrl],
+        );
+
+    if (existingEntity) {
+      resolvedNetworkEntityId = existingEntity.id;
+    } else {
+      resolvedNetworkEntityId = networkId();
+      const timestamp = now();
+      await db.run(
+        `INSERT INTO project_network_entities
+          (id,organization_id,entity_type,display_name,primary_handle,primary_url,verification_status,notes,created_by_user_id,created_at,updated_at)
+         VALUES (?,?,'creator',?,?,?,?,?,?,?,?)`,
+        [
+          resolvedNetworkEntityId,
+          body.organizationId,
+          creator.display_name.slice(0, 120),
+          creator.current_handle?.slice(0, 80) || null,
+          creatorUrl,
+          creator.verification_status === 'verified_x' ? 'verified' : 'unverified',
+          'Linked from Linkary creator profile',
+          auth.user.id,
+          timestamp,
+          timestamp,
+        ],
+      );
+    }
+  }
+
   if (body.partnerManagerId) {
     const manager = await db.first<{ id: string; manager_type: string }>("SELECT id,manager_type FROM partner_managers WHERE id=? AND visibility='public'", [body.partnerManagerId]);
     if (!manager) throw new HttpError(404, 'Partner listing not found', 'partner_not_found');
     if (manager.manager_type !== body.partnerKind) throw new HttpError(400, 'Partner type does not match listing', 'invalid_shortlist');
   }
-  if (body.networkEntityId) {
-    const entity = await db.first<{ id: string; entity_type: string }>('SELECT id,entity_type FROM project_network_entities WHERE id=? AND organization_id=?', [body.networkEntityId, body.organizationId]);
+
+  if (resolvedNetworkEntityId && !body.creatorProfileId) {
+    const entity = await db.first<{ id: string; entity_type: string }>('SELECT id,entity_type FROM project_network_entities WHERE id=? AND organization_id=?', [resolvedNetworkEntityId, body.organizationId]);
     if (!entity) throw new HttpError(404, 'Project network partner not found', 'partner_not_found');
     if (entity.entity_type !== body.partnerKind) throw new HttpError(400, 'Partner type does not match network record', 'invalid_shortlist');
   }
+
   const shortlistId = id();
   try {
-    await db.run("INSERT INTO project_partner_shortlists (id,organization_id,partner_manager_id,network_entity_id,partner_kind,status,notes,created_by_user_id,created_at,updated_at) VALUES (?,?,?,?,?,'interested',?,?,?,?)", [shortlistId, body.organizationId, body.partnerManagerId || null, body.networkEntityId || null, body.partnerKind, body.notes?.trim().slice(0, 1000) || '', auth.user.id, now(), now()]);
-  } catch { throw new HttpError(409, 'This partner is already on the Project shortlist', 'partner_already_shortlisted'); }
+    await db.run(
+      "INSERT INTO project_partner_shortlists (id,organization_id,partner_manager_id,network_entity_id,partner_kind,status,notes,created_by_user_id,created_at,updated_at) VALUES (?,?,?,?,?,'interested',?,?,?,?)",
+      [shortlistId, body.organizationId, body.partnerManagerId || null, resolvedNetworkEntityId || null, body.partnerKind, body.notes?.trim().slice(0, 1000) || '', auth.user.id, now(), now()],
+    );
+  } catch {
+    throw new HttpError(409, 'This partner is already on the Project shortlist', 'partner_already_shortlisted');
+  }
   return json({ id: shortlistId }, { status: 201 });
 }
 
@@ -74,7 +162,7 @@ export async function promoteShortlistPartner(request: Request, env: Env, shortl
     ? await db.first<{ id: string }>('SELECT id FROM project_network_entities WHERE organization_id=? AND lower(COALESCE(primary_handle,\'\'))=lower(?) LIMIT 1', [partner.organization_id, partner.primary_handle])
     : await db.first<{ id: string }>('SELECT id FROM project_network_entities WHERE organization_id=? AND lower(display_name)=lower(?) LIMIT 1', [partner.organization_id, partner.display_name]);
   if (existing) return json({ id: existing.id, existing: true });
-  const entityId = id('net');
+  const entityId = networkId();
   const timestamp = now();
   await db.run(
     `INSERT INTO project_network_entities (id,organization_id,entity_type,display_name,primary_handle,primary_url,verification_status,notes,created_by_user_id,created_at,updated_at) VALUES (?,?,?,?,?,NULL,'unverified',?,?,?,?)`,
