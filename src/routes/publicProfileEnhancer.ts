@@ -1,4 +1,6 @@
 import type { Env } from '../env';
+import { requireDb } from '../env';
+import { Db } from '../db/client';
 import type { ProfileBlockRow } from '../db/models';
 import { getPublishedProfile, renderPublicProfile as renderBasePublicProfile } from './profiles';
 
@@ -13,6 +15,10 @@ function safeJson(value: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Math.max(0, value || 0));
 }
 
 function socialPlatform(block: ProfileBlockRow): string {
@@ -59,6 +65,131 @@ const KNOWN_SOCIALS = new Set(['x', 'linkedin', 'tiktok', 'facebook', 'instagram
 function icon(platform: string): string {
   if (!KNOWN_SOCIALS.has(platform)) return '<span class="profile-social-custom" aria-hidden="true">↗</span>';
   return `<img class="profile-social-brand" src="/assets/social/${escapeHtml(platform)}.svg" alt="" aria-hidden="true">`;
+}
+
+type AutomaticCommunity = {
+  id: string;
+  name: string;
+  handle: string | null;
+  url: string | null;
+  audienceSize: number;
+  verificationStatus: string;
+};
+
+type AutomaticCommunityPortfolio = {
+  headline: string;
+  openToCampaigns: boolean;
+  telegramIdentityVerified: boolean;
+  telegramHandle: string | null;
+  combinedAudience: number;
+  communities: AutomaticCommunity[];
+};
+
+function safeCommunityUrl(value: string | null, handle: string | null): string | null {
+  if (value) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.toString();
+    } catch {
+      // Fall through to the canonical Telegram handle when available.
+    }
+  }
+  const clean = handle?.trim().replace(/^@/, '');
+  return clean ? `https://t.me/${encodeURIComponent(clean)}` : null;
+}
+
+async function loadAutomaticCommunityPortfolio(env: Env, profileId: string, profileType: string): Promise<AutomaticCommunityPortfolio | null> {
+  if (profileType !== 'creator') return null;
+  const db = new Db(requireDb(env));
+  try {
+    const manager = await db.first<{ id: string; headline: string; open_to_campaigns: number }>(
+      `SELECT id, headline, open_to_campaigns
+         FROM partner_managers
+        WHERE profile_id = ? AND manager_type = 'community_manager' AND visibility = 'public'
+        LIMIT 1`,
+      [profileId],
+    );
+    if (!manager) return null;
+
+    const [assets, telegram] = await Promise.all([
+      db.all<{ id: string; name: string; handle: string | null; url: string | null; audience_size: number; verification_status: string }>(
+        `SELECT id, name, handle, url, audience_size, verification_status
+           FROM partner_manager_assets
+          WHERE manager_id = ? AND asset_type = 'telegram_community'
+          ORDER BY verification_status = 'verified' DESC, audience_size DESC, name ASC
+          LIMIT 100`,
+        [manager.id],
+      ),
+      db.first<{ current_handle: string | null }>(
+        `SELECT pi.current_handle
+           FROM profiles p
+           JOIN platform_identity_links pil ON pil.user_id = p.owner_user_id
+            AND pil.link_type = 'owns' AND pil.ended_at IS NULL
+           JOIN platform_identities pi ON pi.id = pil.platform_identity_id
+          WHERE p.id = ?
+            AND pi.platform = 'telegram'
+            AND pi.provider_object_type = 'person'
+            AND pi.status = 'active'
+            AND pi.ownership_verified_at IS NOT NULL
+          ORDER BY pil.verified_at DESC
+          LIMIT 1`,
+        [profileId],
+      ),
+    ]);
+
+    if (!assets.length) return null;
+    const communities = assets.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      handle: asset.handle,
+      url: safeCommunityUrl(asset.url, asset.handle),
+      audienceSize: Number(asset.audience_size || 0),
+      verificationStatus: asset.verification_status,
+    }));
+    return {
+      headline: manager.headline?.trim() || 'Telegram Community Manager',
+      openToCampaigns: Boolean(manager.open_to_campaigns),
+      telegramIdentityVerified: Boolean(telegram),
+      telegramHandle: telegram?.current_handle || null,
+      combinedAudience: communities.reduce((sum, community) => sum + community.audienceSize, 0),
+      communities,
+    };
+  } catch {
+    // Public profiles must remain available if optional Community Portfolio data is temporarily unavailable.
+    return null;
+  }
+}
+
+function communityVerificationLabel(value: string): string {
+  if (value === 'verified') return 'Verified Community';
+  if (value === 'submitted') return 'Verification submitted';
+  if (value === 'rejected') return 'Needs verification';
+  return 'Listed Community';
+}
+
+function buildAutomaticCommunityPortfolioHtml(portfolio: AutomaticCommunityPortfolio | null): string {
+  if (!portfolio) return '';
+  const badges = [
+    portfolio.telegramIdentityVerified
+      ? `<span class="community-portfolio-badge verified">${portfolio.telegramHandle ? `@${escapeHtml(portfolio.telegramHandle.replace(/^@/, ''))} · ` : ''}Telegram identity verified</span>`
+      : '',
+    portfolio.openToCampaigns ? '<span class="community-portfolio-badge open">Open to campaigns</span>' : '',
+  ].filter(Boolean).join('');
+
+  const cards = portfolio.communities.map((community) => {
+    const body = `<b class="community-portfolio-icon"><img src="/assets/social/telegram.svg" alt="" aria-hidden="true"></b><span><small>${escapeHtml(communityVerificationLabel(community.verificationStatus))}</small><strong>${escapeHtml(community.name)}</strong><em>${community.handle ? `@${escapeHtml(community.handle.replace(/^@/, ''))} · ` : ''}${escapeHtml(compactNumber(community.audienceSize))} audience</em></span><i>↗</i>`;
+    return community.url
+      ? `<a class="community-portfolio-card" href="${escapeHtml(community.url)}" target="_blank" rel="noopener noreferrer">${body}</a>`
+      : `<article class="community-portfolio-card is-static">${body}</article>`;
+  }).join('');
+
+  return `<section class="section automatic-community-portfolio" aria-label="Community Portfolio"><div class="section-title"><span>COMMUNITY MANAGER</span><h2>Community Portfolio</h2></div><div class="community-portfolio-summary"><div><small>MANAGER PROFILE</small><strong>${escapeHtml(portfolio.headline)}</strong></div><div class="community-portfolio-stats"><span><b>${portfolio.communities.length}</b> Communities</span><span><b>${escapeHtml(compactNumber(portfolio.combinedAudience))}</b> Combined audience</span></div>${badges ? `<div class="community-portfolio-badges">${badges}</div>` : ''}</div><div class="community-portfolio-grid">${cards}</div><p class="community-portfolio-note">Community verification is separate from personal Telegram identity verification. Verified Community means Linkary reviewed Community-specific public evidence.</p></section>`;
+}
+
+function removeLegacyCommunityCards(html: string): string {
+  let next = html.replace(/<a class="relationship-card"[^>]*><b>[\s\S]*?<\/b><span><small>COMMUNITY<\/small>[\s\S]*?<\/a>/g, '');
+  next = next.replace(/<section class="section"><div class="section-title"><span>RELATIONSHIPS<\/span><h2>Projects & communities<\/h2><\/div><div class="relationship-grid">\s*<\/div><\/section>/g, '');
+  return next;
 }
 
 function extraCss(): string {
@@ -133,11 +264,14 @@ body:before,body:after,.page:before,.page:after{display:none!important;content:n
 .opportunity-card strong{color:#151210!important;font-size:19px!important}
 .opportunity-cta{background:#ff6543!important;color:#151210!important}
 .links{gap:12px!important}
+.automatic-community-portfolio{margin-top:38px!important}
+.community-portfolio-summary{display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)!important;gap:14px!important;padding:18px!important;border:1px solid #e8ded8!important;border-radius:22px!important;background:#fff8f5!important;box-shadow:0 14px 34px rgba(38,24,18,.07)!important}
+.community-portfolio-summary>div:first-child{display:grid!important;gap:5px!important}.community-portfolio-summary small{color:#ff5a36!important;font:800 9px/1 ui-monospace,SFMono-Regular,monospace!important;letter-spacing:.12em!important}.community-portfolio-summary strong{font-size:18px!important;color:#151210!important}.community-portfolio-stats{display:flex!important;justify-content:flex-end!important;gap:9px!important;flex-wrap:wrap!important}.community-portfolio-stats span{display:grid!important;gap:3px!important;min-width:110px!important;padding:10px 12px!important;border:1px solid #eee3dd!important;border-radius:14px!important;background:#fff!important;color:#74665f!important;font-size:10px!important}.community-portfolio-stats b{color:#151210!important;font-size:20px!important}.community-portfolio-badges{grid-column:1/-1!important;display:flex!important;gap:8px!important;flex-wrap:wrap!important}.community-portfolio-badge{display:inline-flex!important;align-items:center!important;min-height:30px!important;padding:7px 10px!important;border-radius:999px!important;font-size:10px!important;font-weight:800!important}.community-portfolio-badge.verified{background:#eef9f1!important;color:#27633a!important}.community-portfolio-badge.open{background:#fff0eb!important;color:#b33d22!important}.community-portfolio-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;margin-top:12px!important}.community-portfolio-card{display:grid!important;grid-template-columns:46px 1fr 20px!important;align-items:center!important;gap:12px!important;min-height:94px!important;padding:14px 16px!important;border:1px solid #e8ded8!important;border-radius:20px!important;background:#fff!important;color:#151210!important;text-decoration:none!important;box-shadow:0 12px 28px rgba(38,24,18,.08)!important}.community-portfolio-card.is-static{cursor:default!important}.community-portfolio-icon{display:grid!important;place-items:center!important;width:42px!important;height:42px!important;border-radius:13px!important;background:#fff1ec!important}.community-portfolio-icon img{width:21px!important;height:21px!important;filter:brightness(0) saturate(100%) invert(44%) sepia(96%) saturate(2859%) hue-rotate(339deg) brightness(102%) contrast(102%)!important}.community-portfolio-card>span{display:grid!important;gap:4px!important}.community-portfolio-card small{color:#ff5a36!important;font-size:9px!important;font-weight:800!important;letter-spacing:.08em!important}.community-portfolio-card strong{font-size:16px!important;line-height:1.2!important}.community-portfolio-card em{color:#74665f!important;font-size:11px!important;font-style:normal!important}.community-portfolio-card>i{color:#9b8177!important;font-style:normal!important}.community-portfolio-note{margin:10px 2px 0!important;color:#74665f!important;font-size:11px!important;line-height:1.5!important}
 footer{color:#74665f!important}
 footer strong{color:#ff5a36!important}
 @media(min-width:900px){.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:899px){.page{width:calc(100% - 24px)!important;margin:18px auto!important;padding:24px 20px 48px!important;border-radius:26px!important}.hero h1{font-size:clamp(34px,6vw,48px)!important}.feature{min-height:320px!important}.showcase-item,.product-item{min-height:195px!important}.matrix{opacity:.32!important}}
-@media(max-width:650px){body{background:#fff!important}.page{width:100%!important;margin:0!important;padding:20px 15px 42px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:rgba(255,255,255,.94)!important}.hero{margin:42px 0 23px!important}.hero h1{font-size:clamp(32px,9vw,42px)!important}.bio{font-size:15px!important}.socials a,.social{width:45px!important;height:45px!important}.cta-card,.profile-enhanced-cta{min-height:86px!important;padding:14px 15px!important}.feature{min-height:270px!important;padding-bottom:86px!important}.feature img,.feature video{height:calc(100% - 100px)!important}.feature-copy strong{font-size:21px!important}.showcase-item,.product-item{min-height:172px!important;border-radius:18px!important}.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.proof-grid{gap:9px!important}.matrix{opacity:.28!important}}
+@media(max-width:650px){body{background:#fff!important}.page{width:100%!important;margin:0!important;padding:20px 15px 42px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:rgba(255,255,255,.94)!important}.hero{margin:42px 0 23px!important}.hero h1{font-size:clamp(32px,9vw,42px)!important}.bio{font-size:15px!important}.socials a,.social{width:45px!important;height:45px!important}.cta-card,.profile-enhanced-cta{min-height:86px!important;padding:14px 15px!important}.feature{min-height:270px!important;padding-bottom:86px!important}.feature img,.feature video{height:calc(100% - 100px)!important}.feature-copy strong{font-size:21px!important}.showcase-item,.product-item{min-height:172px!important;border-radius:18px!important}.image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.proof-grid{gap:9px!important}.community-portfolio-summary{grid-template-columns:1fr!important}.community-portfolio-stats{justify-content:flex-start!important}.community-portfolio-badges{grid-column:auto!important}.community-portfolio-grid{grid-template-columns:1fr!important}.matrix{opacity:.28!important}}
 `;
 }
 
@@ -178,9 +312,13 @@ export async function renderPublicProfileEnhanced(request: Request, env: Env, us
     getPublishedProfile(username, env),
     base.text(),
   ]);
-  const socialHtml = buildSocialHtml(request, profile.username, blocks);
-  const ctaHtml = buildCtaHtml(request, profile.username, blocks, profile.profile_type);
-  let html = source;
+  const [socialHtml, ctaHtml, communityPortfolio] = await Promise.all([
+    Promise.resolve(buildSocialHtml(request, profile.username, blocks)),
+    Promise.resolve(buildCtaHtml(request, profile.username, blocks, profile.profile_type)),
+    loadAutomaticCommunityPortfolio(env, profile.id, profile.profile_type),
+  ]);
+  const communityHtml = buildAutomaticCommunityPortfolioHtml(communityPortfolio);
+  let html = communityPortfolio ? removeLegacyCommunityCards(source) : source;
 
   if (/<nav class="socials"[^>]*>[\s\S]*?<\/nav>/.test(html)) {
     html = html.replace(/<nav class="socials"[^>]*>[\s\S]*?<\/nav>/, socialHtml);
@@ -190,6 +328,15 @@ export async function renderPublicProfileEnhanced(request: Request, env: Env, us
     const socialAndHeroClose = `${socialHtml}</section>`;
     if (html.includes(socialAndHeroClose)) html = html.replace(socialAndHeroClose, `${socialAndHeroClose}${ctaHtml}`);
     else if (html.includes('</section>')) html = html.replace('</section>', `</section>${ctaHtml}`);
+  }
+
+  if (communityHtml && !html.includes('automatic-community-portfolio')) {
+    const proofAnchor = '<section class="section proof-section">';
+    const opportunityAnchor = '<section class="section opportunities-section">';
+    if (html.includes(proofAnchor)) html = html.replace(proofAnchor, `${communityHtml}${proofAnchor}`);
+    else if (html.includes(opportunityAnchor)) html = html.replace(opportunityAnchor, `${communityHtml}${opportunityAnchor}`);
+    else if (html.includes('<footer>')) html = html.replace('<footer>', `${communityHtml}<footer>`);
+    else html = html.replace('</main>', `${communityHtml}</main>`);
   }
 
   html = html.replace('</head>', `<style id="linkary-enhanced-theme">${extraCss()}</style></head>`);
