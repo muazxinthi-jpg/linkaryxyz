@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import { useGetAccessToken, useIsInitialized, useIsSignedIn, useLinkOAuth } from '@coinbase/cdp-hooks';
+import { ProductWorkspace, type ProductMe, type ProductStatus } from './ProductWorkspace';
 import CommunityVerificationPanel from './CommunityVerificationPanel';
 import './community-manager.css';
 
@@ -17,6 +18,13 @@ type Manager = {
   open_to_campaigns: boolean;
   asset_count: number;
   combined_audience: number;
+};
+
+type TelegramIdentity = {
+  verified: true;
+  current_handle: string | null;
+  current_display_name: string | null;
+  ownership_verified_at: string | null;
 };
 
 type CommunityAsset = {
@@ -47,6 +55,8 @@ class ApiError extends Error {
     super(message);
   }
 }
+
+const TELEGRAM_LINK_PENDING = 'linkary.telegram.link.pending.v1';
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -80,6 +90,7 @@ function verificationLabel(value: string): string {
 function friendly(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
   if (error.code === 'manager_exists') return 'Your Community Manager portfolio already exists. Refresh this page.';
+  if (error.code === 'telegram_identity_required') return 'Verify your personal Telegram account before listing or managing communities.';
   if (error.code === 'invalid_url') return 'Enter a valid community or website URL.';
   if (error.code === 'invalid_audience') return 'Audience size must be zero or greater.';
   if (error.code === 'forbidden') return 'Only the owner of the personal Creator profile can manage this community portfolio.';
@@ -87,17 +98,22 @@ function friendly(error: unknown, fallback: string): string {
 }
 
 export default function CommunityManagerExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
+  const { linkOAuth } = useLinkOAuth();
+  const { getAccessToken } = useGetAccessToken();
+  const { isInitialized } = useIsInitialized();
+  const { isSignedIn } = useIsSignedIn();
   const creator = status.profiles.find((item) => item.profile_type === 'creator');
   const [profileId, setProfileId] = useState(creator?.id || status.profiles[0]?.id || '');
   const profile = status.profiles.find((item) => item.id === profileId) || creator || status.profiles[0];
   const personalProfile = creator || null;
+  const [telegramIdentity, setTelegramIdentity] = useState<TelegramIdentity | null>(null);
   const [manager, setManager] = useState<Manager | null>(null);
   const [assets, setAssets] = useState<CommunityAsset[]>([]);
   const [blocks, setBlocks] = useState<ProfileBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
-  const [managerForm, setManagerForm] = useState({ headline: 'Telegram Community Manager', bio: '', telegramContact: '', email: '', websiteUrl: '', openToCampaigns: true });
+  const [managerForm, setManagerForm] = useState({ headline: 'Telegram Community Manager', bio: '', email: '', websiteUrl: '', openToCampaigns: true });
   const [draft, setDraft] = useState<CommunityDraft>(emptyCommunity());
 
   const combinedAudience = useMemo(() => assets.reduce((sum, item) => sum + Number(item.audience_size || 0), 0), [assets]);
@@ -114,20 +130,19 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
       return;
     }
     setLoading(true);
-    setMessage('');
     try {
       const [managerResult, blockResult] = await Promise.all([
-        api<{ managers: Manager[] }>('/api/partner-managers?type=community_manager'),
+        api<{ managers: Manager[]; telegram_identity: TelegramIdentity | null }>('/api/partner-managers?type=community_manager'),
         api<{ blocks: ProfileBlock[] }>(`/api/profiles/${encodeURIComponent(personalProfile.id)}/blocks`).catch(() => ({ blocks: [] })),
       ]);
       const mine = managerResult.managers.find((item) => item.profile_id === personalProfile.id) || null;
+      setTelegramIdentity(managerResult.telegram_identity || null);
       setManager(mine);
       setBlocks(blockResult.blocks || []);
       if (mine) {
         setManagerForm({
           headline: mine.headline || 'Telegram Community Manager',
           bio: mine.bio || '',
-          telegramContact: mine.telegram_contact || '',
           email: mine.email || '',
           websiteUrl: mine.website_url || '',
           openToCampaigns: mine.open_to_campaigns !== false,
@@ -146,9 +161,59 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
   useEffect(() => { void load(); }, [personalProfile?.id]);
 
+  async function syncTelegramIdentity() {
+    if (!isInitialized || !isSignedIn) {
+      throw new Error('Your secure Linkary sign-in must be active before Telegram can be connected.');
+    }
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error('Secure sign-in token is unavailable. Please log in again.');
+    await api('/api/auth/cdp/session', {
+      method: 'POST',
+      body: JSON.stringify({ accessToken }),
+    });
+    sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
+    await load();
+  }
+
+  useEffect(() => {
+    if (!isInitialized || !isSignedIn || sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1') return;
+    let cancelled = false;
+    void (async () => {
+      setBusy('telegram-sync');
+      try {
+        await syncTelegramIdentity();
+        if (!cancelled) setMessage('Telegram account connected and verified. You can now list communities.');
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : 'Telegram verification could not be completed.');
+      } finally {
+        if (!cancelled) setBusy('');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isInitialized, isSignedIn]);
+
+  async function connectTelegram() {
+    if (!isInitialized || !isSignedIn) {
+      setMessage('Your Linkary sign-in needs to finish before Telegram can be connected.');
+      return;
+    }
+    setBusy('telegram-link');
+    setMessage('');
+    sessionStorage.setItem(TELEGRAM_LINK_PENDING, '1');
+    try {
+      await linkOAuth('telegram');
+      await syncTelegramIdentity();
+      setMessage('Telegram account connected and verified. You can now list communities.');
+    } catch (error) {
+      sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
+      setMessage(error instanceof Error ? error.message : 'Telegram verification could not be started.');
+      setBusy('');
+    }
+  }
+
   async function saveManager(event: React.FormEvent) {
     event.preventDefault();
-    if (!personalProfile) return;
+    if (!personalProfile || !telegramIdentity) return;
     const token = csrf();
     if (!token) return;
     setBusy('manager');
@@ -162,7 +227,6 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
           displayName: personalProfile.display_name,
           headline: managerForm.headline,
           bio: managerForm.bio,
-          telegramContact: managerForm.telegramContact,
           email: managerForm.email,
           websiteUrl: managerForm.websiteUrl,
           visibility: 'public',
@@ -180,7 +244,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
   async function saveCommunity(event: React.FormEvent) {
     event.preventDefault();
-    if (!manager) return;
+    if (!manager || !telegramIdentity) return;
     const token = csrf();
     if (!token) return;
     const audience = draft.audienceSize.trim() ? Number(draft.audienceSize) : 0;
@@ -223,7 +287,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
   }
 
   async function removeCommunity(asset: CommunityAsset) {
-    if (!manager || !window.confirm(`Remove ${asset.name} from your Community Portfolio?`)) return;
+    if (!manager || !telegramIdentity || !window.confirm(`Remove ${asset.name} from your Community Portfolio?`)) return;
     const token = csrf();
     if (!token) return;
     setBusy(`remove:${asset.id}`);
@@ -264,6 +328,10 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
   if (!profile) return null;
 
+  const telegramLabel = telegramIdentity?.current_handle
+    ? `@${telegramIdentity.current_handle.replace(/^@/, '')}`
+    : telegramIdentity?.current_display_name || 'Verified Telegram account';
+
   return (
     <ProductWorkspace me={me} status={status} profile={profile} onProfileChange={changeProfile}>
       <section className="community-manager-page">
@@ -279,17 +347,32 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
         {message && <div className="ops-banner">{message}</div>}
         {loading ? <div className="ops-empty">Loading your Community Portfolio…</div> : !personalProfile ? (
           <div className="ops-empty"><strong>Create a Creator profile first</strong><p>A personal Linkary Creator profile owns your Community Manager portfolio. Project workspaces cannot own it directly.</p></div>
+        ) : !telegramIdentity ? (
+          <section className="ops-card community-list-card">
+            <div className="ops-card-title"><div><span>TELEGRAM IDENTITY</span><h2>Verify your Telegram account</h2></div><span className="community-status status-unverified">Required</span></div>
+            <p>To list or manage Telegram communities on Linkary, you must first verify your personal Telegram account. A typed Telegram username does not count as verification.</p>
+            <div className="community-actions">
+              <button type="button" className="ops-primary" disabled={busy === 'telegram-link' || busy === 'telegram-sync'} onClick={() => void connectTelegram()}>
+                {busy === 'telegram-link' || busy === 'telegram-sync' ? 'Connecting Telegram…' : 'Connect Telegram'}
+              </button>
+            </div>
+            <div className="community-verification-note"><strong>Why this is required</strong><span>Linkary ties the Community Manager portfolio to your verified personal Telegram identity using Telegram's stable account identity. Community ownership is verified separately.</span></div>
+            <div className="community-verification-note"><strong>LinkaryTrackerBot is optional</strong><span>You do not need to install LinkaryTrackerBot to create or verify a Community. The bot can later provide stronger campaign, join, leave and retention evidence.</span></div>
+          </section>
         ) : (
           <>
+            <section className="ops-card community-list-card">
+              <div className="ops-card-title"><div><span>TELEGRAM ACCOUNT</span><h2>{telegramLabel}</h2></div><span className="community-status status-verified">Connected ✓</span></div>
+              <p>Your personal Telegram identity is verified. Telegram's stable account ID is kept private and is used by Linkary as the canonical identity key.</p>
+            </section>
+
             <section className="community-manager-grid">
               <form className="ops-card community-manager-form" onSubmit={saveManager}>
                 <div className="ops-card-title"><div><span>MANAGER PROFILE</span><h2>{manager ? 'Community Manager details' : 'Create your Community Portfolio'}</h2></div>{manager && <span className={`community-status status-${manager.verification_status}`}>{verificationLabel(manager.verification_status)}</span>}</div>
                 <label>Headline<input value={managerForm.headline} onChange={(event) => setManagerForm((value) => ({ ...value, headline: event.target.value }))} maxLength={160} placeholder="Telegram Community Manager" /></label>
                 <label>About<textarea value={managerForm.bio} onChange={(event) => setManagerForm((value) => ({ ...value, bio: event.target.value }))} maxLength={800} rows={4} placeholder="What kinds of communities do you manage, and what projects are a good fit?" /></label>
-                <div className="community-manager-two">
-                  <label>Telegram contact<input value={managerForm.telegramContact} onChange={(event) => setManagerForm((value) => ({ ...value, telegramContact: event.target.value }))} placeholder="@username" /></label>
-                  <label>Email<input value={managerForm.email} onChange={(event) => setManagerForm((value) => ({ ...value, email: event.target.value }))} placeholder="you@example.com" type="email" /></label>
-                </div>
+                <div className="community-verification-note"><strong>Telegram contact</strong><span>{telegramLabel} is your verified Telegram contact. It cannot be replaced by typing another username here.</span></div>
+                <label>Email<input value={managerForm.email} onChange={(event) => setManagerForm((value) => ({ ...value, email: event.target.value }))} placeholder="you@example.com" type="email" /></label>
                 <label>Website or media kit<input value={managerForm.websiteUrl} onChange={(event) => setManagerForm((value) => ({ ...value, websiteUrl: event.target.value }))} placeholder="https://…" /></label>
                 <label className="community-check"><input type="checkbox" checked={managerForm.openToCampaigns} onChange={(event) => setManagerForm((value) => ({ ...value, openToCampaigns: event.target.checked }))} /><span>Open to campaign opportunities from Projects</span></label>
                 <button className="ops-primary" disabled={busy === 'manager'}>{busy === 'manager' ? 'Saving…' : manager ? 'Save manager profile' : 'Create Community Portfolio'}</button>
@@ -329,7 +412,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                   ))}
                 </div>
               )}
-              <div className="community-verification-note"><strong>Verification</strong><span>Listed means the manager supplied this community. Verified means Linkary reviewed a public Telegram proof showing the manager controls that community. Linkary Tracker verification can later add stronger automated evidence.</span></div>
+              <div className="community-verification-note"><strong>Community verification</strong><span>Listed means the verified Telegram account holder supplied this community. Verified means Linkary separately reviewed public Telegram proof showing the manager controls that community. LinkaryTrackerBot remains optional and can later add stronger automated evidence.</span></div>
             </section>
           </>
         )}

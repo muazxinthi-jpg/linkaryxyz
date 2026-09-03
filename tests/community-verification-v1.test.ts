@@ -68,7 +68,7 @@ test('Community manager UI explains manual proof and never calls a submission ve
   assert.equal(panel.includes('Place it temporarily in the Telegram community description'), true);
   assert.equal(panel.includes('Verification submitted for Linkary review.'), true);
   assert.equal(panel.includes('Linkary will not show this community as Verified until a Superadmin approves'), true);
-  assert.equal(community.includes('Verified means Linkary reviewed a public Telegram proof'), true);
+  assert.equal(community.includes('Verified means Linkary separately reviewed public Telegram proof'), true);
 });
 
 test('Superadmin review UI exposes proof code, evidence URL, approve and needs-more-proof actions', () => {
