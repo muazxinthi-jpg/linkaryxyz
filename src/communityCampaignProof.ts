@@ -1,5 +1,4 @@
 import { Db } from './db/client';
-import { ensureAttributionSchema } from './db/attributionSchema';
 
 export type CommunityCampaignProofSummary = {
   tracked_campaigns: number;
@@ -46,8 +45,12 @@ function normaliseSummary(row: Partial<CommunityCampaignProofSummary> | null | u
   };
 }
 
+/**
+ * Read-only proof derivation. Callers on authenticated operational paths may
+ * ensure the attribution schema before invoking this function. Public profile
+ * rendering deliberately never runs CREATE/ALTER statements on a page view.
+ */
 export async function exactCommunityCampaignProof(db: Db, managerId: string, assetId?: string | null) {
-  await ensureAttributionSchema(db);
   const filter = assetId ? 'AND pa.id = ?' : '';
   const params = assetId ? [managerId, assetId] : [managerId];
 
