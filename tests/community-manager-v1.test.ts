@@ -93,7 +93,7 @@ test('Community identity and Community verification remain separate and TrackerB
   assert.equal(ui.includes('LinkaryTrackerBot is optional'), true);
   assert.equal(ui.includes('You do not need to install LinkaryTrackerBot to create or verify a Community.'), true);
   assert.equal(verification.includes("verification_status = 'submitted'"), true);
-  assert.equal(verification.includes("community_verification.approved"), true);
+  assert.equal(verification.includes("'approved' : 'rejected'"), true);
 });
 
 test('Community Manager workspace supports multiple communities and public profile cards', () => {
