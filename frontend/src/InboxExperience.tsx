@@ -4,11 +4,23 @@ import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStat
 import './inbox.css';
 
 type Role = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
-type Project = { id: string; name: string; role: Role; verification_status: string };
+type Project = { id: string; name: string; role: Role; status: string; verification_status: string };
 type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; email: string | null };
 type MyAccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
 type Opportunity = { id: string; organization_id: string; title: string; campaign_name: string; applications: number; status: string };
 type Application = { id: string; status: string; note: string; created_at: string; profile_id: string; display_name: string; username: string; manager_name: string | null };
+type Campaign = { id: string; name: string; status: string };
+type Activity = {
+  id: string;
+  title: string;
+  activity_type: string;
+  partner_kind: 'creator' | 'community' | null;
+  partner_profile_id: string | null;
+  partner_manager_id: string | null;
+  partner_asset_id: string | null;
+  partner_display_name: string | null;
+};
+type CommunityAsset = { id: string; asset_type: 'telegram_community'; name: string; verification_status: string };
 type CollaborationInquiry = {
   id: string;
   organization_id: string;
@@ -32,12 +44,28 @@ type CollaborationInquiry = {
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  activated_activity_id: string | null;
+  activated_activity_title: string | null;
+  activated_campaign_id: string | null;
+  activated_campaign_name: string | null;
+  activated_at: string | null;
 };
 
 type Action =
   | { id: string; kind: 'project_access'; project: Project; request: AccessRequest; occurredAt: string; ownerRequired: boolean }
   | { id: string; kind: 'opportunity_application'; project: Project; opportunity: Opportunity; application: Application; occurredAt: string; ownerRequired: false }
   | { id: string; kind: 'collaboration_inquiry'; inquiry: CollaborationInquiry; occurredAt: string; ownerRequired: false };
+
+type ActivationForm = {
+  campaignId: string;
+  mode: 'new' | 'existing';
+  activityId: string;
+  title: string;
+  activityType: 'creator_content' | 'community_placement' | 'website' | 'video' | 'other';
+  destinationUrl: string;
+  plannedCostUsd: string;
+  communityId: string;
+};
 
 class ApiError extends Error { constructor(readonly code: string, message: string) { super(message); } }
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -52,18 +80,28 @@ function csrf(): string | null { const hit = document.cookie.split('; ').find((p
 function human(value: string): string { if (value === 'marketing_manager') return 'Campaign Manager'; return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()); }
 function date(value: string): string { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'Recently' : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed); }
 function money(value: number | null): string { return value === null ? 'Budget not set' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value); }
+function canActivate(project?: Project): boolean { return Boolean(project && project.status === 'active' && project.verification_status === 'verified_x' && ['owner', 'admin', 'marketing_manager'].includes(project.role)); }
 
 export default function InboxExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
   const first = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
   const saved = window.localStorage.getItem('linkary.active.profile');
   const [profileId, setProfileId] = useState(saved && status.profiles.some((item) => item.id === saved) ? saved : first?.id || '');
   const profile = status.profiles.find((item) => item.id === profileId) || first;
+  const [projects, setProjects] = useState<Project[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [updates, setUpdates] = useState<MyAccessRequest[]>([]);
   const [sentInquiries, setSentInquiries] = useState<CollaborationInquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
+
+  const [activationTarget, setActivationTarget] = useState<CollaborationInquiry | null>(null);
+  const [activationCampaigns, setActivationCampaigns] = useState<Campaign[]>([]);
+  const [activationActivities, setActivationActivities] = useState<Activity[]>([]);
+  const [activationCommunities, setActivationCommunities] = useState<CommunityAsset[]>([]);
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [activationCandidateActivityId, setActivationCandidateActivityId] = useState('');
+  const [activationForm, setActivationForm] = useState<ActivationForm>({ campaignId: '', mode: 'new', activityId: '', title: '', activityType: 'creator_content', destinationUrl: '', plannedCostUsd: '', communityId: '' });
 
   function changeProfile(id: string) { setProfileId(id); window.localStorage.setItem('linkary.active.profile', id); }
 
@@ -76,14 +114,15 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
         api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => ({ inquiries: [] })),
         api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => ({ inquiries: [] })),
       ]);
-      const projects = projectResult.organizations;
+      const projectList = projectResult.organizations;
+      setProjects(projectList);
       const actionItems: Action[] = [];
 
       for (const inquiry of incomingInquiryResult.inquiries.filter((item) => item.status === 'pending')) {
         actionItems.push({ id: `inquiry:${inquiry.id}`, kind: 'collaboration_inquiry', inquiry, occurredAt: inquiry.created_at, ownerRequired: false });
       }
 
-      await Promise.all(projects.map(async (project) => {
+      await Promise.all(projectList.map(async (project) => {
         if (['owner', 'admin'].includes(project.role)) {
           const access = await api<{ requests: AccessRequest[] }>(`/api/projects/${encodeURIComponent(project.id)}/access-requests`).catch(() => ({ requests: [] }));
           for (const request of access.requests) actionItems.push({ id: `access:${request.id}`, kind: 'project_access', project, request, occurredAt: request.created_at, ownerRequired: project.role === 'admin' && request.requested_role === 'admin' });
@@ -164,6 +203,127 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
     finally { setBusy(''); }
   }
 
+  async function loadActivationActivities(campaignId: string) {
+    if (!campaignId) { setActivationActivities([]); return; }
+    const result = await api<{ activities: Activity[] }>(`/api/campaign-activities?campaignId=${encodeURIComponent(campaignId)}`).catch(() => ({ activities: [] }));
+    setActivationActivities(result.activities);
+  }
+
+  async function openActivation(inquiry: CollaborationInquiry) {
+    if (inquiry.status !== 'accepted' || inquiry.activated_activity_id) return;
+    const project = projects.find((item) => item.id === inquiry.organization_id);
+    if (!canActivate(project)) { setMessage('Your Project must be active, verified on X, and your role must allow campaign changes before activation.'); return; }
+    setActivationTarget(inquiry);
+    setActivationLoading(true);
+    setActivationCandidateActivityId('');
+    setActivationCampaigns([]);
+    setActivationActivities([]);
+    setActivationCommunities([]);
+    try {
+      const [campaignResult, communityResult] = await Promise.all([
+        api<{ campaigns: Campaign[] }>(`/api/campaigns?organizationId=${encodeURIComponent(inquiry.organization_id)}`),
+        inquiry.target_kind === 'community_manager' && inquiry.partner_manager_id && !inquiry.partner_asset_id
+          ? api<{ assets: CommunityAsset[] }>(`/api/partner-manager-assets?managerId=${encodeURIComponent(inquiry.partner_manager_id)}`).catch(() => ({ assets: [] }))
+          : Promise.resolve({ assets: [] as CommunityAsset[] }),
+      ]);
+      const campaignList = campaignResult.campaigns.filter((item) => !['archived', 'completed'].includes(item.status));
+      const preferredCampaign = inquiry.campaign_id && campaignList.some((item) => item.id === inquiry.campaign_id) ? inquiry.campaign_id : campaignList[0]?.id || '';
+      const title = `${human(inquiry.inquiry_type)} with ${inquiry.target_display_name}`;
+      setActivationCampaigns(campaignList);
+      setActivationCommunities(communityResult.assets.filter((item) => item.asset_type === 'telegram_community'));
+      setActivationForm({
+        campaignId: preferredCampaign,
+        mode: 'new',
+        activityId: '',
+        title,
+        activityType: inquiry.target_kind === 'creator' ? 'creator_content' : 'community_placement',
+        destinationUrl: '',
+        plannedCostUsd: inquiry.budget_usd === null ? '' : String(inquiry.budget_usd),
+        communityId: inquiry.partner_asset_id || '',
+      });
+      if (preferredCampaign) await loadActivationActivities(preferredCampaign);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'Campaign activation options could not be loaded.');
+      setActivationTarget(null);
+    } finally { setActivationLoading(false); }
+  }
+
+  async function selectActivationCampaign(campaignId: string) {
+    setActivationCandidateActivityId('');
+    setActivationForm((current) => ({ ...current, campaignId, activityId: '' }));
+    await loadActivationActivities(campaignId);
+  }
+
+  function activationPartner(inquiry: CollaborationInquiry) {
+    if (inquiry.target_kind === 'creator') return { kind: 'creator', creatorProfileId: inquiry.target_profile_id };
+    const assetId = inquiry.partner_asset_id || activationForm.communityId;
+    if (!inquiry.partner_manager_id || !assetId) return null;
+    return { kind: 'community', partnerManagerId: inquiry.partner_manager_id, partnerAssetId: assetId };
+  }
+
+  function exactActivityForInquiry(activity: Activity, inquiry: CollaborationInquiry): boolean {
+    if (inquiry.target_kind === 'creator') return activity.partner_kind === 'creator' && activity.partner_profile_id === inquiry.target_profile_id;
+    const assetId = inquiry.partner_asset_id || activationForm.communityId;
+    return activity.partner_kind === 'community' && activity.partner_manager_id === inquiry.partner_manager_id && Boolean(assetId) && activity.partner_asset_id === assetId;
+  }
+
+  const eligibleActivationActivities = useMemo(() => {
+    if (!activationTarget) return [];
+    return activationActivities.filter((activity) => !activity.partner_kind || exactActivityForInquiry(activity, activationTarget));
+  }, [activationActivities, activationTarget, activationForm.communityId]);
+
+  async function activateInquiry(event: React.FormEvent) {
+    event.preventDefault();
+    if (!activationTarget) return;
+    const token = csrf(); if (!token) return;
+    const partner = activationPartner(activationTarget);
+    if (!partner) { setMessage('Choose the exact Telegram Community before activating this collaboration.'); return; }
+    if (!activationForm.campaignId) { setMessage('Choose a campaign before activation.'); return; }
+    if (activationForm.mode === 'existing' && !activationForm.activityId && !activationCandidateActivityId) { setMessage('Choose an activity before activation.'); return; }
+    if (activationForm.mode === 'new' && !activationForm.title.trim() && !activationCandidateActivityId) { setMessage('Add an activity title before activation.'); return; }
+
+    setBusy(`activate:${activationTarget.id}`);
+    setMessage('');
+    try {
+      let activityId = activationCandidateActivityId;
+      if (!activityId) {
+        if (activationForm.mode === 'existing') {
+          activityId = activationForm.activityId;
+          await api('/api/campaign-activities', {
+            method: 'POST', headers: { 'x-csrf-token': token },
+            body: JSON.stringify({ activityId, partner }),
+          });
+        } else {
+          const created = await api<{ id: string }>('/api/campaign-activities', {
+            method: 'POST', headers: { 'x-csrf-token': token },
+            body: JSON.stringify({
+              campaignId: activationForm.campaignId,
+              title: activationForm.title.trim(),
+              activityType: activationForm.activityType,
+              destinationUrl: activationForm.destinationUrl.trim() || undefined,
+              plannedCostUsd: activationForm.plannedCostUsd.trim() ? Number(activationForm.plannedCostUsd) : undefined,
+              partner,
+            }),
+          });
+          activityId = created.id;
+        }
+        setActivationCandidateActivityId(activityId);
+      }
+
+      const activated = await api<{ campaignName: string }>('/api/project-partner-shortlists', {
+        method: 'POST', headers: { 'x-csrf-token': token },
+        body: JSON.stringify({ action: 'record_activation', inquiryId: activationTarget.id, activityId }),
+      });
+      setMessage(`Partner activated in ${activated.campaignName}. Tracking and proof remain evidence-driven.`);
+      setActivationTarget(null);
+      setActivationCandidateActivityId('');
+      await load();
+    } catch (error) {
+      const retry = activationCandidateActivityId ? ' The activity is already assigned, so you can retry activation without creating another activity.' : '';
+      setMessage(`${error instanceof ApiError ? error.message : 'The collaboration could not be activated.'}${retry}`);
+    } finally { setBusy(''); }
+  }
+
   const actionable = useMemo(() => actions.filter((item) => !item.ownerRequired), [actions]);
   const ownerRequired = useMemo(() => actions.filter((item) => item.ownerRequired), [actions]);
   const pendingSent = useMemo(() => sentInquiries.filter((item) => item.status === 'pending').length, [sentInquiries]);
@@ -184,9 +344,30 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
 
       <section className="ops-section"><div className="ops-section-title"><div><h2>Needs attention</h2><p>Oldest pending decisions appear first.</p></div></div>{loading ? <div className="ops-loading">Checking Project, campaign and collaboration activity...</div> : !actions.length ? <div className="ops-empty"><div className="ops-empty-icon">✓</div><h3>Nothing waiting on you</h3><p>New Project access requests, campaign applications and collaboration inquiries will appear here when they need a decision.</p></div> : <div className="inbox-list">{actions.map(renderAction)}</div>}</section>
 
-      <section className="ops-section"><div className="ops-section-title"><div><h2>Collaboration inquiries you sent</h2><p>Accepted means the partner is open to discussion. It does not create active campaign evidence or verified performance.</p></div></div>{loading ? <div className="ops-loading">Loading sent inquiries...</div> : !sentInquiries.length ? <div className="ops-empty compact"><p>No collaboration inquiries sent yet. Start from Partner Discovery when a Creator or Community Manager looks relevant.</p></div> : <div className="inbox-sent-inquiries">{sentInquiries.map((inquiry) => <article key={inquiry.id}><span className={`inbox-update-state ${inquiry.status}`}>{human(inquiry.status)}</span><div className="inbox-sent-copy"><strong>{inquiry.target_display_name} · {human(inquiry.inquiry_type)}</strong><small>{inquiry.project_name}{inquiry.community_name ? ` · ${inquiry.community_name} (${human(inquiry.community_verification_status || 'unverified')})` : ''}{inquiry.campaign_name ? ` · ${inquiry.campaign_name}` : ''} · {money(inquiry.budget_usd)}</small><p>{inquiry.message}</p></div><div className="inbox-sent-actions">{inquiry.status === 'pending' && <button disabled={busy === `sent:${inquiry.id}`} onClick={() => void withdrawInquiry(inquiry)}>Withdraw</button>}</div></article>)}</div>}</section>
+      <section className="ops-section"><div className="ops-section-title"><div><h2>Collaboration inquiries you sent</h2><p>Accepted means the partner is open to discussion. Campaign activation is a separate explicit Project action, and proof still requires tracked or verified evidence.</p></div></div>{loading ? <div className="ops-loading">Loading sent inquiries...</div> : !sentInquiries.length ? <div className="ops-empty compact"><p>No collaboration inquiries sent yet. Start from Partner Discovery when a Creator or Community Manager looks relevant.</p></div> : <div className="inbox-sent-inquiries">{sentInquiries.map((inquiry) => {
+        const project = projects.find((item) => item.id === inquiry.organization_id);
+        return <article key={inquiry.id}><span className={`inbox-update-state ${inquiry.status}`}>{human(inquiry.status)}</span><div className="inbox-sent-copy"><strong>{inquiry.target_display_name} · {human(inquiry.inquiry_type)}</strong><small>{inquiry.project_name}{inquiry.community_name ? ` · ${inquiry.community_name} (${human(inquiry.community_verification_status || 'unverified')})` : ''}{inquiry.campaign_name ? ` · ${inquiry.campaign_name}` : ''} · {money(inquiry.budget_usd)}</small><p>{inquiry.message}</p>{inquiry.activated_activity_id && <div className="inbox-activation-state"><strong>Activated in campaign</strong><span>{inquiry.activated_campaign_name} · {inquiry.activated_activity_title}</span></div>}</div><div className="inbox-sent-actions">{inquiry.status === 'pending' && <button disabled={busy === `sent:${inquiry.id}`} onClick={() => void withdrawInquiry(inquiry)}>Withdraw</button>}{inquiry.status === 'accepted' && !inquiry.activated_activity_id && <button className="inbox-activate-button" disabled={!canActivate(project) || busy === `activate:${inquiry.id}`} onClick={() => void openActivation(inquiry)}>Activate in campaign</button>}{inquiry.activated_activity_id && <NavLink to={`/tracking?project=${encodeURIComponent(inquiry.organization_id)}&campaign=${encodeURIComponent(inquiry.activated_campaign_id || '')}`}>Open Evidence</NavLink>}</div></article>;
+      })}</div>}</section>
 
       <section className="ops-section"><div className="ops-section-title"><div><h2>Your Project access updates</h2><p>Recent decisions on Project roles you requested.</p></div></div>{!updates.length ? <div className="ops-empty compact"><p>No recent Project access decisions.</p></div> : <div className="inbox-updates">{updates.map((item) => <article key={item.id}><span className={`inbox-update-state ${item.status}`}>{human(item.status)}</span><div><strong>{item.name}</strong><small>{human(item.requested_role)} access · @{item.username}</small></div>{item.status === 'approved' ? <button onClick={() => window.location.reload()}>Refresh workspaces</button> : <NavLink to="/settings">View Projects</NavLink>}</article>)}</div>}</section>
+
+      {activationTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !busy.startsWith('activate:')) setActivationTarget(null); }}><section className="ops-modal inquiry-activation-modal">
+        <div className="ops-modal-head"><div><span className="ops-kicker">EXPLICIT CAMPAIGN ACTIVATION</span><h2>Activate {activationTarget.target_display_name}</h2></div><button disabled={busy.startsWith('activate:')} onClick={() => setActivationTarget(null)}>×</button></div>
+        <div className="inquiry-activation-target"><div><span>{activationTarget.target_kind === 'creator' ? 'CREATOR' : 'COLLABORATION PARTNER'}</span><strong>{activationTarget.target_display_name}</strong><small>{activationTarget.community_name ? `${activationTarget.community_name} · ${human(activationTarget.community_verification_status || 'unverified')}` : activationTarget.target_kind === 'community_manager' ? 'Choose one exact Telegram Community below' : `@${activationTarget.target_username}`}</small></div><div><span>INQUIRY</span><strong>{human(activationTarget.inquiry_type)}</strong><small>{money(activationTarget.budget_usd)}</small></div></div>
+        <div className="inquiry-activation-note"><strong>Separate activation step.</strong><span>This step assigns the accepted partner to campaign activity. Campaign proof still appears only after tracked or verified evidence exists. No tracking links or outcomes are created automatically.</span></div>
+        {activationLoading ? <div className="ops-loading">Preparing campaign activation...</div> : !activationCampaigns.length ? <div className="ops-empty compact"><p>No active campaign is available for this Project. Create a campaign in Growth first, then return here.</p><NavLink className="ops-button secondary" to="/campaigns">Open Growth</NavLink></div> : <form className="inquiry-activation-form" onSubmit={(event) => void activateInquiry(event)}>
+          <label>Campaign<select value={activationForm.campaignId} onChange={(event) => void selectActivationCampaign(event.target.value)}>{activationCampaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+          {activationTarget.target_kind === 'community_manager' && (activationTarget.partner_asset_id ? <div className="inquiry-community-lock"><span>EXACT TELEGRAM COMMUNITY</span><strong>{activationTarget.community_name}</strong><small>{human(activationTarget.community_verification_status || 'unverified')} · Locked from the accepted inquiry</small></div> : <label>Exact Telegram Community<select required value={activationForm.communityId} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, communityId: event.target.value, activityId: '' })); }}><option value="">Choose Community</option>{activationCommunities.map((community) => <option key={community.id} value={community.id}>{community.name} · {human(community.verification_status)}</option>)}</select><small>The exact Community, not only its manager, will own the campaign evidence.</small></label>)}
+          <div className="inquiry-activation-mode" role="group" aria-label="Activity choice"><button type="button" className={activationForm.mode === 'new' ? 'active' : ''} onClick={() => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, mode: 'new', activityId: '' })); }}>Create new activity</button><button type="button" className={activationForm.mode === 'existing' ? 'active' : ''} onClick={() => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, mode: 'existing' })); }}>Use existing activity</button></div>
+          {activationForm.mode === 'existing' ? <label>Existing activity<select required value={activationForm.activityId} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, activityId: event.target.value })); }}><option value="">Choose unassigned or matching activity</option>{eligibleActivationActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.partner_kind ? ' · already assigned to this partner' : ' · unassigned'}</option>)}</select><small>Activities assigned to a different partner are hidden to prevent accidental replacement.</small></label> : <>
+            <label>Activity title<input required maxLength={140} value={activationForm.title} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, title: event.target.value })); }} /></label>
+            <div className="inquiry-activation-grid"><label>Activity type<select value={activationForm.activityType} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, activityType: event.target.value as ActivationForm['activityType'] })); }}><option value="creator_content">Creator Content</option><option value="community_placement">Community Placement</option><option value="website">Website</option><option value="video">Video</option><option value="other">Other</option></select></label><label>Planned cost (USD)<input type="number" min="0" step="0.01" value={activationForm.plannedCostUsd} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, plannedCostUsd: event.target.value })); }} placeholder="Optional" /></label></div>
+            <label>Destination URL (optional)<input type="url" value={activationForm.destinationUrl} onChange={(event) => { setActivationCandidateActivityId(''); setActivationForm((current) => ({ ...current, destinationUrl: event.target.value })); }} placeholder="https://..." /></label>
+          </>}
+          {activationCandidateActivityId && <div className="inquiry-activation-retry"><strong>Activity assignment saved.</strong><span>The final inquiry activation marker can be retried without creating another activity.</span></div>}
+          <div className="ops-form-actions"><button type="button" className="ops-button secondary" disabled={busy.startsWith('activate:')} onClick={() => setActivationTarget(null)}>Cancel</button><button type="submit" className="ops-button primary" disabled={busy.startsWith('activate:')}>{busy.startsWith('activate:') ? 'Activating...' : activationCandidateActivityId ? 'Retry activation' : 'Activate in campaign'}</button></div>
+        </form>}
+      </section></div>}
     </div>
   </ProductWorkspace>;
 }
