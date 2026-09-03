@@ -35,6 +35,97 @@ test('OpenSea item artwork resolves through Alchemy token metadata without using
   }
 });
 
+test('NFT metadata identity resolves artwork even when no saved preview URL exists', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    assert.match(url, /^https:\/\/base-mainnet\.g\.alchemy\.com\/nft\/v3\/test-key\/getNFTMetadata\?/);
+    return new Response(JSON.stringify({ image: { pngUrl: 'https://cdn.example.com/canonical-nft.png' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview(
+      { ALCHEMY_API_KEY: 'test-key' },
+      null,
+      'Base',
+      '0xb6a37b5d14d502c3ab0ae6f3a0e058bc9517786e',
+      '3986',
+    );
+    assert.deepEqual(result, { kind: 'image', src: 'https://cdn.example.com/canonical-nft.png', youtube: false });
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('saved Alchemy CDN artwork is refreshed from canonical NFT metadata before public rendering', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    if (url.includes('/getNFTMetadata?')) {
+      return new Response(JSON.stringify({ image: { originalUrl: 'ipfs://bafy-refreshed-artwork' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    throw new Error(`stale saved CDN URL should not be fetched first: ${url}`);
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview(
+      { ALCHEMY_API_KEY: 'test-key' },
+      'https://nft-cdn.alchemy.com/stale-preview.png',
+      'Ethereum',
+      '0xb6a37b5d14d502c3ab0ae6f3a0e058bc9517786e',
+      '3986',
+    );
+    assert.deepEqual(result, { kind: 'image', src: 'https://ipfs.io/ipfs/bafy-refreshed-artwork', youtube: false });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].includes('nft-cdn.alchemy.com'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Solana NFT metadata resolves public artwork from saved mint even without media URL', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  const mint = 'So11111111111111111111111111111111111111112';
+  globalThis.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    assert.equal(url, 'https://solana-mainnet.g.alchemy.com/v2/test-key');
+    const body = JSON.parse(String(init?.body || '{}')) as { method?: string; params?: { id?: string } };
+    assert.equal(body.method, 'getAsset');
+    assert.equal(body.params?.id, mint);
+    return new Response(JSON.stringify({ result: { content: { links: { image: 'ipfs://bafy-solana-artwork' } } } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview(
+      { ALCHEMY_API_KEY: 'test-key' },
+      null,
+      'Solana',
+      mint,
+      mint,
+    );
+    assert.deepEqual(result, { kind: 'image', src: 'https://ipfs.io/ipfs/bafy-solana-artwork', youtube: false });
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('direct NFT artwork URLs stay direct and do not require a metadata request', async () => {
   const originalFetch = globalThis.fetch;
   let called = false;
