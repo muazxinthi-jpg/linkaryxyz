@@ -65,7 +65,7 @@ export async function listCampaignOpportunities(request: Request, env: Env): Pro
        JOIN campaigns c ON c.id = o.campaign_id
        JOIN organizations org ON org.id = o.organization_id
       WHERE o.status = 'open'
-        AND (o.application_deadline IS NULL OR o.application_deadline >= ?)
+        AND (o.application_deadline IS NULL OR date(o.application_deadline) >= date(?))
         ${mineClause}
       ORDER BY o.created_at DESC LIMIT 200`,
     params,
@@ -136,8 +136,13 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
     const manager = await db.first<{ id: string }>(`SELECT m.id FROM partner_managers m JOIN profiles p ON p.id = m.profile_id WHERE m.id = ? AND p.owner_user_id = ?`, [body.managerId, auth.user.id]);
     if (!manager) throw new HttpError(403, 'Manager listing access denied', 'forbidden');
   }
-  const opportunity = await db.first<{ status: string; application_deadline: string | null }>('SELECT status, application_deadline FROM campaign_opportunities WHERE id = ?', [body.opportunityId]);
-  if (!opportunity || opportunity.status !== 'open' || (opportunity.application_deadline && opportunity.application_deadline < now())) throw new HttpError(409, 'This opportunity is not accepting applications', 'opportunity_closed');
+  const opportunity = await db.first<{ status: string; application_deadline: string | null; deadline_passed: number }>(
+    `SELECT status, application_deadline,
+            CASE WHEN application_deadline IS NOT NULL AND date(application_deadline) < date(?) THEN 1 ELSE 0 END AS deadline_passed
+       FROM campaign_opportunities WHERE id = ?`,
+    [now(), body.opportunityId],
+  );
+  if (!opportunity || opportunity.status !== 'open' || Boolean(opportunity.deadline_passed)) throw new HttpError(409, 'This opportunity is not accepting applications', 'opportunity_closed');
   const existing = await db.first<{ id: string }>(
     'SELECT id FROM campaign_opportunity_applications WHERE opportunity_id = ? AND applicant_profile_id = ? AND COALESCE(manager_id,\'\') = COALESCE(?,\'\')',
     [body.opportunityId, body.profileId, body.managerId || null],
