@@ -23,9 +23,6 @@ jobs:
           print('NFT_COLLECTION_COUNT=', html.count('NFT COLLECTION'))
           print('COLLECTED_IDENTITY_COUNT=', html.count('COLLECTED IDENTITY'))
           print('LINKS_WORK_COUNT=', html.count('Links & work'))
-          pos = html.find('NFT COLLECTION')
-          if pos >= 0:
-              print(html[max(0,pos-500):pos+900])
           if 'NFT COLLECTION' not in html:
               raise SystemExit('NFT COLLECTION heading missing from live profile')
           if 'COLLECTED IDENTITY' in html:
@@ -33,3 +30,19 @@ jobs:
           if 'Links & work' in html:
               raise SystemExit('Unwanted Links & work section still present')
           PY
+
+      - name: Diagnose app host profile route
+        shell: bash
+        run: |
+          set +e
+          echo '=== HEADERS ==='
+          curl -sS -D /tmp/headers.txt -o /tmp/body.txt -w 'HTTP_STATUS=%{http_code}\nREMOTE_IP=%{remote_ip}\n' 'https://app.linkary.xyz/profile?diagnostic=1'
+          cat /tmp/headers.txt
+          echo '=== BODY START ==='
+          head -c 2000 /tmp/body.txt || true
+          echo
+          echo '=== ROOT CHECK ==='
+          curl -sS -D /tmp/root-headers.txt -o /tmp/root-body.txt -w 'ROOT_STATUS=%{http_code}\n' 'https://app.linkary.xyz/?diagnostic=1'
+          cat /tmp/root-headers.txt
+          head -c 1000 /tmp/root-body.txt || true
+          echo
