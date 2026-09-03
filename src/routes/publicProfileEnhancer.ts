@@ -110,6 +110,8 @@ body:before,body:after,.page:before,.page:after{display:none!important;content:n
 .showcase-item,.product-item{min-height:242px!important;padding:10px 10px 58px!important;border:1px solid #e8ded8!important;border-radius:22px!important;background:#fff!important;color:#151210!important;box-shadow:0 14px 34px rgba(38,24,18,.09)!important}
 .showcase-item img,.product-item img{inset:10px 10px 58px!important;width:calc(100% - 20px)!important;height:calc(100% - 68px)!important;border-radius:15px!important;object-fit:cover!important;opacity:1!important;padding:0!important}
 .image-showcase .showcase-item img{object-fit:contain!important;background:#faf8f6!important;padding:8px!important}
+.nft-showcase .showcase-item{background:#f8f6f3!important}
+.nft-showcase .showcase-item img{object-fit:contain!important;background:#f8f6f3!important;padding:8px!important}
 .showcase-item:after,.product-item:after{display:none!important}
 .showcase-item span,.product-item span{left:14px!important;right:14px!important;bottom:13px!important;color:#151210!important;text-shadow:none!important}
 .showcase-item strong,.product-item strong{font-size:16px!important;line-height:1.2!important;text-shadow:none!important}

@@ -53,6 +53,11 @@ test('desktop galleries stay expanded and public profile cache turns over quickl
   assert.equal(enhancer.includes("headers.set('cache-control', 'public, max-age=30, s-maxage=60')"), true);
 });
 
+test('NFT collection artwork is contained rather than cropped as a generic thumbnail', () => {
+  assert.equal(enhancer.includes('.nft-showcase .showcase-item img{object-fit:contain!important'), true);
+  assert.equal(profiles.includes('.nft-showcase .showcase-item img{object-fit:contain;opacity:1;padding:8px'), true);
+});
+
 test('matrix canvas script closes the stream iterator before scheduling its next frame', () => {
   assert.equal(profiles.includes("}});if(!reduced)requestAnimationFrame(draw);"), true);
   assert.equal(profiles.includes("speed:reduced?0:.22+(i%7)*.065"), true);
