@@ -347,7 +347,20 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
   const structuredData = safeScriptJson({ '@context': 'https://schema.org', '@type': profile.profile_type === 'project' ? 'Organization' : 'Person', name: profile.display_name, url: canonical, description, ...(avatarUrl ? { image: avatarUrl } : {}) });
   const shareData = safeScriptJson({ title, text: description, url: canonical });
   const typeLabel = profile.profile_type === 'project' ? 'PROJECT IDENTITY' : 'CREATOR IDENTITY';
-  const rainTokens = Array.from(new Set([profile.display_name, `@${profile.username}`, 'LINKARY', 'IDENTITY', 'PROOF', 'GROWTH', 'ATTRIBUTION', profile.profile_type === 'project' ? 'PROJECT' : 'CREATOR'])).slice(0, 12);
+  let networkTokens = ['LINKARY', 'IDENTITY', 'PROOF', 'GROWTH', 'ATTRIBUTION'];
+  try {
+    const [users, creators, projects, communities, value] = await Promise.all([
+      db.first<{ total: number }>('SELECT COUNT(*) AS total FROM users'),
+      db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM profiles WHERE profile_type = 'creator' AND visibility = 'published'`),
+      db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM organizations WHERE status = 'active'`),
+      db.first<{ total: number }>(`SELECT COUNT(DISTINCT entity_id) AS total FROM project_network_entities WHERE entity_type = 'community'`),
+      db.first<{ total: number }>(`SELECT COALESCE(SUM(COALESCE(value_usd, 0)), 0) AS total FROM conversion_events WHERE source IN ('linkary_tracked','telegram_verified','provider_verified')`),
+    ]);
+    networkTokens = [`USERS ${compactNumber(Number(users?.total || 0))}`, `CREATORS ${compactNumber(Number(creators?.total || 0))}`, `PROJECTS ${compactNumber(Number(projects?.total || 0))}`, `COMMUNITIES ${compactNumber(Number(communities?.total || 0))}`, `VALUE ${compactUsd(Number(value?.total || 0))}`, ...networkTokens];
+  } catch {
+    // Public profile rendering must remain available when an optional aggregate is unavailable.
+  }
+  const rainTokens = Array.from(new Set([profile.display_name, `@${profile.username}`, ...networkTokens, profile.profile_type === 'project' ? 'PROJECT' : 'CREATOR'])).slice(0, 18);
   const matrix = Array.from({ length: 38 }, (_, index) => {
     const token = rainTokens[index % rainTokens.length];
     const x = 1 + ((index * 29) % 97);
