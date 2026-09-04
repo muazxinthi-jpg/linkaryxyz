@@ -1,6 +1,6 @@
 # Linkary Technical Product Paper
 
-Last updated: 2026-09-02
+Last updated: 2026-09-04
 
 ## 1. Product thesis
 
@@ -370,6 +370,8 @@ Signals may include:
 
 Telegram signals feed the same attribution confidence model.
 
+Telegram attribution must be event-driven and scoped to the Project, campaign, activity or exact Community involved. Linkary must not repeatedly scan the full user or campaign database to re-check all Communities. A person who is only using a personal profile should not trigger Telegram campaign-attribution work.
+
 ## 15. Onchain attribution
 
 Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
@@ -377,7 +379,7 @@ Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
 Initial preferred chain allocation:
 
 1. Base
-2. Ethereum
+2. BNB Chain
 3. Solana
 4. Arbitrum
 5. Robinhood Chain
@@ -385,6 +387,8 @@ Initial preferred chain allocation:
 Use shared Project-level subscriptions/webhooks where possible.
 
 Onchain signals should be matched to Project activities, campaigns and outcomes using confidence labels and a review path for ambiguous attribution.
+
+Normal personal-profile activity must not trigger continuous blockchain polling or a scan across Project campaign records. Wallet/NFT information can be loaded from the relevant provider when the user or profile needs it. Automated onchain attribution should only be activated for the relevant Project/campaign scope and should prefer provider webhooks/subscriptions or targeted reads over broad polling.
 
 ## 16. Infrastructure principles
 
@@ -401,6 +405,33 @@ Current delivery stack includes:
 Production D1 migrations are manual and versioned. They must not automatically run on every Worker deployment.
 
 Secrets such as tracking salts and database deployment credentials stay server-side and must never reach browser code.
+
+### 16.1 Lightweight data-access and scaling rules
+
+Linkary should stay event-driven, scoped and inexpensive by default. The platform must not behave like a bot that periodically cross-checks every database row for every user.
+
+Core rules:
+
+- Normal Creator/profile usage does not scan Project campaigns, activities, tracking clicks or outcomes.
+- Growth work is Project-owned. Campaign and attribution queries start from the relevant `organization_id`, `campaign_id`, `activity_id`, tracking-link ID/code or exact partner identity.
+- A tracking redirect resolves one unique tracking code and records that click. It does not search every campaign row to decide where the click belongs.
+- Campaign views aggregate evidence only for the selected Project/campaign scope.
+- Database indexes should follow the identifiers used by the normal query path. Avoid unbounded full-table reads in customer-facing routes.
+- Result lists that can grow materially should use sensible server limits and add pagination/cursors before scale makes an unbounded response expensive.
+- Stable external metadata should be cached or reused where practical rather than fetched repeatedly without a reason.
+- External providers should be called on demand, from shared subscriptions/webhooks, or for active attribution workflows. Do not poll every user's wallet/social account continuously.
+- Future Telegram tracking should use shared Project-level bot/webhook infrastructure with event-driven writes. Do not create one polling loop per user or Community.
+- Future Alchemy/onchain attribution should use shared Project-level subscriptions/webhooks or targeted reads for relevant campaigns/wallets. It should not scan all Linkary users or all D1 campaign rows on each blockchain event.
+- Expensive derived intelligence should be computed from scoped evidence and can later use cached/roll-up summaries when real Beta volume justifies it.
+- Keep provider-specific enrichment optional. A failure or quota limit in an enrichment provider should not take down Linkary identity, profiles, invites or first-party tracking.
+
+The practical consequence is that database size by itself should not make every Linkary request proportionally more expensive. A Project working on one campaign should query that Project/campaign's indexed records, while an individual profile user should mainly touch identity/profile/wallet-display data and relevant provider APIs.
+
+### 16.2 Runtime schema behavior
+
+Formal versioned migrations remain the source of truth for production D1 schema changes.
+
+Any additive runtime schema safety guard must be idempotent and must not repeat DDL on every campaign, tracking or outcome request. Runtime safety checks should be cached within a Worker isolate, while controlled migrations remain the authoritative production deployment path.
 
 ## 17. UI and UX principles
 
@@ -474,4 +505,4 @@ Beta-ready core:
 14. Basic admin/recovery/verification controls
 15. Responsive readable UX across desktop, tablet and mobile
 
-Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior.
+Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
