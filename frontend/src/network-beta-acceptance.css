@@ -1,0 +1,292 @@
+.network-workspace,
+.network-workspace *{box-sizing:border-box}
+
+.network-workspace .network-toolbar,
+.network-workspace .network-toolbar form,
+.network-workspace .network-grid,
+.network-workspace .network-card,
+.network-workspace .network-card-head,
+.network-workspace .network-card-head>div:nth-child(2),
+.network-workspace .network-metrics,
+.network-workspace .network-actions{
+  min-width:0;
+  max-width:100%;
+}
+
+.network-workspace .network-card-head strong,
+.network-workspace .network-card-head small,
+.network-workspace .network-card>p,
+.network-workspace .network-url,
+.network-workspace .network-verify,
+.network-workspace .ops-message,
+.network-workspace .ops-callout h3,
+.network-workspace .ops-callout p{
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.network-workspace .ops-tabs button,
+.network-workspace .network-toolbar input,
+.network-workspace .network-toolbar .ops-button,
+.network-workspace .network-actions button,
+.network-workspace .ops-heading-row>.ops-button,
+.network-workspace .ops-empty .ops-button,
+.network-workspace .ops-callout .ops-button{
+  min-height:44px;
+}
+
+.network-workspace .network-actions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+
+.network-workspace .network-actions button{
+  width:100%;
+  min-width:0;
+  border:1px solid #dedfdb;
+  border-radius:8px;
+  background:#fff;
+  padding:0 10px;
+  line-height:1.2;
+  white-space:normal;
+}
+
+.network-workspace .network-actions button:hover{
+  border-color:#c9cbc6;
+}
+
+.network-workspace .ops-modal{
+  width:min(620px,calc(100vw - 32px));
+  max-width:100%;
+  max-height:min(840px,calc(100dvh - 32px));
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+
+.network-workspace .ops-modal input,
+.network-workspace .ops-modal select,
+.network-workspace .ops-modal textarea,
+.network-workspace .ops-modal .ops-button{
+  max-width:100%;
+}
+
+@media(max-width:700px){
+  .network-workspace .ops-heading-row{
+    align-items:stretch;
+  }
+
+  .network-workspace .ops-heading-row>.ops-button,
+  .network-workspace .ops-callout .ops-button{
+    width:100%;
+  }
+
+  .network-workspace .ops-project-toolbar,
+  .network-workspace .ops-project-toolbar>div{
+    min-width:0;
+    max-width:100%;
+  }
+
+  .network-workspace .ops-project-toolbar select{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+
+  .network-workspace .network-toolbar{
+    padding:4px 14px 12px;
+    gap:12px;
+  }
+
+  .network-workspace .network-toolbar .ops-tabs{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  .network-workspace .network-toolbar .ops-tabs button{
+    min-height:44px;
+  }
+
+  .network-workspace .network-toolbar form{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    width:100%;
+    padding-bottom:0;
+  }
+
+  .network-workspace .network-toolbar input{
+    width:100%;
+    min-width:0;
+    padding:0 11px;
+  }
+
+  .network-workspace .network-toolbar .ops-button{
+    min-width:84px;
+  }
+
+  .network-workspace .network-grid{
+    padding:12px;
+  }
+
+  .network-workspace .network-card{
+    padding:14px;
+  }
+
+  .network-workspace .network-card-head strong{
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+  }
+
+  .network-workspace .network-card-head small{
+    white-space:normal;
+  }
+
+  .network-workspace .network-url{
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+  }
+
+  .network-workspace .network-actions{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .network-workspace .network-actions button:last-child:nth-child(odd){
+    grid-column:1/-1;
+  }
+
+  .network-workspace .ops-modal-backdrop{
+    align-items:end;
+    padding:8px;
+  }
+
+  .network-workspace .ops-modal{
+    width:calc(100vw - 16px);
+    max-height:calc(100dvh - 16px);
+    margin:0;
+    border-bottom-left-radius:0;
+    border-bottom-right-radius:0;
+  }
+
+  .network-workspace .ops-modal .ops-modal-head button{
+    flex:0 0 44px;
+    width:44px;
+    height:44px;
+    min-width:44px;
+    min-height:44px;
+  }
+
+  .network-workspace .ops-modal input,
+  .network-workspace .ops-modal select,
+  .network-workspace .ops-modal textarea{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+
+  .network-workspace .ops-modal .ops-form-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    gap:8px;
+  }
+
+  .network-workspace .ops-modal .ops-form-actions .ops-button{
+    width:100%;
+    min-height:44px;
+  }
+}
+
+@media(max-width:430px){
+  .network-workspace .network-toolbar{
+    padding-inline:12px;
+  }
+
+  .network-workspace .network-toolbar form{
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+  }
+
+  .network-workspace .network-toolbar .ops-button{
+    width:100%;
+    min-width:0;
+  }
+
+  .network-workspace .network-grid{
+    padding:10px;
+  }
+
+  .network-workspace .network-card{
+    padding:13px 12px;
+  }
+
+  .network-workspace .network-card-head{
+    grid-template-columns:38px minmax(0,1fr);
+    align-items:start;
+  }
+
+  .network-workspace .network-verify{
+    grid-column:1/-1;
+    justify-self:start;
+    max-width:100%;
+    white-space:normal;
+  }
+
+  .network-workspace .network-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .network-workspace .network-metrics>div{
+    min-width:0;
+  }
+
+  .network-workspace .network-metrics strong{
+    overflow-wrap:anywhere;
+  }
+
+  .network-workspace .network-actions,
+  .network-workspace .ops-modal .ops-form-actions{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .network-workspace .network-actions button:last-child:nth-child(odd){
+    grid-column:auto;
+  }
+}
+
+@media(max-width:340px){
+  .network-workspace .network-card-head{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .network-workspace .network-avatar{
+    width:36px;
+    height:36px;
+  }
+
+  .network-workspace .network-verify{
+    grid-column:1;
+  }
+
+  .network-workspace .network-metrics{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .network-workspace .network-metrics>div,
+  .network-workspace .network-metrics>div:nth-child(2){
+    border-right:0;
+  }
+
+  .network-workspace .network-metrics>div:not(:last-child){
+    border-bottom:1px solid #e9e9e5;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .network-workspace *{scroll-behavior:auto!important}
+}
