@@ -83,3 +83,9 @@
     width:100%;
   }
 }
+
+/* Beta acceptance: the core Community actions must be visible before optional Telegram identity status. */
+.community-manager-page > .community-manager-hero { order:0; }
+.community-manager-page > .ops-banner { order:1; }
+.community-manager-page > .community-manager-grid { order:2; }
+.community-manager-page > .community-list-card { order:3; }
