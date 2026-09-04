@@ -3,7 +3,11 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { json } from '../http';
 import { requireSuperadmin } from '../auth/session';
-import { readBetaSchemaReadiness, type BetaSchemaReadiness } from '../betaReadiness';
+import {
+  assessBetaConfiguration,
+  readBetaSchemaReadiness,
+  type BetaSchemaReadiness,
+} from '../betaReadiness';
 
 export async function adminHealth(request: Request, env: Env): Promise<Response> {
   const auth = await requireSuperadmin(request, env);
@@ -29,6 +33,9 @@ export async function adminHealth(request: Request, env: Env): Promise<Response>
         inspectionError: 'Production schema could not be inspected.',
       })),
   ]);
+  const configuration = assessBetaConfiguration(env);
+  const schemaReady = schemaResult.schema.ready && !schemaResult.inspectionError;
+  const ready = schemaReady && configuration.ready;
 
   return json(
     {
@@ -41,13 +48,15 @@ export async function adminHealth(request: Request, env: Env): Promise<Response>
         organizations: organizations?.count || 0,
       },
       betaReadiness: {
-        ready: schemaResult.schema.ready && !schemaResult.inspectionError,
+        ready,
         schema: schemaResult.schema,
+        configuration,
         inspectionError: schemaResult.inspectionError,
-        nextAction:
-          schemaResult.schema.ready && !schemaResult.inspectionError
-            ? 'Run the real-account Beta acceptance checklist.'
-            : 'Apply the protected production D1 migrations, then refresh this check.',
+        nextAction: !schemaReady
+          ? 'Apply the protected production D1 migrations, then refresh this check.'
+          : !configuration.ready
+            ? 'Configure the missing production requirements, then refresh this check.'
+            : 'Run the real-account Beta acceptance checklist.',
       },
     },
     { headers: { 'x-robots-tag': 'noindex, nofollow' } },
