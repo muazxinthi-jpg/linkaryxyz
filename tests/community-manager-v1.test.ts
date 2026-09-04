@@ -37,8 +37,10 @@ test('Communities is a real authenticated app deep link', async () => {
   assert.deepEqual(requestedPaths, ['/assets/linkary-app/index.html']);
 
   const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
+  const gate = readFileSync(new URL('../frontend/src/CommunityManagerSessionGate.tsx', import.meta.url), 'utf8');
   assert.equal(app.includes("location.pathname === '/communities'"), true);
-  assert.equal(app.includes('CommunityManagerExperience'), true);
+  assert.equal(app.includes('CommunityManagerSessionGate'), true);
+  assert.equal(gate.includes('CommunityManagerExperience'), true);
 });
 
 test('Creator navigation exposes Communities without adding it to Project operations', () => {
