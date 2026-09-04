@@ -1,0 +1,424 @@
+/*
+ * Beta responsive acceptance hardening.
+ *
+ * This stylesheet is intentionally imported last so it can resolve cascade
+ * conflicts between older desktop/tablet rules and the phone workspace shell.
+ * Keep changes focused on Issue #42 acceptance, not visual redesign.
+ */
+
+.ops-shell,
+.ops-main,
+.ops-page,
+.ops-section,
+.ops-create-card,
+.ops-modal,
+.dashboard-next,
+.profile-next-grid,
+.wallet-grid,
+.invite-summary-card,
+.inbox-list,
+.network-grid {
+  min-width: 0;
+}
+
+.ops-shell {
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
+.ops-mobile-account-menu {
+  display: none;
+}
+
+.ops-heading-row > *,
+.ops-section-title > *,
+.ops-callout > *,
+.dashboard-next-hero > *,
+.inbox-copy,
+.network-card-head > *,
+.profile-block-list article > * {
+  min-width: 0;
+}
+
+.ops-heading-row h1,
+.ops-heading-row p,
+.ops-callout h3,
+.ops-callout p,
+.ops-section-title h2,
+.ops-section-title p,
+.dashboard-next-hero h1,
+.dashboard-next-hero p,
+.dashboard-next-actions strong,
+.dashboard-next-actions small,
+.inbox-copy strong,
+.inbox-copy small,
+.inbox-copy p,
+.network-card-head strong,
+.network-card-head small,
+.profile-block-list article strong,
+.profile-block-list article small {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .ops-heading-actions,
+  .profile-next-head-actions,
+  .ops-form-actions,
+  .inbox-actions,
+  .network-actions,
+  .invite-row-actions,
+  .wallet-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  /*
+   * ux-system.css has a later tablet rule that makes the sidebar relative.
+   * Reassert the intended phone bottom navigation here, after every legacy
+   * stylesheet, so content cannot jump above or underneath the nav.
+   */
+  .ops-shell {
+    display: block;
+    width: 100%;
+  }
+
+  .ops-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    height: calc(62px + env(safe-area-inset-bottom));
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
+    display: block;
+    box-sizing: border-box;
+    z-index: 50;
+  }
+
+  .ops-brand,
+  .ops-view-as,
+  .ops-sidebar-footer {
+    display: none;
+  }
+
+  .ops-main {
+    width: 100%;
+  }
+
+  .ops-page {
+    width: 100%;
+    padding-bottom: calc(104px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .ops-topbar {
+    width: 100%;
+    box-sizing: border-box;
+    flex-wrap: nowrap;
+  }
+
+  .ops-topbar > div:first-child {
+    min-width: 0;
+    max-width: calc(100% - 72px);
+    overflow: hidden;
+  }
+
+  .ops-topbar > div:first-child strong,
+  .ops-topbar > div:first-child span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ops-mobile-account-menu {
+    display: block;
+    position: relative;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .ops-mobile-account-menu summary {
+    list-style: none;
+    min-width: 52px;
+    min-height: 44px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d7d9d5;
+    border-radius: 9px;
+    background: #fff;
+    color: #24292c;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .ops-mobile-account-menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ops-mobile-account-menu[open] summary {
+    background: #f2f2ef;
+  }
+
+  .ops-mobile-menu-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(280px, calc(100vw - 28px));
+    max-height: min(68vh, 520px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px;
+    border: 1px solid #d9dad6;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, .18);
+    z-index: 80;
+  }
+
+  .ops-mobile-menu-label {
+    display: block;
+    padding: 9px 9px 5px;
+    color: #8b9296;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+
+  .ops-topbar .ops-mobile-menu-panel a,
+  .ops-mobile-menu-panel button {
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #32383b;
+    font: 700 13px/1.25 inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .ops-topbar .ops-mobile-menu-panel a.active {
+    background: #f1f2ef;
+    color: #111517;
+  }
+
+  .ops-mobile-menu-panel button {
+    margin-top: 6px;
+    border-top: 1px solid #e8e8e4;
+    border-radius: 0 0 8px 8px;
+    color: #7b4d43;
+  }
+
+  .ops-heading-actions,
+  .profile-next-head-actions,
+  .ops-form-actions {
+    width: 100%;
+  }
+
+  .ops-heading-actions .ops-button,
+  .profile-next-head-actions .ops-button,
+  .ops-form-actions .ops-button,
+  .ops-callout .ops-button {
+    min-height: 44px;
+  }
+
+  .ops-modal-head button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ops-toast {
+    left: 12px;
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: auto;
+    box-sizing: border-box;
+  }
+
+  .ops-card-action,
+  .ops-link-footer button,
+  .profile-block-actions button,
+  .inbox-actions a,
+  .inbox-actions button,
+  .inbox-updates a,
+  .inbox-updates button,
+  .network-actions button,
+  .invite-url button,
+  .invite-row-actions button,
+  .wallet-address button,
+  .wallet-actions button,
+  .partner-card-foot button,
+  .partner-contact-row a,
+  .growth-campaign-actions button {
+    min-height: 44px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ops-link-footer,
+  .wallet-actions,
+  .network-actions,
+  .invite-row-actions {
+    gap: 8px;
+  }
+
+  .ops-link-footer {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ops-link-footer > div {
+    flex-wrap: wrap;
+  }
+
+  .invite-url,
+  .wallet-address {
+    max-width: 100%;
+  }
+
+  .invite-url input,
+  .wallet-address code,
+  .ops-link-url input,
+  .ops-link-destination a,
+  .network-url {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile-save-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-save-row .ops-button {
+    width: 100%;
+  }
+
+  .inbox-copy > div:first-child {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .inbox-copy time {
+    max-width: 100%;
+  }
+
+  .inbox-actions {
+    justify-content: flex-start;
+  }
+
+  .inbox-actions a,
+  .inbox-actions button {
+    flex: 1 1 120px;
+  }
+
+  .network-card-head {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .network-card-head .network-verify {
+    grid-column: 2;
+    justify-self: start;
+    max-width: 100%;
+  }
+
+  .network-actions button,
+  .invite-row-actions button,
+  .wallet-actions button,
+  .profile-block-actions button {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .dashboard-next-hero .ops-button {
+    max-width: 100%;
+  }
+
+  .dashboard-next-actions a {
+    grid-template-columns: 28px minmax(0, 1fr) 16px;
+  }
+
+  .dashboard-next-actions a > div {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .ops-heading-actions .ops-button,
+  .profile-next-head-actions .ops-button,
+  .ops-form-actions .ops-button {
+    flex: 1 1 100%;
+  }
+
+  .dashboard-next-hero .ops-button,
+  .ops-callout .ops-button {
+    width: 100%;
+  }
+
+  .inbox-list > article {
+    column-gap: 10px;
+  }
+
+  .inbox-actions {
+    grid-column: 1 / 3;
+  }
+
+  .invite-row-actions,
+  .wallet-actions,
+  .profile-block-actions {
+    justify-content: flex-start;
+  }
+
+  .invite-row-actions button,
+  .wallet-actions button,
+  .profile-block-actions button {
+    flex: 1 1 120px;
+  }
+}
+
+@media (max-width: 375px) {
+  .profile-block-list article > div:first-child {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-block-list article span {
+    grid-row: auto;
+  }
+
+  .dashboard-next-actions a {
+    grid-template-columns: 24px minmax(0, 1fr) 14px;
+    gap: 8px;
+    padding-inline: 11px;
+  }
+}
+
+@media (max-width: 340px) {
+  .dashboard-next-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-next-metrics article {
+    border-right: 0;
+    border-bottom: 1px solid #e5e5e1;
+  }
+
+  .dashboard-next-metrics article:last-child {
+    border-bottom: 0;
+  }
+}
