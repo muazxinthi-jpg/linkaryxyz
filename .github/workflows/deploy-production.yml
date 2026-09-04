@@ -44,6 +44,13 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Diagnose saved production NFT metadata
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute linkary-db --remote --command "SELECT pb.title, pb.url, json_extract(pb.config_json, '$.mediaUrl') AS media_url, json_extract(pb.config_json, '$.chain') AS chain, json_extract(pb.config_json, '$.nftContract') AS nft_contract, json_extract(pb.config_json, '$.nftTokenId') AS nft_token_id, json_extract(pb.config_json, '$.nftCollection') AS nft_collection FROM profile_blocks pb JOIN profiles p ON p.id = pb.profile_id WHERE lower(p.username) = 'muazxinthi' AND pb.block_type = 'nft_item' AND pb.enabled = 1 ORDER BY pb.position ASC;"
+
       - name: Diagnose live NFT profile preview
         if: github.event_name == 'pull_request'
         shell: bash
