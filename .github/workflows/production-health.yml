@@ -88,3 +88,17 @@ jobs:
             echo "::error::Linkary production API health check failed"
             exit 1
           fi
+
+      - name: Check launch security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in 'https://app.linkary.xyz/' 'https://app.linkary.xyz/api/auth/me'; do
+            headers="/tmp/linkary-security-headers.txt"
+            curl --max-time 20 -sS -D "$headers" -o /dev/null "$target"
+            grep -qi '^x-content-type-options: nosniff' "$headers"
+            grep -qi '^referrer-policy: strict-origin-when-cross-origin' "$headers"
+            grep -qi '^permissions-policy: camera=(), microphone=(), geolocation=()' "$headers"
+            grep -qi '^strict-transport-security: max-age=31536000; includeSubDomains' "$headers"
+            echo "Launch security headers healthy: ${target}"
+          done
