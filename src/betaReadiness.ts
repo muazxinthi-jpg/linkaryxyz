@@ -1,4 +1,5 @@
 import type { Db } from './db/client';
+import type { Env } from './env';
 
 export type SchemaObject = { type: string; name: string };
 
@@ -43,6 +44,14 @@ export const REQUIRED_BETA_TRIGGERS = [
   'trg_team_invite_membership_after_redemption',
 ] as const;
 
+export const REQUIRED_BETA_CONFIGURATION = [
+  'D1 database binding',
+  'Coinbase CDP project',
+  'Coinbase CDP server credentials',
+  'Public profile URL',
+  'Authenticated app URL',
+] as const;
+
 export type BetaSchemaReadiness = {
   ready: boolean;
   requiredTableCount: number;
@@ -52,6 +61,13 @@ export type BetaSchemaReadiness = {
   presentRequiredTriggerCount: number;
   missingTriggers: string[];
   migrationLedgerPresent: boolean;
+};
+
+export type BetaConfigurationReadiness = {
+  ready: boolean;
+  requiredCount: number;
+  presentCount: number;
+  missing: string[];
 };
 
 export function assessBetaSchema(objects: SchemaObject[]): BetaSchemaReadiness {
@@ -69,6 +85,23 @@ export function assessBetaSchema(objects: SchemaObject[]): BetaSchemaReadiness {
     presentRequiredTriggerCount: REQUIRED_BETA_TRIGGERS.length - missingTriggers.length,
     missingTriggers: [...missingTriggers],
     migrationLedgerPresent: tables.has('d1_migrations'),
+  };
+}
+
+export function assessBetaConfiguration(env: Env): BetaConfigurationReadiness {
+  const checks = [
+    Boolean(env.DB),
+    Boolean(env.CDP_PROJECT_ID?.trim()),
+    Boolean(env.CDP_API_KEY_ID?.trim() && env.CDP_API_KEY_SECRET?.trim()),
+    Boolean(env.PUBLIC_SITE_URL?.trim()),
+    Boolean(env.APP_BASE_URL?.trim()),
+  ];
+  const missing = REQUIRED_BETA_CONFIGURATION.filter((_, index) => !checks[index]);
+  return {
+    ready: missing.length === 0,
+    requiredCount: REQUIRED_BETA_CONFIGURATION.length,
+    presentCount: REQUIRED_BETA_CONFIGURATION.length - missing.length,
+    missing: [...missing],
   };
 }
 
