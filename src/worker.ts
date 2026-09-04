@@ -1,7 +1,7 @@
 import baseWorker from './index';
 import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
-import { refreshCurrentCdpLink } from './auth/cdpCurrentLink';
+import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
 import { errorResponse } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
@@ -24,6 +24,10 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/auth/cdp/current-link') {
       try { return await refreshCurrentCdpLink(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/auth/telegram-identity') {
+      try { return await currentPersonalTelegramIdentity(request, env); }
       catch (error) { return errorResponse(error); }
     }
 
