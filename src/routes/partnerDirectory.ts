@@ -163,11 +163,14 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   if (managerId) {
     const existing = await requireOwnedManager(db, auth.user.id, managerId);
     const telegramIdentity = existing.manager_type === 'community_manager' ? await telegramIdentityForUser(db, auth.user.id) : null;
+    const telegramContact = existing.manager_type === 'community_manager'
+      ? telegramIdentity?.current_handle || null
+      : body.telegramContact?.trim().slice(0, 120) || null;
     const displayName = body.displayName?.trim().slice(0, 120);
     if (!displayName) throw new HttpError(400, 'Display name is required', 'invalid_manager');
     await db.run(
       `UPDATE partner_managers SET display_name = ?, headline = ?, bio = ?, x_handle = ?, telegram_contact = ?, email = ?, website_url = ?, visibility = ?, open_to_campaigns = ?, updated_at = ? WHERE id = ?`,
-      [displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramIdentity?.current_handle || body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, now(), managerId],
+      [displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramContact, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, now(), managerId],
     );
     if (body.estimatedUniqueAudience !== undefined) await saveAudienceEstimate(db, managerId, body.estimatedUniqueAudience, body.audienceMethodology || '');
     return json({ ok: true, id: managerId, managerType: existing.manager_type });
@@ -176,6 +179,9 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   if (!body.profileId || !body.managerType || !['community_manager', 'kol_manager'].includes(body.managerType)) throw new HttpError(400, 'Profile and manager type are required', 'invalid_manager');
   const profile = await requireOwnedCreatorProfile(db, auth.user.id, body.profileId);
   const telegramIdentity = body.managerType === 'community_manager' ? await telegramIdentityForUser(db, auth.user.id) : null;
+  const telegramContact = body.managerType === 'community_manager'
+    ? telegramIdentity?.current_handle || null
+    : body.telegramContact?.trim().slice(0, 120) || null;
   const displayName = body.displayName?.trim().slice(0, 120) || profile.display_name;
   const existing = await db.first<{ id: string }>('SELECT id FROM partner_managers WHERE profile_id = ? AND manager_type = ?', [body.profileId, body.managerType]);
   if (existing) throw new HttpError(409, 'This manager listing already exists', 'manager_exists');
@@ -184,7 +190,7 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   await db.run(
     `INSERT INTO partner_managers (id, profile_id, manager_type, display_name, headline, bio, x_handle, telegram_contact, email, website_url, visibility, verification_status, open_to_campaigns, created_by_user_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unverified', ?, ?, ?, ?)`,
-    [managerId, body.profileId, body.managerType, displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramIdentity?.current_handle || body.telegramContact?.trim().slice(0, 120) || null, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, auth.user.id, timestamp, timestamp],
+    [managerId, body.profileId, body.managerType, displayName, body.headline?.trim().slice(0, 160) || '', body.bio?.trim().slice(0, 800) || '', cleanHandle(body.xHandle), telegramContact, body.email?.trim().slice(0, 160) || null, safeUrl(body.websiteUrl), body.visibility === 'private' ? 'private' : 'public', body.openToCampaigns === false ? 0 : 1, auth.user.id, timestamp, timestamp],
   );
   if (body.estimatedUniqueAudience !== undefined) await saveAudienceEstimate(db, managerId, body.estimatedUniqueAudience, body.audienceMethodology || '');
   return json({ id: managerId }, { status: 201 });

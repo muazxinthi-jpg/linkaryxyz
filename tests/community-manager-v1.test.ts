@@ -76,6 +76,9 @@ test('Personal Telegram verification stays evidence-bearing but does not block C
   assert.equal(route.includes('pi.ownership_verified_at IS NOT NULL'), true);
   assert.equal(route.includes('requireTelegramIdentity'), false);
   assert.equal(route.includes('telegram_identity_required'), false);
+  assert.equal(route.includes("const telegramContact = existing.manager_type === 'community_manager'"), true);
+  assert.equal(route.includes("const telegramContact = body.managerType === 'community_manager'"), true);
+  assert.equal(route.includes("? telegramIdentity?.current_handle || null"), true);
   assert.equal(ui.includes('Optional for Beta'), true);
   assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
   assert.equal(ui.includes('if (!personalProfile) return;'), true);
