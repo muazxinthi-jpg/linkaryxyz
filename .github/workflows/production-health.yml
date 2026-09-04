@@ -1,0 +1,75 @@
+name: Linkary production health
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linkary-production-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check authenticated app shell routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          routes=(
+            "/"
+            "/dashboard"
+            "/dashboard/inbox"
+            "/campaigns"
+            "/tracking"
+            "/partners"
+            "/profile"
+            "/invites"
+            "/wallets"
+            "/settings"
+          )
+
+          for path in "${routes[@]}"; do
+            healthy=false
+            for attempt in 1 2 3; do
+              body="/tmp/linkary-route-${attempt}.html"
+              status="$(curl --max-time 20 -sS -o "$body" -w '%{http_code}' "https://app.linkary.xyz${path}?healthcheck=${GITHUB_RUN_ID}-${attempt}")" || status=000
+              if [[ "$status" == "200" ]] && grep -q 'id="root"' "$body"; then
+                echo "Healthy app shell: ${path}"
+                healthy=true
+                break
+              fi
+              echo "Route check failed: ${path}, attempt ${attempt}, HTTP ${status}"
+              sleep 5
+            done
+            if [[ "$healthy" != "true" ]]; then
+              echo "::error::Linkary production app shell is unhealthy at ${path}"
+              exit 1
+            fi
+          done
+
+      - name: Check Worker API response
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            body="/tmp/linkary-api-${attempt}.json"
+            status="$(curl --max-time 20 -sS -o "$body" -w '%{http_code}' 'https://app.linkary.xyz/api/auth/me')" || status=000
+            if [[ "$status" == "200" ]] && grep -q '"authenticated"' "$body"; then
+              echo "Healthy API: /api/auth/me"
+              healthy=true
+              break
+            fi
+            echo "API check failed: attempt ${attempt}, HTTP ${status}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::Linkary production API health check failed"
+            exit 1
+          fi
