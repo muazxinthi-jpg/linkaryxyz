@@ -14,7 +14,7 @@ import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
-import CommunityManagerSessionGate from './CommunityManagerSessionGate';
+import CommunityManagerExperience from './CommunityManagerExperience';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
@@ -79,7 +79,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
     if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
-    if (experience === 'communities') return <CommunityManagerSessionGate me={me} status={status} />;
+    if (experience === 'communities') return <CommunityManagerExperience me={me} status={status} />;
     if (experience === 'growth') return <GrowthExperience me={me} status={status} />;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'partners') return <PartnerDiscoveryExperience me={me} status={status} />;
