@@ -1,0 +1,485 @@
+/* Beta responsive acceptance pass 7: Creator / Project profile editor and public preview. */
+.profile-beta {
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-beta .ops-heading-row > div:first-child,
+.profile-beta .ops-section,
+.profile-beta .ops-section-title > div,
+.profile-beta-progress,
+.profile-beta-progress-top > div,
+.profile-beta-layout,
+.profile-beta-editor-column,
+.profile-beta-preview-column,
+.profile-beta-identity-grid,
+.profile-beta-block-copy,
+.profile-beta-quick-add > div,
+.profile-beta-seo,
+.profile-beta-seo-toggle > span,
+.profile-beta-nft-panel,
+.profile-beta-nft-editor,
+.profile-beta-nft-panel-head > div,
+.profile-beta-modal,
+.profile-beta-modal .ops-modal-head > div {
+  min-width: 0;
+}
+
+.profile-beta .ops-heading-row h1,
+.profile-beta .ops-heading-row p,
+.profile-beta-progress-top strong,
+.profile-beta-progress-top span,
+.profile-beta-block-copy strong,
+.profile-beta-block-copy small,
+.profile-beta-quick-add h3,
+.profile-beta-seo-toggle strong,
+.profile-beta-seo-toggle small,
+.profile-beta-nft-panel p,
+.profile-beta-nft-editor p,
+.profile-beta-nft-panel-head strong,
+.profile-beta-nft-panel-head small,
+.profile-beta-preview-unpublished strong,
+.profile-beta-preview-unpublished span,
+.profile-beta-modal h2,
+.profile-beta-modal label,
+.profile-beta-modal small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.profile-beta-head-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profile-beta-head-actions .ops-button,
+.profile-beta-save-row .ops-button,
+.profile-beta .ops-section-title > .ops-button,
+.profile-beta-avatar-actions .ops-button,
+.profile-beta-seo-fields .ops-button {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.profile-beta-progress-top {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.profile-beta-checks span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.profile-beta-layout,
+.profile-beta-identity-grid {
+  min-width: 0;
+}
+
+.profile-beta-avatar,
+.profile-beta-phone,
+.profile-beta-phone-avatar,
+.profile-beta-nft-grid img {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.profile-beta-identity-grid input,
+.profile-beta-identity-grid textarea,
+.profile-beta-seo-fields input,
+.profile-beta-seo-fields textarea,
+.profile-beta-modal input,
+.profile-beta-modal textarea,
+.profile-beta-modal select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.profile-beta-blocks article {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.profile-beta-block-copy span,
+.profile-beta-block-copy strong,
+.profile-beta-block-copy small {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.profile-beta-block-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.profile-beta-block-actions button,
+.profile-beta-grip {
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.profile-beta-grip {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.profile-beta-quick-add > div:last-child {
+  min-width: 0;
+}
+
+.profile-beta-quick-add button,
+.profile-beta-seo-toggle,
+.profile-beta-social-picker button,
+.profile-beta-nft-panel-head button,
+.profile-beta-nft-grid button {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.profile-beta-seo-toggle > b {
+  flex: 0 0 auto;
+  min-width: 24px;
+  text-align: center;
+}
+
+.profile-beta-social-picker button,
+.profile-beta-nft-grid button {
+  min-width: 0;
+}
+
+.profile-beta-nft-panel-head {
+  min-width: 0;
+}
+
+.profile-beta-nft-panel-head button {
+  flex: 0 0 auto;
+}
+
+.profile-beta-nft-grid img {
+  display: block;
+}
+
+.profile-beta-phone {
+  box-sizing: border-box;
+}
+
+.profile-beta-phone-name,
+.profile-beta-phone-handle,
+.profile-beta-phone > p,
+.profile-beta-phone-item span,
+.profile-beta-phone-item i,
+.profile-beta-phone-proof small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.profile-beta-phone-item {
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr) 14px;
+}
+
+.profile-beta-phone-item span,
+.profile-beta-phone-item i {
+  min-width: 0;
+}
+
+.profile-beta-public-preview {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.profile-beta-public-preview iframe {
+  max-width: 100%;
+}
+
+.profile-beta-modal {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(840px, calc(100dvh - 32px));
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.profile-beta-modal .ops-modal-head button {
+  flex: 0 0 auto;
+}
+
+.profile-beta-modal .ops-form-actions .ops-button {
+  min-height: 44px;
+}
+
+@media (max-width: 700px) {
+  .profile-beta-head-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .profile-beta-head-actions .ops-button {
+    width: 100%;
+  }
+
+  .profile-beta-progress,
+  .profile-beta-quick-add,
+  .profile-beta-seo-fields,
+  .profile-beta-preview-unpublished {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .profile-beta-identity-grid input,
+  .profile-beta-identity-grid select,
+  .profile-beta-identity-grid textarea,
+  .profile-beta-seo-fields input,
+  .profile-beta-seo-fields textarea {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .profile-beta-save-row {
+    width: 100%;
+  }
+
+  .profile-beta-save-row .ops-button,
+  .profile-beta .ops-section-title > .ops-button,
+  .profile-beta-avatar-actions .ops-button,
+  .profile-beta-seo-fields .ops-button {
+    width: 100%;
+  }
+
+  .profile-beta-avatar-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-beta-avatar-actions a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .profile-beta-block-actions {
+    justify-content: flex-start;
+  }
+
+  .profile-beta-quick-add > div:last-child {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-beta-quick-add button {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+  }
+
+  .profile-beta-seo-toggle {
+    min-height: 52px;
+  }
+
+  .profile-beta-nft-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-beta-nft-panel-head button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .profile-beta-public-preview iframe {
+    height: min(720px, calc(100dvh - 140px));
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 430px) {
+  .profile-beta .ops-section-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-beta-progress {
+    border-radius: 12px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+
+  .profile-beta-checks {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-beta-checks span {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 8px;
+  }
+
+  .profile-beta-blocks article {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
+    padding: 11px;
+  }
+
+  .profile-beta-block-copy {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .profile-beta-block-copy span {
+    grid-row: auto;
+  }
+
+  .profile-beta-block-copy small {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .profile-beta-block-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .profile-beta-block-actions button {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid #e0e1dd;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .profile-beta-block-actions .danger {
+    grid-column: 1 / -1;
+    border-color: #ead7d2;
+    background: #fff9f7;
+  }
+
+  .profile-beta-quick-add > div:last-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-beta-social-picker > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-beta-social-picker button {
+    min-height: 48px;
+  }
+
+  .profile-beta-nft-grid,
+  .profile-beta-nft-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-beta-nft-manual {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-beta-nft-manual > span,
+  .profile-beta-nft-manual label:last-child {
+    grid-column: auto;
+  }
+
+  .profile-beta-preview-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .profile-beta-preview-heading small {
+    overflow-wrap: anywhere;
+  }
+
+  .profile-beta-phone {
+    width: 100%;
+    min-height: 0;
+    border-width: 5px;
+    border-radius: 26px;
+    padding: 14px 12px 18px;
+  }
+
+  .profile-beta-public-preview iframe {
+    min-height: 500px;
+    height: min(680px, calc(100dvh - 110px));
+  }
+
+  .profile-beta .ops-modal-backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .profile-beta-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 16px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .profile-beta-modal .ops-modal-head button {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .profile-beta-modal input,
+  .profile-beta-modal select,
+  .profile-beta-modal textarea,
+  .profile-beta-modal .ops-form-actions .ops-button {
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+
+  .profile-beta-modal .ops-form-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+}
+
+@media (max-width: 340px) {
+  .profile-beta-progress,
+  .profile-beta-quick-add,
+  .profile-beta-seo-fields,
+  .profile-beta-preview-unpublished {
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+
+  .profile-beta-social-picker > div,
+  .profile-beta-nft-grid,
+  .profile-beta-nft-grid.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-beta-modal {
+    width: calc(100vw - 8px);
+    max-height: calc(100dvh - 8px);
+    padding: 13px;
+  }
+
+  .profile-beta-phone {
+    border-radius: 22px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-beta-progress-bar i,
+  .profile-beta-blocks article {
+    transition: none;
+  }
+}
