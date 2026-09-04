@@ -35,7 +35,7 @@ test('Community Manager phone actions use practical mobile targets', () => {
 test('Community Manager 430px layout keeps row actions and primary actions usable', () => {
   assert.equal(communityCss.includes('@media(max-width:430px)'), true);
   assert.equal(communityCss.includes('.community-row-actions{width:100%;'), true);
-  assert.equal(communityCss.includes('.community-row-actionsa,.community-row-actionsbutton{flex:11 120px;'), true);
+  assert.equal(communityCss.includes('.community-row-actionsa,.community-row-actionsbutton{flex:11120px;'), true);
   assert.equal(communityCss.includes('.community-actions.ops-button{width:100%;'), true);
 });
 
@@ -53,5 +53,5 @@ test('Superadmin Community review phone actions remain reachable and 44px high',
 
 test('Superadmin Community review stacks decision actions on 430px phones', () => {
   assert.equal(adminCss.includes('@media(max-width:430px)'), true);
-  assert.equal(adminCss.includes('.community-review-actionsbutton{flex:11 100%;'), true);
+  assert.equal(adminCss.includes('.community-review-actionsbutton{flex:11100%;'), true);
 });
