@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
+import PersonalTelegramConnection from './PersonalTelegramConnection';
 import type { ProductMe, ProductProfile, ProductStatus } from './ProductWorkspace';
 import './profile-identity-v1.css';
 
@@ -114,25 +115,28 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
   if (!target || !isPersonal) return null;
 
   return createPortal(
-    <div className="wide profile-identity-v1" data-personal-profile-identity>
-      <div className="profile-identity-v1-heading">
-        <div><strong>Public identity</strong><small>Choose how you want people to understand you on your public Linkary profile.</small></div>
-        <span>Presentation only</span>
+    <>
+      <div className="wide profile-identity-v1" data-personal-profile-identity>
+        <div className="profile-identity-v1-heading">
+          <div><strong>Public identity</strong><small>Choose how you want people to understand you on your public Linkary profile.</small></div>
+          <span>Presentation only</span>
+        </div>
+        <div className="profile-identity-v1-fields">
+          <label>Primary public role
+            <select value={publicRole} disabled={!available || busy} onChange={(event) => setPublicRole(event.target.value)}>
+              <option value="">Select your identity</option>
+              {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+            </select>
+          </label>
+          <label>Professional headline
+            <input value={headline} disabled={!available || busy} maxLength={140} placeholder="Example: Founder at KlineO · Web3 growth and partnerships" onChange={(event) => setHeadline(event.target.value)} />
+          </label>
+        </div>
+        <p>Changing this label never changes Project roles, permissions, verification, manager status or campaign evidence.</p>
+        <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
       </div>
-      <div className="profile-identity-v1-fields">
-        <label>Primary public role
-          <select value={publicRole} disabled={!available || busy} onChange={(event) => setPublicRole(event.target.value)}>
-            <option value="">Select your identity</option>
-            {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
-          </select>
-        </label>
-        <label>Professional headline
-          <input value={headline} disabled={!available || busy} maxLength={140} placeholder="Example: Founder at KlineO · Web3 growth and partnerships" onChange={(event) => setHeadline(event.target.value)} />
-        </label>
-      </div>
-      <p>Changing this label never changes Project roles, permissions, verification, manager status or campaign evidence.</p>
-      <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
-    </div>,
+      <PersonalTelegramConnection defaultEmail={status.user.email || ''} />
+    </>,
     target,
   );
 }
