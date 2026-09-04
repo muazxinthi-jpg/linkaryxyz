@@ -156,6 +156,10 @@ Directory-level metrics include:
 - estimated unique audience, only when supplied or verified
 - estimated overlap, only when unique audience evidence exists
 
+During Beta, personal Telegram OAuth is optional and must not block creation of a Community Manager portfolio or listing exact Telegram Communities. If personal Telegram OAuth succeeds, Linkary may show a verified personal Telegram identity badge and use the stable Telegram account identity as a canonical identity signal. If it does not succeed, the portfolio can still exist, but the personal Telegram identity remains visibly unverified and no typed Telegram handle may be treated as verified identity.
+
+Exact Community ownership verification remains a separate evidence workflow. A Community can be submitted for Linkary review using Community-specific public Telegram proof even when the manager's personal Telegram OAuth is unavailable. Personal Telegram verification and exact Community verification must never be conflated.
+
 ### 6.2 KOL Manager
 
 A KOL Manager is a POC who may represent multiple creators or KOLs across X, TikTok, YouTube, Instagram, Farcaster or other channels.
@@ -361,6 +365,17 @@ Customer-facing wallet UI should use simple product language such as `Your Linka
 
 ## 14. Telegram attribution
 
+Personal Telegram identity verification is separate from Telegram campaign attribution and separate from exact Community ownership verification.
+
+For Beta, failure or unavailability of Telegram OAuth must not block a user from creating a Community Manager portfolio or listing Communities. The UI must clearly preserve the distinction:
+
+- personal Telegram connected: verified personal Telegram identity badge may be shown
+- personal Telegram not connected: no verified personal Telegram identity badge
+- Community listed: supplied by the Personal Profile owner, not automatically verified
+- Community verified: Linkary reviewed Community-specific public management proof
+
+A typed personal Telegram handle never becomes verified identity merely because it was entered by a user. If no verified personal Telegram identity exists, the canonical manager Telegram contact should remain unverified rather than being silently upgraded.
+
 Future Telegram attribution should use shared Project-level bot/webhook infrastructure rather than creating duplicate bots per Linkary user.
 
 Signals may include:
@@ -509,3 +524,5 @@ Beta-ready core:
 15. Responsive readable UX across desktop, tablet and mobile
 
 Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
+
+Personal Telegram OAuth is also not a launch dependency for creating Community Manager portfolios or listing exact Communities. Provider failure must degrade to an unverified personal Telegram state rather than block onboarding. Exact Community verification remains available through Linkary-reviewed public evidence, and no verified personal Telegram identity badge may be shown until the OAuth identity actually succeeds.
