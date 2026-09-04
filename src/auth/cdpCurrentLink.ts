@@ -8,6 +8,11 @@ import { requireAuth, verifyCsrf } from './session';
 
 type UnknownRecord = Record<string, unknown>;
 type CurrentLinkBody = { accessToken?: string };
+type TelegramIdentityRow = {
+  current_handle: string | null;
+  current_display_name: string | null;
+  ownership_verified_at: string | null;
+};
 
 const CDP_API_HOST = 'api.cdp.coinbase.com';
 const CDP_VALIDATE_PATH = '/platform/v2/end-users/auth/validate-token';
@@ -94,6 +99,39 @@ async function syncPlatformIdentities(db: Db, userId: string, methods: UnknownRe
   }
 }
 
+async function telegramIdentityForUser(db: Db, userId: string): Promise<TelegramIdentityRow | null> {
+  return db.first<TelegramIdentityRow>(
+    `SELECT pi.current_handle, pi.current_display_name, pi.ownership_verified_at
+       FROM platform_identities pi
+       JOIN platform_identity_links pil ON pil.platform_identity_id = pi.id
+      WHERE pi.platform = 'telegram'
+        AND pi.provider_object_type = 'person'
+        AND pi.status = 'active'
+        AND pi.ownership_verified_at IS NOT NULL
+        AND pil.user_id = ?
+        AND pil.link_type = 'owns'
+        AND pil.ended_at IS NULL
+      ORDER BY pil.verified_at DESC
+      LIMIT 1`,
+    [userId],
+  );
+}
+
+export async function currentPersonalTelegramIdentity(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  const identity = await telegramIdentityForUser(db, auth.user.id);
+  return json({
+    connected: Boolean(identity),
+    identity: identity ? {
+      currentHandle: identity.current_handle,
+      currentDisplayName: identity.current_display_name,
+      ownershipVerifiedAt: identity.ownership_verified_at,
+    } : null,
+  });
+}
+
 export async function refreshCurrentCdpLink(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
   const auth = await requireAuth(request, env);
@@ -132,11 +170,17 @@ export async function refreshCurrentCdpLink(request: Request, env: Env): Promise
     [JSON.stringify({ authenticationMethods: methods }), timestamp, auth.user.id, cdpUserId],
   );
   await syncPlatformIdentities(db, auth.user.id, methods);
+  const telegramIdentity = await telegramIdentityForUser(db, auth.user.id);
 
   return json({
     ok: true,
     currentLinkaryUserId: auth.user.id,
     authenticationMethods: methods.map((method) => stringValue(method.type)).filter(Boolean),
-    telegramLinked: methods.some((method) => stringValue(method.type)?.toLowerCase() === 'telegram'),
+    telegramLinked: Boolean(telegramIdentity),
+    telegramIdentity: telegramIdentity ? {
+      currentHandle: telegramIdentity.current_handle,
+      currentDisplayName: telegramIdentity.current_display_name,
+      ownershipVerifiedAt: telegramIdentity.ownership_verified_at,
+    } : null,
   });
 }
