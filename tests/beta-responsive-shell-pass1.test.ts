@@ -36,7 +36,7 @@ test('phone content clears the fixed navigation and iOS safe area', () => {
 test('phone users retain access to hidden workspace destinations, Superadmin tools and logout', () => {
   assert.equal(workspace.includes('ops-mobile-account-menu'), true);
   assert.equal(workspace.includes('ops-mobile-menu-panel'), true);
-  assert.equal(workspace.includes("key={`mobile-${path}`}`"), true);
+  assert.equal(workspace.includes('key={`mobile-${path}`}'), true);
   assert.equal(workspace.includes('Beta readiness'), true);
   assert.equal(workspace.includes('Community reviews'), true);
   assert.equal(workspace.includes('Admin review'), true);
