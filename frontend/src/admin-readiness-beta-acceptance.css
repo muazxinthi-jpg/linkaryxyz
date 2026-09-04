@@ -1,0 +1,191 @@
+/*
+ * Beta responsive acceptance Pass 13: Superadmin Beta readiness.
+ * Keep this surface operational and readable on narrow devices without
+ * weakening the read-only readiness or controlled migration boundaries.
+ */
+
+.admin-readiness-workspace,
+.admin-readiness-workspace .ops-heading-row,
+.admin-readiness-workspace .ops-heading-actions,
+.admin-readiness-workspace .ops-callout,
+.admin-readiness-workspace .ops-metrics,
+.admin-readiness-workspace .ops-section,
+.admin-readiness-workspace .ops-section-title,
+.admin-readiness-workspace .ops-table-list,
+.admin-readiness-workspace .ops-activity-row,
+.admin-readiness-workspace .ops-activity-main {
+  min-width: 0;
+}
+
+.admin-readiness-workspace .ops-heading-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-readiness-workspace .ops-callout > div,
+.admin-readiness-workspace .ops-section-title > div,
+.admin-readiness-workspace .ops-activity-main > * {
+  min-width: 0;
+}
+
+.admin-readiness-workspace .ops-callout h3,
+.admin-readiness-workspace .ops-callout p,
+.admin-readiness-workspace .ops-section-title h2,
+.admin-readiness-workspace .ops-section-title p,
+.admin-readiness-workspace .ops-metrics small,
+.admin-readiness-workspace .ops-activity-main strong,
+.admin-readiness-workspace .ops-activity-main small,
+.admin-readiness-workspace .ops-message {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-readiness-workspace .ops-project-state {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.admin-readiness-workspace .ops-metrics article {
+  min-width: 0;
+}
+
+.admin-readiness-workspace .ops-metrics strong,
+.admin-readiness-workspace .ops-metrics small {
+  max-width: 100%;
+}
+
+.admin-readiness-workspace .ops-activity-main {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.admin-readiness-workspace .ops-activity-main strong,
+.admin-readiness-workspace .ops-activity-main small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.admin-readiness-workspace .ops-type-chip {
+  max-width: 96px;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .admin-readiness-workspace .ops-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-readiness-workspace .ops-metrics article {
+    border-right: 1px solid #e3e3df;
+    border-bottom: 1px solid #e3e3df;
+  }
+
+  .admin-readiness-workspace .ops-metrics article:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .admin-readiness-workspace .ops-metrics article:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-readiness-workspace .ops-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .admin-readiness-workspace .ops-heading-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .admin-readiness-workspace .ops-heading-actions .ops-button {
+    min-height: 44px;
+    flex: 1 1 180px;
+  }
+
+  .admin-readiness-workspace .ops-callout {
+    align-items: flex-start;
+  }
+
+  .admin-readiness-workspace .ops-section-title {
+    align-items: flex-start;
+  }
+
+  .admin-readiness-workspace .ops-activity-row {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 430px) {
+  .admin-readiness-workspace .ops-heading-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-readiness-workspace .ops-heading-actions .ops-button {
+    width: 100%;
+  }
+
+  .admin-readiness-workspace .ops-callout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .admin-readiness-workspace .ops-project-state {
+    align-self: flex-start;
+  }
+
+  .admin-readiness-workspace .ops-section-title {
+    padding: 16px;
+  }
+
+  .admin-readiness-workspace .ops-activity-row {
+    padding: 14px;
+  }
+
+  .admin-readiness-workspace .ops-activity-main {
+    column-gap: 8px;
+  }
+}
+
+@media (max-width: 340px) {
+  .admin-readiness-workspace .ops-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-readiness-workspace .ops-metrics article {
+    border-right: 0;
+    border-bottom: 1px solid #e3e3df;
+  }
+
+  .admin-readiness-workspace .ops-metrics article:nth-last-child(-n + 2) {
+    border-bottom: 1px solid #e3e3df;
+  }
+
+  .admin-readiness-workspace .ops-metrics article:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-readiness-workspace .ops-activity-main {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .admin-readiness-workspace .ops-type-chip {
+    grid-row: auto;
+    grid-column: auto;
+    justify-self: start;
+  }
+
+  .admin-readiness-workspace .ops-activity-main small {
+    grid-column: auto;
+  }
+}
