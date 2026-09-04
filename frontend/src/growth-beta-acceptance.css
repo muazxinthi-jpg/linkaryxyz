@@ -106,10 +106,14 @@
   }
 
   .growth-workspace .growth-campaign-actions > button,
-  .growth-workspace .growth-campaign-actions > .campaign-lifecycle,
-  .growth-workspace .growth-campaign-actions > .campaign-lifecycle-actions{
+  .growth-workspace .growth-campaign-actions > .campaign-lifecycle-control{
     min-width:0;
     max-width:100%;
+  }
+
+  .growth-workspace .growth-campaign-actions > .campaign-lifecycle-control{
+    grid-column:1/-1;
+    width:100%;
   }
 
   .growth-workspace .growth-campaign-actions > button{
