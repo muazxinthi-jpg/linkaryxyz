@@ -44,51 +44,26 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
-      - name: Probe exact live NFT fallbacks
+      - name: Probe exact NFT metadata documents
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import html, re, subprocess, urllib.request
-          items = [
-            ('JIRASAN', 'https://opensea.io/item/ethereum/0x7fb2d396a3cc840f2c4213f044566ed400159b40/9967'),
-            ('KABU', 'https://opensea.io/item/abstract/0x7e3059b08e981a369f99db26487ab4cbffdfef29/3057'),
-            ('SNOOZIE', 'https://opensea.io/item/base/0x61a85534f124781231bab486b111534d9653f19a/2038'),
-          ]
-          for name, url in items:
-            req = urllib.request.Request(url, headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
-            try:
-              body = urllib.request.urlopen(req, timeout=15).read(500000).decode('utf-8','replace')
-            except Exception as e:
-              print(f'{name}_PAGE_ERROR={type(e).__name__}:{e}')
-              continue
-            matches = re.findall(r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image)["\'][^>]+content=["\']([^"\']+)', body, re.I)
-            if not matches:
-              matches = re.findall(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image)["\']', body, re.I)
-            image = html.unescape(matches[0]) if matches else ''
-            print(f'{name}_OG_IMAGE={image or "NONE"}')
-            if image:
-              proc = subprocess.run(['curl','-sS','-L','-I','-o','/dev/null','-w','%{http_code}|%{content_type}|%{url_effective}',image],capture_output=True,text=True)
-              print(f'{name}_OG_HEAD={proc.stdout.strip() or "curl_failed"}')
-          PY
-
           node --input-type=module <<'JS'
-          const calls = [
-            ['JIRASAN','https://ethereum-rpc.publicnode.com','0x7fb2d396a3cc840f2c4213f044566ed400159b40','9967'],
-            ['KABU','https://api.mainnet.abs.xyz','0x7e3059b08e981a369f99db26487ab4cbffdfef29','3057'],
-            ['SNOOZIE','https://mainnet.base.org','0x61a85534f124781231bab486b111534d9653f19a','2038'],
+          const targets = [
+            ['JIRASAN','https://jirasan.io/api/metadata/jirasan/9967'],
+            ['KABU','https://kabu.xyz/api/metadata/3057'],
+            ['SNOOZIE','https://ipfs.io/ipfs/bafybeihaaobve6jfqvzkskdk2h6qnuxyfxrni6vdrynv2lynvkywbud36y/2038.json'],
           ];
-          for (const [name,rpc,to,token] of calls) {
-            for (const selector of ['0xc87b56dd','0x0e89341c']) {
-              const data = selector + BigInt(token).toString(16).padStart(64,'0');
-              try {
-                const res = await fetch(rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to,data},'latest']})});
-                const text = await res.text();
-                console.log(`${name}_${selector}_STATUS=${res.status}`);
-                console.log(`${name}_${selector}_RESULT=${text.slice(0,1200)}`);
-              } catch (e) { console.log(`${name}_${selector}_ERROR=${e}`); }
-            }
+          for (const [name,url] of targets) {
+            try {
+              const res = await fetch(url,{headers:{accept:'application/json,application/*+json;q=0.9,*/*;q=0.2'},redirect:'follow'});
+              const text = await res.text();
+              console.log(`${name}_STATUS=${res.status}`);
+              console.log(`${name}_TYPE=${res.headers.get('content-type') || ''}`);
+              console.log(`${name}_FINAL=${res.url}`);
+              console.log(`${name}_BODY=${text.slice(0,3000).replace(/\n/g,' ')}`);
+            } catch (e) { console.log(`${name}_ERROR=${e}`); }
           }
           JS
 
