@@ -28,9 +28,9 @@ The core Beta product is built. Current production capabilities include:
 - Relationship Memory and Work Again
 - campaign opportunities and Creator applications
 - Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
-- hourly production app-shell/API health monitoring
+- hourly production app-shell/API health monitoring across the current Beta route surface
 
-Current regression baseline: **207 passing tests, 0 failing** as of 2026-09-04.
+Current `main` regression, authenticated-app TypeScript and Wrangler verification are green. Use the latest `main` CI run as the authoritative test count instead of copying a count into this handoff.
 
 ## Production database state
 
@@ -80,7 +80,9 @@ The active phase is **Beta acceptance, responsive QA, bug fixing and launch hard
 
 ### 1. Issue #42, authenticated responsive acceptance
 
-Review primary authenticated surfaces at minimum at:
+Static responsive hardening and regression coverage now exist for the named Issue #42 surfaces. Do not interpret that as visual acceptance completion.
+
+Run authenticated live visual/device review at minimum at:
 
 - 320px
 - 375px
@@ -101,6 +103,7 @@ Include:
 - Projects / roles / Team invitations
 - Invites
 - Wallets
+- Project Network
 - relevant Superadmin surfaces
 
 Validate:
@@ -117,7 +120,7 @@ Validate:
 - no manual/estimated evidence presented as verified
 - sensible density with one result and many results
 
-Fix every P0/P1 before broad onboarding.
+Fix every P0/P1 before broad onboarding. Keep Issue #42 open until this authenticated live pass is complete.
 
 ### 2. Real authentication acceptance
 
@@ -277,7 +280,7 @@ Do not start these until Beta stability:
 Do not call broad Creator/Project onboarding ready until all are true:
 
 1. production D1 ledger is current through `0022`
-2. issue #42 responsive acceptance is clean
+2. Issue #42 authenticated live visual/device acceptance is clean
 3. Email, Google, X and Telegram real-account acceptance passes
 4. second real Creator completes Earn Access
 5. second real Project completes official-X registration
