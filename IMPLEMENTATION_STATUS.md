@@ -10,7 +10,7 @@ The working Linkary loop is now:
 
 `Identity -> Discovery -> Relationship -> Inquiry -> Accept -> Explicit activation -> Campaign -> Activity -> Exact Partner -> Track -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`
 
-The core product is built. Remaining launch work is production migration completion, real-account/end-to-end acceptance, full responsive acceptance, bug fixing and final documentation/launch hardening.
+The core product is built. Remaining launch work is real-account/end-to-end acceptance, full responsive acceptance, bug fixing and final documentation/launch hardening.
 
 ## Production foundation
 
@@ -24,13 +24,7 @@ The core product is built. Remaining launch work is production migration complet
 - [x] Protected production D1 migration workflow is pinned to `main`, defaults to verify-only, and requires an explicit `apply` selection before writing schema changes.
 - [x] Ongoing hourly production health monitoring checks primary app-shell routes and `/api/auth/me` with retries.
 - [x] Current regression suite: 207 passing tests, 0 failing, as of 2026-09-04.
-- [ ] Production D1 ledger is still missing exactly `0020_exact_activity_partner_assignment.sql`, `0021_collaboration_inquiries.sql`, and `0022_collaboration_inquiry_activations.sql` based on the read-only production check on 2026-09-04.
-
-### Required manual D1 action
-
-Run GitHub Actions -> **Linkary production D1 migrations** from the protected workflow with `mode=apply`.
-
-Afterward, the workflow must report `No migrations to apply!` before the formal production ledger is considered current.
+- [x] Protected production D1 apply workflow completed successfully from `main` on 2026-09-04. Production schema is current through `0022_collaboration_inquiry_activations.sql`.
 
 Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow.
 
@@ -214,19 +208,18 @@ Still required:
 
 ## Launch-critical work remaining
 
-1. **Apply production D1 migrations `0020`-`0022` through the protected manual workflow.**
-2. Run full Creator onboarding/Earn Access acceptance.
-3. Run full official-X Project onboarding acceptance.
-4. Test Email / Google / X / Telegram authentication with real accounts.
-5. Test Project role permission matrix with separate accounts.
-6. Run the full Creator evidence loop:
+1. Run full Creator onboarding/Earn Access acceptance.
+2. Run full official-X Project onboarding acceptance.
+3. Test Email / Google / X / Telegram authentication with real accounts.
+4. Test Project role permission matrix with separate accounts.
+5. Run the full Creator evidence loop:
    `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Completed Activity -> Relationship Memory -> Work Again`.
-7. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
-8. Test Invite -> signup -> registration attribution.
-9. Test Opportunity -> application -> acceptance.
-10. Complete issue #42 responsive acceptance and fix all P0/P1 findings.
-11. Final documentation/launch copy check.
-12. Open controlled Beta onboarding only after the above passes.
+6. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
+7. Test Invite -> signup -> registration attribution.
+8. Test Opportunity -> application -> acceptance.
+9. Complete issue #42 responsive acceptance and fix all P0/P1 findings.
+10. Final documentation/launch copy check.
+11. Open controlled Beta onboarding only after the above passes.
 
 ## Controlled Beta definition
 
