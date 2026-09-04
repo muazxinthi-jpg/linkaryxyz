@@ -1,0 +1,384 @@
+/*
+ * Linkary authenticated dashboard polish.
+ * Scope: .ops-shell only. Public pages and authentication are intentionally excluded.
+ * This layer preserves the existing Linkary palette and font families.
+ */
+
+.ops-shell {
+  --dash-canvas: #f6f3ec;
+  --dash-paper: #fffdf8;
+  --dash-ink: #090a0c;
+  --dash-muted: #68717e;
+  --dash-line: rgba(9, 10, 12, .12);
+  --dash-soft-line: rgba(9, 10, 12, .075);
+  --dash-brand: #ff4f0a;
+  --dash-brand-hover: #ff6a2a;
+  --dash-success: #237b53;
+  --dash-warning: #9a6410;
+  --dash-danger: #b4232f;
+  --dash-radius: 12px;
+  background: var(--dash-canvas);
+}
+
+/* Workspace shell */
+.ops-shell .ops-sidebar {
+  width: 208px;
+  padding: 22px 12px 18px;
+  background: #070a0d;
+  border-right: 1px solid rgba(255, 255, 255, .07);
+}
+
+.ops-shell .ops-brand {
+  min-height: 42px;
+  margin: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ops-shell .ops-brand img { width: 28px; height: 28px; }
+.ops-shell .ops-brand span { font-size: 19px; letter-spacing: -.025em; }
+
+.ops-shell .ops-view-as {
+  margin: 24px 3px 15px;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, .11);
+  border-radius: 10px;
+  background: #10151b;
+}
+
+.ops-shell .ops-view-as label {
+  display: block;
+  margin: 0 0 7px;
+  color: #818b97;
+  font: 500 9px/1.2 var(--mono);
+  letter-spacing: .1em;
+}
+
+.ops-shell .ops-view-as select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 28px 0 0;
+  color: #fff;
+  border: 0;
+  background-color: transparent;
+  font-weight: 700;
+}
+
+.ops-shell .ops-workspace-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+
+.ops-shell .ops-workspace-meta span,
+.ops-shell .ops-workspace-meta small {
+  color: #8d97a3;
+  font: 500 9px/1.25 var(--ui);
+}
+
+.ops-shell .ops-workspace-meta span { color: #f2f4f6; }
+
+.ops-shell .ops-nav { gap: 3px; }
+.ops-shell .ops-nav a {
+  position: relative;
+  min-height: 42px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #9ba5b1;
+  transition: color .16s ease, background-color .16s ease, transform .16s ease;
+}
+
+.ops-shell .ops-nav a:hover { color: #fff; background: #141a21; transform: translateX(2px); }
+.ops-shell .ops-nav a.active {
+  color: #fff;
+  background: #1a2028;
+  box-shadow: inset 3px 0 var(--dash-brand);
+}
+
+.ops-shell .ops-sidebar-footer {
+  gap: 3px;
+  border-top-color: rgba(255, 255, 255, .1);
+}
+
+.ops-shell .ops-admin-nav { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.ops-shell .ops-admin-nav > span {
+  display: block;
+  padding: 7px 8px 5px;
+  color: #687482;
+  font: 500 9px/1.2 var(--mono);
+  letter-spacing: .1em;
+}
+.ops-shell .ops-admin-nav a { display: flex; min-height: 36px; padding: 0 8px; align-items: center; color: #9ca6b2; border-radius: 7px; }
+.ops-shell .ops-admin-nav a:hover { color: #fff; background: #141a21; }
+.ops-shell .ops-admin-nav a.active { color: #fff; background: #1a2028; box-shadow: inset 3px 0 var(--dash-brand); }
+
+.ops-shell .ops-topbar {
+  height: 62px;
+  padding: 0 32px;
+  background: rgba(255, 253, 248, .91);
+  border-bottom: 1px solid var(--dash-soft-line);
+  backdrop-filter: blur(16px);
+}
+
+.ops-shell .ops-topbar strong { color: var(--dash-ink); font-weight: 700; }
+.ops-shell .ops-topbar span { color: #8a8f93; }
+.ops-shell .ops-topbar a { min-height: 38px; padding: 0 11px; display: inline-flex; align-items: center; border-radius: 8px; color: #666d73; }
+.ops-shell .ops-topbar a:hover { color: var(--dash-ink); background: rgba(9,10,12,.045); }
+
+.ops-shell .ops-page {
+  width: min(100%, 1180px);
+  padding: 44px 46px 72px;
+}
+
+/* Page headers */
+.ops-shell :is(.ops-heading-row, .dashboard-next-hero, .community-manager-hero, .admin-heading) {
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.ops-shell :is(.ops-heading-row, .dashboard-next-hero, .community-manager-hero, .admin-heading) h1 {
+  margin-top: 8px;
+  color: var(--dash-ink);
+  letter-spacing: -.045em;
+}
+
+.ops-shell :is(.ops-heading-row, .dashboard-next-hero, .community-manager-hero, .admin-heading) p {
+  max-width: 720px;
+  color: #70767c;
+}
+
+.ops-shell :is(.ops-kicker, .section-label) {
+  color: #7d858c;
+  font-family: var(--mono);
+  letter-spacing: .1em;
+}
+
+/* Action language */
+.ops-shell :is(.ops-button, .button, button:not(.text-button):not(.row-action)) {
+  border-radius: 9px;
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.ops-shell :is(.ops-button, .button).primary {
+  color: #090a0c;
+  background: var(--dash-brand);
+  border-color: var(--dash-brand);
+  box-shadow: 0 6px 16px rgba(255, 79, 10, .14);
+}
+
+.ops-shell :is(.ops-button, .button).primary:hover {
+  background: var(--dash-brand-hover);
+  border-color: var(--dash-brand-hover);
+  box-shadow: 0 9px 24px rgba(255, 79, 10, .2);
+  transform: translateY(-1px);
+}
+
+.ops-shell :is(.ops-button, .button).secondary:hover { border-color: #aeb2b5; background: #fff; }
+.ops-shell :is(.ops-button, .button).danger,
+.ops-shell [data-ui-intent="danger"] { color: var(--dash-danger); border-color: rgba(180,35,47,.28); background: #fff; }
+.ops-shell :is(.ops-button, .button).danger:hover,
+.ops-shell [data-ui-intent="danger"]:hover { color: #fff; background: var(--dash-danger); border-color: var(--dash-danger); }
+.ops-shell button:disabled { cursor: not-allowed; opacity: .46; box-shadow: none; transform: none; }
+
+/* Shared surfaces */
+.ops-shell :is(
+  .dashboard-next-metrics,
+  .inbox-summary,
+  .community-manager-stats,
+  .invite-balance,
+  .partner-summary-strip,
+  .project-beta-principle,
+  .growth-principle,
+  .verification-mode,
+  .ops-callout,
+  .wallet-warning
+) {
+  border-radius: var(--dash-radius);
+  border-color: var(--dash-line);
+  box-shadow: 0 1px 2px rgba(9,10,12,.025);
+}
+
+.ops-shell :is(
+  .ops-section,
+  .ops-create-card,
+  .ops-campaign-card,
+  .ops-link-card,
+  .network-card,
+  .partner-card,
+  .community-list-card,
+  .invite-summary-card,
+  .invite-row,
+  .wallet-card,
+  .profile-beta-progress,
+  .profile-beta-editor-column,
+  .profile-beta-preview-sticky,
+  .project-beta-list,
+  .project-beta-results,
+  .admin-review-page,
+  .community-review-card
+) {
+  border-radius: var(--dash-radius);
+  border-color: var(--dash-line);
+  box-shadow: 0 1px 2px rgba(9,10,12,.025), 0 10px 30px rgba(9,10,12,.025);
+}
+
+.ops-shell :is(.ops-campaign-card, .network-card, .partner-card, .invite-row, .community-row) {
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.ops-shell :is(.ops-campaign-card, .network-card, .partner-card, .invite-row, .community-row):hover {
+  border-color: rgba(9,10,12,.22);
+  box-shadow: 0 12px 30px rgba(9,10,12,.065);
+  transform: translateY(-1px);
+}
+
+/* Metrics */
+.ops-shell :is(.dashboard-next-metrics, .ops-metrics, .community-manager-stats, .inbox-summary) {
+  overflow: hidden;
+  background: var(--dash-paper);
+}
+
+.ops-shell :is(.dashboard-next-metrics, .ops-metrics, .community-manager-stats, .inbox-summary) article {
+  position: relative;
+  min-height: 116px;
+  padding: 20px;
+}
+
+.ops-shell :is(.dashboard-next-metrics, .ops-metrics, .community-manager-stats, .inbox-summary) article::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #cfd2d2;
+  border-radius: 50%;
+}
+
+.ops-shell :is(.dashboard-next-metrics, .ops-metrics) strong { letter-spacing: -.035em; }
+
+/* Forms and filters */
+.ops-shell :is(input, select, textarea) {
+  border-color: #d6d8d7;
+  border-radius: 9px;
+  background-color: #fff;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.ops-shell :is(input, select, textarea):hover:not(:disabled) { border-color: #aeb2b2; }
+.ops-shell :is(input, select, textarea):focus {
+  border-color: var(--dash-brand);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(255, 79, 10, .12);
+}
+.ops-shell :is(input, select, textarea):disabled { color: #8c9195; background: #f0f1ef; }
+
+.ops-shell :is(.ops-filters, .creator-opportunity-toolbar, .partner-toolbar, .network-toolbar, .project-beta-search) {
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(255,253,248,.84);
+}
+
+.ops-shell :is(.ops-tabs, .growth-tabs, .project-beta-tabs) button {
+  position: relative;
+  min-height: 44px;
+  color: #747a80;
+}
+.ops-shell :is(.ops-tabs, .growth-tabs, .project-beta-tabs) button.active { color: var(--dash-ink); font-weight: 700; }
+
+/* Status system: text remains the primary cue; color supplies reinforcement. */
+.ops-shell :is(.ops-status, .ops-project-state, .invite-status, .wallet-state, .community-status, .creator-application-state, .project-beta-state, .project-beta-request-status, .team-invite-status) {
+  min-height: 26px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.ops-shell :is(.verified, .approved, .saved, .joined, .status-active, .status-approved, .status-completed, .status-verified) {
+  color: #1f6f49;
+  background: #e7f5ed;
+  border-color: #cce8d8;
+}
+.ops-shell :is(.pending, .submitted, .paused, .status-pending, .status-paused, .status-submitted) {
+  color: #84570e;
+  background: #fff4dc;
+  border-color: #eedcaf;
+}
+.ops-shell :is(.rejected, .revoked, .expired, .status-expired, .status-rejected, .status-revoked) {
+  color: #9f2d38;
+  background: #ffedef;
+  border-color: #efcfd3;
+}
+
+/* Empty, loading and feedback states */
+.ops-shell :is(.ops-empty, .empty-review, .inbox-update-state) {
+  min-height: 210px;
+  padding: 34px;
+  border: 1px dashed #d2d4d2;
+  border-radius: var(--dash-radius);
+  background: rgba(255, 253, 248, .72);
+}
+.ops-shell .ops-empty-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #8d360f;
+  background: rgba(255,79,10,.1);
+  border-radius: 50%;
+}
+.ops-shell :is(.ops-message, .inbox-warning, .community-verification-note, .partner-evidence-note, .project-beta-inline-warning) {
+  border-radius: 10px;
+  line-height: 1.55;
+}
+.ops-shell .ops-loading { color: #6e7479; }
+
+/* Dense operational/admin surfaces */
+.ops-shell :is(.review-list, .community-review-list, .project-beta-team-list, .project-beta-request-list) {
+  overflow: hidden;
+  border: 1px solid var(--dash-line);
+  border-radius: var(--dash-radius);
+  background: var(--dash-paper);
+}
+.ops-shell :is(.review-card, .community-review-card, .project-member-row) { border-radius: 0; box-shadow: none; }
+.ops-shell :is(.review-card, .community-review-card, .project-member-row):hover { background: rgba(255,79,10,.025); }
+
+/* Profile editor and preview */
+.ops-shell .profile-beta-layout { align-items: start; gap: 16px; }
+.ops-shell .profile-beta-preview-sticky { top: 82px; overflow: hidden; }
+.ops-shell .profile-beta-save-row { position: sticky; bottom: 12px; z-index: 8; box-shadow: 0 12px 38px rgba(9,10,12,.12); }
+.ops-shell .profile-beta-progress-bar { overflow: hidden; border-radius: 999px; }
+
+/* Consequence styling is added semantically by ProductWorkspace-safe UI enhancement. */
+.ops-shell [data-ui-intent="danger"] { font-weight: 700; }
+
+@media (max-width: 980px) {
+  .ops-shell .ops-sidebar { width: 188px; }
+  .ops-shell .ops-page { padding: 36px 28px 60px; }
+  .ops-shell .ops-workspace-meta { display: none; }
+  .ops-shell .profile-beta-layout { grid-template-columns: 1fr; }
+  .ops-shell .profile-beta-preview-sticky { position: static; }
+}
+
+@media (max-width: 720px) {
+  .ops-shell .ops-sidebar { width: 100%; padding: max(10px, env(safe-area-inset-top)) 12px 8px; }
+  .ops-shell .ops-view-as { margin: 0; padding: 5px 8px; }
+  .ops-shell .ops-view-as label,
+  .ops-shell .ops-workspace-meta,
+  .ops-shell .ops-admin-nav { display: none; }
+  .ops-shell .ops-page { padding: 24px 14px 52px; }
+  .ops-shell :is(.ops-heading-row, .dashboard-next-hero, .community-manager-hero, .admin-heading) { gap: 15px; margin-bottom: 18px; }
+  .ops-shell :is(.ops-filters, .creator-opportunity-toolbar, .partner-toolbar, .network-toolbar, .project-beta-search) { padding: 12px; }
+  .ops-shell :is(.ops-empty, .empty-review, .inbox-update-state) { min-height: 170px; padding: 24px 18px; }
+  .ops-shell .profile-beta-save-row { bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-shell *, .ops-shell *::before, .ops-shell *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

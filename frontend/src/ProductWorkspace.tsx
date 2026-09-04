@@ -73,7 +73,7 @@ export function ProductWorkspace({
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 
   return (
-    <main className={`ops-shell workspace-${profile.profile_type}`}>
+    <main className={`ops-shell workspace-${profile.profile_type}`} data-workspace-type={profile.profile_type}>
       <aside className="ops-sidebar">
         <a className="ops-brand" href="https://linkary.xyz" aria-label="Linkary home">
           <img src="/assets/brand/linkary-icon-black.png" alt="" />
@@ -86,6 +86,10 @@ export function ProductWorkspace({
               <option key={item.id} value={item.id}>{item.display_name}</option>
             ))}
           </select>
+          <div className="ops-workspace-meta" aria-live="polite">
+            <span>{profile.profile_type === 'creator' ? 'Creator workspace' : 'Project workspace'}</span>
+            <small>{profile.profile_type === 'creator' ? 'Personal identity' : 'Workspace member'}</small>
+          </div>
         </div>
         <nav className="ops-nav">
           {nav.map(([path, label]) => (
@@ -96,11 +100,12 @@ export function ProductWorkspace({
         </nav>
         <div className="ops-sidebar-footer">
           {me.user?.superadmin && (
-            <>
-              <NavLink to="/admin/readiness">Beta readiness</NavLink>
-              <NavLink to="/admin/community-verifications">Community reviews</NavLink>
-              <NavLink to="/admin">Admin review</NavLink>
-            </>
+            <section className="ops-admin-nav" aria-label="Superadmin tools">
+              <span>SUPERADMIN</span>
+              <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
+              <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
+              <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
+            </section>
           )}
           <button type="button" onClick={() => void logout()}>Log out</button>
         </div>

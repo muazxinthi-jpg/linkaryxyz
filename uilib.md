@@ -1,5 +1,22 @@
 # Linkary Signal UI Library
 
+## Authenticated dashboard implementation
+
+The production dashboard polish is implemented in `frontend/src/dashboard-polish.css` and imported last by `frontend/src/main.tsx`. Every rule is scoped beneath `.ops-shell`, so authentication, onboarding, the landing page, and rendered public profiles remain outside this layer.
+
+`ProductWorkspace.tsx` owns the shared authenticated shell and exposes the active workspace type. Creator, Project, and Superadmin contexts remain distinct while preserving the existing routes, handlers, API requests, session behavior, and server-side permissions.
+
+Required dashboard states include:
+
+- actions: default, hover, focus-visible, pressed, loading, disabled, and destructive;
+- fields: empty, populated, focused, valid, invalid, read-only, and disabled;
+- data: loading, current, stale, partial, unavailable, empty, filtered-empty, and error;
+- status: neutral, informational, Linkary-active, success, warning, and failure;
+- feedback: inline alert, progress, toast, confirmation, and destructive confirmation;
+- workspace: Creator, Project, and separately labeled Superadmin tools.
+
+Dashboard QA must cover 1440px, 1024px, 768px, and 390px; keyboard-only operation; 200% zoom; reduced motion; and all authenticated routes. Public-profile regression tests are mandatory whenever dashboard CSS is changed.
+
 Version 2.0 — 31 August 2026
 
 This is the canonical UI overview for Linkary. The working reference implementation is `index.html`, supported by `styles.css`, `script.js`, and the supplied brand assets in `assets/brand/`.

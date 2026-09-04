@@ -176,6 +176,19 @@ test('authenticated product has a shared readable responsive typography layer', 
   assert.equal(ux.includes('.ops-create-card label,.ops-modal label'), true);
 });
 
+test('dashboard polish stays scoped to the authenticated workspace shell', () => {
+  const polish = readFileSync(new URL('../frontend/src/dashboard-polish.css', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  assert.equal(main.includes("import './dashboard-polish.css'"), true);
+  assert.equal(main.indexOf("import './dashboard-polish.css'") > main.indexOf("import './ux-system.css'"), true);
+  assert.equal(polish.includes('.ops-shell'), true);
+  assert.equal(polish.includes('body {'), false);
+  assert.equal(polish.includes('.public-profile'), false);
+  assert.equal(/(^|\n)\s*(?:html|body|:root|\.auth-|\.public-)/m.test(polish), false);
+  assert.equal(workspace.includes('data-workspace-type={profile.profile_type}'), true);
+});
+
 test('primary user-facing product screens do not expose infrastructure terminology', () => {
   const screens = [
     '../frontend/src/GrowthExperience.tsx',
