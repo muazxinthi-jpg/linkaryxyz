@@ -1,0 +1,283 @@
+.inbox-workspace,
+.inbox-workspace *{box-sizing:border-box}
+
+.inbox-workspace .inbox-summary article,
+.inbox-workspace .inbox-list>article,
+.inbox-workspace .inbox-updates article,
+.inbox-workspace .inbox-sent-inquiries article,
+.inbox-workspace .inbox-copy,
+.inbox-workspace .inbox-sent-copy,
+.inbox-workspace .inbox-updates article>div,
+.inbox-workspace .inquiry-activation-target>div,
+.inbox-workspace .inquiry-community-lock{
+  min-width:0;
+  max-width:100%;
+}
+
+.inbox-workspace .inbox-summary span,
+.inbox-workspace .inbox-summary small,
+.inbox-workspace .inbox-copy strong,
+.inbox-workspace .inbox-copy small,
+.inbox-workspace .inbox-copy p,
+.inbox-workspace .inbox-sent-copy strong,
+.inbox-workspace .inbox-sent-copy small,
+.inbox-workspace .inbox-sent-copy p,
+.inbox-workspace .inbox-updates strong,
+.inbox-workspace .inbox-updates small,
+.inbox-workspace .inquiry-activation-target strong,
+.inbox-workspace .inquiry-activation-target small,
+.inbox-workspace .inquiry-community-lock strong,
+.inbox-workspace .inquiry-community-lock small,
+.inbox-workspace .inquiry-activation-note span,
+.inbox-workspace .inquiry-activation-retry span{
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.inbox-workspace .inbox-actions a,
+.inbox-workspace .inbox-actions button,
+.inbox-workspace .inbox-sent-actions a,
+.inbox-workspace .inbox-sent-actions button,
+.inbox-workspace .inbox-updates a,
+.inbox-workspace .inbox-updates button,
+.inbox-workspace .inquiry-activation-mode button,
+.inbox-workspace .inquiry-activation-form .ops-button{
+  min-height:44px;
+}
+
+.inbox-workspace .inbox-actions a,
+.inbox-workspace .inbox-sent-actions a,
+.inbox-workspace .inbox-updates a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.inbox-workspace .inquiry-activation-modal{
+  width:min(680px,calc(100vw - 32px));
+  max-width:100%;
+  max-height:min(860px,calc(100dvh - 32px));
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+
+.inbox-workspace .inquiry-activation-form input,
+.inbox-workspace .inquiry-activation-form select{
+  max-width:100%;
+}
+
+@media(max-width:700px){
+  .inbox-workspace .ops-heading-row{
+    align-items:stretch;
+  }
+
+  .inbox-workspace .ops-heading-row>.ops-button{
+    width:100%;
+    min-height:44px;
+  }
+
+  .inbox-workspace .inbox-list>article{
+    grid-template-columns:38px minmax(0,1fr);
+    gap:10px;
+    padding:14px 12px;
+  }
+
+  .inbox-workspace .inbox-actions{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    justify-content:stretch;
+    gap:8px;
+  }
+
+  .inbox-workspace .inbox-actions>a,
+  .inbox-workspace .inbox-actions>button{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+  }
+
+  .inbox-workspace .inbox-copy>div:first-child{
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+
+  .inbox-workspace .inbox-sent-inquiries article{
+    grid-template-columns:minmax(0,1fr);
+    gap:10px;
+    padding:14px 12px;
+  }
+
+  .inbox-workspace .inbox-update-state{
+    justify-self:start;
+    max-width:100%;
+  }
+
+  .inbox-workspace .inbox-sent-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+  }
+
+  .inbox-workspace .inbox-sent-actions>a,
+  .inbox-workspace .inbox-sent-actions>button{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+  }
+
+  .inbox-workspace .inbox-updates article{
+    grid-template-columns:auto minmax(0,1fr);
+    gap:10px;
+    align-items:start;
+  }
+
+  .inbox-workspace .inbox-updates article>a,
+  .inbox-workspace .inbox-updates article>button{
+    grid-column:1/-1;
+    width:100%;
+    justify-self:stretch;
+  }
+
+  .inbox-workspace .ops-modal-backdrop{
+    align-items:end;
+    padding:8px;
+  }
+
+  .inbox-workspace .inquiry-activation-modal{
+    width:calc(100vw - 16px);
+    max-height:calc(100dvh - 16px);
+    margin:0;
+    border-bottom-left-radius:0;
+    border-bottom-right-radius:0;
+  }
+
+  .inbox-workspace .inquiry-activation-modal .ops-modal-head button{
+    flex:0 0 44px;
+    width:44px;
+    height:44px;
+    min-width:44px;
+    min-height:44px;
+  }
+
+  .inbox-workspace .inquiry-activation-form input,
+  .inbox-workspace .inquiry-activation-form select{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+
+  .inbox-workspace .inquiry-activation-grid,
+  .inbox-workspace .inquiry-activation-target,
+  .inbox-workspace .inquiry-activation-note{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inquiry-activation-note strong{
+    white-space:normal;
+  }
+
+  .inbox-workspace .inquiry-activation-modal .ops-form-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    gap:8px;
+  }
+
+  .inbox-workspace .inquiry-activation-modal .ops-form-actions .ops-button{
+    width:100%;
+  }
+}
+
+@media(max-width:430px){
+  .inbox-workspace .inbox-summary{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inbox-summary article{
+    padding:13px 14px;
+  }
+
+  .inbox-workspace .inbox-list>article{
+    grid-template-columns:34px minmax(0,1fr);
+    column-gap:9px;
+  }
+
+  .inbox-workspace .inbox-icon{
+    width:34px;
+    height:34px;
+    border-radius:10px;
+  }
+
+  .inbox-workspace .inbox-actions,
+  .inbox-workspace .inbox-sent-actions,
+  .inbox-workspace .inquiry-activation-modal .ops-form-actions{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inbox-inquiry-meta{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inbox-inquiry-meta span{
+    width:100%;
+    max-width:100%;
+  }
+
+  .inbox-workspace .inbox-updates article{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inbox-updates .inbox-update-state{
+    justify-self:start;
+  }
+
+  .inbox-workspace .inquiry-activation-mode{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inquiry-activation-target>div,
+  .inbox-workspace .inquiry-community-lock{
+    padding:10px;
+  }
+}
+
+@media(max-width:340px){
+  .inbox-workspace .inbox-list>article{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .inbox-workspace .inbox-icon{
+    width:34px;
+    height:34px;
+  }
+
+  .inbox-workspace .inbox-copy,
+  .inbox-workspace .inbox-actions{
+    grid-column:1;
+  }
+
+  .inbox-workspace .inbox-copy>div:first-child{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:4px;
+  }
+
+  .inbox-workspace .inquiry-activation-modal{
+    padding-inline:12px;
+  }
+
+  .inbox-workspace .inquiry-activation-form input,
+  .inbox-workspace .inquiry-activation-form select{
+    font-size:13px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .inbox-workspace *{
+    scroll-behavior:auto!important;
+  }
+}
