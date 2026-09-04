@@ -113,7 +113,27 @@ export function ProductWorkspace({
       <section className="ops-main">
         <header className="ops-topbar">
           <div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div>
-          <a href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a>
+          <a className="ops-public-profile-link" href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a>
+          <details className="ops-mobile-account-menu">
+            <summary aria-label="Open workspace menu">More</summary>
+            <div className="ops-mobile-menu-panel">
+              <span className="ops-mobile-menu-label">WORKSPACE</span>
+              {nav.map(([path, label]) => (
+                <NavLink key={`mobile-${path}`} to={path} className={() => currentPath === path ? 'active' : ''}>
+                  {label}
+                </NavLink>
+              ))}
+              {me.user?.superadmin && (
+                <>
+                  <span className="ops-mobile-menu-label">SUPERADMIN</span>
+                  <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
+                  <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
+                  <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
+                </>
+              )}
+              <button type="button" onClick={() => void logout()}>Log out</button>
+            </div>
+          </details>
         </header>
         <div className="ops-page">{children}</div>
       </section>
