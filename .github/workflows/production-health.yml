@@ -25,13 +25,20 @@ jobs:
             "/"
             "/dashboard"
             "/dashboard/inbox"
+            "/opportunities"
+            "/communities"
             "/campaigns"
             "/tracking"
             "/partners"
+            "/creators"
             "/profile"
             "/invites"
             "/wallets"
+            "/settings/team-invites"
             "/settings"
+            "/admin/readiness"
+            "/admin/community-verifications"
+            "/team-invite"
           )
 
           for path in "${routes[@]}"; do
