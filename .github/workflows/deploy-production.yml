@@ -44,6 +44,74 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Verify live NFT cards use raw artwork only
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile=/tmp/live-profile.html
+          status=$(curl -sS -L -o "$profile" -w '%{http_code}' "https://linkary.xyz/muazxinthi?rawartcheck=0b042047ade5ea6a14ad5c2c6e595b758fd9706d")
+          echo "PROFILE_STATUS=$status"
+          [[ "$status" == "200" ]]
+          python - <<'PY'
+          import html, re, subprocess, sys
+          from pathlib import Path
+          from urllib.parse import urlparse
+
+          source = Path('/tmp/live-profile.html').read_text(errors='replace')
+          section = re.search(r'<section class="showcase nft-showcase">[\s\S]*?</section>', source)
+          if not section:
+              print('NFT_SECTION_NOT_FOUND')
+              sys.exit(1)
+
+          cards = re.findall(r'<a class="showcase-item"[^>]*>([\s\S]*?)</a>', section.group(0))
+          print(f'NFT_CARD_COUNT={len(cards)}')
+          expected = {'AZUKI Elemental','JIRASAN','KABU','SNOOZIE'}
+          raw_only = {'JIRASAN','SNOOZIE'}
+          seen = set()
+          failures = []
+
+          for index, card in enumerate(cards, 1):
+              tm = re.search(r'<strong>([\s\S]*?)</strong>', card)
+              title = html.unescape(re.sub(r'<[^>]+>', '', tm.group(1))).strip() if tm else '(untitled)'
+              seen.add(title)
+              im = re.search(r'<img src="([^"]+)"', card)
+              image = html.unescape(im.group(1)) if im else ''
+              print(f'NFT_{index}_TITLE={title}')
+              print(f'NFT_{index}_IMAGE={image or "NONE"}')
+
+              if title in expected and not image:
+                  failures.append(f'{title}: no image')
+                  continue
+
+              if title in raw_only:
+                  parsed = urlparse(image)
+                  if parsed.hostname in {'opensea.io', 'www.opensea.io'} or '/opengraph-image' in parsed.path:
+                      failures.append(f'{title}: marketplace social card still used')
+
+              if title in expected:
+                  proc = subprocess.run(
+                      ['curl','-sS','-L','-I','-o','/dev/null','-w','%{http_code}|%{content_type}|%{url_effective}',image],
+                      capture_output=True,
+                      text=True,
+                  )
+                  result = proc.stdout.strip()
+                  print(f'NFT_{index}_HEAD={result or "curl_failed"}')
+                  parts = result.split('|',2)
+                  if len(parts) < 2 or parts[0] != '200' or not parts[1].startswith('image/'):
+                      failures.append(f'{title}: unusable image response {result}')
+
+          missing = expected - seen
+          if missing:
+              failures.append('missing cards: ' + ', '.join(sorted(missing)))
+
+          if failures:
+              print('LIVE_NFT_FAILURES=' + '; '.join(failures))
+              sys.exit(1)
+
+          print('LIVE_RAW_NFT_VERIFIED=AZUKI Elemental,JIRASAN,KABU,SNOOZIE')
+          PY
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
