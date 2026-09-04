@@ -67,42 +67,48 @@ test('Community Manager V1 reuses the existing evidence-aware partner schema', (
   assert.equal(route.includes("manager.manager_type === 'community_manager' ? 'Telegram'"), true);
 });
 
-test('Community Manager requires a verified personal Telegram identity server-side', () => {
+test('Personal Telegram verification stays evidence-bearing but does not block Community Portfolio creation', () => {
   const route = readFileSync(new URL('../src/routes/partnerDirectory.ts', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(route.includes("pi.platform = 'telegram'"), true);
   assert.equal(route.includes("pi.provider_object_type = 'person'"), true);
   assert.equal(route.includes("pil.link_type = 'owns'"), true);
   assert.equal(route.includes('pi.ownership_verified_at IS NOT NULL'), true);
-  assert.equal(route.includes("'telegram_identity_required'"), true);
-  assert.equal(route.includes("manager.manager_type === 'community_manager') await requireTelegramIdentity"), true);
+  assert.equal(route.includes('requireTelegramIdentity'), false);
+  assert.equal(route.includes('telegram_identity_required'), false);
+  assert.equal(ui.includes('Optional for Beta'), true);
+  assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
+  assert.equal(ui.includes('if (!personalProfile) return;'), true);
+  assert.equal(ui.includes('if (!manager) return;'), true);
 });
 
 test('Community Manager UI links Telegram instead of trusting a typed personal handle', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(ui.includes('useLinkOAuth'), true);
   assert.equal(ui.includes("linkOAuth('telegram')"), true);
-  assert.equal(ui.includes('Verify your Telegram account'), true);
-  assert.equal(ui.includes('A typed Telegram username does not count as verification.'), true);
+  assert.equal(ui.includes('Personal Telegram not verified'), true);
   assert.equal(ui.includes('telegramContact: managerForm.telegramContact'), false);
   assert.equal(ui.includes('<label>Telegram contact<input'), false);
   assert.equal(ui.includes('stable account ID is kept private'), true);
 });
 
-test('Telegram linking tracks OAuth state, waits out pending redirects and surfaces provider failures', () => {
+test('Telegram linking tracks OAuth state, surfaces provider failures and keeps onboarding available', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(ui.includes('const { linkOAuth, oauthState } = useLinkOAuth()'), true);
   assert.equal(ui.includes("oauthState?.status !== 'error'"), true);
   assert.equal(ui.includes("oauthState?.status === 'pending' || oauthState?.status === 'error'"), true);
   assert.equal(ui.includes('oauthState.errorDescription || oauthState.error'), true);
-  assert.equal(ui.includes('Telegram connection failed:'), true);
+  assert.equal(ui.includes('Telegram verification is temporarily unavailable.'), true);
+  assert.equal(ui.includes('You can continue building your Community Portfolio without it.'), true);
   assert.equal(ui.includes("sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1'"), true);
-  assert.equal(ui.includes('Complete Telegram verification, then return to Linkary.'), true);
+  assert.equal(ui.includes('You can continue building your Community Portfolio either way.'), true);
 });
 
-test('Community identity and Community verification remain separate and TrackerBot stays optional', () => {
+test('Personal Telegram identity and exact Community verification remain separate and TrackerBot stays optional', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   const verification = readFileSync(new URL('../src/routes/communityVerification.ts', import.meta.url), 'utf8');
-  assert.equal(ui.includes('Community ownership is verified separately.'), true);
+  assert.equal(ui.includes('Personal Telegram verification and exact Community verification are independent.'), true);
+  assert.equal(ui.includes('Personal Telegram verification is a separate badge and is not required for Community ownership review.'), true);
   assert.equal(ui.includes('LinkaryTrackerBot is optional'), true);
   assert.equal(ui.includes('You do not need to install LinkaryTrackerBot to create or verify a Community.'), true);
   assert.equal(verification.includes("verification_status = 'submitted'"), true);
