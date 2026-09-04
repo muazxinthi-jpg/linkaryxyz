@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const beta = readFileSync(new URL('../frontend/src/ProfileExperienceBeta.tsx', import.meta.url), 'utf8');
 const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
+const identity = readFileSync(new URL('../src/routes/publicProfileIdentity.ts', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const media = readFileSync(new URL('../src/profileMedia.ts', import.meta.url), 'utf8');
@@ -67,10 +68,12 @@ test('profile editor preview renders the actual saved public profile instead of 
   assert.equal(enhancer.includes('profile-enhanced-ctas'), true);
 });
 
-test('public profile enhancement supports WhatsApp and Farcaster without replacing Codex renderer', () => {
+test('public profile enhancement supports WhatsApp and Farcaster beneath the Personal Profile identity layer', () => {
   assert.equal(enhancer.includes("return 'whatsapp'"), true);
   assert.equal(enhancer.includes("return 'farcaster'"), true);
   assert.equal(enhancer.includes("import { getPublishedProfile, renderPublicProfile as renderBasePublicProfile } from './profiles'"), true);
-  assert.equal(worker.includes('renderPublicProfileEnhanced'), true);
+  assert.equal(identity.includes("import { renderPublicProfileEnhanced } from './publicProfileEnhancer'"), true);
+  assert.equal(identity.includes('renderPublicProfileEnhanced(request, env, username)'), true);
+  assert.equal(worker.includes('renderPublicProfileWithIdentity'), true);
   assert.equal(wrangler.includes('"main": "src/worker.ts"'), true);
 });
