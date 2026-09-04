@@ -44,29 +44,6 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
-      - name: Probe exact NFT metadata documents
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'JS'
-          const targets = [
-            ['JIRASAN','https://jirasan.io/api/metadata/jirasan/9967'],
-            ['KABU','https://kabu.xyz/api/metadata/3057'],
-            ['SNOOZIE','https://ipfs.io/ipfs/bafybeihaaobve6jfqvzkskdk2h6qnuxyfxrni6vdrynv2lynvkywbud36y/2038.json'],
-          ];
-          for (const [name,url] of targets) {
-            try {
-              const res = await fetch(url,{headers:{accept:'application/json,application/*+json;q=0.9,*/*;q=0.2'},redirect:'follow'});
-              const text = await res.text();
-              console.log(`${name}_STATUS=${res.status}`);
-              console.log(`${name}_TYPE=${res.headers.get('content-type') || ''}`);
-              console.log(`${name}_FINAL=${res.url}`);
-              console.log(`${name}_BODY=${text.slice(0,3000).replace(/\n/g,' ')}`);
-            } catch (e) { console.log(`${name}_ERROR=${e}`); }
-          }
-          JS
-
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
