@@ -27,6 +27,18 @@ function currentProfile(status: ProductStatus): ProductProfile | undefined {
   return status.profiles.find((profile) => profile.profile_type === 'creator') || status.profiles[0];
 }
 
+function refreshPublicPreview(): void {
+  const iframe = document.querySelector<HTMLIFrameElement>('.profile-beta-public-preview iframe');
+  if (!iframe?.src) return;
+  try {
+    const preview = new URL(iframe.src);
+    preview.searchParams.set('editorPreview', String(Date.now()));
+    iframe.src = preview.toString();
+  } catch {
+    // Saving identity must still succeed if the optional embedded preview is unavailable.
+  }
+}
+
 function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [profileId, setProfileId] = useState(() => currentProfile(status)?.id || '');
@@ -90,7 +102,8 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
       });
       const result = await response.json().catch(() => ({})) as { message?: string; error?: string };
       if (!response.ok) throw new Error(result.message || 'Public identity could not be saved.');
-      setMessage('Public identity saved.');
+      setMessage('Public identity saved. Preview refreshed.');
+      refreshPublicPreview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Public identity could not be saved.');
     } finally {
