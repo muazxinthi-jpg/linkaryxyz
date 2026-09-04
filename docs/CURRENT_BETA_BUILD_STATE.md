@@ -32,7 +32,7 @@ The core Beta product is built and production-live:
 - Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
 - hourly production app-shell/API health monitoring
 
-Current CI baseline: **207 regression tests passing, 0 failing** on 2026-09-04.
+Current `main` regression, TypeScript and Wrangler verification are green. Treat the latest `main` CI run as the authoritative test count rather than hard-coding a count in planning documents.
 
 ## Current Linkary loop
 
@@ -100,21 +100,28 @@ Campaign status changes do not mutate activity statuses or create/delete trackin
 
 Normal `main` deployments verify `/` and `/profile` after Cloudflare deployment.
 
-In addition, a separate hourly production-health workflow checks:
+In addition, a separate hourly production-health workflow checks the current Beta app-shell route surface:
 
 - `/`
 - `/dashboard`
 - `/dashboard/inbox`
+- `/opportunities`
+- `/communities`
 - `/campaigns`
 - `/tracking`
 - `/partners`
+- `/creators`
 - `/profile`
 - `/invites`
 - `/wallets`
+- `/settings/team-invites`
 - `/settings`
+- `/admin/readiness`
+- `/admin/community-verifications`
+- `/team-invite`
 - `/api/auth/me`
 
-App routes must return HTTP 200 and the real React shell marker, with retries before the check fails.
+App routes must return HTTP 200 and the real React shell marker, with retries before the check fails. The API health check must return the expected authentication-state field. These are shell/API availability checks, not substitutes for authenticated product-flow acceptance.
 
 ## Acceptance gate still open
 
@@ -129,7 +136,7 @@ Required widths:
 - tablet
 - desktop
 
-Targeted responsive protections already exist for major flows, but full authenticated visual acceptance is still required across Dashboard, Inbox, Growth, Evidence, Partners, Communities, Profile, Projects/Team, Invites, Wallets and Superadmin surfaces.
+Static responsive hardening and regression coverage now exist for the named Issue #42 Creator, Project, Community, Wallet, Growth, Tracking, Inbox, Profile, Network and Superadmin surfaces. This does **not** close the gate. Full authenticated live visual/device acceptance is still required across the same widths and primary flows.
 
 ## Real-user acceptance still required
 
@@ -145,7 +152,7 @@ Before broad onboarding, run:
 7. Invite click -> signup -> registration attribution.
 8. Opportunity -> application -> Project decision.
 9. Public Creator/Project profile acceptance on real mobile devices.
-10. Full issue #42 responsive acceptance and P0/P1 bug fixing.
+10. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
 
 ## What to build next
 
@@ -154,10 +161,10 @@ Do **not** start another major feature.
 The next work is:
 
 1. finish real-account/end-to-end acceptance
-2. finish issue #42 responsive acceptance
+2. finish issue #42 authenticated visual/device acceptance
 3. fix every P0/P1 found
-4. keep documentation synchronized
-5. open a small controlled Beta cohort
+4. keep documentation synchronized with `main`
+5. open a small controlled Beta cohort only after the acceptance gate is clean
 
 ## Deferred until Beta stability
 
