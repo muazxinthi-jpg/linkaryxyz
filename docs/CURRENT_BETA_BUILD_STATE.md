@@ -58,31 +58,27 @@ with only the allowed V1 transitions enforced by the backend.
 - Cancelled activity does not qualify as Worked before.
 - No opaque reputation score or fabricated trend.
 
-## Production D1 state: one P0 manual action remains
+## Production D1 state
 
-The production D1 ledger was checked read-only from current `main` on 2026-09-04.
+The protected production D1 migration workflow was run successfully from `main` on 2026-09-04 using the controlled apply path.
 
-Exactly these migrations are still pending:
+Production schema is current through:
 
 - `0020_exact_activity_partner_assignment.sql`
 - `0021_collaboration_inquiries.sql`
 - `0022_collaboration_inquiry_activations.sql`
 
-The migration workflow is now protected:
+The migration workflow remains protected:
 
 - manual `workflow_dispatch` only
 - always checks out `main`
 - defaults to `verify`
 - requires explicit `mode=apply` to write migrations
-- verifies afterward that no migrations remain pending
+- verifies after apply that no migrations remain pending
 
 Normal app deployments report D1 migration drift but never apply schema changes.
 
-### Required manual production action
-
-Run GitHub Actions -> **Linkary production D1 migrations** with `mode=apply`.
-
-Do not call the formal production ledger current until the workflow reports `No migrations to apply!`.
+Never rewrite a deployed migration.
 
 ## Campaign Lifecycle V1 is complete
 
@@ -102,9 +98,9 @@ Campaign status changes do not mutate activity statuses or create/delete trackin
 
 ## Production reliability is now stronger
 
-Normal `main` deployments still verify `/` and `/profile` after Cloudflare deployment.
+Normal `main` deployments verify `/` and `/profile` after Cloudflare deployment.
 
-In addition, a separate hourly production-health workflow now checks:
+In addition, a separate hourly production-health workflow checks:
 
 - `/`
 - `/dashboard`
@@ -157,12 +153,11 @@ Do **not** start another major feature.
 
 The next work is:
 
-1. apply production migrations `0020`-`0022` through the protected manual workflow
-2. finish real-account/end-to-end acceptance
-3. finish issue #42 responsive acceptance
-4. fix every P0/P1 found
-5. keep documentation synchronized
-6. open a small controlled Beta cohort
+1. finish real-account/end-to-end acceptance
+2. finish issue #42 responsive acceptance
+3. fix every P0/P1 found
+4. keep documentation synchronized
+5. open a small controlled Beta cohort
 
 ## Deferred until Beta stability
 
