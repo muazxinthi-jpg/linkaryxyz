@@ -377,28 +377,55 @@ async function resolveAlchemySolanaNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>,
   }
 }
 
-async function resolveOpenSeaExactItemFallback(source: string): Promise<string | null> {
+function openSeaExactRawArtworkCandidates(sourceHtml: string, locator: NftMetadataLocator): string[] {
+  const normalized = sourceHtml
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/gi, '&');
+  const embeddedUrls = normalized.match(/https:\/\/[^"'<>\\\s]+/gi) || [];
+  const exactPathPrefix = `/${locator.chain.toLowerCase()}/${locator.contractAddress.toLowerCase()}/`;
+  const candidatesByPath = new Map<string, string[]>();
+
+  for (const embedded of embeddedUrls) {
+    const safe = safeHttpsUrl(embedded);
+    if (!safe) continue;
+    try {
+      const url = new URL(safe);
+      const host = url.hostname.toLowerCase();
+      if (host !== 'raw2.seadn.io' && host !== 'i2c.seadn.io') continue;
+      const path = url.pathname.toLowerCase();
+      if (!path.startsWith(exactPathPrefix) || !IMAGE_EXTENSIONS.test(path)) continue;
+      const values = candidatesByPath.get(path) || [];
+      if (!values.includes(safe)) values.push(safe);
+      candidatesByPath.set(path, values);
+    } catch {
+      // Ignore malformed embedded marketplace data.
+    }
+  }
+
+  // If the page contains more than one raw image for this exact collection, fail
+  // closed rather than guessing which related token is the requested NFT.
+  if (candidatesByPath.size !== 1) return [];
+  const candidates = [...candidatesByPath.values()][0] || [];
+  return candidates.sort((left, right) => {
+    const rank = (value: string) => new URL(value).hostname.toLowerCase() === 'raw2.seadn.io' ? 0 : 1;
+    return rank(left) - rank(right);
+  });
+}
+
+async function resolveOpenSeaExactRawArtwork(source: string): Promise<string | null> {
   const locator = parseOpenSeaNftItemUrl(source);
   if (!locator) return null;
   try {
-    const itemUrl = new URL(source);
-    const response = await fetch(itemUrl.toString(), {
+    const response = await fetch(source, {
       headers: { accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' },
       redirect: 'follow',
     });
     if (!response.ok) return null;
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     if (!contentType.includes('html')) return null;
-    const html = (await response.text()).slice(0, 350_000);
-    const rawImage = metaContent(html, 'og:image') || metaContent(html, 'twitter:image');
-    const image = rawImage ? safeHttpsUrl(new URL(rawImage, response.url || itemUrl.toString()).toString()) : null;
-    if (!image || !isPublicWebHost(new URL(image).hostname)) return null;
-
-    const imageUrl = new URL(image);
-    const imageHost = imageUrl.hostname.toLowerCase().replace(/^www\./, '');
-    const itemPath = itemUrl.pathname.replace(/\/$/, '');
-    if (imageHost !== 'opensea.io' || imageUrl.pathname !== `${itemPath}/opengraph-image`) return null;
-    return image;
+    const html = (await response.text()).slice(0, 1_250_000);
+    return openSeaExactRawArtworkCandidates(html, locator)[0] || null;
   } catch {
     return null;
   }
@@ -414,7 +441,8 @@ function isAlchemyNftCdn(value: string): boolean {
 }
 
 /** Resolve only the artwork for an NFT card. The click destination is deliberately
- * not accepted here, so a collection page can never become the NFT preview image. */
+ * not accepted here, so a collection page or marketplace social card can never
+ * become the NFT preview image. */
 export async function resolveNftArtworkPreview(
   env: Pick<Env, 'ALCHEMY_API_KEY'>,
   artworkSource: string | null | undefined,
@@ -447,8 +475,8 @@ export async function resolveNftArtworkPreview(
     const direct = safeDirectImageUrl(source);
     if (direct) return { kind: 'image', src: direct, youtube: false };
     if (openSeaItem) {
-      const fallback = await resolveOpenSeaExactItemFallback(source);
-      return fallback ? { kind: 'image', src: fallback, youtube: false } : null;
+      const rawArtwork = await resolveOpenSeaExactRawArtwork(source);
+      return rawArtwork ? { kind: 'image', src: rawArtwork, youtube: false } : null;
     }
 
     // Extensionless CDN artwork is common. Verify that the explicit artwork source
