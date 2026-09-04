@@ -86,6 +86,17 @@ test('Community Manager UI links Telegram instead of trusting a typed personal h
   assert.equal(ui.includes('stable account ID is kept private'), true);
 });
 
+test('Telegram linking tracks OAuth state, waits out pending redirects and surfaces provider failures', () => {
+  const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(ui.includes('const { linkOAuth, oauthState } = useLinkOAuth()'), true);
+  assert.equal(ui.includes("oauthState?.status !== 'error'"), true);
+  assert.equal(ui.includes("oauthState?.status === 'pending' || oauthState?.status === 'error'"), true);
+  assert.equal(ui.includes('oauthState.errorDescription || oauthState.error'), true);
+  assert.equal(ui.includes('Telegram connection failed:'), true);
+  assert.equal(ui.includes("sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1'"), true);
+  assert.equal(ui.includes('Complete Telegram verification, then return to Linkary.'), true);
+});
+
 test('Community identity and Community verification remain separate and TrackerBot stays optional', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   const verification = readFileSync(new URL('../src/routes/communityVerification.ts', import.meta.url), 'utf8');

@@ -48,6 +48,13 @@ test('profile edit page exposes role and headline selection as Personal Profile 
   assert.equal(editor.includes('/identity'), true);
 });
 
+test('saving public identity refreshes the exact embedded public profile preview', () => {
+  assert.equal(editor.includes("document.querySelector<HTMLIFrameElement>('.profile-beta-public-preview iframe')"), true);
+  assert.equal(editor.includes("preview.searchParams.set('editorPreview', String(Date.now()))"), true);
+  assert.equal(editor.includes('refreshPublicPreview();'), true);
+  assert.equal(editor.includes('Public identity saved. Preview refreshed.'), true);
+});
+
 test('public personal profiles use the selected label and fail safe to PERSONAL IDENTITY', () => {
   assert.equal(publicRenderer.includes("return 'PERSONAL IDENTITY'"), true);
   assert.equal(publicRenderer.includes('professional-headline'), true);

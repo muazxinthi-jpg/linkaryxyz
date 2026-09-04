@@ -91,12 +91,12 @@ function friendly(error: unknown, fallback: string): string {
   if (error.code === 'telegram_identity_required') return 'Verify your personal Telegram account before listing or managing communities.';
   if (error.code === 'invalid_url') return 'Enter a valid community or website URL.';
   if (error.code === 'invalid_audience') return 'Audience size must be zero or greater.';
-  if (error.code === 'forbidden') return 'Only the owner of the personal Creator profile can manage this community portfolio.';
+  if (error.code === 'forbidden') return 'Only the owner of the Personal Profile can manage this community portfolio.';
   return error.message || fallback;
 }
 
 export default function CommunityManagerExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
-  const { linkOAuth } = useLinkOAuth();
+  const { linkOAuth, oauthState } = useLinkOAuth();
   const { getAccessToken } = useGetAccessToken();
   const { isInitialized } = useIsInitialized();
   const { isSignedIn } = useIsSignedIn();
@@ -168,7 +168,16 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
   }
 
   useEffect(() => {
+    if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1' || oauthState?.status !== 'error') return;
+    sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
+    setBusy('');
+    const detail = oauthState.errorDescription || oauthState.error;
+    setMessage(detail ? `Telegram connection failed: ${detail}` : 'Telegram connection could not be started. Please try again.');
+  }, [oauthState?.status, oauthState?.error, oauthState?.errorDescription]);
+
+  useEffect(() => {
     if (!isInitialized || !isSignedIn || sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1') return;
+    if (oauthState?.status === 'pending' || oauthState?.status === 'error') return;
     let cancelled = false;
     void (async () => {
       setBusy('telegram-sync');
@@ -182,7 +191,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
       }
     })();
     return () => { cancelled = true; };
-  }, [isInitialized, isSignedIn]);
+  }, [isInitialized, isSignedIn, oauthState?.status]);
 
   async function connectTelegram() {
     if (!isInitialized || !isSignedIn) {
@@ -190,15 +199,16 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
       return;
     }
     setBusy('telegram-link');
-    setMessage('');
+    setMessage('Opening Telegram verification…');
     sessionStorage.setItem(TELEGRAM_LINK_PENDING, '1');
     try {
       await linkOAuth('telegram');
-      await syncTelegramIdentity();
-      setMessage('Telegram account connected and verified. You can now list communities.');
+      if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1') {
+        setMessage('Complete Telegram verification, then return to Linkary.');
+      }
     } catch (error) {
       sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
-      setMessage(error instanceof Error ? error.message : 'Telegram verification could not be started.');
+      setMessage(error instanceof Error ? `Telegram connection failed: ${error.message}` : 'Telegram verification could not be started.');
       setBusy('');
     }
   }
@@ -318,7 +328,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
         {message && <div className="ops-banner">{message}</div>}
         {loading ? <div className="ops-empty">Loading your Community Portfolio…</div> : !personalProfile ? (
-          <div className="ops-empty"><strong>Create a Creator profile first</strong><p>A personal Linkary Creator profile owns your Community Manager portfolio. Project workspaces cannot own it directly.</p></div>
+          <div className="ops-empty"><strong>Create a Personal Profile first</strong><p>Your Personal Profile owns your Community Manager portfolio. Project workspaces cannot own it directly.</p></div>
         ) : !telegramIdentity ? (
           <section className="ops-card community-list-card">
             <div className="ops-card-title"><div><span>TELEGRAM IDENTITY</span><h2>Verify your Telegram account</h2></div><span className="community-status status-unverified">Required</span></div>
@@ -329,6 +339,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
               </button>
             </div>
             <div className="community-verification-note"><strong>Why this is required</strong><span>Linkary ties the Community Manager portfolio to your verified personal Telegram identity using Telegram's stable account identity. Community ownership is verified separately.</span></div>
+            <div className="community-verification-note"><strong>If connection fails</strong><span>Linkary will now show the Telegram authorization error on this page instead of silently leaving the connection unfinished.</span></div>
             <div className="community-verification-note"><strong>LinkaryTrackerBot is optional</strong><span>You do not need to install LinkaryTrackerBot to create or verify a Community. The bot can later provide stronger campaign, join, leave and retention evidence.</span></div>
           </section>
         ) : (
