@@ -28,10 +28,38 @@ test('implementation status marks production D1 current through 0022', () => {
 test('current Beta handoff says acceptance is next rather than a major feature', () => {
   assert.equal(betaState.includes('Do **not** start another major feature.'), true);
   assert.equal(betaState.includes('finish real-account/end-to-end acceptance'), true);
-  assert.equal(betaState.includes('finish issue #42 responsive acceptance'), true);
+  assert.equal(betaState.includes('finish issue #42 authenticated visual/device acceptance'), true);
 });
 
 test('Codex handoff locks the full current product loop and acceptance phase', () => {
   assert.equal(codex.includes('Identity -> Discovery -> Relationship -> Inquiry -> Accept -> Explicit activation -> Campaign -> Activity -> Exact Partner -> Track -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again'), true);
   assert.equal(codex.includes('Beta acceptance, responsive QA, bug fixing and launch hardening'), true);
+});
+
+test('status docs do not freeze an obsolete regression count', () => {
+  for (const doc of [implementation, betaState, codex]) {
+    assert.equal(doc.includes('207 passing'), false);
+    assert.equal(doc.includes('207 regression'), false);
+    assert.equal(doc.includes('latest `main` CI'), true);
+  }
+});
+
+test('status docs distinguish static responsive coverage from live authenticated acceptance', () => {
+  assert.equal(implementation.includes('Static responsive coverage does not close Issue #42 by itself.'), true);
+  assert.equal(betaState.includes('Full authenticated live visual/device acceptance is still required'), true);
+  assert.equal(codex.includes('Keep Issue #42 open until this authenticated live pass is complete.'), true);
+});
+
+test('current Beta state records expanded production health route coverage', () => {
+  for (const route of [
+    '/opportunities',
+    '/communities',
+    '/creators',
+    '/settings/team-invites',
+    '/admin/readiness',
+    '/admin/community-verifications',
+    '/team-invite',
+  ]) {
+    assert.equal(betaState.includes(`- \`${route}\``), true, `${route} should be documented in production health coverage`);
+  }
 });
