@@ -44,45 +44,50 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
-      - name: Diagnose saved production NFT metadata
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx wrangler d1 execute linkary-db --remote --command "SELECT pb.title, pb.url, json_extract(pb.config_json, '$.mediaUrl') AS media_url, json_extract(pb.config_json, '$.chain') AS chain, json_extract(pb.config_json, '$.nftContract') AS nft_contract, json_extract(pb.config_json, '$.nftTokenId') AS nft_token_id, json_extract(pb.config_json, '$.nftCollection') AS nft_collection FROM profile_blocks pb JOIN profiles p ON p.id = pb.profile_id WHERE lower(p.username) = 'muazxinthi' AND pb.block_type = 'nft_item' AND pb.enabled = 1 ORDER BY pb.position ASC;"
-
       - name: Diagnose live NFT profile preview
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
           profile="/tmp/linkary-muazxinthi.html"
+          public_json="/tmp/linkary-muazxinthi.json"
           status=$(curl -sS -L -o "$profile" -w '%{http_code}' "https://linkary.xyz/muazxinthi?diag=${GITHUB_SHA}")
+          api_status=$(curl -sS -o "$public_json" -w '%{http_code}' "https://linkary.xyz/api/public/profiles/muazxinthi?diag=${GITHUB_SHA}")
           echo "PROFILE_STATUS=$status"
+          echo "PUBLIC_JSON_STATUS=$api_status"
           python - <<'PY'
-          import html, re, subprocess
+          import html, json, re, subprocess
           from pathlib import Path
           source = Path('/tmp/linkary-muazxinthi.html').read_text(errors='replace')
           section = re.search(r'<section class="showcase nft-showcase">[\s\S]*?</section>', source)
           if not section:
               print('NFT_SECTION_NOT_FOUND')
-              raise SystemExit(0)
-          text = section.group(0)
-          cards = re.findall(r'<a class="showcase-item"[^>]*>([\s\S]*?)</a>', text)
-          print(f'NFT_CARD_COUNT={len(cards)}')
-          for index, card in enumerate(cards, 1):
-              title_match = re.search(r'<strong>([\s\S]*?)</strong>', card)
-              title = html.unescape(re.sub(r'<[^>]+>', '', title_match.group(1))).strip() if title_match else '(untitled)'
-              img_match = re.search(r'<img src="([^"]+)"', card)
-              if not img_match:
+          else:
+              text = section.group(0)
+              cards = re.findall(r'<a class="showcase-item"[^>]*>([\s\S]*?)</a>', text)
+              print(f'NFT_CARD_COUNT={len(cards)}')
+              for index, card in enumerate(cards, 1):
+                  title_match = re.search(r'<strong>([\s\S]*?)</strong>', card)
+                  title = html.unescape(re.sub(r'<[^>]+>', '', title_match.group(1))).strip() if title_match else '(untitled)'
+                  img_match = re.search(r'<img src="([^"]+)"', card)
                   print(f'NFT_{index}_TITLE={title}')
-                  print(f'NFT_{index}_IMAGE=NONE')
-                  continue
-              src = html.unescape(img_match.group(1))
-              print(f'NFT_{index}_TITLE={title}')
-              print(f'NFT_{index}_IMAGE={src}')
-              proc = subprocess.run(['curl','-sS','-L','-I','-o','/dev/null','-w','%{http_code}|%{content_type}|%{url_effective}',src], capture_output=True, text=True)
-              print(f'NFT_{index}_HEAD={proc.stdout.strip() or "curl_failed"}')
+                  if not img_match:
+                      print(f'NFT_{index}_IMAGE=NONE')
+                  else:
+                      src = html.unescape(img_match.group(1))
+                      print(f'NFT_{index}_IMAGE={src}')
+                      proc = subprocess.run(['curl','-sS','-L','-I','-o','/dev/null','-w','%{http_code}|%{content_type}|%{url_effective}',src], capture_output=True, text=True)
+                      print(f'NFT_{index}_HEAD={proc.stdout.strip() or "curl_failed"}')
+
+          payload = json.loads(Path('/tmp/linkary-muazxinthi.json').read_text(errors='replace'))
+          nft_blocks = [b for b in payload.get('blocks', []) if b.get('type') == 'nft_item']
+          print(f'NFT_PUBLIC_BLOCK_COUNT={len(nft_blocks)}')
+          for index, block in enumerate(nft_blocks, 1):
+              config = block.get('config') or {}
+              print(f'NFT_BLOCK_{index}_TITLE={block.get("title") or ""}')
+              print(f'NFT_BLOCK_{index}_DESTINATION={block.get("url") or ""}')
+              print(f'NFT_BLOCK_{index}_CHAIN={config.get("chain") or ""}')
+              print(f'NFT_BLOCK_{index}_SAVED_MEDIA={config.get("mediaUrl") or ""}')
           PY
 
       - name: Check Cloudflare deployment credentials
