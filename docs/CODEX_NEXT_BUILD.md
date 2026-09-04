@@ -1,88 +1,86 @@
 # Linkary Codex Next Build
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
-This handoff reflects the current repository after the exact Partner-to-Activity evidence milestone. Read `IMPLEMENTATION_STATUS.md`, `uilib.md`, `docs/UI_RELEASE_GATE.md`, `docs/DELIVERY_TEAM.md`, and the Linkary Technical Product & Engineering Paper v1.2 before changing architecture.
+This is the active Codex handoff for Linkary Beta. Read `IMPLEMENTATION_STATUS.md`, `docs/CURRENT_BETA_BUILD_STATE.md`, `uilib.md`, `docs/UI_RELEASE_GATE.md`, `docs/DELIVERY_TEAM.md`, and the Linkary Technical Product & Engineering Paper before changing architecture.
 
 Do not rebuild features marked complete in `IMPLEMENTATION_STATUS.md`.
 
-## Current Beta product
+## Current state
 
-Implemented product surfaces now include:
+The core Beta product is built. Current production capabilities include:
 
-- invite-only onboarding and Creator Earn Access
+- invite-only Creator and Project onboarding
+- Email, Google, X and Telegram authentication
+- Creator Earn Access with manual Superadmin review
 - Creator and verified Project public profiles
-- verified X avatar synchronization
-- profile completion guidance
-- Media Kit and Work With Me / collaboration CTAs
-- drag-and-drop profile ordering and mobile preview
-- automatic Creator Campaign Proof and Project Growth Proof
-- open Project campaign opportunities on public profiles
-- Project search, role requests, approvals, Team invitations, team roles and ownership transfer
-- workspace switching across Creator / Project relationships
-- personal Telegram verification separated from Community verification
-- Community Manager workspace and multi-Community portfolio
-- Community verification proof submission and Superadmin review
-- Inbox action center
-- invite dashboard and attribution
-- campaigns, activities, tracked links, clicks, outcomes and growth reports
-- Partner Discovery V1 for Creators and Community Managers
-- Project shortlists and Project network
-- exact Creator assignment to campaign activities
-- exact Telegram Community assignment through Community Manager -> Community asset
-- campaign opportunity applications
-- Linkary wallet plus optional EVM/Solana reward destinations
+- Project roles, access requests, Team invitations and ownership transfer
+- Community Manager identity plus exact Telegram Community assets
+- Community verification review
+- Partner Discovery, Project shortlists and Project network
+- Collaboration Inquiry V1
+- accepted Inquiry -> explicit Campaign/Activity activation
+- exact Creator / exact Telegram Community campaign assignment
+- Activity Lifecycle V1
+- Campaign Lifecycle V1
+- tracking links, clicks, outcomes, attribution and growth reports
+- Creator Campaign Proof, Project Growth Proof and Community Campaign Proof
+- Relationship Memory and Work Again
+- campaign opportunities and Creator applications
+- Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
+- hourly production app-shell/API health monitoring
 
-The next engineering phase remains **Beta acceptance and bug fixing**, not broad new feature development.
+Current regression baseline: **207 passing tests, 0 failing** as of 2026-09-04.
 
-Collaboration Inquiry V1 comes only after the acceptance gate is clean.
+## Production database state
 
-## Locked identity and evidence rules
+The protected production D1 migration workflow was run successfully from `main` with the controlled apply path on 2026-09-04.
+
+Production schema is therefore current through:
+
+- `0020_exact_activity_partner_assignment.sql`
+- `0021_collaboration_inquiries.sql`
+- `0022_collaboration_inquiry_activations.sql`
+
+The protected workflow remains manual-only, pinned to `main`, defaults to `verify`, and only applies migrations after explicit `mode=apply` selection. Normal production deployments may report migration drift but must never auto-apply migrations.
+
+Never rewrite a migration that has been deployed.
+
+## Locked product loop
+
+The current product loop is:
+
+`Identity -> Discovery -> Relationship -> Inquiry -> Accept -> Explicit activation -> Campaign -> Activity -> Exact Partner -> Track -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`
+
+Do not create a parallel campaign, attribution, inquiry or evidence system.
+
+## Locked evidence rules
 
 Do not regress these:
 
-- A human account is not permanently typed as Creator or Project.
-- A Creator can belong to many Project organizations through roles.
-- A Project itself must be registered/claimed through the Project's official verified X identity.
-- The Project Linkary username must match the verified Project X handle.
-- A personal Creator account must not free-form create or impersonate a Project.
-- People manage Projects through Owner, Admin, Campaign Manager, Analyst and Viewer roles.
-- A Community Manager is a person/P.O.C. who may represent multiple Telegram Communities.
-- Personal Telegram verification proves the manager's identity. It does not verify every Community they represent.
-- Community verification is asset-level and must remain separate from manager verification.
-- A Community campaign placement must resolve to the exact Telegram Community asset when one is assigned.
-- Evidence confidence must remain Manual, Tracked, Correlated, or Verified according to stored evidence. Never silently upgrade evidence.
+- Inquiry acceptance means open to discussion only. It is not campaign proof.
+- Explicit activation assigns a partner to an exact campaign activity, but creates no performance proof.
+- Activity completion records lifecycle state only. It does not create performance proof.
+- Campaign completion/archival records lifecycle state only. It does not complete activities or create performance proof.
+- Exact Creator / exact Telegram Community provenance is authoritative.
+- A Community Manager's personal Telegram verification is separate from exact Community asset verification.
+- Community verification is asset-level.
+- Evidence confidence remains Manual, Tracked, Correlated or Verified according to stored evidence.
+- Manual outcome/value records remain manual and must not appear as strong verified public proof.
+- Strong public outcome/value sources remain `linkary_tracked`, `telegram_verified` and `provider_verified`.
+- Cancelled activities do not qualify as Worked Before.
+- No editable fake proof metrics.
+- No opaque Linkary Score until enough defensible data exists.
 
-## Canonical evidence path
+## What to build next
 
-The current product supports:
+Do **not** start another major feature.
 
-`Project -> Campaign -> Activity -> exact Creator / exact Telegram Community -> Tracking Link -> Click -> Outcome -> Attribution -> Relationship History`
+The active phase is **Beta acceptance, responsive QA, bug fixing and launch hardening**.
 
-Exact assignment is stored through `campaign_activity_linkary_assignments` while still writing through the existing `campaign_activity_participants` attribution chain. Do not create a parallel campaign or attribution system.
+### 1. Issue #42, authenticated responsive acceptance
 
-## Beta acceptance order
-
-### 1. Production migrations
-
-Verify the protected production D1 migration state.
-
-Apply pending versioned migrations through the controlled migration workflow. In particular verify:
-
-- `0017_project_partner_shortlists.sql`
-- `0018_verified_x_profile_avatars.sql`
-- `0019_project_team_invitations.sql`
-- `0020_exact_activity_partner_assignment.sql`
-
-`0020` has an idempotent runtime guard for operational safety, but the formal migration ledger must still be handled through the protected migration workflow.
-
-Never rewrite a migration already deployed.
-
-### 2. Full authenticated responsive UI acceptance
-
-Issue #42 is the active UI acceptance gate.
-
-Review the primary authenticated product at minimum at:
+Review primary authenticated surfaces at minimum at:
 
 - 320px
 - 375px
@@ -95,34 +93,33 @@ Include:
 
 - Dashboard
 - Inbox
-- Profile editor and public profile
-- Communities / Community Manager
-- Growth
-- Evidence
+- Campaigns / Growth
+- Evidence / Tracking
 - Partners
+- Communities / Community Manager
+- Profile editor and public profile
 - Projects / roles / Team invitations
 - Invites
 - Wallets
-- relevant Superadmin user-facing surfaces
+- relevant Superadmin surfaces
 
 Validate:
 
-- no avatar/logo/media overflow
-- no clipped headings or sticky collisions
 - no horizontal document overflow
-- readable type and spacing
-- stacked mobile forms
-- practical 40 to 44px interaction targets
-- mobile-safe modals
+- no clipped headings, avatars, media or sticky controls
+- mobile forms stack correctly
+- useful 40 to 44px tap targets
+- mobile-safe modals and sheets
 - usable filters, tabs and actions
+- readable type and spacing
 - useful loading, empty and error states
-- no provider/infrastructure language in customer UI
+- no provider/infrastructure terminology in customer UI
 - no manual/estimated evidence presented as verified
-- sensible density for one-result and many-result states
+- sensible density with one result and many results
 
-Fix any P0/P1 blocker before starting Collaboration Inquiry or broader campaign execution features.
+Fix every P0/P1 before broad onboarding.
 
-### 3. Authentication acceptance
+### 2. Real authentication acceptance
 
 Use real separate accounts and test:
 
@@ -141,97 +138,76 @@ Use real separate accounts and test:
 
 Do not expose CDP/provider/server-token terminology in customer UI.
 
-### 4. Creator Earn Access acceptance
+### 3. Real Creator acceptance
 
-Run a second real Creator through:
+Run a second Creator through:
 
-Create account -> Creator Earn Access -> authenticate -> generated `LKY-...` claim -> curated X post -> submit canonical X status URL -> Superadmin queue -> approve -> onboarding -> Creator profile -> 10 invite credits.
+`Invite -> account -> Creator Earn Access -> generated LKY claim -> X post -> submit canonical X status URL -> Superadmin approval -> onboarding -> Creator profile -> 10 invite credits`
 
-Validate:
+Validate claim uniqueness, official `@Linkaryxyz` tag, duplicate-post protection, status-URL validation, rejection/retry behavior and no auto-grant while manual mode is enabled.
 
-- official `@Linkaryxyz` tag
-- unique claim code
-- only X/Twitter status URLs
-- duplicate-post protection
-- no auto-grant while manual mode is enabled
-- rejection reason and retry behavior
+TwitterAPI.io remains deferred and must not become a dependency for launch access or referral attribution.
 
-TwitterAPI.io remains optional/deferred and must not become a dependency for launch access or referral attribution.
+### 4. Real Project acceptance
 
-### 5. Real Project registration acceptance
+Use a separate Project's official X identity and validate:
 
-Use a second Project's official X account.
-
-Validate:
-
-- Project registers only through verified X identity
+- Project registration only through verified official X identity
 - Linkary username equals Project X handle
-- Organization is created
-- Owner membership is created
-- Project public profile is created
-- 50 Project invite credits are allocated for first Project onboarding
-- Project avatar/logo syncs from verified X where available
-- public profile can be completed and published
+- organization creation
+- Owner membership creation
+- Project public profile creation
+- 50 Project invite credits on first Project onboarding
+- verified X avatar/logo sync where available
+- profile completion and publish flow
 
-### 6. Creator -> Project relationship acceptance
+### 5. Role permission acceptance
 
-With separate human accounts:
-
-Creator -> Projects -> search verified Project -> request Campaign Manager/Analyst/Viewer/Admin -> Project Owner/Admin sees Inbox -> approve/reject -> Creator refreshes -> Project workspace appears -> role permissions match backend rules.
+With separate humans test Owner, Admin, Campaign Manager, Analyst and Viewer.
 
 Validate:
 
+- backend permissions match UI
 - Admin cannot approve another Admin
 - Owner can approve Admin
 - Owner/Admin can add existing Linkary members directly
 - Team invitations do not consume network invite credits
-- Owner/Admin cannot alter protected Owner membership through normal role controls
-- ownership transfer demotes old Owner to Admin and promotes selected active member to Owner
+- protected Owner membership cannot be altered through normal role controls
+- ownership transfer promotes the selected member and demotes the old Owner to Admin
 
-### 7. Invite attribution acceptance
+### 6. Invite attribution acceptance
 
-Test:
+Run:
 
-Creator/Project creates invite -> recipient clicks -> signup -> registration -> correct inviter attribution -> balance consumed -> dashboard shows clicks/registration/recipient state -> unused invite revoke returns credit.
+`Create invite -> recipient click -> signup -> registration -> correct inviter attribution -> credit consumed -> dashboard state -> revoke unused invite returns credit`
 
 Do not use TwitterAPI.io for this loop.
 
-### 8. Core Linkary evidence loop
+### 7. Full Creator evidence loop
 
-Run the full flow with real test data:
+Run with real test data:
 
-Project -> Campaign -> Activity -> exact Partner -> Tracking Link -> Click -> Outcome -> Growth Report -> Public Growth Proof.
+`Project -> Partner Discovery -> Collaboration Inquiry -> Accept -> explicit activation -> Campaign -> Activity -> exact Creator -> Live -> Tracking Link -> Click -> Outcome -> Attribution -> Growth Report -> Public Proof -> Completed Activity -> Relationship Memory -> Work Again`
 
-For Creator activity:
+Validate exact identity persistence, click/event integrity, evidence source/confidence, report calculations, CSV parity and no invented spend/value/conversions.
 
-`Activity -> exact Linkary Creator profile`
+### 8. Full Community evidence loop
 
-For Telegram placement:
+Run the same flow through:
 
-`Activity -> Community Manager -> exact Telegram Community asset`
+`Community Manager -> exact Telegram Community asset`
 
-Validate:
+Validate manager verification and Community asset verification remain separate, exact Community ID persists, changing/removing assignment does not erase historical tracking, and proof remains tied to actual evidence.
 
-- exact Creator identity persists on the activity
-- Community Manager and exact Community IDs both persist for Telegram placement
-- Community assignment is rejected if the manager's personal Telegram identity is not verified
-- Community verification state remains the asset's actual state
-- changing/removing the partner does not delete the activity's existing tracking history
-- destination redirect works immediately
-- click counts increment exactly once per stored event
-- outcomes attach to the correct campaign/activity/link where supplied
-- evidence confidence/source is preserved
-- report calculations do not invent spend, conversions, outcomes or attributed value
-- CSV output matches the on-screen report
-- manual outcome/value records never appear as verified public Project proof
+### 9. Opportunity/application acceptance
 
-### 9. Creator campaign opportunity loop
+Run:
 
-Project -> Campaign -> publish Opportunity -> public Project profile shows open opportunity -> Creator applies -> Project Inbox receives application -> Project accepts/rejects -> accepted relationship appears in Creator Campaign Proof when applicable.
+`Project -> Campaign -> publish Opportunity -> public Project profile -> Creator applies -> Project Inbox -> accept/reject -> resulting relationship/proof only when applicable`
 
 ### 10. Public profile acceptance
 
-Test both Creator and Project profiles:
+Test Creator and Project profiles for:
 
 - verified X avatar/logo
 - custom image override
@@ -241,21 +217,17 @@ Test both Creator and Project profiles:
 - Work With Me / collaboration CTA
 - Project/Community cards
 - Team cards
-- drag/reorder
-- hide/show
+- reorder/hide/show
 - SEO title/description
 - publish/unpublish
-- canonical URL
-- share metadata
+- canonical URL/share metadata
 - Creator Campaign Proof
 - Project Growth Proof
 - open Project Opportunities
 
 Never add editable fake proof metrics.
 
-## Bug-fix priorities
-
-During acceptance, fix in this order:
+## Bug-fix priority order
 
 1. authentication/session blockers
 2. onboarding dead ends
@@ -263,62 +235,58 @@ During acceptance, fix in this order:
 4. incorrect attribution/evidence
 5. data loss or duplicate writes
 6. mobile usability blockers
-7. confusing empty/error states
+7. confusing loading/empty/error states
 8. cosmetic polish
 
-Do not start Alchemy automation, Telegram Tracker Bot automation, reputation voting, AI recommendations, billing or payouts while a P0/P1 acceptance bug remains open.
+## Deferred while acceptance blockers remain
 
-## Next product milestone after acceptance
+Do not start these until Beta stability:
 
-Once the acceptance gate is clean, build **Collaboration Inquiry V1**.
+- Telegram TrackerBot automation
+- automatic Telegram join/leave verification
+- advanced Alchemy webhook attribution
+- AI partner recommendations
+- Linkary Score
+- reputation voting/moderation
+- billing, payments and payouts
+- referral revenue automation
+- delegated wallet signing
+- advanced audience-overlap intelligence
 
-It should connect Partner Discovery to Project workflow without turning Linkary into an execution-first marketplace.
-
-Expected flow:
-
-`Project -> Partner Discovery -> Collaboration Inquiry -> Creator / Community Manager -> Inbox -> Accept / Decline -> optional Campaign / Activity binding -> evidence chain`
-
-For Community work, any accepted collaboration that becomes a campaign activity must still identify the exact Community asset before evidence is attributed.
-
-Do not build Collaboration Inquiry as a separate campaign database.
-
-## Security rules
+## Security and deployment rules
 
 - backend remains authority
-- validate CDP access tokens server-side
+- validate provider access tokens server-side
 - preserve secure Linkary session cookies and CSRF protection
 - never trust client-supplied user IDs
 - no public privilege escalation
 - stable X/Telegram provider UID is canonical, not mutable username
-- Project identity remains tied to verified Project X ownership
+- Project identity stays tied to verified official Project X ownership
 - personal Telegram verification does not verify represented Communities
 - no server authority for wallet trade, transfer, private-key export or policy management
-- additional EVM/Solana wallet destinations do not connect those wallets to Linkary
-- do not expose secrets
-- do not rewrite deployed migrations
+- additional EVM/Solana reward destinations do not connect those wallets to Linkary
+- never expose secrets
+- never rewrite deployed migrations
+- PRs run regression + frontend TypeScript + Wrangler dry run
+- `main` remains the only production source branch
+- normal deploys do not auto-apply D1 migrations
+- production health failure is a release blocker until a clean live check is observed
 
-## CI and deployment
-
-- Pull requests: regression tests + frontend TypeScript + Wrangler dry-run, no production deployment.
-- `main`: verification + Cloudflare production deployment.
-- Production health must pass after deployment before a release is called complete.
-- Production D1 migrations stay controlled and are not silently auto-applied by normal app deploys.
-- A transient health failure must be treated as a release blocker until a clean live health check is observed.
-
-## Definition of Beta-ready
+## Definition of controlled Beta-ready
 
 Do not call broad Creator/Project onboarding ready until all are true:
 
-1. protected production migrations are current through the required Beta schema
-2. full authenticated responsive UI acceptance is clean
-3. Email, Google, X and Telegram auth pass real-account acceptance
+1. production D1 ledger is current through `0022`
+2. issue #42 responsive acceptance is clean
+3. Email, Google, X and Telegram real-account acceptance passes
 4. second real Creator completes Earn Access
 5. second real Project completes official-X registration
-6. Creator -> Project request/approval/role switching passes with separate users
+6. role matrix passes with separate users
 7. invite attribution passes end to end
-8. exact Creator / Community campaign evidence loop passes end to end
-9. opportunity/application loop passes end to end
-10. Creator and Project public profiles pass mobile/share acceptance
-11. no open P0 security, auth, permission, attribution, data-integrity or responsive usability bug remains
+8. Creator evidence loop passes end to end
+9. exact Community evidence loop passes end to end
+10. opportunity/application loop passes end to end
+11. Creator and Project public profiles pass mobile/share acceptance
+12. no open P0 security, auth, permission, attribution, data-integrity or responsive usability blocker remains
 
-After that, begin controlled Beta onboarding and then build Collaboration Inquiry V1. Only after Beta stability should Linkary revisit deferred automation and intelligence features.
+After that, onboard a small controlled cohort first, observe real usage, fix friction, then expand.

@@ -2,84 +2,119 @@
 
 Updated: 2026-09-04
 
-This file is the concise current-state handoff for active Beta development. When older status/handoff files conflict with this file, verify against `main` and prefer the current repository.
+This is the concise current-state handoff for active Linkary Beta work. If an older handoff conflicts with this file, verify against `main`, current migrations and CI before rebuilding anything.
 
-## Current production baseline
+## Current production product
 
-Production `main` currently includes the following post-acceptance milestones:
+The core Beta product is built and production-live:
 
-- Partner Discovery V1 for published Creators and public Community Managers
-- exact Creator assignment to campaign activities
-- exact Telegram Community assignment through Community Manager -> exact Community asset
+- invite-only Creator and Project onboarding
+- Email, Google, X and Telegram authentication
+- Creator Earn Access with manual Superadmin review
+- Creator and verified Project public profiles
+- Project roles, access requests, Team invitations and ownership transfer
+- Community Manager identity and multi-Community portfolio
+- Community verification review
+- Partner Discovery for Creators and Community Managers
+- Project shortlist and Project network
 - Collaboration Inquiry V1
 - accepted Inquiry -> explicit Campaign/Activity activation
-- Community Campaign Proof from exact Community activity evidence
-- public Community Portfolio proof using the same evidence engine as authenticated Community views
-- Partner Relationship Memory + Rehire V1
-- `Work again` fresh inquiry flow
-- NFT public-preview metadata resilience for EVM and Solana NFTs
+- exact Creator / exact Telegram Community assignment
 - Campaign Activity Lifecycle V1
+- Campaign Lifecycle V1
+- tracking links, clicks, outcomes, attribution and reports
+- Creator Campaign Proof
+- Project Growth Proof
+- Community Campaign Proof
+- Relationship Memory
+- Work Again
+- NFT showcase/avatar metadata resilience for EVM/Base/Abstract/Solana
+- Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
+- hourly production app-shell/API health monitoring
 
-The current relationship/growth loop is:
+Current CI baseline: **207 regression tests passing, 0 failing** on 2026-09-04.
 
-`Discover -> Inquire -> Accept -> Explicitly activate -> Campaign -> Activity -> exact Partner -> Mark live/completed -> Track -> Outcome -> Proof -> Relationship Memory -> Work again`
+## Current Linkary loop
+
+`Discover -> Inquire -> Accept -> Explicit activation -> Campaign -> Activity -> exact Partner -> Mark live/completed -> Track -> Outcome -> Proof -> Relationship Memory -> Work Again`
+
+Campaigns also have their own operational lifecycle:
+
+`Draft -> Active -> Paused -> Completed -> Archived`
+
+with only the allowed V1 transitions enforced by the backend.
 
 ## Evidence rules that remain locked
 
 - Inquiry acceptance means open to discussion only.
 - Explicit activation assigns a partner to an exact campaign activity, but does not create performance proof.
-- Activity completion records that the activity happened, but does not create performance proof.
+- Activity completion records that work happened, but does not create performance proof.
+- Campaign completion/archival does not create proof or rewrite activity status.
 - Exact Creator / exact Telegram Community provenance remains authoritative.
 - Community Manager personal Telegram verification is separate from Community asset verification.
 - Community verification is asset-level.
-- Manual outcome/value evidence remains visibly Manual and is excluded from strong public performance totals.
-- Strong performance outcome/value sources are `linkary_tracked`, `telegram_verified`, and `provider_verified`.
-- Cancelled activity does not qualify as `Worked before`.
+- Manual outcome/value evidence remains Manual.
+- Strong public outcome/value sources remain `linkary_tracked`, `telegram_verified`, and `provider_verified`.
+- Cancelled activity does not qualify as Worked before.
 - No opaque reputation score or fabricated trend.
 
-## Activity lifecycle now live
+## Production D1 state
 
-`campaign_activities.status` can now move through the controlled V1 lifecycle:
+The protected production D1 migration workflow was run successfully from `main` on 2026-09-04 using the controlled apply path.
 
-- planned -> live
-- planned -> completed
-- planned -> cancelled
-- live -> completed
-- live -> cancelled
+Production schema is current through:
 
-Completed and cancelled are terminal in V1.
-
-Lifecycle updates do not create/delete tracking links, clicks, outcomes, exact partner assignments, verification or attribution confidence.
-
-## NFT public-preview resilience now live
-
-Public NFT artwork resolution now supports:
-
-- saved EVM chain + contract + token ID even when the original media URL is missing
-- refresh of stale Alchemy NFT CDN artwork from canonical metadata
-- Alchemy EVM NFT metadata with onchain tokenURI fallback
-- Solana mint metadata through Alchemy `getAsset`
-- IPFS / Arweave gateway artwork
-- direct image fast path
-
-OpenSea marketplace HTML/social previews are not treated as NFT artwork.
-
-## Production migration caution
-
-Normal production deployments must not silently auto-run D1 migrations.
-
-Protected migration verification remains open. In addition to previously listed Beta migrations, current schema history includes:
-
-- `0017_project_partner_shortlists.sql`
-- `0018_verified_x_profile_avatars.sql`
-- `0019_project_team_invitations.sql`
 - `0020_exact_activity_partner_assignment.sql`
 - `0021_collaboration_inquiries.sql`
 - `0022_collaboration_inquiry_activations.sql`
 
-Runtime-safe guards exist for recent feature schemas where intentionally implemented, but they do not replace the controlled migration ledger.
+The migration workflow remains protected:
 
-Do not claim the formal production migration ledger is current unless it is explicitly verified.
+- manual `workflow_dispatch` only
+- always checks out `main`
+- defaults to `verify`
+- requires explicit `mode=apply` to write migrations
+- verifies after apply that no migrations remain pending
+
+Normal app deployments report D1 migration drift but never apply schema changes.
+
+Never rewrite a deployed migration.
+
+## Campaign Lifecycle V1 is complete
+
+Campaign Lifecycle is no longer the next feature.
+
+Supported transitions:
+
+- Draft -> Active / Archived
+- Active -> Paused / Completed / Archived
+- Paused -> Active / Completed / Archived
+- Completed -> Archived
+- Archived is terminal
+
+Lifecycle mutation is authenticated, CSRF protected and Project permissioned. Owner/Admin/Campaign Manager can write. Analyst/Viewer remain read-only.
+
+Campaign status changes do not mutate activity statuses or create/delete tracking, clicks, outcomes, exact partner assignments, attribution confidence, reports, inquiries, proof or Relationship Memory.
+
+## Production reliability is now stronger
+
+Normal `main` deployments verify `/` and `/profile` after Cloudflare deployment.
+
+In addition, a separate hourly production-health workflow checks:
+
+- `/`
+- `/dashboard`
+- `/dashboard/inbox`
+- `/campaigns`
+- `/tracking`
+- `/partners`
+- `/profile`
+- `/invites`
+- `/wallets`
+- `/settings`
+- `/api/auth/me`
+
+App routes must return HTTP 200 and the real React shell marker, with retries before the check fails.
 
 ## Acceptance gate still open
 
@@ -94,35 +129,46 @@ Required widths:
 - tablet
 - desktop
 
-Real-account / real-device acceptance is still required for authentication, onboarding, Project roles, invites, evidence workflows, public profiles and Superadmin operations before broad onboarding.
+Targeted responsive protections already exist for major flows, but full authenticated visual acceptance is still required across Dashboard, Inbox, Growth, Evidence, Partners, Communities, Profile, Projects/Team, Invites, Wallets and Superadmin surfaces.
 
-## Next product build
+## Real-user acceptance still required
 
-The next operational gap identified from current `main` is Campaign Lifecycle V1.
+Before broad onboarding, run:
 
-Campaigns can be created and reported today, but the Growth workspace needs a controlled lifecycle so a Project can explicitly close/archive campaign records without deleting historical evidence.
+1. Creator Invite -> auth -> Earn Access -> X evidence -> Superadmin approval -> onboarding -> profile.
+2. Project Invite -> auth -> official Project X -> claim -> workspace -> Team roles.
+3. Email / Google / X / Telegram authentication with real accounts.
+4. Owner / Admin / Campaign Manager / Analyst / Viewer permission matrix with separate users.
+5. Creator evidence loop:
+   `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`.
+6. Community evidence loop using `Community Manager -> exact Telegram Community`.
+7. Invite click -> signup -> registration attribution.
+8. Opportunity -> application -> Project decision.
+9. Public Creator/Project profile acceptance on real mobile devices.
+10. Full issue #42 responsive acceptance and P0/P1 bug fixing.
 
-Campaign lifecycle must preserve:
+## What to build next
 
-- activities
-- exact partner assignments
-- tracking links
-- clicks
-- outcomes
-- attribution
-- relationship history
-- reports
+Do **not** start another major feature.
 
-Campaign status must never manufacture proof or mutate evidence confidence.
+The next work is:
+
+1. finish real-account/end-to-end acceptance
+2. finish issue #42 responsive acceptance
+3. fix every P0/P1 found
+4. keep documentation synchronized
+5. open a small controlled Beta cohort
 
 ## Deferred until Beta stability
 
-Keep these deferred while P0/P1 acceptance blockers exist:
+Keep these deferred while acceptance blockers remain:
 
 - Telegram TrackerBot automation
-- Alchemy webhook/onchain attribution automation beyond current NFT metadata use
+- automatic Telegram join/leave verification
+- advanced Alchemy webhook attribution
 - AI partner recommendations / Linkary Score
 - reputation voting/moderation
 - billing, payments and payouts
 - referral revenue automation
 - delegated wallet signing
+- advanced audience-overlap intelligence
