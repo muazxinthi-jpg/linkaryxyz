@@ -1,11 +1,13 @@
 import { Db } from './client';
 
+let attributionSchemaReady: Promise<void> | null = null;
+
 /**
- * Keeps Linkary's first-party attribution path operational even when a deployment
- * token cannot apply D1 migrations. Formal migrations remain the source of truth;
- * these idempotent guards are a production safety net for the core growth tables.
+ * Formal D1 migrations remain the source of truth. This additive runtime guard is
+ * only a safety net for the core attribution tables. Cache it per Worker isolate
+ * so normal campaign, tracking and outcome requests do not repeat schema DDL.
  */
-export async function ensureAttributionSchema(db: Db): Promise<void> {
+async function applyAttributionRuntimeSchema(db: Db): Promise<void> {
   await db.run(`CREATE TABLE IF NOT EXISTS campaigns (
     id TEXT PRIMARY KEY NOT NULL,
     organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -95,4 +97,14 @@ export async function ensureAttributionSchema(db: Db): Promise<void> {
     UNIQUE(organization_id, external_event_key)
   )`);
   await db.run('CREATE INDEX IF NOT EXISTS idx_conversion_events_campaign ON conversion_events(campaign_id, occurred_at DESC)');
+}
+
+export async function ensureAttributionSchema(db: Db): Promise<void> {
+  if (!attributionSchemaReady) {
+    attributionSchemaReady = applyAttributionRuntimeSchema(db).catch((error) => {
+      attributionSchemaReady = null;
+      throw error;
+    });
+  }
+  await attributionSchemaReady;
 }
