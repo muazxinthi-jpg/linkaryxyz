@@ -154,6 +154,7 @@ const ALCHEMY_NFT_HOSTS: Record<string, string> = {
   ethereum: 'eth-mainnet',
   eth: 'eth-mainnet',
   base: 'base-mainnet',
+  abstract: 'abstract-mainnet',
   arbitrum: 'arb-mainnet',
   bsc: 'bnb-mainnet',
   bnb: 'bnb-mainnet',
@@ -166,6 +167,7 @@ const EVM_PUBLIC_RPC: Record<string, string> = {
   ethereum: 'https://ethereum-rpc.publicnode.com',
   eth: 'https://ethereum-rpc.publicnode.com',
   base: 'https://mainnet.base.org',
+  abstract: 'https://api.mainnet.abs.xyz',
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   bsc: 'https://bsc-dataseed.binance.org',
   bnb: 'https://bsc-dataseed.binance.org',
@@ -375,6 +377,33 @@ async function resolveAlchemySolanaNftArtwork(env: Pick<Env, 'ALCHEMY_API_KEY'>,
   }
 }
 
+async function resolveOpenSeaExactItemFallback(source: string): Promise<string | null> {
+  const locator = parseOpenSeaNftItemUrl(source);
+  if (!locator) return null;
+  try {
+    const itemUrl = new URL(source);
+    const response = await fetch(itemUrl.toString(), {
+      headers: { accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' },
+      redirect: 'follow',
+    });
+    if (!response.ok) return null;
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('html')) return null;
+    const html = (await response.text()).slice(0, 350_000);
+    const rawImage = metaContent(html, 'og:image') || metaContent(html, 'twitter:image');
+    const image = rawImage ? safeHttpsUrl(new URL(rawImage, response.url || itemUrl.toString()).toString()) : null;
+    if (!image || !isPublicWebHost(new URL(image).hostname)) return null;
+
+    const imageUrl = new URL(image);
+    const imageHost = imageUrl.hostname.toLowerCase().replace(/^www\./, '');
+    const itemPath = itemUrl.pathname.replace(/\/$/, '');
+    if (imageHost !== 'opensea.io' || imageUrl.pathname !== `${itemPath}/opengraph-image`) return null;
+    return image;
+  } catch {
+    return null;
+  }
+}
+
 function isAlchemyNftCdn(value: string): boolean {
   try {
     const host = new URL(value).hostname.toLowerCase();
@@ -417,10 +446,13 @@ export async function resolveNftArtworkPreview(
   if (source) {
     const direct = safeDirectImageUrl(source);
     if (direct) return { kind: 'image', src: direct, youtube: false };
-    if (openSeaItem) return null;
+    if (openSeaItem) {
+      const fallback = await resolveOpenSeaExactItemFallback(source);
+      return fallback ? { kind: 'image', src: fallback, youtube: false } : null;
+    }
 
     // Extensionless CDN artwork is common. Verify that the explicit artwork source
-    // itself is an image, but never parse a marketplace page's social metadata.
+    // itself is an image, but never parse a marketplace collection page.
     try {
       const sourceUrl = new URL(source);
       if (isPublicWebHost(sourceUrl.hostname)) {

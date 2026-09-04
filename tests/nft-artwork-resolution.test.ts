@@ -29,7 +29,7 @@ test('OpenSea item artwork resolves through Alchemy token metadata without using
       youtube: false,
     });
     assert.equal(calls.length, 1);
-    assert.equal(calls.some((url) => url.includes('opensea.io')), false, 'OpenSea HTML/social cards must not be used as NFT artwork');
+    assert.equal(calls.some((url) => url.includes('opensea.io')), false, 'OpenSea fallback must not run while canonical metadata succeeds');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -58,6 +58,71 @@ test('NFT metadata identity resolves artwork even when no saved preview URL exis
     );
     assert.deepEqual(result, { kind: 'image', src: 'https://cdn.example.com/canonical-nft.png', youtube: false });
     assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenSea Abstract item identity overrides a stale saved chain and resolves canonical metadata', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    assert.match(url, /^https:\/\/abstract-mainnet\.g\.alchemy\.com\/nft\/v3\/test-key\/getNFTMetadata\?/);
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('contractAddress'), '0x7e3059b08e981a369f99db26487ab4cbffdfef29');
+    assert.equal(parsed.searchParams.get('tokenId'), '3057');
+    return new Response(JSON.stringify({ image: { originalUrl: 'https://kabu-public.s3.amazonaws.com/kabu/metadata/images/3057.jpg' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview(
+      { ALCHEMY_API_KEY: 'test-key' },
+      'https://opensea.io/item/abstract/0x7e3059b08e981a369f99db26487ab4cbffdfef29/3057',
+      'Ethereum',
+    );
+    assert.deepEqual(result, {
+      kind: 'image',
+      src: 'https://kabu-public.s3.amazonaws.com/kabu/metadata/images/3057.jpg',
+      youtube: false,
+    });
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('exact OpenSea item poster is a last-resort preview when canonical token metadata is unavailable', async () => {
+  const originalFetch = globalThis.fetch;
+  const item = 'https://opensea.io/item/ethereum/0x7fb2d396a3cc840f2c4213f044566ed400159b40/9967';
+  const poster = `${item}/opengraph-image?ts=29808031`;
+  const calls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    if (url === 'https://ethereum-rpc.publicnode.com') {
+      return new Response(JSON.stringify({ error: { code: -32000, message: 'metadata unavailable' } }), {
+        status: 502,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (url === item) {
+      return new Response(`<html><head><meta property="og:image" content="${poster}"></head></html>`, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
+    throw new Error('Unexpected fetch: ' + url);
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview({ ALCHEMY_API_KEY: undefined }, item);
+    assert.deepEqual(result, { kind: 'image', src: poster, youtube: false });
+    assert.deepEqual(calls, ['https://ethereum-rpc.publicnode.com', 'https://ethereum-rpc.publicnode.com', item]);
   } finally {
     globalThis.fetch = originalFetch;
   }
