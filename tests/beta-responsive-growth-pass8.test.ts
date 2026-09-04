@@ -62,7 +62,7 @@ test('Growth modals stay inside the dynamic phone viewport with reachable contro
   const phone = squash(mediaBlock('@media (max-width:700px)', '@media (max-width:430px)'));
   assert.equal(phone.includes('.growth-workspace.ops-modal-backdrop{align-items:end;padding:8px;}'), true);
   assert.equal(phone.includes('.growth-workspace.ops-modal{width:calc(100vw-16px);max-height:calc(100dvh-16px);'), true);
-  assert.equal(phone.includes('.growth-workspace.ops-modal.ops-modal-headbutton{flex:0 044px;width:44px;height:44px;min-height:44px;}'), true);
+  assert.equal(phone.includes('.growth-workspace.ops-modal.ops-modal-headbutton{flex:0044px;width:44px;height:44px;min-height:44px;}'), true);
   assert.equal(phone.includes('.growth-workspace.ops-modal.ops-field-grid.two,.growth-workspace.ops-modal.ops-form-actions{grid-template-columns:minmax(0,1fr);}'), true);
 });
 
