@@ -1,0 +1,291 @@
+.growth-workspace,
+.growth-workspace *{box-sizing:border-box}
+
+.growth-workspace .growth-campaign-main h3,
+.growth-workspace .growth-campaign-main p,
+.growth-workspace .growth-campaign-tags span,
+.growth-workspace .growth-campaign-stats strong,
+.growth-workspace .growth-opportunity-grid h3,
+.growth-workspace .growth-opportunity-grid p,
+.growth-workspace .growth-opportunity-meta span,
+.growth-workspace .growth-report-row strong,
+.growth-workspace .growth-report-row span,
+.growth-workspace .growth-report-row small,
+.growth-workspace .growth-source-list strong,
+.growth-workspace .growth-source-list span,
+.growth-workspace .growth-source-list small,
+.growth-workspace .growth-partner-list strong,
+.growth-workspace .growth-partner-list span,
+.growth-workspace .growth-partner-list small{
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.growth-workspace .growth-tabs button,
+.growth-workspace .growth-campaign-actions button,
+.growth-workspace .growth-report-actions .ops-button{
+  min-height:44px;
+}
+
+.growth-workspace .growth-tabs{
+  overflow-x:auto;
+  overscroll-behavior-inline:contain;
+  scrollbar-width:thin;
+}
+
+.growth-workspace .growth-tabs button{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+
+.growth-workspace .growth-campaign-actions > *{
+  max-width:100%;
+}
+
+.growth-workspace .growth-report-table{
+  max-width:100%;
+}
+
+.growth-workspace .growth-report-row > *{
+  min-width:0;
+}
+
+.growth-workspace .ops-modal{
+  width:min(620px,calc(100vw - 32px));
+  max-width:100%;
+  max-height:min(840px,calc(100dvh - 32px));
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+
+.growth-workspace .ops-modal input,
+.growth-workspace .ops-modal select,
+.growth-workspace .ops-modal textarea,
+.growth-workspace .ops-modal .ops-button{
+  max-width:100%;
+}
+
+@media (max-width:700px){
+  .growth-workspace .ops-heading-row{
+    align-items:stretch;
+  }
+
+  .growth-workspace .ops-heading-row > .ops-button,
+  .growth-workspace .growth-report-actions .ops-button{
+    width:100%;
+    min-height:44px;
+  }
+
+  .growth-workspace .ops-project-toolbar,
+  .growth-workspace .ops-project-toolbar > div{
+    min-width:0;
+    max-width:100%;
+  }
+
+  .growth-workspace .ops-project-toolbar select{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+
+  .growth-workspace .growth-campaign-list > article{
+    min-width:0;
+  }
+
+  .growth-workspace .growth-campaign-stats{
+    width:100%;
+    max-width:none;
+  }
+
+  .growth-workspace .growth-campaign-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    justify-content:stretch;
+  }
+
+  .growth-workspace .growth-campaign-actions > button,
+  .growth-workspace .growth-campaign-actions > .campaign-lifecycle-control{
+    min-width:0;
+    max-width:100%;
+  }
+
+  .growth-workspace .growth-campaign-actions > .campaign-lifecycle-control{
+    grid-column:1/-1;
+    width:100%;
+  }
+
+  .growth-workspace .growth-campaign-actions > button{
+    width:100%;
+    white-space:normal;
+  }
+
+  .growth-workspace .growth-report-actions > div:last-child{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+  }
+
+  .growth-workspace .growth-report-table{
+    overflow:visible;
+  }
+
+  .growth-workspace .growth-report-row.header{
+    display:none;
+  }
+
+  .growth-workspace .growth-report-row:not(.header){
+    min-width:0;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:0;
+    padding:0;
+    margin:12px;
+    border:1px solid #e4e5e1;
+    border-radius:10px;
+    overflow:hidden;
+    background:#fff;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > div{
+    grid-column:1/-1;
+    padding:14px;
+    border-bottom:1px solid #ecece8;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > span,
+  .growth-workspace .growth-report-row:not(.header) > strong{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:5px;
+    padding:12px 14px;
+    border-bottom:1px solid #ecece8;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(even){
+    border-right:1px solid #ecece8;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > span::before,
+  .growth-workspace .growth-report-row:not(.header) > strong::before{
+    color:#8b9094;
+    font:700 10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;
+    letter-spacing:.04em;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(2)::before{content:'Source'}
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(3)::before{content:'Spend'}
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(4)::before{content:'Clicks'}
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(5)::before{content:'Outcomes'}
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(6)::before{content:'Value'}
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(7)::before{content:'Return'}
+
+  .growth-workspace .growth-source-list article,
+  .growth-workspace .growth-partner-list article{
+    min-width:0;
+  }
+
+  .growth-workspace .growth-source-list article > div,
+  .growth-workspace .growth-partner-list article > div{
+    width:100%;
+    max-width:100%;
+  }
+
+  .growth-workspace .ops-modal-backdrop{
+    align-items:end;
+    padding:8px;
+  }
+
+  .growth-workspace .ops-modal{
+    width:calc(100vw - 16px);
+    max-height:calc(100dvh - 16px);
+    margin:0;
+    border-bottom-left-radius:0;
+    border-bottom-right-radius:0;
+  }
+
+  .growth-workspace .ops-modal .ops-modal-head button{
+    flex:0 0 44px;
+    width:44px;
+    height:44px;
+    min-height:44px;
+  }
+
+  .growth-workspace .ops-modal input,
+  .growth-workspace .ops-modal select,
+  .growth-workspace .ops-modal textarea{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+
+  .growth-workspace .ops-modal .ops-field-grid.two,
+  .growth-workspace .ops-modal .ops-form-actions{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .growth-workspace .ops-modal .ops-form-actions .ops-button{
+    width:100%;
+    min-height:44px;
+  }
+}
+
+@media (max-width:430px){
+  .growth-workspace .growth-principle{
+    gap:8px;
+  }
+
+  .growth-workspace .growth-principle span{
+    max-width:100%;
+    text-align:left;
+  }
+
+  .growth-workspace .growth-campaign-list > article,
+  .growth-workspace .growth-opportunity-grid article{
+    padding:14px 12px;
+  }
+
+  .growth-workspace .growth-campaign-stats,
+  .growth-workspace .growth-campaign-actions,
+  .growth-workspace .growth-report-actions > div:last-child{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .growth-workspace .growth-campaign-actions > *,
+  .growth-workspace .growth-campaign-actions button{
+    width:100%;
+  }
+
+  .growth-workspace .growth-opportunity-meta{
+    min-width:0;
+  }
+
+  .growth-workspace .growth-report-insight > div,
+  .growth-workspace .growth-report-insight > p{
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+}
+
+@media (max-width:340px){
+  .growth-workspace .growth-report-row:not(.header){
+    grid-template-columns:minmax(0,1fr);
+    margin:8px;
+  }
+
+  .growth-workspace .growth-report-row:not(.header) > :nth-child(even){
+    border-right:0;
+  }
+
+  .growth-workspace .growth-tabs button{
+    padding-inline:12px;
+  }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .growth-workspace *{
+    scroll-behavior:auto!important;
+  }
+}

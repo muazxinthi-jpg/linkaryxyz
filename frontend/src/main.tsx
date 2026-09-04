@@ -24,6 +24,7 @@ import './partner-relationship-memory.css';
 import './dashboard-polish.css';
 import './beta-responsive-acceptance.css';
 import './profile-beta-acceptance.css';
+import './growth-beta-acceptance.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
