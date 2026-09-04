@@ -187,6 +187,28 @@ test('dashboard polish stays scoped to the authenticated workspace shell', () =>
   assert.equal(polish.includes('.public-profile'), false);
   assert.equal(/(^|\n)\s*(?:html|body|:root|\.auth-|\.public-)/m.test(polish), false);
   assert.equal(workspace.includes('data-workspace-type={profile.profile_type}'), true);
+  assert.equal(polish.includes('.ops-view-as select option'), true);
+  assert.equal(polish.includes(':focus-visible'), true);
+});
+
+test('dashboard team surfaces use public usernames instead of account emails', () => {
+  const access = readFileSync(new URL('../src/routes/projectAccess.ts', import.meta.url), 'utf8');
+  const project = readFileSync(new URL('../frontend/src/ProjectExperienceBeta.tsx', import.meta.url), 'utf8');
+  const invites = readFileSync(new URL('../frontend/src/ProjectTeamInvitesExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(access.includes('u.email FROM users'), false);
+  assert.equal(access.includes("p.profile_type = 'creator'"), true);
+  assert.equal(project.includes('member.email'), false);
+  assert.equal(project.includes('candidate.email'), false);
+  assert.equal(project.includes('request.email'), false);
+  assert.equal(project.includes('Name or @username'), true);
+  assert.equal(invites.includes('member.email'), false);
+});
+
+test('wallet actions distinguish working receive from unavailable send', () => {
+  const wallet = readFileSync(new URL('../frontend/src/WalletExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(wallet.includes('Copy receive address'), true);
+  assert.equal(wallet.includes('Send <span>Coming soon</span>'), true);
+  assert.equal(wallet.includes('Secure wallet sending is not available yet'), true);
 });
 
 test('primary user-facing product screens do not expose infrastructure terminology', () => {

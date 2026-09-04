@@ -5,7 +5,7 @@ import './team-invites.css';
 type Role = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
 type TeamRole = Exclude<Role, 'owner'>;
 type Project = { id: string; name: string; status: string; verification_status: string; role: Role; username?: string | null };
-type Member = { user_id: string; role: Role; display_name: string; email: string | null };
+type Member = { user_id: string; role: Role; display_name: string; username: string | null };
 type TeamInvite = {
   id: string;
   invite_type: string;
@@ -218,7 +218,7 @@ export default function ProjectTeamInvitesExperience({ me, status }: { me: Produ
 
       <section className="ops-section">
         <div className="ops-section-title"><div><h2>Active Project team</h2><p>{members.length} active member{members.length === 1 ? '' : 's'}. Role changes and removals remain in Project settings.</p></div><a className="ops-button small" href="/settings">Manage team</a></div>
-        {!members.length ? <div className="ops-empty compact"><p>No active team members were returned.</p></div> : <div className="team-invite-members">{members.map((member) => <article key={member.user_id}><div className="team-member-avatar">{(member.display_name || member.email || '?').slice(0, 1).toUpperCase()}</div><div><strong>{member.display_name || member.email || 'Linkary member'}</strong><small>{member.email || 'Linkary member'}</small></div><span>{roleTitle(member.role)}</span></article>)}</div>}
+        {!members.length ? <div className="ops-empty compact"><p>No active team members were returned.</p></div> : <div className="team-invite-members">{members.map((member) => <article key={member.user_id}><div className="team-member-avatar">{(member.display_name || member.username || '?').slice(0, 1).toUpperCase()}</div><div><strong>{member.display_name || member.username || 'Linkary member'}</strong><small>{member.username ? `@${member.username.replace(/^@/, '')}` : 'Linkary member'}</small></div><span>{roleTitle(member.role)}</span></article>)}</div>}
       </section>
     </div>
   </ProductWorkspace>;

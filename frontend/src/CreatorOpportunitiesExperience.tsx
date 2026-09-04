@@ -193,7 +193,7 @@ export default function CreatorOpportunitiesExperience({
             <button type="button" className={mode === 'browse' ? 'active' : ''} onClick={() => setMode('browse')}>Browse opportunities</button>
             <button type="button" className={mode === 'mine' ? 'active' : ''} onClick={() => setMode('mine')}>My applications</button>
           </nav>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Project, campaign or brief" aria-label="Search opportunities" />
+          <label className="creator-opportunity-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search project, campaign, or brief" aria-label="Search opportunities" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear opportunity search">×</button>}</label>
         </div>
 
         {message && <div className="ops-message">{message}</div>}

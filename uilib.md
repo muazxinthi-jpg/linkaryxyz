@@ -1,5 +1,31 @@
 # Linkary Signal UI Library
 
+## Surface map and isolation contract
+
+Linkary has three related but independently owned UI surfaces. They share the Signal System tokens and brand rules below; they do not share page-level layout overrides.
+
+| Surface | Ownership | Visual role | Change boundary |
+| --- | --- | --- | --- |
+| Landing and marketing | root marketing HTML/CSS/assets | Editorial introduction and product story | Never inherit `.ops-shell` rules |
+| Public profiles | public-profile renderer and profile read model | Published creator/project identity | Dashboard work requires an unchanged public-profile regression check |
+| Authenticated dashboard | `frontend/src/ProductWorkspace.tsx`, route experiences, `frontend/src/dashboard-polish.css` | Operational workspace after login | Every polish override must remain beneath `.ops-shell` |
+
+The dashboard is warm editorial canvas plus white operational cards, a near-black workspace rail, and Linkary Orange (`#FF4F0A`) for active navigation, primary actions, focus, selected tabs, and first-party signal cues. Orange is intentionally sparse; verified and successful states remain green, warnings remain amber, and destructive actions remain red.
+
+### Authenticated component requirements
+
+- Workspace switcher: dark closed and open states, readable Windows native options, Creator/Project context, keyboard focus, and a minimum 44px target.
+- Page header: kicker, outcome-led title, supporting sentence, and no more than two contextual actions.
+- Toolbar/search: visible or accessible label, 44px search target, search and clear affordances, desktop split and stacked tablet/mobile layouts.
+- Cards and metrics: calm white surfaces, one meaningful orange signal at most, explicit empty/loading/error states, and no decorative data.
+- Profile editor: 20–24px internal desktop gutters, 14–16px mobile gutters, early preview stacking, and safe-area-aware sticky actions.
+- Wallet actions: Receive may reveal and copy an existing embedded address. Send stays explicitly unavailable until network, asset, balance, gas, review, signing, receipt, and failure states exist.
+- Team identity: show display name plus public `@username`; never expose account email in member lists, access requests, or member search results. Email remains valid only in the intentional invitation-delivery flow.
+
+### Responsive acceptance matrix
+
+Test authenticated routes at 320, 360, 390, 430, 768, 820, 1024, 1280, 1440, and 1920px, plus 200% zoom. Validate keyboard-only use, visible focus, NVDA/Chrome, forced colors, reduced motion, safe-area insets, long handles and wallet addresses, and empty/loading/error/success/disabled/permission states. Dashboard releases must smoke-test the landing page and public profiles without visual or routing changes.
+
 ## Authenticated dashboard implementation
 
 The production dashboard polish is implemented in `frontend/src/dashboard-polish.css` and imported last by `frontend/src/main.tsx`. Every rule is scoped beneath `.ops-shell`, so authentication, onboarding, the landing page, and rendered public profiles remain outside this layer.

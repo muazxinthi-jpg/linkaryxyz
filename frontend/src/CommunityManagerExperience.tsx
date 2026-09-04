@@ -324,7 +324,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
             <div className="ops-card-title"><div><span>TELEGRAM IDENTITY</span><h2>Verify your Telegram account</h2></div><span className="community-status status-unverified">Required</span></div>
             <p>To list or manage Telegram communities on Linkary, you must first verify your personal Telegram account. A typed Telegram username does not count as verification.</p>
             <div className="community-actions">
-              <button type="button" className="ops-primary" disabled={busy === 'telegram-link' || busy === 'telegram-sync'} onClick={() => void connectTelegram()}>
+              <button type="button" className="ops-button primary" disabled={busy === 'telegram-link' || busy === 'telegram-sync'} onClick={() => void connectTelegram()}>
                 {busy === 'telegram-link' || busy === 'telegram-sync' ? 'Connecting Telegram…' : 'Connect Telegram'}
               </button>
             </div>
