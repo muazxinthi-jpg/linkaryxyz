@@ -45,7 +45,7 @@ test('technical paper locks the lightweight event-driven boundary and current ch
 
   assert.match(paper, /### 16\.1 Lightweight data-access and scaling rules/);
   assert.match(paper, /must not behave like a bot that periodically cross-checks every database row/);
-  assert.match(paper, /Normal Creator\/profile usage does not scan Project campaigns/);
+  assert.match(paper, /Normal personal-profile usage does not scan Project campaigns/);
   assert.match(paper, /Future Telegram tracking should use shared Project-level bot\/webhook infrastructure with event-driven writes/);
   assert.match(paper, /Future Alchemy\/onchain attribution should use shared Project-level subscriptions\/webhooks or targeted reads/);
   assert.match(paper, /2\. BNB Chain/);

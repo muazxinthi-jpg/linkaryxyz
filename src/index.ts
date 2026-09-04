@@ -29,7 +29,8 @@ import {
   redirectPublicProfileBlock,
   updateProfileBlock,
 } from './routes/profiles';
-import { renderPublicProfileEnhanced } from './routes/publicProfileEnhancer';
+import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
+import { personalProfileIdentity } from './routes/profileIdentity';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
@@ -185,6 +186,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/profile-wallets') { if (request.method === 'GET') return listProfileWalletDestinations(request, env); if (request.method === 'POST') return saveProfileWalletDestination(request, env); return methodNotAllowed(['GET', 'POST']); }
   const profilePatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profilePatch) { if (request.method === 'GET') return getEditableProfile(request, env, decodeURIComponent(profilePatch[1])); if (request.method === 'PATCH') return updateProfile(request, env, decodeURIComponent(profilePatch[1])); return methodNotAllowed(['GET', 'PATCH']); }
+  const profileIdentity = path.match(/^\/api\/profiles\/([^/]+)\/identity$/);
+  if (profileIdentity) { if (request.method !== 'GET' && request.method !== 'PATCH') return methodNotAllowed(['GET', 'PATCH']); return personalProfileIdentity(request, env, decodeURIComponent(profileIdentity[1])); }
   const profileAnalyticsRoute = path.match(/^\/api\/profiles\/([^/]+)\/analytics$/);
   if (profileAnalyticsRoute) { if (request.method !== 'GET') return methodNotAllowed(['GET']); return profileAnalytics(request, env, decodeURIComponent(profileAnalyticsRoute[1])); }
   const profileBlocks = path.match(/^\/api\/profiles\/([^/]+)\/blocks$/);
@@ -272,7 +275,7 @@ async function handle(request: Request, env: Env, _ctx: ExecutionContextLike): P
 
   const username = singleSegmentProfilePath(url.pathname);
   if (username && env.DB) {
-    try { return await renderPublicProfileEnhanced(request, env, username); }
+    try { return await renderPublicProfileWithIdentity(request, env, username); }
     catch (error) {
       if (error instanceof Error && 'status' in error && (error as { status?: number }).status === 404) return serveStatic(request, env);
       throw error;

@@ -46,6 +46,8 @@ export interface ProfileRow {
   verification_status: string;
   seo_title: string | null;
   seo_description: string | null;
+  public_role?: string | null;
+  professional_headline?: string | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;

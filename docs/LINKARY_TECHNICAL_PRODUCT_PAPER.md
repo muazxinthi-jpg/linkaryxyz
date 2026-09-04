@@ -20,7 +20,11 @@ Campaign execution inside Linkary is an optional product layer. A founder may ch
 
 People manage Projects. Projects own growth records.
 
-A Linkary user can have a personal Creator profile and can separately hold roles in one or more Projects.
+A Linkary user can have a personal profile and can separately hold roles in one or more Projects. During Beta the backend keeps `profile_type = creator` as the structural personal-profile type so existing campaign, opportunity, invite, attribution and proof semantics stay stable. The public presentation must not force every person to identify as a Creator.
+
+A personal profile can choose one primary public identity such as Founder, Co-Founder, Creator, KOL, Community Manager, KOL Manager, Growth / BD, Marketer, Advisor, Investor, Developer / Builder, Researcher, Contributor, Trader or Professional, plus an optional professional headline.
+
+Public identity is presentation only. It never grants Project ownership or roles, Telegram or Community verification, manager verification, campaign authority, invite privileges beyond the account's existing allocation, or stronger evidence status. Operational permissions and verified product states remain controlled by their own systems.
 
 Project registration is official-X-only. A person cannot create a Project by typing a name. If a registered Project exists, a person requests access. If it does not exist, the Project must first authenticate using its official X identity and claim the matching Linkary Project identity.
 
@@ -257,7 +261,6 @@ Eligible Linkary creators can apply using their personal Creator identity.
 Community Managers and KOL Managers can apply through a manager listing where appropriate.
 
 Project teams can review and accept/reject applications.
-
 The opportunity layer should reuse the same campaign, activity, tracking and outcome records. Linkary must not create a separate attribution silo for campaigns executed through Linkary.
 
 ## 10. Founder Growth Intelligence and Growth Report
@@ -332,7 +335,7 @@ Linkary remains invite-only.
 
 Initial allocations:
 
-- Creator: 10 invites
+- Personal profile: 10 invites (`creator` remains the current backend owner type)
 - Project: 50 invites
 
 Invites are not automatically unlimited. Future refresh/increase can depend on the quality and behavior of invited users.
@@ -412,7 +415,7 @@ Linkary should stay event-driven, scoped and inexpensive by default. The platfor
 
 Core rules:
 
-- Normal Creator/profile usage does not scan Project campaigns, activities, tracking clicks or outcomes.
+- Normal personal-profile usage does not scan Project campaigns, activities, tracking clicks or outcomes.
 - Growth work is Project-owned. Campaign and attribution queries start from the relevant `organization_id`, `campaign_id`, `activity_id`, tracking-link ID/code or exact partner identity.
 - A tracking redirect resolves one unique tracking code and records that click. It does not search every campaign row to decide where the click belongs.
 - Campaign views aggregate evidence only for the selected Project/campaign scope.
@@ -490,9 +493,9 @@ Before broad onboarding, Linkary should prioritize a complete core loop over mor
 Beta-ready core:
 
 1. Invite-only onboarding
-2. Creator and Project identities
+2. Personal and Project identities
 3. Official-X Project registration and role access
-4. Public profiles
+4. Public profiles with selectable personal identity
 5. Founder Growth Tracking
 6. Campaign/activity tracking links
 7. Outcome Ledger
