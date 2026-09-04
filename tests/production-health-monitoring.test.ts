@@ -11,23 +11,44 @@ test('production health monitoring runs hourly and can be dispatched manually', 
   assert.equal(workflow.includes('timeout-minutes: 10'), true);
 });
 
-test('production health monitoring covers primary Beta app routes', () => {
+test('production health monitoring covers the current Beta app route surface', () => {
   const routes = [
     '/',
     '/dashboard',
     '/dashboard/inbox',
+    '/opportunities',
+    '/communities',
     '/campaigns',
     '/tracking',
     '/partners',
+    '/creators',
     '/profile',
     '/invites',
     '/wallets',
+    '/settings/team-invites',
     '/settings',
+    '/admin/readiness',
+    '/admin/community-verifications',
+    '/team-invite',
   ];
 
   for (const route of routes) {
     assert.equal(workflow.includes(`"${route}"`), true, `${route} should be monitored`);
     if (route !== '/') assert.equal(app.includes(`location.pathname === '${route}'`), true, `${route} should remain a real app route`);
+  }
+});
+
+test('new Beta and Superadmin deep links cannot silently fall out of hourly shell monitoring', () => {
+  for (const route of [
+    '/opportunities',
+    '/communities',
+    '/creators',
+    '/settings/team-invites',
+    '/admin/readiness',
+    '/admin/community-verifications',
+    '/team-invite',
+  ]) {
+    assert.equal(workflow.includes(`"${route}"`), true, `${route} should stay in production health monitoring`);
   }
 });
 
