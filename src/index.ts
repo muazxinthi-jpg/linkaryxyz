@@ -34,6 +34,7 @@ import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwner
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
+import { updateCampaignLifecycleStatus } from './routes/campaignLifecycle';
 import { createActivity, listActivities } from './routes/activities';
 import { updateActivityLifecycleStatus } from './routes/activityLifecycle';
 import { createTrackedLink, listTrackedLinks, redirectTrackedLink, updateTrackedLinkStatus } from './routes/tracking';
@@ -150,6 +151,8 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/invites/balances') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return inviteBalances(request, env); }
   if (path === '/api/invites/list') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listNetworkInvites(request, env); }
   if (path === '/api/campaigns') { if (request.method === 'GET') return listCampaigns(request, env); if (request.method === 'POST') return createCampaign(request, env); return methodNotAllowed(['GET', 'POST']); }
+  const campaignStatus = path.match(/^\/api\/campaigns\/([^/]+)\/status$/);
+  if (campaignStatus) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateCampaignLifecycleStatus(request, env, decodeURIComponent(campaignStatus[1])); }
   if (path === '/api/campaign-activities') { if (request.method === 'GET') return listActivities(request, env); if (request.method === 'POST') return createActivity(request, env); return methodNotAllowed(['GET', 'POST']); }
   const activityStatus = path.match(/^\/api\/campaign-activities\/([^/]+)\/status$/);
   if (activityStatus) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateActivityLifecycleStatus(request, env, decodeURIComponent(activityStatus[1])); }
