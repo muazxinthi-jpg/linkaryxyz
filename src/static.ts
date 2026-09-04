@@ -125,6 +125,10 @@ function productionHtmlHeaders(response: Response): Headers {
   headers.delete('etag');
   headers.set('cache-control', 'no-store, max-age=0');
   headers.set('pragma', 'no-cache');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
   return headers;
 }
 
