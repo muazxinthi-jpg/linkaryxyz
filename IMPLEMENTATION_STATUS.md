@@ -10,7 +10,7 @@ The working Linkary loop is now:
 
 `Identity -> Discovery -> Relationship -> Inquiry -> Accept -> Explicit activation -> Campaign -> Activity -> Exact Partner -> Track -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`
 
-The core product is built. Remaining launch work is real-account/end-to-end acceptance, full responsive acceptance, bug fixing and final documentation/launch hardening.
+The core product is built. Remaining launch work is real-account/end-to-end acceptance, authenticated live visual/device acceptance, bug fixing and final documentation/launch hardening.
 
 ## Production foundation
 
@@ -22,8 +22,8 @@ The core product is built. Remaining launch work is real-account/end-to-end acce
 - [x] `main` deploys to Cloudflare and runs post-deploy app-shell health checks.
 - [x] Production deployments perform a read-only D1 migration-state check. They never auto-apply D1 migrations.
 - [x] Protected production D1 migration workflow is pinned to `main`, defaults to verify-only, and requires an explicit `apply` selection before writing schema changes.
-- [x] Ongoing hourly production health monitoring checks primary app-shell routes and `/api/auth/me` with retries.
-- [x] Current regression suite: 207 passing tests, 0 failing, as of 2026-09-04.
+- [x] Ongoing hourly production health monitoring checks the current Beta app-shell route surface and `/api/auth/me` with retries.
+- [x] Current `main` regression, TypeScript and Wrangler verification are green. The latest `main` CI run is authoritative for the exact test count.
 - [x] Protected production D1 apply workflow completed successfully from `main` on 2026-09-04. Production schema is current through `0022_collaboration_inquiry_activations.sql`.
 
 Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow.
@@ -180,6 +180,7 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Explicit campaign activation from accepted inquiry.
 - [x] Creator access review.
 - [x] Community verification review.
+- [x] Superadmin Beta readiness workspace.
 - [x] User suspension/restoration foundation.
 - [x] Invite-credit adjustment foundation.
 - [ ] Persistent read/unread notification infrastructure remains intentionally deferred.
@@ -188,23 +189,33 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 
 Issue #42 remains open as the broad authenticated visual acceptance gate.
 
-Already protected by targeted regression work:
+Protected by targeted static responsive regression work:
 
-- [x] Phone bottom navigation.
-- [x] Partner Discovery responsive protections.
-- [x] Exact Partner Evidence mobile protections.
-- [x] Collaboration Inquiry mobile protections.
-- [x] Inquiry activation modal protections.
-- [x] Relationship Memory mobile protections.
-- [x] Community Proof/NFT-specific protections.
-- [x] Campaign Lifecycle 320/430/640px controls and 44px mobile targets.
-- [x] Hourly production app-shell/API monitoring.
+- [x] Shared authenticated shell, phone bottom navigation, safe-area clearance and mobile More menu.
+- [x] Dashboard and 320px metric collapse.
+- [x] Creator Earn Access and Superadmin Creator review.
+- [x] Communities / Community Manager and Superadmin Community verification.
+- [x] Partner Discovery and Collaboration Inquiry.
+- [x] Exact Partner Evidence / Tracking.
+- [x] Explicit inquiry activation modal.
+- [x] Relationship Memory and Work Again.
+- [x] Profile editor/public preview and NFT containment.
+- [x] Projects / roles / access / Team invitations.
+- [x] Campaigns / Growth / lifecycle controls and reports.
+- [x] Inbox action-center surfaces.
+- [x] Invites and referral rows.
+- [x] Wallet destinations and Base Receive controls.
+- [x] Project Network Creator/Community records and attachment modals.
+- [x] Superadmin Beta readiness workspace.
+- [x] Hourly production app-shell/API monitoring expanded across the current Beta route surface.
 
 Still required:
 
-- [ ] Full authenticated visual acceptance at 320, 375, 390, 430px, tablet and desktop.
-- [ ] Real-device QA for all primary surfaces.
+- [ ] Full authenticated live visual acceptance at 320, 375, 390, 430px, tablet and desktop.
+- [ ] Real-device QA for all primary Creator, Project and Superadmin surfaces.
 - [ ] Fix every P0/P1 found during that acceptance pass.
+
+Static responsive coverage does not close Issue #42 by itself.
 
 ## Launch-critical work remaining
 
@@ -217,7 +228,7 @@ Still required:
 6. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
 7. Test Invite -> signup -> registration attribution.
 8. Test Opportunity -> application -> acceptance.
-9. Complete issue #42 responsive acceptance and fix all P0/P1 findings.
+9. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
 10. Final documentation/launch copy check.
 11. Open controlled Beta onboarding only after the above passes.
 
@@ -226,7 +237,7 @@ Still required:
 Do not call broad Beta onboarding ready until:
 
 - production D1 ledger is current through `0022`
-- issue #42 is clean
+- Issue #42 authenticated visual/device acceptance is clean
 - real auth/onboarding/role/invite/evidence loops pass
 - no open P0 security, authentication, permission, attribution, data-integrity or mobile-usability blocker remains
 
