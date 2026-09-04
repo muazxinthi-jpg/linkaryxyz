@@ -50,14 +50,6 @@ async function telegramIdentityForUser(db: Db, userId: string): Promise<Telegram
   );
 }
 
-async function requireTelegramIdentity(db: Db, userId: string): Promise<TelegramIdentity> {
-  const identity = await telegramIdentityForUser(db, userId);
-  if (!identity) {
-    throw new HttpError(403, 'Verify your personal Telegram account before listing or managing Telegram communities.', 'telegram_identity_required');
-  }
-  return identity;
-}
-
 async function requireOwnedCreatorProfile(db: Db, userId: string, profileId: string) {
   const profile = await db.first<{ id: string; display_name: string; profile_type: string; owner_user_id: string | null }>(
     'SELECT id, display_name, profile_type, owner_user_id FROM profiles WHERE id = ?',
@@ -170,7 +162,7 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
   let managerId = body.managerId;
   if (managerId) {
     const existing = await requireOwnedManager(db, auth.user.id, managerId);
-    const telegramIdentity = existing.manager_type === 'community_manager' ? await requireTelegramIdentity(db, auth.user.id) : null;
+    const telegramIdentity = existing.manager_type === 'community_manager' ? await telegramIdentityForUser(db, auth.user.id) : null;
     const displayName = body.displayName?.trim().slice(0, 120);
     if (!displayName) throw new HttpError(400, 'Display name is required', 'invalid_manager');
     await db.run(
@@ -183,7 +175,7 @@ export async function savePartnerManager(request: Request, env: Env): Promise<Re
 
   if (!body.profileId || !body.managerType || !['community_manager', 'kol_manager'].includes(body.managerType)) throw new HttpError(400, 'Profile and manager type are required', 'invalid_manager');
   const profile = await requireOwnedCreatorProfile(db, auth.user.id, body.profileId);
-  const telegramIdentity = body.managerType === 'community_manager' ? await requireTelegramIdentity(db, auth.user.id) : null;
+  const telegramIdentity = body.managerType === 'community_manager' ? await telegramIdentityForUser(db, auth.user.id) : null;
   const displayName = body.displayName?.trim().slice(0, 120) || profile.display_name;
   const existing = await db.first<{ id: string }>('SELECT id FROM partner_managers WHERE profile_id = ? AND manager_type = ?', [body.profileId, body.managerType]);
   if (existing) throw new HttpError(409, 'This manager listing already exists', 'manager_exists');
@@ -234,7 +226,6 @@ export async function savePartnerManagerAsset(request: Request, env: Env): Promi
   const db = new Db(requireDb(env));
   if (!body.managerId) throw new HttpError(400, 'Manager is required', 'manager_required');
   const manager = await requireOwnedManager(db, auth.user.id, body.managerId);
-  if (manager.manager_type === 'community_manager') await requireTelegramIdentity(db, auth.user.id);
 
   if (body.assetId) {
     const asset = await db.first<{ id: string }>('SELECT id FROM partner_manager_assets WHERE id = ? AND manager_id = ?', [body.assetId, body.managerId]);
