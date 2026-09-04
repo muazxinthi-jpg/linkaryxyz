@@ -16,6 +16,12 @@ type Health = {
       missingTriggers: string[];
       migrationLedgerPresent: boolean;
     };
+    configuration: {
+      ready: boolean;
+      requiredCount: number;
+      presentCount: number;
+      missing: string[];
+    };
     inspectionError: string | null;
     nextAction: string;
   };
@@ -82,7 +88,7 @@ export default function AdminReadinessExperience({
             <span className="ops-kicker">SUPERADMIN</span>
             <h1>Beta readiness</h1>
             <p>
-              Confirm that production has the Linkary capabilities required before inviting Creators and Projects into the Beta.
+              Confirm that production has the Linkary capabilities and core runtime configuration required before inviting Creators and Projects into the Beta.
             </p>
           </div>
           <div className="ops-heading-actions">
@@ -120,6 +126,11 @@ export default function AdminReadinessExperience({
                 <small>Verified-X identity and Project team access</small>
               </article>
               <article>
+                <span>PRODUCTION CONFIG</span>
+                <strong>{health.betaReadiness.configuration.presentCount}/{health.betaReadiness.configuration.requiredCount}</strong>
+                <small>Database, authentication and canonical URLs</small>
+              </article>
+              <article>
                 <span>USERS</span>
                 <strong>{health.counts.users}</strong>
                 <small>Current Linkary accounts</small>
@@ -135,8 +146,10 @@ export default function AdminReadinessExperience({
               <section className="ops-section">
                 <div className="ops-section-title">
                   <div>
-                    <h2>Missing production capabilities</h2>
-                    <p>Run the protected production migration workflow before real-account Beta acceptance.</p>
+                    <h2>Missing production requirements</h2>
+                    <p>
+                      Run the protected production migration workflow before real-account Beta acceptance. If the schema is current, configure any missing runtime requirement listed below.
+                    </p>
                   </div>
                 </div>
                 <div className="ops-table-list">
@@ -167,6 +180,15 @@ export default function AdminReadinessExperience({
                       </div>
                     </div>
                   ))}
+                  {health.betaReadiness.configuration.missing.map((name) => (
+                    <div className="ops-activity-row" key={`config:${name}`}>
+                      <div className="ops-activity-main">
+                        <span className="ops-type-chip">Config</span>
+                        <strong>{name}</strong>
+                        <small>Required by the controlled Beta onboarding runtime. Secret values are never exposed here.</small>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
@@ -176,7 +198,7 @@ export default function AdminReadinessExperience({
                 <div className="ops-section-title">
                   <div>
                     <h2>Next: real-account acceptance</h2>
-                    <p>The schema is ready. Do not broaden onboarding until the end-to-end Beta checklist passes with separate accounts.</p>
+                    <p>The production schema and core onboarding configuration are ready. Do not broaden onboarding until the end-to-end Beta checklist passes with separate accounts.</p>
                   </div>
                 </div>
                 <div className="ops-table-list">
