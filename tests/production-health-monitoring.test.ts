@@ -11,6 +11,13 @@ test('production health monitoring runs hourly and can be dispatched manually', 
   assert.equal(workflow.includes('timeout-minutes: 10'), true);
 });
 
+test('full Beta health monitoring also runs after successful main production deployments', () => {
+  assert.equal(workflow.includes('workflow_run:'), true);
+  assert.equal(workflow.includes('- Linkary production'), true);
+  assert.equal(workflow.includes("github.event.workflow_run.conclusion == 'success'"), true);
+  assert.equal(workflow.includes("github.event.workflow_run.head_branch == 'main'"), true);
+});
+
 test('production health monitoring covers the current Beta app route surface', () => {
   const routes = [
     '/',
@@ -38,7 +45,7 @@ test('production health monitoring covers the current Beta app route surface', (
   }
 });
 
-test('new Beta and Superadmin deep links cannot silently fall out of hourly shell monitoring', () => {
+test('new Beta and Superadmin deep links cannot silently fall out of full shell monitoring', () => {
   for (const route of [
     '/opportunities',
     '/communities',
