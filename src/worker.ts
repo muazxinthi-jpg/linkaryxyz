@@ -2,6 +2,7 @@ import baseWorker from './index';
 import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { refreshCurrentCdpLink } from './auth/cdpCurrentLink';
+import { errorResponse } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
 
@@ -22,7 +23,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/api/auth/cdp/current-link') {
-      return refreshCurrentCdpLink(request, env);
+      try { return await refreshCurrentCdpLink(request, env); }
+      catch (error) { return errorResponse(error); }
     }
 
     if (request.method === 'GET' && env.DB) {
@@ -32,7 +34,7 @@ export default {
         try {
           return await renderPublicProfileWithIdentity(request, env, username);
         } catch (error) {
-          if (!(error instanceof Error && 'status' in error && (error as { status?: number }).status === 404)) throw error;
+          if (!(error instanceof Error && 'status' in error && (error as { status?: number }).status === 404)) return errorResponse(error);
         }
       }
     }
