@@ -4,6 +4,13 @@ export class HttpError extends Error {
   }
 }
 
+const SAFE_RESPONSE_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+} satisfies HeadersInit;
+
 function mergeHeaders(defaults: HeadersInit, provided?: HeadersInit): Headers {
   // Reuse an existing Headers instance instead of object-spreading or cloning it.
   // Auth responses append two separate Set-Cookie values. Keeping the original
@@ -21,6 +28,7 @@ export function json(body: unknown, init: ResponseInit = {}): Response {
     {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
+      ...SAFE_RESPONSE_HEADERS,
     },
     init.headers,
   );
@@ -28,7 +36,13 @@ export function json(body: unknown, init: ResponseInit = {}): Response {
 }
 
 export function html(body: string, init: ResponseInit = {}): Response {
-  const headers = mergeHeaders({ 'content-type': 'text/html; charset=utf-8' }, init.headers);
+  const headers = mergeHeaders(
+    {
+      'content-type': 'text/html; charset=utf-8',
+      ...SAFE_RESPONSE_HEADERS,
+    },
+    init.headers,
+  );
   return new Response(body, { ...init, headers });
 }
 
