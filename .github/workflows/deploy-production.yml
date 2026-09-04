@@ -44,6 +44,41 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Inspect exact OpenSea raw artwork candidates
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import html, json, re, urllib.request
+          items = [
+            ('JIRASAN','https://opensea.io/item/ethereum/0x7fb2d396a3cc840f2c4213f044566ed400159b40/9967'),
+            ('SNOOZIE','https://opensea.io/item/base/0x61a85534f124781231bab486b111534d9653f19a/2038'),
+          ]
+          for name,url in items:
+              req = urllib.request.Request(url, headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+              body = urllib.request.urlopen(req, timeout=20).read().decode('utf-8','replace')
+              print(f'{name}_HTML_LEN={len(body)}')
+              patterns = [
+                r'"image_url"\s*:\s*"([^"]+)"',
+                r'"imageUrl"\s*:\s*"([^"]+)"',
+                r'"display_image_url"\s*:\s*"([^"]+)"',
+                r'"displayImageUrl"\s*:\s*"([^"]+)"',
+                r'"original_image_url"\s*:\s*"([^"]+)"',
+                r'"originalImageUrl"\s*:\s*"([^"]+)"',
+                r'https:\\/\\/[^"\\]+(?:nft-cdn|seadn|ipfs|arweave)[^"\\]*',
+              ]
+              found=[]
+              for pattern in patterns:
+                  for match in re.findall(pattern, body, re.I):
+                      value = match if isinstance(match,str) else match[0]
+                      value = html.unescape(value).replace('\\u0026','&').replace('\\/','/')
+                      if value not in found:
+                          found.append(value)
+              for i,value in enumerate(found[:40],1):
+                  print(f'{name}_CANDIDATE_{i}={value[:1000]}')
+          PY
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
