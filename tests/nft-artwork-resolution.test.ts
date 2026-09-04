@@ -96,11 +96,15 @@ test('OpenSea Abstract item identity overrides a stale saved chain and resolves 
   }
 });
 
-test('exact OpenSea item poster is a last-resort preview when canonical token metadata is unavailable', async () => {
+test('JIRASAN-style fallback extracts exact raw artwork and never returns the OpenSea social card', async () => {
   const originalFetch = globalThis.fetch;
-  const item = 'https://opensea.io/item/ethereum/0x7fb2d396a3cc840f2c4213f044566ed400159b40/9967';
-  const poster = `${item}/opengraph-image?ts=29808031`;
+  const contract = '0x7fb2d396a3cc840f2c4213f044566ed400159b40';
+  const item = `https://opensea.io/item/ethereum/${contract}/9967`;
+  const socialCard = `${item}/opengraph-image?ts=29808031`;
+  const rawArtwork = `https://i2c.seadn.io/ethereum/${contract}/fe563973e9f09cf020ffcd2ad34985/7efe563973e9f09cf020ffcd2ad34985.png`;
+  const escapedRawArtwork = rawArtwork.replaceAll('/', '\\/');
   const calls: string[] = [];
+
   globalThis.fetch = async (input) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     calls.push(url);
@@ -111,18 +115,90 @@ test('exact OpenSea item poster is a last-resort preview when canonical token me
       });
     }
     if (url === item) {
-      return new Response(`<html><head><meta property="og:image" content="${poster}"></head></html>`, {
-        status: 200,
-        headers: { 'content-type': 'text/html; charset=utf-8' },
-      });
+      return new Response(
+        `<html><head><meta property="og:image" content="${socialCard}"></head><body>`
+          + `<script>"https:\\/\\/i2c.seadn.io\\/profiles\\/someone\\/avatar.png"</script>`
+          + `<script>"${escapedRawArtwork}"</script></body></html>`,
+        { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+      );
     }
     throw new Error('Unexpected fetch: ' + url);
   };
 
   try {
     const result = await resolveNftArtworkPreview({ ALCHEMY_API_KEY: undefined }, item);
-    assert.deepEqual(result, { kind: 'image', src: poster, youtube: false });
+    assert.deepEqual(result, { kind: 'image', src: rawArtwork, youtube: false });
+    assert.equal(result?.src.includes('/opengraph-image'), false);
     assert.deepEqual(calls, ['https://ethereum-rpc.publicnode.com', 'https://ethereum-rpc.publicnode.com', item]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('SNOOZIE-style fallback prefers exact raw2 artwork and ignores profile and collection images', async () => {
+  const originalFetch = globalThis.fetch;
+  const contract = '0x61a85534f124781231bab486b111534d9653f19a';
+  const item = `https://opensea.io/item/base/${contract}/2038`;
+  const path = `/base/${contract}/9e00dbafa3b683a8214f1ee8f5e75f/7a9e00dbafa3b683a8214f1ee8f5e75f.png`;
+  const i2cArtwork = `https://i2c.seadn.io${path}`;
+  const rawArtwork = `https://raw2.seadn.io${path}`;
+  const calls: string[] = [];
+
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    if (url === 'https://mainnet.base.org') {
+      return new Response(JSON.stringify({ error: { code: -32000, message: 'temporary rpc failure' } }), {
+        status: 502,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (url === item) {
+      return new Response(
+        `<html><body>`
+          + `<script>"https://i2c.seadn.io/profiles/0xabc/avatar/profile.png"</script>`
+          + `<script>"https://i2c.seadn.io/collection/snoozies/image_type_logo/logo.png"</script>`
+          + `<script>"${i2cArtwork}"</script><script>"${rawArtwork}"</script>`
+          + `</body></html>`,
+        { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+      );
+    }
+    throw new Error('Unexpected fetch: ' + url);
+  };
+
+  try {
+    const result = await resolveNftArtworkPreview({ ALCHEMY_API_KEY: undefined }, item);
+    assert.deepEqual(result, { kind: 'image', src: rawArtwork, youtube: false });
+    assert.deepEqual(calls, ['https://mainnet.base.org', 'https://mainnet.base.org', item]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenSea raw fallback fails closed when multiple same-contract token artwork paths are present', async () => {
+  const originalFetch = globalThis.fetch;
+  const contract = '0x7fb2d396a3cc840f2c4213f044566ed400159b40';
+  const item = `https://opensea.io/item/ethereum/${contract}/9967`;
+
+  globalThis.fetch = async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (url === 'https://ethereum-rpc.publicnode.com') {
+      return new Response('{}', { status: 502, headers: { 'content-type': 'application/json' } });
+    }
+    if (url === item) {
+      return new Response(
+        `<html><body>`
+          + `<script>"https://i2c.seadn.io/ethereum/${contract}/hash-one/art-one.png"</script>`
+          + `<script>"https://i2c.seadn.io/ethereum/${contract}/hash-two/art-two.png"</script>`
+          + `</body></html>`,
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      );
+    }
+    throw new Error('Unexpected fetch: ' + url);
+  };
+
+  try {
+    assert.equal(await resolveNftArtworkPreview({ ALCHEMY_API_KEY: undefined }, item), null);
   } finally {
     globalThis.fetch = originalFetch;
   }
