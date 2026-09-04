@@ -44,6 +44,40 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Diagnose live NFT profile preview
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile="/tmp/linkary-muazxinthi.html"
+          status=$(curl -sS -L -o "$profile" -w '%{http_code}' "https://linkary.xyz/muazxinthi?diag=${GITHUB_SHA}")
+          echo "PROFILE_STATUS=$status"
+          python - <<'PY'
+          import html, re, subprocess
+          from pathlib import Path
+          source = Path('/tmp/linkary-muazxinthi.html').read_text(errors='replace')
+          section = re.search(r'<section class="showcase nft-showcase">[\s\S]*?</section>', source)
+          if not section:
+              print('NFT_SECTION_NOT_FOUND')
+              raise SystemExit(0)
+          text = section.group(0)
+          cards = re.findall(r'<a class="showcase-item"[^>]*>([\s\S]*?)</a>', text)
+          print(f'NFT_CARD_COUNT={len(cards)}')
+          for index, card in enumerate(cards, 1):
+              title_match = re.search(r'<strong>([\s\S]*?)</strong>', card)
+              title = html.unescape(re.sub(r'<[^>]+>', '', title_match.group(1))).strip() if title_match else '(untitled)'
+              img_match = re.search(r'<img src="([^"]+)"', card)
+              if not img_match:
+                  print(f'NFT_{index}_TITLE={title}')
+                  print(f'NFT_{index}_IMAGE=NONE')
+                  continue
+              src = html.unescape(img_match.group(1))
+              print(f'NFT_{index}_TITLE={title}')
+              print(f'NFT_{index}_IMAGE={src}')
+              proc = subprocess.run(['curl','-sS','-L','-I','-o','/dev/null','-w','%{http_code}|%{content_type}|%{url_effective}',src], capture_output=True, text=True)
+              print(f'NFT_{index}_HEAD={proc.stdout.strip() or "curl_failed"}')
+          PY
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
