@@ -76,7 +76,7 @@ export default function AdminReadinessExperience({
       profile={profile as ProductProfile}
       onProfileChange={changeProfile}
     >
-      <div className="ops-stack">
+      <div className="ops-stack admin-readiness-workspace">
         <div className="ops-heading-row">
           <div>
             <span className="ops-kicker">SUPERADMIN</span>
