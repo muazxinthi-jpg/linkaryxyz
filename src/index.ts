@@ -32,6 +32,7 @@ import {
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { personalProfileIdentity } from './routes/profileIdentity';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
+import { adjustUsageCredits, listAdminBillingPlans, listPublicBillingPlans, updateAdminBillingPlan } from './routes/billing';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
@@ -89,6 +90,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
       urls: getLinkaryUrls(request, env),
     });
   }
+  if (path === '/api/billing/plans') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listPublicBillingPlans(request, env); }
   if (path === '/api/auth/cdp/session') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createCdpSession(request, env); }
   if (path === '/api/auth/me') {
     if (request.method !== 'GET') return methodNotAllowed(['GET']);
@@ -209,6 +211,10 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/admin/users') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listAdminUsers(request, env); }
   if (path === '/api/admin/invite-credit-owners') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listInviteCreditOwners(request, env); }
   if (path === '/api/admin/invite-credits/adjust') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return adjustInviteCredits(request, env); }
+  if (path === '/api/admin/billing/plans') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listAdminBillingPlans(request, env); }
+  const adminBillingPlan = path.match(/^\/api\/admin\/billing\/plans\/([^/]+)$/);
+  if (adminBillingPlan) { if (request.method !== 'PATCH') return methodNotAllowed(['PATCH']); return updateAdminBillingPlan(request, env, decodeURIComponent(adminBillingPlan[1])); }
+  if (path === '/api/admin/usage-credits/adjust') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return adjustUsageCredits(request, env); }
   if (path === '/api/admin/community-verifications') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listCommunityVerificationReviews(request, env); }
   const communityVerificationReview = path.match(/^\/api\/admin\/community-verifications\/([^/]+)\/(approve|reject)$/);
   if (communityVerificationReview) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return reviewCommunityVerification(request, env, decodeURIComponent(communityVerificationReview[1]), communityVerificationReview[2] as 'approve' | 'reject'); }
