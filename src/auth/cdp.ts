@@ -176,8 +176,12 @@ function validateInviteAccess(row: InviteAccessRow, verifiedEmail: string | null
     if (!row.inviter_organization_id || !row.intended_project_role) {
       throw new HttpError(403, 'This Project team invitation is incomplete', 'invalid_invite');
     }
-    if (row.intended_email && verifiedEmail && row.intended_email.toLowerCase() !== verifiedEmail.toLowerCase()) {
-      throw new HttpError(403, 'This team invitation was prepared for a different email address', 'team_invite_email_mismatch');
+    if (row.intended_email) {
+      const expectedEmail = row.intended_email.trim().toLowerCase();
+      const currentEmail = verifiedEmail?.trim().toLowerCase() || '';
+      if (!currentEmail || expectedEmail !== currentEmail) {
+        throw new HttpError(403, 'This team invitation requires the matching verified email address', 'team_invite_email_mismatch');
+      }
     }
   }
 }

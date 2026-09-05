@@ -8,6 +8,14 @@ import { getLinkaryUrls } from './urls';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 import { founderGrowthIntelligence } from './routes/growthIntelligence';
+import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
+import { renderInviteLanding } from './routes/invites';
+import { redirectTrackedLink } from './routes/tracking';
+import {
+  applyToCampaignOpportunityIntegrity,
+  listCampaignOpportunitiesIntegrity,
+  reviewCampaignOpportunityApplicationIntegrity,
+} from './routes/opportunityIntegrity';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -25,6 +33,18 @@ function profileCandidate(pathname: string): string | null {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
+
+    const inviteLanding = url.pathname.match(/^\/i\/([^/]+)$/);
+    if (inviteLanding && request.method === 'GET') {
+      try { return await renderInviteLanding(request, env, decodeURIComponent(inviteLanding[1])); }
+      catch (error) { return errorResponse(error); }
+    }
+    const trackedRedirect = url.pathname.match(/^\/r\/([^/]+)$/);
+    if (trackedRedirect && request.method === 'GET') {
+      try { return await redirectTrackedLink(request, env, decodeURIComponent(trackedRedirect[1])); }
+      catch (error) { return errorResponse(error); }
+    }
+
     if (url.pathname === '/api/auth/telegram/start' || url.pathname === '/api/auth/telegram/callback') {
       try { return await (url.pathname.endsWith('/start') ? startTelegramConnection(request, env) : finishTelegramConnection(request, env)); }
       catch (error) { return errorResponse(error); }
@@ -35,6 +55,25 @@ export default {
     }
     if (url.pathname === '/api/auth/telegram-identity') {
       try { return await currentPersonalTelegramIdentity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/invites') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await createNetworkInviteIntegrity(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/campaign-opportunities' && request.method === 'GET') {
+      try { return await listCampaignOpportunitiesIntegrity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/campaign-opportunity-applications' && request.method === 'POST') {
+      try { return await applyToCampaignOpportunityIntegrity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    const opportunityApplication = url.pathname.match(/^\/api\/campaign-opportunity-applications\/([^/]+)$/);
+    if (opportunityApplication && request.method === 'PATCH') {
+      try { return await reviewCampaignOpportunityApplicationIntegrity(request, env, decodeURIComponent(opportunityApplication[1])); }
       catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/growth-intelligence') {

@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-test('CDP auth validates intended email for Team invitations before creating a new Linkary account', () => {
+test('CDP auth requires a present matching verified email for email-bound Team invitations before creating a Linkary account', () => {
   const source = readFileSync(new URL('../src/auth/cdp.ts', import.meta.url), 'utf8');
   assert.equal(source.includes('team_invite_email_mismatch'), true);
   assert.equal(source.includes('validateInviteAccess(row, verifiedEmail)'), true);
   assert.equal(source.includes('resolveAccessContext(db, body.inviteCode, body.earnedGrant, email)'), true);
   assert.equal(source.includes("row.invite_type === 'team_invite'"), true);
-  assert.equal(source.includes('row.intended_email && verifiedEmail'), true);
+  assert.equal(source.includes('if (row.intended_email) {'), true);
+  assert.equal(source.includes("const currentEmail = verifiedEmail?.trim().toLowerCase() || '';"), true);
+  assert.equal(source.includes('if (!currentEmail || expectedEmail !== currentEmail)'), true);
+  assert.equal(source.includes('row.intended_email && verifiedEmail'), false);
 });
 
 test('an existing Linkary account can redeem a Team invitation during a fresh login session', () => {
