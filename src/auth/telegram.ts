@@ -30,10 +30,14 @@ export async function verifyTelegramIdentity(token: string, clientId: string, ke
     algorithms: ['RS256', 'ES256', 'EdDSA', 'ES256K'],
     requiredClaims: ['sub', 'iat', 'exp'], maxTokenAge: '10m', clockTolerance: 5,
   });
-  // Telegram's OIDC subject is distinct from its stable numeric Bot API user ID.
-  if (!Number.isSafeInteger(payload.id) || Number(payload.id) <= 0) throw new Error('Missing Telegram user ID');
+  // `id` is present with the profile scope. Keep `sub` as a safe fallback for
+  // providers/configurations that return only the required OIDC claims.
+  const providerUserId = typeof payload.id === 'number' && Number.isSafeInteger(payload.id) && payload.id > 0
+    ? String(payload.id)
+    : typeof payload.sub === 'string' && /^[0-9]+$/.test(payload.sub) ? payload.sub : null;
+  if (!providerUserId) throw new Error('Missing Telegram user ID');
   return {
-    providerUserId: String(payload.id),
+    providerUserId,
     username: typeof payload.preferred_username === 'string' ? payload.preferred_username.slice(0, 64) : null,
     displayName: typeof payload.name === 'string' ? payload.name.slice(0, 200) : null,
   };
