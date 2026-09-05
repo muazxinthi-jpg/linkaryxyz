@@ -31,6 +31,7 @@ type CampaignPerformance = Performance & {
   execution_mode: string;
   status: string;
   budget_usd: number | null;
+  starts_at?: string | null;
 };
 
 type ActivityPerformance = Performance & {
@@ -117,6 +118,17 @@ function multiple(value: number | null): string {
   return value === null ? 'N/A' : `${value.toFixed(2)}x`;
 }
 
+function change(current: number, previous: number): number | null {
+  if (previous <= 0) return current > 0 ? null : 0;
+  return (current - previous) / previous;
+}
+
+function Delta({ value, label = 'vs prior half' }: { value: number | null; label?: string }) {
+  if (value === null) return <small className="fgi-delta neutral">New signal · {label}</small>;
+  const direction = value > 0 ? 'up' : value < 0 ? 'down' : 'neutral';
+  return <small className={`fgi-delta ${direction}`}>{value > 0 ? '↗' : value < 0 ? '↘' : '→'} {Math.abs(value * 100).toFixed(1)}% · {label}</small>;
+}
+
 function human(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -153,10 +165,19 @@ function PartnerMetricStrip({ value }: { value: GroupPerformance }) {
   </div>;
 }
 
-function TrendChart({ points }: { points: TrendPoint[] }) {
+function TrendChart({ points, campaigns }: { points: TrendPoint[]; campaigns: CampaignPerformance[] }) {
   const max = Math.max(1, ...points.flatMap((point) => [point.clicks, point.outcomes]));
   const path = (key: 'clicks' | 'outcomes') => points.map((point, index) => `${index ? 'L' : 'M'} ${(index / Math.max(1, points.length - 1)) * 100} ${100 - (point[key] / max) * 92}`).join(' ');
-  return <article className="fgi-chart trend-chart"><header><div><span>PERFORMANCE TREND</span><strong>Clicks and outcomes over time</strong></div><small>Linkary clicks · recorded outcomes</small></header><svg viewBox="0 0 100 100" role="img" aria-label="Daily Linkary clicks and outcomes trend" preserveAspectRatio="none"><path className="grid" d="M0 8H100M0 50H100M0 92H100"/><path className="click-line" d={path('clicks')} /><path className="outcome-line" d={path('outcomes')} /></svg><div className="fgi-chart-key"><span><i className="click"/>Clicks</span><span><i className="outcome"/>Outcomes</span><small>{points[0]?.day} — {points.at(-1)?.day}</small></div></article>;
+  const startMarkers = campaigns.flatMap((campaign) => { const index = campaign.starts_at ? points.findIndex((point) => point.day === campaign.starts_at?.slice(0, 10)) : -1; return index < 0 ? [] : [{ name: campaign.name, x: (index / Math.max(1, points.length - 1)) * 100 }]; });
+  const clickPath = path('clicks');
+  return <article className="fgi-chart trend-chart"><header><div><span>TRACTION TIMELINE</span><strong>Daily momentum and campaign starts</strong></div><small>Linkary clicks · recorded outcomes</small></header><svg viewBox="0 0 100 100" role="img" aria-label="Daily Linkary clicks and outcomes trend" preserveAspectRatio="none"><path className="grid" d="M0 8H100M0 50H100M0 92H100"/><path className="click-area" d={`${clickPath} L100 100 L0 100 Z`} /><path className="click-line" d={clickPath} /><path className="outcome-line" d={path('outcomes')} />{startMarkers.map((marker) => <line key={`${marker.name}:${marker.x}`} className="campaign-marker" x1={marker.x} x2={marker.x} y1="4" y2="96"><title>{marker.name} started</title></line>)}</svg><div className="fgi-chart-key"><span><i className="click"/>Clicks</span><span><i className="outcome"/>Outcomes</span>{startMarkers.length > 0 && <span><i className="start"/>Campaign start</span>}<small>{points[0]?.day} — {points.at(-1)?.day}</small></div></article>;
+}
+
+function MomentumChart({ points }: { points: TrendPoint[] }) {
+  const recent = points.slice(-14);
+  const max = Math.max(1, ...recent.map((point) => point.clicks));
+  const peak = recent.reduce((best, point) => point.clicks > best.clicks ? point : best, recent[0] || { day: '', clicks: 0, outcomes: 0, value: 0, spend: 0 });
+  return <article className="fgi-chart momentum-chart"><header><div><span>DAILY MOMENTUM</span><strong>Last 14 days</strong></div><small>{peak.day ? `Peak ${peak.day.slice(5)} · ${number(peak.clicks)} clicks` : 'No activity yet'}</small></header><div className="fgi-momentum-bars" role="img" aria-label="Daily click volume for the last fourteen days">{recent.map((point) => <i key={point.day} className={point.day === peak.day ? 'peak' : ''} style={{ height: `${Math.max(7, (point.clicks / max) * 100)}%` }}><span>{point.clicks}</span></i>)}</div><div className="fgi-momentum-axis"><span>{recent[0]?.day.slice(5)}</span><span>{recent.at(-1)?.day.slice(5)}</span></div></article>;
 }
 
 function FunnelChart({ value }: { value: Performance }) {
@@ -221,6 +242,9 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
   const summary = data.summary;
   const rows: (CampaignPerformance | ActivityPerformance | GroupPerformance)[] = tab === 'campaigns' ? data.campaigns : tab === 'activities' ? data.activities : tab === 'partners' ? data.partners : data.channels;
   const fallbackLinks = data.partner_attribution.current_fallback;
+  const midpoint = Math.floor(data.trend.length / 2);
+  const earlier = data.trend.slice(0, midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
+  const recent = data.trend.slice(midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
 
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
     <header className="fgi-header">
@@ -231,9 +255,9 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
     <div className="fgi-summary">
       <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>Recorded incurred cost</small></article>
       <article><span>REPORTED VIEWS</span><strong>{compact(summary.views)}</strong><small>{summary.deliverables} measured deliverables</small></article>
-      <article><span>LINKARY CLICKS</span><strong>{compact(summary.tracked_clicks)}</strong><small>{summary.estimated_unique_clicks === null ? 'Unique not measured' : `${compact(summary.estimated_unique_clicks)} est. unique`}</small></article>
-      <article><span>OUTCOMES</span><strong>{compact(summary.outcomes)}</strong><small>{percent(summary.conversion_rate)} click conversion</small></article>
-      <article><span>ATTRIBUTED VALUE</span><strong>{money(summary.attributed_value_usd)}</strong><small>{multiple(summary.roas)} ROAS</small></article>
+      <article><span>LINKARY CLICKS</span><strong>{compact(summary.tracked_clicks)}</strong><Delta value={change(recent.clicks, earlier.clicks)} /></article>
+      <article><span>OUTCOMES</span><strong>{compact(summary.outcomes)}</strong><Delta value={change(recent.outcomes, earlier.outcomes)} /></article>
+      <article><span>ATTRIBUTED VALUE</span><strong>{money(summary.attributed_value_usd)}</strong><Delta value={change(recent.value, earlier.value)} /></article>
       <article><span>COST / OUTCOME</span><strong>{money(summary.cpa)}</strong><small>{money(summary.cpc)} per Linkary click</small></article>
     </div>
 
@@ -243,7 +267,9 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
       <article><span>STRONGEST CHANNEL</span><strong>{strongestChannel ? human(strongestChannel.label) : 'Not enough channel evidence'}</strong><small>{strongestChannel ? `${compact(strongestChannel.tracked_clicks)} clicks · ${money(strongestChannel.attributed_value_usd)} value` : 'Channel intelligence builds from measured activities.'}</small></article>
     </div>
 
-    <div className="fgi-chart-grid"><TrendChart points={data.trend} /><FunnelChart value={summary} /><EvidenceChart mix={summary.evidence_mix} /><ChannelChart channels={data.channels} /></div>
+    <div className="fgi-chart-grid"><TrendChart points={data.trend} campaigns={data.campaigns} /><MomentumChart points={data.trend} /><FunnelChart value={summary} /><EvidenceChart mix={summary.evidence_mix} /><ChannelChart channels={data.channels} /></div>
+
+    <div className="fgi-baseline-note"><div><span>TRACTION BASELINE</span><strong>Project popularity baseline is not recorded yet</strong></div><p>Campaign lift needs a dated starting observation such as followers, community members, website users, waitlist or sign-ups. Until that ledger is available, Linkary shows measured campaign movement without claiming overall Project growth or causality.</p></div>
 
     <div className="fgi-evidence">
       <div><strong>Evidence mix</strong><span>Manual {summary.evidence_mix.manual}</span><span>Tracked {summary.evidence_mix.tracked}</span><span>Verified {summary.evidence_mix.verified}</span><span>Estimated {summary.evidence_mix.estimated}</span></div>
