@@ -145,9 +145,7 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
     throw new HttpError(403, 'This access path does not allow the selected account type', 'account_type_not_allowed');
   }
   const identity = await primaryXIdentity(db, auth.user.id);
-  const username = body.accountType === 'creator' && !identity && !body.username?.trim()
-    ? `member_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
-    : normalizeProfileUsername(body.username || '');
+  const username = normalizeProfileUsername(body.username || '');
   if (isSystemRoute(username)) throw new HttpError(409, 'This username is reserved by Linkary', 'route_collision');
 
   if (body.accountType === 'project' && !identity) {
