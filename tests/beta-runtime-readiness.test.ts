@@ -13,12 +13,14 @@ test('Beta runtime readiness fails closed when onboarding configuration is missi
   assert.deepEqual(readiness.missing, [...REQUIRED_BETA_CONFIGURATION]);
 });
 
-test('Beta runtime readiness passes only with database, Coinbase server auth and canonical URLs', () => {
+test('Beta runtime readiness passes only with database, Coinbase server auth, security secrets and canonical URLs', () => {
   const readiness = assessBetaConfiguration({
     DB: {},
     CDP_PROJECT_ID: 'project',
     CDP_API_KEY_ID: 'key-id',
     CDP_API_KEY_SECRET: 'key-secret',
+    SESSION_SECRET: 'creator-access-signing-secret',
+    TRACKING_HASH_SALT: 'tracking-visitor-privacy-salt',
     PUBLIC_SITE_URL: 'https://linkary.xyz',
     APP_BASE_URL: 'https://app.linkary.xyz',
   } as any);
@@ -33,6 +35,8 @@ test('partial Coinbase server credentials never report onboarding ready', () => 
   const common = {
     DB: {},
     CDP_PROJECT_ID: 'project',
+    SESSION_SECRET: 'creator-access-signing-secret',
+    TRACKING_HASH_SALT: 'tracking-visitor-privacy-salt',
     PUBLIC_SITE_URL: 'https://linkary.xyz',
     APP_BASE_URL: 'https://app.linkary.xyz',
   };
@@ -43,6 +47,26 @@ test('partial Coinbase server credentials never report onboarding ready', () => 
   assert.equal(missingKeyId.ready, false);
   assert.equal(missingSecret.missing.includes('Coinbase CDP server credentials'), true);
   assert.equal(missingKeyId.missing.includes('Coinbase CDP server credentials'), true);
+});
+
+test('missing Creator claim signing or tracking privacy secrets block readiness without revealing a secret value', () => {
+  const common = {
+    DB: {},
+    CDP_PROJECT_ID: 'project',
+    CDP_API_KEY_ID: 'key-id',
+    CDP_API_KEY_SECRET: 'key-secret',
+    SESSION_SECRET: 'creator-access-signing-secret',
+    TRACKING_HASH_SALT: 'tracking-visitor-privacy-salt',
+    PUBLIC_SITE_URL: 'https://linkary.xyz',
+    APP_BASE_URL: 'https://app.linkary.xyz',
+  };
+  const missingClaimSigning = assessBetaConfiguration({ ...common, SESSION_SECRET: '' } as any);
+  const missingTrackingSalt = assessBetaConfiguration({ ...common, TRACKING_HASH_SALT: '' } as any);
+
+  assert.equal(missingClaimSigning.ready, false);
+  assert.equal(missingTrackingSalt.ready, false);
+  assert.equal(missingClaimSigning.missing.includes('Creator access claim signing secret'), true);
+  assert.equal(missingTrackingSalt.missing.includes('Tracking visitor privacy salt'), true);
 });
 
 test('Superadmin readiness combines schema and runtime configuration without exposing secret values', () => {
