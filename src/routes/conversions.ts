@@ -158,20 +158,23 @@ export async function campaignOutcomeSummary(request: Request, env: Env): Promis
     throw new HttpError(403, 'Campaign access denied', 'forbidden');
   }
 
-  const summary = await db.first<{ conversions: number; value_usd: number; tracked_clicks: number; tracking_links: number }>(
+  const summary = await db.first<{ conversions: number; value_usd: number; tracked_clicks: number; tracking_links: number; actual_spend_usd: number }>(
     `SELECT
        (SELECT COUNT(*) FROM conversion_events WHERE campaign_id = ?) AS conversions,
        COALESCE((SELECT SUM(value_usd) FROM conversion_events WHERE campaign_id = ?), 0) AS value_usd,
        COALESCE((SELECT COUNT(*) FROM tracked_link_clicks c JOIN tracked_links t ON t.id = c.tracked_link_id WHERE t.campaign_id = ?), 0) AS tracked_clicks,
-       COALESCE((SELECT COUNT(*) FROM tracked_links WHERE campaign_id = ? AND status != 'archived'), 0) AS tracking_links`,
-    [campaignId, campaignId, campaignId, campaignId],
+       COALESCE((SELECT COUNT(*) FROM tracked_links WHERE campaign_id = ? AND status != 'archived'), 0) AS tracking_links,
+       COALESCE((SELECT SUM(usd_equivalent) FROM campaign_cost_entries WHERE campaign_id = ? AND status = 'active'), 0) AS actual_spend_usd`,
+    [campaignId, campaignId, campaignId, campaignId, campaignId],
   );
 
-  const safe = summary || { conversions: 0, value_usd: 0, tracked_clicks: 0, tracking_links: 0 };
+  const safe = summary || { conversions: 0, value_usd: 0, tracked_clicks: 0, tracking_links: 0, actual_spend_usd: 0 };
   return json({
     summary: {
       ...safe,
       conversion_rate: safe.tracked_clicks > 0 ? safe.conversions / safe.tracked_clicks : 0,
+      return_on_spend: safe.actual_spend_usd > 0 ? safe.value_usd / safe.actual_spend_usd : null,
+      cost_per_outcome: safe.actual_spend_usd > 0 && safe.conversions > 0 ? safe.actual_spend_usd / safe.conversions : null,
     },
   });
 }
