@@ -7,6 +7,7 @@ import { requireAuth } from '../auth/session';
 import { organizationMembership } from './organizations';
 
 type Provenance = 'creator_manual' | 'partner_manual' | 'founder_manual' | 'linkary_first_party' | 'telegram_verified' | 'provider_verified' | 'estimated';
+type PartnerAttributionSource = 'link_creation' | 'legacy_backfill' | 'current_fallback';
 
 type CampaignRow = {
   id: string;
@@ -43,6 +44,19 @@ type ActivityRow = {
   partner_handle: string | null;
 };
 
+type PartnerAttributionRow = {
+  tracked_link_id: string;
+  activity_id: string | null;
+  partner_kind: 'creator' | 'community' | null;
+  partner_key: string | null;
+  partner_display_name: string | null;
+  partner_handle: string | null;
+  attribution_source: PartnerAttributionSource;
+  clicks: number;
+  outcomes: number;
+  attributed_value_usd: number;
+};
+
 type DeliverableRow = {
   id: string;
   campaign_id: string;
@@ -70,6 +84,21 @@ type PerformanceInput = SocialStats & {
   uniqueClicks: number | null;
   outcomes: number;
   value: number;
+};
+
+type PartnerGroup = {
+  key: string;
+  label: string;
+  kind: string;
+  handle: string | null;
+  activityIds: Set<string>;
+  trackingLinks: number;
+  clicks: number;
+  outcomes: number;
+  value: number;
+  linkCreationLinks: number;
+  legacyBackfillLinks: number;
+  currentFallbackLinks: number;
 };
 
 const PROVENANCE_PRIORITY: Provenance[] = [
@@ -123,6 +152,42 @@ function performance(input: PerformanceInput) {
   };
 }
 
+function partnerPerformance(group: PartnerGroup) {
+  return {
+    key: group.key,
+    label: group.label,
+    kind: group.kind,
+    handle: group.handle,
+    activities: group.activityIds.size,
+    tracking_links: group.trackingLinks,
+    spend_scope: 'not_allocated' as const,
+    attribution_scope: 'tracking_link_partner_provenance' as const,
+    snapshot_coverage: {
+      link_creation: group.linkCreationLinks,
+      legacy_backfill: group.legacyBackfillLinks,
+      current_fallback: group.currentFallbackLinks,
+    },
+    deliverables: 0,
+    views: 0,
+    engagements: 0,
+    reported_joins: 0,
+    actual_spend_usd: null,
+    tracked_clicks: group.clicks,
+    estimated_unique_clicks: null,
+    outcomes: group.outcomes,
+    attributed_value_usd: group.value,
+    engagement_rate: null,
+    ctr: null,
+    cpm: null,
+    cpc: null,
+    cpa: null,
+    cost_per_reported_join: null,
+    conversion_rate: group.clicks > 0 ? group.outcomes / group.clicks : null,
+    roas: null,
+    value_per_click: group.clicks > 0 ? group.value / group.clicks : null,
+  };
+}
+
 function evidenceBucket(provenance: Provenance | string): keyof EvidenceMix {
   if (provenance === 'provider_verified' || provenance === 'telegram_verified') return 'verified';
   if (provenance === 'linkary_first_party' || provenance === 'linkary_tracked') return 'tracked';
@@ -157,7 +222,7 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
   const membership = await organizationMembership(db, auth.user.id, organizationId);
   if (!membership) throw new HttpError(403, 'Growth Intelligence access denied', 'forbidden');
 
-  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks] = await Promise.all([
+  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution] = await Promise.all([
     db.all<CampaignRow>(
       `SELECT c.id, c.name, COALESCE(c.source_type, 'external') AS source_type,
               COALESCE(c.execution_mode, 'tracked_elsewhere') AS execution_mode, c.status, c.budget_usd,
@@ -230,6 +295,33 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
          FROM tracked_links t
          JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
         WHERE t.organization_id = ?`,
+      [organizationId],
+    ),
+    db.all<PartnerAttributionRow>(
+      `SELECT
+          t.id AS tracked_link_id,
+          t.activity_id,
+          CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
+          CASE
+            WHEN snap.tracked_link_id IS NOT NULL THEN CASE WHEN snap.assignment_kind = 'creator' THEN snap.creator_profile_id ELSE snap.partner_asset_id END
+            ELSE CASE WHEN la.assignment_kind = 'creator' THEN la.creator_profile_id ELSE la.partner_asset_id END
+          END AS partner_key,
+          CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name ELSE COALESCE(cp.display_name, pa.name, ne.display_name) END AS partner_display_name,
+          CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle ELSE COALESCE(cpi.current_handle, pa.handle, ne.primary_handle) END AS partner_handle,
+          CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.snapshot_source ELSE 'current_fallback' END AS attribution_source,
+          COALESCE((SELECT COUNT(click.id) FROM tracked_link_clicks click WHERE click.tracked_link_id = t.id), 0) AS clicks,
+          COALESCE((SELECT COUNT(e.id) FROM conversion_events e WHERE e.tracked_link_id = t.id), 0) AS outcomes,
+          COALESCE((SELECT SUM(COALESCE(e.value_usd, 0)) FROM conversion_events e WHERE e.tracked_link_id = t.id), 0) AS attributed_value_usd
+        FROM tracked_links t
+        LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = t.id
+        LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = t.activity_id
+        LEFT JOIN project_network_entities ne ON ne.id = la.entity_id
+        LEFT JOIN profiles cp ON cp.id = la.creator_profile_id
+        LEFT JOIN platform_identities cpi ON cpi.id = cp.primary_platform_identity_id
+        LEFT JOIN partner_manager_assets pa ON pa.id = la.partner_asset_id
+       WHERE t.organization_id = ?
+       ORDER BY t.created_at DESC
+       LIMIT 5000`,
       [organizationId],
     ),
   ]);
@@ -308,25 +400,51 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
     };
   });
 
-  type Group = SocialStats & { key: string; label: string; kind?: string; handle?: string | null; spend: number; clicks: number; outcomes: number; value: number; activities: number };
-  const partnerGroups = new Map<string, Group>();
-  const channelGroups = new Map<string, Group>();
-  for (const activity of activityResults) {
-    if (activity.partner_key && activity.partner_display_name) {
-      const key = `${activity.partner_kind}:${activity.partner_key}`;
-      const current = partnerGroups.get(key) || { ...emptySocial(), key, label: activity.partner_display_name, kind: activity.partner_kind || 'partner', handle: activity.partner_handle, spend: 0, clicks: 0, outcomes: 0, value: 0, activities: 0 };
-      current.views += activity.views;
-      current.engagements += activity.engagements;
-      current.reportedJoins += activity.reported_joins;
-      current.deliverables += activity.deliverables;
-      current.spend += activity.actual_spend_usd;
-      current.clicks += activity.tracked_clicks;
-      current.outcomes += activity.outcomes;
-      current.value += activity.attributed_value_usd;
-      current.activities += 1;
-      partnerGroups.set(key, current);
+  const partnerGroups = new Map<string, PartnerGroup>();
+  const partnerAttributionCoverage = {
+    tracking_links: partnerAttribution.length,
+    assigned_links: 0,
+    unassigned_links: 0,
+    link_creation: 0,
+    legacy_backfill: 0,
+    current_fallback: 0,
+  };
+  for (const row of partnerAttribution) {
+    partnerAttributionCoverage[row.attribution_source] += 1;
+    if (!row.partner_kind || !row.partner_key || !row.partner_display_name) {
+      partnerAttributionCoverage.unassigned_links += 1;
+      continue;
     }
+    partnerAttributionCoverage.assigned_links += 1;
+    const key = `${row.partner_kind}:${row.partner_key}`;
+    const current = partnerGroups.get(key) || {
+      key,
+      label: row.partner_display_name,
+      kind: row.partner_kind,
+      handle: row.partner_handle,
+      activityIds: new Set<string>(),
+      trackingLinks: 0,
+      clicks: 0,
+      outcomes: 0,
+      value: 0,
+      linkCreationLinks: 0,
+      legacyBackfillLinks: 0,
+      currentFallbackLinks: 0,
+    };
+    if (row.activity_id) current.activityIds.add(row.activity_id);
+    current.trackingLinks += 1;
+    current.clicks += number(row.clicks);
+    current.outcomes += number(row.outcomes);
+    current.value += number(row.attributed_value_usd);
+    if (row.attribution_source === 'link_creation') current.linkCreationLinks += 1;
+    else if (row.attribution_source === 'legacy_backfill') current.legacyBackfillLinks += 1;
+    else current.currentFallbackLinks += 1;
+    partnerGroups.set(key, current);
+  }
 
+  type ChannelGroup = SocialStats & { key: string; label: string; spend: number; clicks: number; outcomes: number; value: number; activities: number };
+  const channelGroups = new Map<string, ChannelGroup>();
+  for (const activity of activityResults) {
     const channel = activity.channel || 'other';
     const channelGroup = channelGroups.get(channel) || { ...emptySocial(), key: channel, label: channel, spend: 0, clicks: 0, outcomes: 0, value: 0, activities: 0 };
     channelGroup.views += activity.views;
@@ -341,13 +459,14 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
     channelGroups.set(channel, channelGroup);
   }
 
-  const groupResult = (group: Group) => ({
+  const channelResult = (group: ChannelGroup) => ({
     key: group.key,
     label: group.label,
-    kind: group.kind || null,
-    handle: group.handle || null,
+    kind: null,
+    handle: null,
     activities: group.activities,
     spend_scope: 'activity_attached' as const,
+    attribution_scope: 'activity_channel' as const,
     ...performance({ ...group, uniqueClicks: null }),
   });
 
@@ -364,6 +483,11 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
   const projectIdentified = number(projectClicks?.identified_clicks);
   const projectUnique = projectIdentified > 0 ? number(projectClicks?.estimated_unique_clicks) : null;
 
+  const partnerResults = Array.from(partnerGroups.values())
+    .map(partnerPerformance)
+    .sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks)
+    .slice(0, 100);
+
   return json({
     summary: {
       campaigns: campaignResults.length,
@@ -373,12 +497,18 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
     },
     campaigns: campaignResults,
     activities: activityResults,
-    partners: Array.from(partnerGroups.values()).map(groupResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks).slice(0, 100),
-    channels: Array.from(channelGroups.values()).map(groupResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks),
+    partners: partnerResults,
+    partner_attribution: partnerAttributionCoverage,
+    channels: Array.from(channelGroups.values()).map(channelResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks),
     methodology: {
       manual_social_metrics: 'Uses the strongest available provenance per deliverable metric key. Rejected deliverables are excluded.',
       unique_clicks: projectUnique === null ? 'Not measured because no privacy-conscious visitor hashes are available.' : 'Estimated from privacy-conscious Linkary visitor hashes. It is not a person-level identity count.',
-      partner_channel_spend: 'Partner and channel cost metrics use only actual costs attached directly to activities. Campaign-level overhead is not allocated automatically.',
+      partner_channel_spend: 'Partner comparison uses tracking-link partner provenance only. Activity-level spend and social metrics are not automatically reassigned to historical partners. Channel cost metrics use only actual costs attached directly to activities, and campaign-level overhead is not allocated automatically.',
+      partner_attribution: partnerAttributionCoverage.current_fallback > 0
+        ? 'Some older tracking links do not yet have an immutable snapshot row, so those links are explicitly marked as current-assignment fallback until the protected D1 backfill migration is applied.'
+        : partnerAttributionCoverage.legacy_backfill > 0
+          ? 'New links use partner snapshots captured at link creation. Older links use clearly labeled legacy backfills and are not presented as proven creation-time history.'
+          : 'Partner comparison uses immutable partner snapshots captured at tracking-link creation. Unassigned links remain unassigned even if the activity is assigned later.',
       missing_metrics: 'Unavailable denominators remain null. Linkary does not fabricate CPM, CPC, CPA, CTR or ROAS.',
     },
   });
