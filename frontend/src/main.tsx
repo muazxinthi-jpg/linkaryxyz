@@ -5,6 +5,7 @@ import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
 import AuthSessionContinuity from './AuthSessionContinuity';
 import UiSafetyGuard from './UiSafetyGuard';
+import OnboardingCompletionBoundary from './OnboardingCompletionBoundary';
 import './styles.css';
 import './creator-access.css';
 import './simplified-shell.css';
@@ -45,6 +46,7 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <AuthSessionContinuity>
           <UiSafetyGuard />
+          <OnboardingCompletionBoundary />
           <App />
         </AuthSessionContinuity>
       </BrowserRouter>
