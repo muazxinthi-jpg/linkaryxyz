@@ -107,10 +107,13 @@ export async function applyToCampaignOpportunityIntegrity(request: Request, env:
   await requireOwnedCreatorProfile(db, auth.user.id, body.profileId);
   await requireOwnedManager(db, auth.user.id, body.managerId);
 
+  const managerId = body.managerId || null;
+  const note = body.note?.trim().slice(0, 1000) || '';
   const existing = await db.first<{ id: string; status: ApplicationStatus }>(
     `SELECT id, status FROM campaign_opportunity_applications
-      WHERE opportunity_id = ? AND applicant_profile_id = ? AND COALESCE(manager_id,'') = COALESCE(?,'')`,
-    [body.opportunityId, body.profileId, body.managerId || null],
+      WHERE opportunity_id = ? AND applicant_profile_id = ? AND COALESCE(manager_id,'') = COALESCE(?,'')
+      ORDER BY updated_at DESC LIMIT 1`,
+    [body.opportunityId, body.profileId, managerId],
   );
   const timestamp = now();
 
@@ -125,11 +128,11 @@ export async function applyToCampaignOpportunityIntegrity(request: Request, env:
           WHERE id = ? AND status = 'pending'`,
         [timestamp, existing.id],
       );
-      const current = await db.first<{ status: ApplicationStatus }>(
-        `SELECT status FROM campaign_opportunity_applications WHERE id = ?`,
+      const current = await db.first<{ status: ApplicationStatus; updated_at: string }>(
+        `SELECT status, updated_at FROM campaign_opportunity_applications WHERE id = ?`,
         [existing.id],
       );
-      if (current?.status !== 'withdrawn') {
+      if (current?.status !== 'withdrawn' || current.updated_at !== timestamp) {
         throw new HttpError(409, 'This application changed before withdrawal completed', 'application_state_conflict');
       }
       return json({ ok: true, id: existing.id, status: 'withdrawn' });
@@ -138,25 +141,70 @@ export async function applyToCampaignOpportunityIntegrity(request: Request, env:
     if (existing.status !== 'pending') {
       throw new HttpError(409, 'Accepted, rejected, or withdrawn applications cannot be reset to pending', 'application_state_conflict');
     }
-    requireOpportunityOpen(await loadOpportunity(db, body.opportunityId));
+
     await db.run(
-      `UPDATE campaign_opportunity_applications SET note = ?, updated_at = ? WHERE id = ? AND status = 'pending'`,
-      [body.note?.trim().slice(0, 1000) || '', timestamp, existing.id],
+      `UPDATE campaign_opportunity_applications
+          SET note = ?, updated_at = ?
+        WHERE id = ? AND status = 'pending'
+          AND EXISTS (
+            SELECT 1 FROM campaign_opportunities o
+             WHERE o.id = campaign_opportunity_applications.opportunity_id
+               AND o.status = 'open'
+               AND (o.application_deadline IS NULL OR date(o.application_deadline) >= date(?))
+          )`,
+      [note, timestamp, existing.id, timestamp],
     );
+    const current = await db.first<{ status: ApplicationStatus; note: string; updated_at: string }>(
+      `SELECT status, note, updated_at FROM campaign_opportunity_applications WHERE id = ?`,
+      [existing.id],
+    );
+    if (current?.status !== 'pending' || current.note !== note || current.updated_at !== timestamp) {
+      requireOpportunityOpen(await loadOpportunity(db, body.opportunityId));
+      throw new HttpError(409, 'This application changed before the update completed', 'application_state_conflict');
+    }
     return json({ ok: true, id: existing.id, status: 'pending' });
   }
 
   if (body.withdraw) throw new HttpError(404, 'Application not found', 'application_not_found');
-  requireOpportunityOpen(await loadOpportunity(db, body.opportunityId));
 
   const applicationId = id('app');
   await db.run(
     `INSERT INTO campaign_opportunity_applications
       (id, opportunity_id, applicant_profile_id, manager_id, note, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    [applicationId, body.opportunityId, body.profileId, body.managerId || null, body.note?.trim().slice(0, 1000) || '', timestamp, timestamp],
+     SELECT ?, o.id, ?, ?, ?, 'pending', ?, ?
+       FROM campaign_opportunities o
+      WHERE o.id = ?
+        AND o.status = 'open'
+        AND (o.application_deadline IS NULL OR date(o.application_deadline) >= date(?))
+        AND NOT EXISTS (
+          SELECT 1 FROM campaign_opportunity_applications existing_app
+           WHERE existing_app.opportunity_id = o.id
+             AND existing_app.applicant_profile_id = ?
+             AND COALESCE(existing_app.manager_id,'') = COALESCE(?,'')
+        )`,
+    [applicationId, body.profileId, managerId, note, timestamp, timestamp, body.opportunityId, timestamp, body.profileId, managerId],
   );
-  return json({ id: applicationId, status: 'pending' }, { status: 201 });
+
+  const authoritative = await db.first<{ id: string; status: ApplicationStatus; note: string; updated_at: string }>(
+    `SELECT id, status, note, updated_at
+       FROM campaign_opportunity_applications
+      WHERE opportunity_id = ? AND applicant_profile_id = ? AND COALESCE(manager_id,'') = COALESCE(?,'')
+      ORDER BY created_at ASC LIMIT 1`,
+    [body.opportunityId, body.profileId, managerId],
+  );
+  if (!authoritative) {
+    requireOpportunityOpen(await loadOpportunity(db, body.opportunityId));
+    throw new HttpError(409, 'Application could not be created. Refresh and try again.', 'application_state_conflict');
+  }
+  if (authoritative.status !== 'pending') {
+    throw new HttpError(409, 'Accepted, rejected, or withdrawn applications cannot be reset to pending', 'application_state_conflict');
+  }
+
+  const createdByThisRequest = authoritative.id === applicationId && authoritative.updated_at === timestamp;
+  return json(
+    { id: authoritative.id, status: 'pending', duplicate: !createdByThisRequest },
+    { status: createdByThisRequest ? 201 : 200 },
+  );
 }
 
 export async function reviewCampaignOpportunityApplicationIntegrity(
@@ -189,15 +237,31 @@ export async function reviewCampaignOpportunityApplicationIntegrity(
     throw new HttpError(409, 'Only a pending application can be accepted or rejected', 'application_state_conflict');
   }
 
+  const timestamp = now();
   await db.run(
-    `UPDATE campaign_opportunity_applications SET status = ?, updated_at = ? WHERE id = ? AND status = 'pending'`,
-    [body.status, now(), applicationId],
+    `UPDATE campaign_opportunity_applications
+        SET status = ?, updated_at = ?
+      WHERE id = ? AND status = 'pending'
+        AND EXISTS (
+          SELECT 1
+            FROM campaign_opportunities o
+            JOIN organization_memberships m ON m.organization_id = o.organization_id
+           WHERE o.id = campaign_opportunity_applications.opportunity_id
+             AND m.user_id = ?
+             AND m.status = 'active'
+             AND m.role IN ('owner', 'admin', 'marketing_manager')
+        )`,
+    [body.status, timestamp, applicationId, auth.user.id],
   );
-  const current = await db.first<{ status: ApplicationStatus }>(
-    `SELECT status FROM campaign_opportunity_applications WHERE id = ?`,
+  const current = await db.first<{ status: ApplicationStatus; updated_at: string }>(
+    `SELECT status, updated_at FROM campaign_opportunity_applications WHERE id = ?`,
     [applicationId],
   );
-  if (current?.status !== body.status) {
+  if (current?.status !== body.status || current.updated_at !== timestamp) {
+    const currentMembership = await organizationMembership(db, auth.user.id, application.organization_id);
+    if (!currentMembership || !['owner', 'admin', 'marketing_manager'].includes(currentMembership.role)) {
+      throw new HttpError(403, 'Application review access denied', 'forbidden');
+    }
     throw new HttpError(409, 'This application was already decided by another request', 'application_state_conflict');
   }
   return json({ ok: true, status: body.status });
