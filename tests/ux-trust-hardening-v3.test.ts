@@ -24,12 +24,14 @@ test('modal keyboard behavior contains focus, supports Escape and restores the o
   assert.equal(guard.includes("document.removeEventListener('keydown', onKeyDown)"), true);
 });
 
-test('public production preview labels static dashboard metrics as illustrative', () => {
+test('public production preview labels static dashboard metrics and fictional profiles as illustrative', () => {
   assert.equal(staticServer.includes('Illustrative product preview · Example data, not live customer results.'), true);
   assert.equal(staticServer.includes('Example data</i>'), true);
   assert.equal(staticServer.includes('Illustrative product preview</em>'), true);
+  assert.equal(staticServer.includes('Example creator</span>'), true);
   assert.match(staticServer, /replace\(\/<i class="status live">● Live data/);
   assert.match(staticServer, /replace\(\/<em>Updated 2m ago/);
+  assert.equal(staticServer.includes(".replace('<span class=\"status complete\">✓ Verified creator</span>', '<span class=\"status complete\">Example creator</span>')"), true);
 });
 
 test('production public footer rewrites dead prototype links to existing destinations', () => {
