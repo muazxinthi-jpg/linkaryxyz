@@ -128,7 +128,7 @@ export default function AdminReadinessExperience({
               <article>
                 <span>PRODUCTION CONFIG</span>
                 <strong>{health.betaReadiness.configuration.presentCount}/{health.betaReadiness.configuration.requiredCount}</strong>
-                <small>Database, authentication and canonical URLs</small>
+                <small>Database, authentication, security and canonical URLs</small>
               </article>
               <article>
                 <span>USERS</span>

@@ -48,6 +48,8 @@ export const REQUIRED_BETA_CONFIGURATION = [
   'D1 database binding',
   'Coinbase CDP project',
   'Coinbase CDP server credentials',
+  'Creator access claim signing secret',
+  'Tracking visitor privacy salt',
   'Public profile URL',
   'Authenticated app URL',
 ] as const;
@@ -93,6 +95,8 @@ export function assessBetaConfiguration(env: Env): BetaConfigurationReadiness {
     Boolean(env.DB),
     Boolean(env.CDP_PROJECT_ID?.trim()),
     Boolean(env.CDP_API_KEY_ID?.trim() && env.CDP_API_KEY_SECRET?.trim()),
+    Boolean(env.SESSION_SECRET?.trim()),
+    Boolean(env.TRACKING_HASH_SALT?.trim()),
     Boolean(env.PUBLIC_SITE_URL?.trim()),
     Boolean(env.APP_BASE_URL?.trim()),
   ];
