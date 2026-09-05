@@ -76,7 +76,7 @@ export default function ActivityLifecycleActions({ activityId, initialStatus, wr
         onClick={() => void update(next)}
       >{saving === next ? 'Updating...' : actionLabel(next)}</button>)}
     </div>}
-    <ActivityMeasurementPanel activityId={activityId} writable={writable} />
+    <ActivityMeasurementPanel activityId={activityId} canSubmit={writable} canReview={writable} />
     {message && <small className="activity-lifecycle-message" role="status">{message}</small>}
   </div>;
 }

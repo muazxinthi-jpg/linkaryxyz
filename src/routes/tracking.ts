@@ -11,6 +11,7 @@ import { buildTrackedDestination, type TrackingUtmContext } from '../trackingUtm
 import {
   createActivityDeliverable,
   listActivityMeasurements,
+  listMyAssignedActivities,
   reviewActivityDeliverable,
   saveActivityMetrics,
 } from './activityMeasurement';
@@ -106,6 +107,9 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
 
 export async function listTrackedLinks(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  if (url.searchParams.get('measurement') === '1' && url.searchParams.get('mine') === '1') {
+    return listMyAssignedActivities(request, env);
+  }
   if (url.searchParams.get('measurement') === '1') return listActivityMeasurements(request, env);
 
   const auth = await requireAuth(request, env);
