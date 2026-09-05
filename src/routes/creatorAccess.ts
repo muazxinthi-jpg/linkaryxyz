@@ -134,6 +134,14 @@ async function claimFromToken(db: Db, token: string): Promise<CreatorClaimRow> {
   return row;
 }
 
+async function claimById(db: Db, claimId: string): Promise<CreatorClaimRow | null> {
+  return db.first<CreatorClaimRow>(
+    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at
+     FROM creator_access_claims WHERE id = ?`,
+    [claimId],
+  );
+}
+
 export async function startCreatorAccessClaim(request: Request, env: Env): Promise<Response> {
   const body = await readJson<StartClaimBody>(request);
   const accessToken = body.accessToken?.trim();
@@ -166,10 +174,7 @@ export async function startCreatorAccessClaim(request: Request, env: Env): Promi
      VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, 'draft', 'manual', NULL, NULL, NULL, ?, NULL, ?, ?)`,
     [claimId, identity.projectId, identity.providerUserId, claimCode, await sha256(claimToken), expiresAt, timestamp, timestamp],
   );
-  const row = await db.first<CreatorClaimRow>(
-    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at FROM creator_access_claims WHERE id = ?`,
-    [claimId],
-  );
+  const row = await claimById(db, claimId);
   if (!row) throw new HttpError(500, 'Creator access claim could not be created.', 'claim_creation_failed');
   return json({ claimToken, claim: publicClaim(row) }, { status: 201 });
 }
@@ -196,12 +201,22 @@ export async function submitCreatorAccessPost(request: Request, env: Env): Promi
   const duplicate = await db.first<{ id: string }>(`SELECT id FROM creator_access_claims WHERE submitted_x_url = ? AND id <> ? LIMIT 1`, [postUrl, row.id]);
   if (duplicate) throw new HttpError(409, 'This X post has already been used for a Linkary access claim.', 'x_post_already_used');
   const timestamp = now();
-  await db.run(
-    `UPDATE creator_access_claims SET submitted_x_url = ?, status = 'submitted', review_mode = 'manual', rejection_reason = NULL, reviewed_by_user_id = NULL, reviewed_at = NULL, updated_at = ? WHERE id = ?`,
-    [postUrl, timestamp, row.id],
-  );
+  try {
+    await db.run(
+      `UPDATE creator_access_claims SET submitted_x_url = ?, status = 'submitted', review_mode = 'manual', rejection_reason = NULL, reviewed_by_user_id = NULL, reviewed_at = NULL, updated_at = ?
+       WHERE id = ? AND status IN ('draft', 'rejected')`,
+      [postUrl, timestamp, row.id],
+    );
+  } catch (error) {
+    const usedBy = await db.first<{ id: string }>(`SELECT id FROM creator_access_claims WHERE submitted_x_url = ? AND id <> ? LIMIT 1`, [postUrl, row.id]);
+    if (usedBy) throw new HttpError(409, 'This X post has already been used for a Linkary access claim.', 'x_post_already_used');
+    throw error;
+  }
   const updated = await claimFromToken(db, token);
-  return json({ claim: publicClaim(updated), message: 'Your post was submitted for review.' }, { status: 202 });
+  if (updated.status === 'submitted' && updated.submitted_x_url === postUrl) {
+    return json({ claim: publicClaim(updated), message: 'Your post was submitted for review.' }, { status: 202 });
+  }
+  throw new HttpError(409, 'This claim changed while the post was being submitted. Refresh and try again.', 'claim_submission_conflict');
 }
 
 export async function listCreatorAccessClaims(request: Request, env: Env): Promise<Response> {
@@ -223,34 +238,58 @@ export async function approveCreatorAccessClaim(request: Request, env: Env, clai
   const auth = await requireSuperadmin(request, env);
   await verifyCsrf(request, env, auth);
   const db = new Db(requireDb(env));
-  const claim = await db.first<CreatorClaimRow>(
-    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at FROM creator_access_claims WHERE id = ?`,
-    [claimId],
-  );
+  const claim = await claimById(db, claimId);
   if (!claim) throw new HttpError(404, 'Creator access claim not found.', 'claim_not_found');
+  if (claim.status === 'approved' && claim.approved_invite_id) {
+    return json({ ok: true, claimId: claim.id, status: 'approved', inviteId: claim.approved_invite_id, idempotent: true });
+  }
   if (claim.status !== 'submitted' || !claim.submitted_x_url) throw new HttpError(409, 'Only submitted claims can be approved.', 'claim_not_reviewable');
 
   const claimToken = await deriveClaimToken(env, claim.id);
-  if (await sha256(claimToken) !== claim.claim_token_hash) throw new HttpError(500, 'Creator access claim could not be approved.', 'claim_token_mismatch');
+  const inviteCodeHash = await sha256(claimToken);
+  if (inviteCodeHash !== claim.claim_token_hash) throw new HttpError(500, 'Creator access claim could not be approved.', 'claim_token_mismatch');
   const timestamp = now();
   const inviteId = id('inv');
+  const auditId = id('aud');
+  const approvalMetadata = JSON.stringify({ claimCode: claim.claim_code, submittedXUrl: claim.submitted_x_url, reviewMode: 'manual' });
+
   await db.batch([
     db.statement(
       `INSERT INTO invites (id, code_hash, display_code, invite_type, inviter_user_id, inviter_organization_id, intended_email, allowed_account_types_json, max_uses, uses, expires_at, status, created_at, updated_at)
-       VALUES (?, ?, NULL, 'network_invite', ?, NULL, NULL, '["creator"]', 1, 0, ?, 'active', ?, ?)`,
-      [inviteId, await sha256(claimToken), auth.user.id, claim.expires_at, timestamp, timestamp],
+       SELECT ?, ?, NULL, 'network_invite', ?, NULL, NULL, '["creator"]', 1, 0, ?, 'active', ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM creator_access_claims
+         WHERE id = ? AND status = 'submitted' AND submitted_x_url IS NOT NULL AND expires_at > ?
+       )`,
+      [inviteId, inviteCodeHash, auth.user.id, claim.expires_at, timestamp, timestamp, claim.id, timestamp],
     ),
     db.statement(
-      `UPDATE creator_access_claims SET approved_invite_id = ?, status = 'approved', review_mode = 'manual', rejection_reason = NULL, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ? WHERE id = ? AND status = 'submitted'`,
-      [inviteId, auth.user.id, timestamp, timestamp, claim.id],
+      `UPDATE creator_access_claims
+       SET approved_invite_id = ?, status = 'approved', review_mode = 'manual', rejection_reason = NULL, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'submitted' AND submitted_x_url IS NOT NULL AND expires_at > ?
+         AND EXISTS (SELECT 1 FROM invites WHERE id = ? AND code_hash = ?)`,
+      [inviteId, auth.user.id, timestamp, timestamp, claim.id, timestamp, inviteId, inviteCodeHash],
     ),
     db.statement(
       `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
-       VALUES (?, ?, 'superadmin', 'creator_access.approved', 'creator_access_claim', ?, NULL, ?, ?)`,
-      [id('aud'), auth.user.id, claim.id, JSON.stringify({ claimCode: claim.claim_code, submittedXUrl: claim.submitted_x_url, reviewMode: 'manual' }), timestamp],
+       SELECT ?, ?, 'superadmin', 'creator_access.approved', 'creator_access_claim', ?, NULL, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM creator_access_claims
+         WHERE id = ? AND status = 'approved' AND approved_invite_id = ? AND reviewed_by_user_id = ? AND reviewed_at = ?
+       )`,
+      [auditId, auth.user.id, claim.id, approvalMetadata, timestamp, claim.id, inviteId, auth.user.id, timestamp],
     ),
   ]);
-  return json({ ok: true, claimId: claim.id, status: 'approved' });
+
+  const finalClaim = await claimById(db, claim.id);
+  if (!finalClaim) throw new HttpError(404, 'Creator access claim not found.', 'claim_not_found');
+  if (finalClaim.status === 'approved' && finalClaim.approved_invite_id === inviteId) {
+    return json({ ok: true, claimId: finalClaim.id, status: 'approved', inviteId });
+  }
+  if (finalClaim.status === 'approved' && finalClaim.approved_invite_id) {
+    return json({ ok: true, claimId: finalClaim.id, status: 'approved', inviteId: finalClaim.approved_invite_id, idempotent: true });
+  }
+  throw new HttpError(409, 'This claim was changed by another review action. Refresh the review queue.', 'claim_review_conflict');
 }
 
 export async function rejectCreatorAccessClaim(request: Request, env: Env, claimId: string): Promise<Response> {
@@ -259,25 +298,37 @@ export async function rejectCreatorAccessClaim(request: Request, env: Env, claim
   const body = await readJson<RejectClaimBody>(request);
   const reason = body.reason?.trim().slice(0, 240) || 'The submitted post could not be approved.';
   const db = new Db(requireDb(env));
-  const claim = await db.first<CreatorClaimRow>(
-    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at FROM creator_access_claims WHERE id = ?`,
-    [claimId],
-  );
+  const claim = await claimById(db, claimId);
   if (!claim) throw new HttpError(404, 'Creator access claim not found.', 'claim_not_found');
   if (claim.status !== 'submitted') throw new HttpError(409, 'Only submitted claims can be rejected.', 'claim_not_reviewable');
   const timestamp = now();
+  const auditId = id('aud');
+  const rejectionMetadata = JSON.stringify({ claimCode: claim.claim_code, submittedXUrl: claim.submitted_x_url, reason });
+
   await db.batch([
     db.statement(
-      `UPDATE creator_access_claims SET status = 'rejected', rejection_reason = ?, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ? WHERE id = ? AND status = 'submitted'`,
+      `UPDATE creator_access_claims
+       SET status = 'rejected', rejection_reason = ?, reviewed_by_user_id = ?, reviewed_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'submitted'`,
       [reason, auth.user.id, timestamp, timestamp, claim.id],
     ),
     db.statement(
       `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
-       VALUES (?, ?, 'superadmin', 'creator_access.rejected', 'creator_access_claim', ?, NULL, ?, ?)`,
-      [id('aud'), auth.user.id, claim.id, JSON.stringify({ claimCode: claim.claim_code, submittedXUrl: claim.submitted_x_url, reason }), timestamp],
+       SELECT ?, ?, 'superadmin', 'creator_access.rejected', 'creator_access_claim', ?, NULL, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM creator_access_claims
+         WHERE id = ? AND status = 'rejected' AND rejection_reason = ? AND reviewed_by_user_id = ? AND reviewed_at = ?
+       )`,
+      [auditId, auth.user.id, claim.id, rejectionMetadata, timestamp, claim.id, reason, auth.user.id, timestamp],
     ),
   ]);
-  return json({ ok: true, claimId: claim.id, status: 'rejected', reason });
+
+  const finalClaim = await claimById(db, claim.id);
+  if (!finalClaim) throw new HttpError(404, 'Creator access claim not found.', 'claim_not_found');
+  if (finalClaim.status === 'rejected' && finalClaim.rejection_reason === reason && finalClaim.reviewed_at === timestamp) {
+    return json({ ok: true, claimId: finalClaim.id, status: 'rejected', reason });
+  }
+  throw new HttpError(409, 'This claim was changed by another review action. Refresh the review queue.', 'claim_review_conflict');
 }
 
 export async function creatorAccessVerificationSetting(request: Request, env: Env): Promise<Response> {
