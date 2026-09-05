@@ -23,7 +23,7 @@ test('core growth reads stay scoped to Project or campaign identifiers', () => {
   assert.match(campaigns, /FROM campaigns WHERE organization_id = \?/);
   assert.match(activities, /WHERE a\.campaign_id = \?/);
   assert.match(tracking, /let where = 't\.campaign_id = \?'/);
-  assert.match(tracking, /WHERE code = \?/);
+  assert.match(tracking, /WHERE (?:t\.)?code = \?/);
   assert.match(conversions, /const clauses = \['e\.campaign_id = \?'\]/);
   assert.match(conversions, /const limit = format === 'csv' \? 5000 : 500/);
 });
