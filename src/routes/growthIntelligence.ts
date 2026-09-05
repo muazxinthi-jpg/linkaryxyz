@@ -16,6 +16,7 @@ type CampaignRow = {
   execution_mode: string;
   status: string;
   budget_usd: number | null;
+  starts_at: string | null;
   actual_spend_usd: number;
   clicks: number;
   identified_clicks: number;
@@ -238,7 +239,7 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
 
   const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution, clickTrend, outcomeTrend, spendTrend] = await Promise.all([
     db.all<CampaignRow>(
-      `SELECT c.id, c.name, COALESCE(c.source_type, 'external') AS source_type,
+      `SELECT c.id, c.name, c.starts_at, COALESCE(c.source_type, 'external') AS source_type,
               COALESCE(c.execution_mode, 'tracked_elsewhere') AS execution_mode, c.status, c.budget_usd,
               COALESCE((SELECT SUM(cost.usd_equivalent) FROM campaign_cost_entries cost WHERE cost.campaign_id = c.id AND cost.status = 'active'), 0) AS actual_spend_usd,
               COALESCE((SELECT COUNT(click.id) FROM tracked_links t JOIN tracked_link_clicks click ON click.tracked_link_id = t.id WHERE t.campaign_id = c.id), 0) AS clicks,
