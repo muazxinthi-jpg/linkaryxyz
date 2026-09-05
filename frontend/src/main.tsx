@@ -36,7 +36,7 @@ const cdpConfig: Config = {
   ethereum: { createOnLogin: 'eoa' },
   appName: 'Linkary',
   appLogoUrl: 'https://linkary.xyz/assets/brand/linkary-icon-black.png',
-  authMethods: ['email', 'oauth:google', 'oauth:x', 'oauth:telegram'],
+  authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
 createRoot(document.getElementById('root')!).render(

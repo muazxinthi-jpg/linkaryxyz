@@ -188,7 +188,7 @@ function AuthMethods() {
     finally { setBusy(null); }
   }
 
-  async function social(provider: 'google' | 'x' | 'telegram') {
+  async function social(provider: 'google' | 'x') {
     setBusy(provider); setError('');
     try { await signInWithOAuth(provider); }
     catch (err) { setError(publicError(err, 'Unable to continue sign-in.')); setBusy(null); }
@@ -217,7 +217,6 @@ function AuthMethods() {
       <div className="social-stack">
         <button className="social-button" onClick={() => social('google')} disabled={busy !== null}><b>G</b><span>{busy === 'google' ? 'Connecting...' : 'Continue with Google'}</span></button>
         <button className="social-button" onClick={() => social('x')} disabled={busy !== null}><b>𝕏</b><span>{busy === 'x' ? 'Connecting...' : 'Continue with X'}</span></button>
-        <button className="social-button" onClick={() => social('telegram')} disabled={busy !== null}><b>↗</b><span>{busy === 'telegram' ? 'Connecting...' : 'Continue with Telegram'}</span></button>
       </div>
       {error && <div className="form-error">{error}</div>}
     </div>

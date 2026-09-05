@@ -13,27 +13,20 @@ function compact(value: string) { return value.replace(/\s+/g, ' '); }
 
 test('every Personal Profile can connect Telegram without creating a Community Manager portfolio', () => {
   assert.match(profile, /PersonalTelegramConnection/);
-  assert.match(profile, /defaultEmail=\{status\.user\.email \|\| ''\}/);
+  assert.match(profile, /<PersonalTelegramConnection \/>/);
   assert.match(telegram, /You can do this even if you do not manage any Telegram communities/);
   assert.match(telegram, /data-personal-telegram-connection/);
   assert.equal(telegram.includes('/api/partner-managers'), false);
   assert.equal(telegram.includes("managerType: 'community_manager'"), false);
 });
 
-test('personal Telegram linking uses provider linking and the safe current-account sync', () => {
-  assert.match(telegram, /useLinkOAuth/);
-  assert.match(telegram, /linkOAuth\('telegram'\)/);
-  assert.match(telegram, /\/api\/auth\/cdp\/current-link/);
+test('personal Telegram linking uses direct Telegram and preserves the Linkary session', () => {
+  assert.match(telegram, /\/api\/auth\/telegram\/start/);
   assert.match(telegram, /x-csrf-token/);
+  assert.equal(telegram.includes('useLinkOAuth'), false);
   assert.equal(telegram.includes('/api/auth/cdp/session'), false);
-});
-
-test('users can restore their existing secure sign-in before adding Telegram', () => {
-  assert.match(telegram, /signInWithEmail/);
-  assert.match(telegram, /verifyEmailOTP/);
-  assert.match(telegram, /signInWithOAuth\(provider\)/);
-  assert.match(telegram, /cdp_account_mismatch/);
-  assert.match(telegram, /same email, Google account, or X account you originally used/);
+  assert.equal(telegram.includes('signInWithOAuth'), false);
+  assert.equal(telegram.includes('getAccessToken'), false);
 });
 
 test('personal Telegram status is private, exact-user scoped and does not require manager discovery', () => {

@@ -5,6 +5,7 @@ import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/c
 import { errorResponse } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
+import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -22,6 +23,10 @@ function profileCandidate(pathname: string): string | null {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/api/auth/telegram/start' || url.pathname === '/api/auth/telegram/callback') {
+      try { return await (url.pathname.endsWith('/start') ? startTelegramConnection(request, env) : finishTelegramConnection(request, env)); }
+      catch (error) { return errorResponse(error); }
+    }
     if (url.pathname === '/api/auth/cdp/current-link') {
       try { return await refreshCurrentCdpLink(request, env); }
       catch (error) { return errorResponse(error); }

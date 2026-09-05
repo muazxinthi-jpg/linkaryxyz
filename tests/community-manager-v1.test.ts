@@ -87,24 +87,19 @@ test('Personal Telegram verification stays evidence-bearing but does not block C
 
 test('Community Manager UI links Telegram instead of trusting a typed personal handle', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
-  assert.equal(ui.includes('useLinkOAuth'), true);
-  assert.equal(ui.includes("linkOAuth('telegram')"), true);
+  assert.equal(ui.includes('useLinkOAuth'), false);
+  assert.equal(ui.includes("window.location.assign('/profile')"), true);
   assert.equal(ui.includes('Personal Telegram not verified'), true);
   assert.equal(ui.includes('telegramContact: managerForm.telegramContact'), false);
   assert.equal(ui.includes('<label>Telegram contact<input'), false);
   assert.equal(ui.includes('stable account ID is kept private'), true);
 });
 
-test('Telegram linking tracks OAuth state, surfaces provider failures and keeps onboarding available', () => {
+test('Telegram linking in Personal Profile keeps Community onboarding available', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
-  assert.equal(ui.includes('const { linkOAuth, oauthState } = useLinkOAuth()'), true);
-  assert.equal(ui.includes("oauthState?.status !== 'error'"), true);
-  assert.equal(ui.includes("oauthState?.status === 'pending' || oauthState?.status === 'error'"), true);
-  assert.equal(ui.includes('oauthState.errorDescription || oauthState.error'), true);
-  assert.equal(ui.includes('Telegram verification is temporarily unavailable.'), true);
-  assert.equal(ui.includes('You can continue building your Community Portfolio without it.'), true);
-  assert.equal(ui.includes("sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1'"), true);
-  assert.equal(ui.includes('You can continue building your Community Portfolio either way.'), true);
+  assert.equal(ui.includes('Connect Telegram in Personal Profile'), true);
+  assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
+  assert.equal(ui.includes('/api/auth/cdp/session'), false);
 });
 
 test('Personal Telegram identity and exact Community verification remain separate and TrackerBot stays optional', () => {

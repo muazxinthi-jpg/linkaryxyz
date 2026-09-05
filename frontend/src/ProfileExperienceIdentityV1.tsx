@@ -135,7 +135,7 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
         <p>Changing this label never changes Project roles, permissions, verification, manager status or campaign evidence.</p>
         <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
       </div>
-      <PersonalTelegramConnection defaultEmail={status.user.email || ''} />
+      <PersonalTelegramConnection />
     </>,
     target,
   );

@@ -9,6 +9,10 @@ CDP_PROJECT_ID=
 CDP_API_KEY_ID=
 CDP_API_KEY_SECRET=
 
+# @LinkaryAuthBot > BotFather > Login Widget (RS256 signing)
+TELEGRAM_CLIENT_ID=
+TELEGRAM_CLIENT_SECRET=
+
 # Legacy direct X OAuth. Keep only until CDP auth cutover is verified.
 X_CLIENT_ID=
 X_CLIENT_SECRET=

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useGetAccessToken, useIsInitialized, useIsSignedIn, useLinkOAuth } from '@coinbase/cdp-hooks';
 import { ProductWorkspace, type ProductMe, type ProductStatus } from './ProductWorkspace';
 import CommunityVerificationPanel from './CommunityVerificationPanel';
 import './community-manager.css';
@@ -54,7 +53,6 @@ class ApiError extends Error {
   }
 }
 
-const TELEGRAM_LINK_PENDING = 'linkary.telegram.link.pending.v1';
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -94,19 +92,7 @@ function friendly(error: unknown, fallback: string): string {
   return error.message || fallback;
 }
 
-function telegramFailure(detail?: string | null): string {
-  const text = detail?.trim();
-  if (!text || /internal server error/i.test(text)) {
-    return 'Telegram verification is temporarily unavailable. You can continue building your Community Portfolio without it. Linkary will keep your personal Telegram identity unverified until the connection succeeds.';
-  }
-  return `Telegram connection failed: ${text} You can continue without personal Telegram verification.`;
-}
-
 export default function CommunityManagerExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
-  const { linkOAuth, oauthState } = useLinkOAuth();
-  const { getAccessToken } = useGetAccessToken();
-  const { isInitialized } = useIsInitialized();
-  const { isSignedIn } = useIsSignedIn();
   const creator = status.profiles.find((item) => item.profile_type === 'creator');
   const [profileId, setProfileId] = useState(creator?.id || status.profiles[0]?.id || '');
   const profile = status.profiles.find((item) => item.id === profileId) || creator || status.profiles[0];
@@ -160,64 +146,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
   useEffect(() => { void load(); }, [personalProfile?.id]);
 
-  async function syncTelegramIdentity() {
-    if (!isInitialized || !isSignedIn) {
-      throw new Error('Your secure Linkary sign-in must be active before Telegram can be connected.');
-    }
-    const accessToken = await getAccessToken();
-    if (!accessToken) throw new Error('Secure sign-in token is unavailable. Please log in again.');
-    await api('/api/auth/cdp/session', {
-      method: 'POST',
-      body: JSON.stringify({ accessToken }),
-    });
-    sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
-    await load();
-  }
-
-  useEffect(() => {
-    if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1' || oauthState?.status !== 'error') return;
-    sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
-    setBusy('');
-    setMessage(telegramFailure(oauthState.errorDescription || oauthState.error));
-  }, [oauthState?.status, oauthState?.error, oauthState?.errorDescription]);
-
-  useEffect(() => {
-    if (!isInitialized || !isSignedIn || sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1') return;
-    if (oauthState?.status === 'pending' || oauthState?.status === 'error') return;
-    let cancelled = false;
-    void (async () => {
-      setBusy('telegram-sync');
-      try {
-        await syncTelegramIdentity();
-        if (!cancelled) setMessage('Telegram account connected and verified.');
-      } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : 'Telegram verification could not be completed. You can continue without it.');
-      } finally {
-        if (!cancelled) setBusy('');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [isInitialized, isSignedIn, oauthState?.status]);
-
-  async function connectTelegram() {
-    if (!isInitialized || !isSignedIn) {
-      setMessage('Your Linkary sign-in needs to finish before Telegram can be connected.');
-      return;
-    }
-    setBusy('telegram-link');
-    setMessage('Opening Telegram verification…');
-    sessionStorage.setItem(TELEGRAM_LINK_PENDING, '1');
-    try {
-      await linkOAuth('telegram');
-      if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1') {
-        setMessage('Complete Telegram verification if the provider flow succeeds. You can continue building your Community Portfolio either way.');
-      }
-    } catch (error) {
-      sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
-      setMessage(telegramFailure(error instanceof Error ? error.message : null));
-      setBusy('');
-    }
-  }
+  function connectTelegram() { window.location.assign('/profile'); }
 
   async function saveManager(event: React.FormEvent) {
     event.preventDefault();
@@ -348,7 +277,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                 <p>You can create your Community Manager profile, list Telegram communities and submit exact Community ownership proof without connecting your personal Telegram account. Linkary will not show a verified personal Telegram identity badge until this connection succeeds.</p>
                 <div className="community-actions">
                   <button type="button" className="ops-button primary" disabled={busy === 'telegram-link' || busy === 'telegram-sync'} onClick={() => void connectTelegram()}>
-                    {busy === 'telegram-link' || busy === 'telegram-sync' ? 'Connecting Telegram…' : 'Try Connect Telegram'}
+                    {busy === 'telegram-link' || busy === 'telegram-sync' ? 'Connecting Telegram…' : 'Connect Telegram in Personal Profile'}
                   </button>
                 </div>
                 <div className="community-verification-note"><strong>Evidence stays separate</strong><span>Personal Telegram verification and exact Community verification are independent. A Community only becomes Verified after Linkary reviews Community-specific public management proof.</span></div>

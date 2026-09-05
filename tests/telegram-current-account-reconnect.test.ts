@@ -40,7 +40,8 @@ test('Communities restores the existing secure session without asking the user t
   assert.match(gate, /same email, Google account, or X account you originally used for Linkary/);
 });
 
-test('Telegram itself is linked only after the existing CDP user is restored', () => {
-  assert.match(community, /linkOAuth\('telegram'\)/);
+test('Communities routes Telegram linking to the Personal Profile', () => {
+  assert.match(community, /window\.location\.assign\('\/profile'\)/);
+  assert.equal(community.includes('linkOAuth'), false);
   assert.match(gate, /if \(gateState === 'ready'\) return <CommunityManagerExperience/);
 });

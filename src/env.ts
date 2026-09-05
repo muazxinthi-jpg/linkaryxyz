@@ -10,6 +10,9 @@ export interface Env {
   CDP_PROJECT_ID?: string;
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
+  // Direct Telegram profile linking; the secret is a Cloudflare secret binding.
+  TELEGRAM_CLIENT_ID?: string;
+  TELEGRAM_CLIENT_SECRET?: string;
 
   // Server-only Alchemy key used for wallet asset discovery and onchain
   // attribution. Never expose this value to the browser.
