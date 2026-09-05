@@ -10,6 +10,7 @@ const CDP_API_HOST = 'api.cdp.coinbase.com';
 const CDP_VALIDATE_PATH = '/platform/v2/end-users/auth/validate-token';
 const CLAIM_HEADER = 'x-linkary-claim-token';
 const CLAIM_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+const ACTIVE_CLAIM_GUARD = 'creator_access_active_claim_exists';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -44,6 +45,10 @@ function asRecord(value: unknown): UnknownRecord | null {
 
 function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function isActiveClaimGuardError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes(ACTIVE_CLAIM_GUARD);
 }
 
 function requireProviderConfig(env: Env): { projectId: string; apiKeyId: string; apiKeySecret: string } {
@@ -127,6 +132,9 @@ async function claimFromToken(db: Db, token: string): Promise<CreatorClaimRow> {
     [await sha256(token)],
   );
   if (!row) throw new HttpError(404, 'This creator access claim could not be found.', 'claim_not_found');
+  if (row.status === 'revoked') {
+    throw new HttpError(410, 'This creator access claim is no longer active. Start or resume your current claim.', 'claim_expired');
+  }
   if (row.expires_at <= now() && !['approved', 'consumed'].includes(row.status)) {
     await db.run(`UPDATE creator_access_claims SET status = 'expired', updated_at = ? WHERE id = ? AND status NOT IN ('approved', 'consumed')`, [now(), row.id]);
     throw new HttpError(410, 'This creator access claim expired. Start a new claim.', 'claim_expired');
@@ -142,6 +150,28 @@ async function claimById(db: Db, claimId: string): Promise<CreatorClaimRow | nul
   );
 }
 
+async function activeClaimForIdentity(db: Db, projectId: string, providerUserId: string, timestamp: string): Promise<CreatorClaimRow | null> {
+  return db.first<CreatorClaimRow>(
+    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at
+     FROM creator_access_claims
+     WHERE cdp_project_id = ? AND cdp_user_id = ? AND status IN ('draft', 'submitted', 'approved') AND expires_at > ?
+     ORDER BY
+       CASE status WHEN 'approved' THEN 0 WHEN 'submitted' THEN 1 ELSE 2 END,
+       updated_at DESC,
+       id DESC
+     LIMIT 1`,
+    [projectId, providerUserId, timestamp],
+  );
+}
+
+async function resumableClaimPayload(env: Env, row: CreatorClaimRow) {
+  const claimToken = await deriveClaimToken(env, row.id);
+  if (await sha256(claimToken) !== row.claim_token_hash) {
+    throw new HttpError(500, 'Creator access claim could not be resumed.', 'claim_token_mismatch');
+  }
+  return { claimToken, claim: publicClaim(row) };
+}
+
 export async function startCreatorAccessClaim(request: Request, env: Env): Promise<Response> {
   const body = await readJson<StartClaimBody>(request);
   const accessToken = body.accessToken?.trim();
@@ -150,30 +180,29 @@ export async function startCreatorAccessClaim(request: Request, env: Env): Promi
   const db = new Db(requireDb(env));
   const timestamp = now();
 
-  const existing = await db.first<CreatorClaimRow>(
-    `SELECT id, cdp_project_id, cdp_user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_at, expires_at, created_at, updated_at
-     FROM creator_access_claims
-     WHERE cdp_project_id = ? AND cdp_user_id = ? AND status IN ('draft', 'submitted', 'approved') AND expires_at > ?
-     ORDER BY created_at DESC LIMIT 1`,
-    [identity.projectId, identity.providerUserId, timestamp],
-  );
-
-  if (existing) {
-    const claimToken = await deriveClaimToken(env, existing.id);
-    if (await sha256(claimToken) !== existing.claim_token_hash) throw new HttpError(500, 'Creator access claim could not be resumed.', 'claim_token_mismatch');
-    return json({ claimToken, claim: publicClaim(existing) });
-  }
+  const existing = await activeClaimForIdentity(db, identity.projectId, identity.providerUserId, timestamp);
+  if (existing) return json(await resumableClaimPayload(env, existing));
 
   const claimId = id('cac');
   const claimCode = `LKY-${crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
   const claimToken = await deriveClaimToken(env, claimId);
   const expiresAt = new Date(Date.now() + CLAIM_LIFETIME_MS).toISOString();
-  await db.run(
-    `INSERT INTO creator_access_claims
-      (id, cdp_project_id, cdp_user_id, user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_by_user_id, reviewed_at, expires_at, consumed_at, created_at, updated_at)
-     VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, 'draft', 'manual', NULL, NULL, NULL, ?, NULL, ?, ?)`,
-    [claimId, identity.projectId, identity.providerUserId, claimCode, await sha256(claimToken), expiresAt, timestamp, timestamp],
-  );
+  try {
+    await db.run(
+      `INSERT INTO creator_access_claims
+        (id, cdp_project_id, cdp_user_id, user_id, claim_code, claim_token_hash, submitted_x_url, approved_invite_id, status, review_mode, rejection_reason, reviewed_by_user_id, reviewed_at, expires_at, consumed_at, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, 'draft', 'manual', NULL, NULL, NULL, ?, NULL, ?, ?)`,
+      [claimId, identity.projectId, identity.providerUserId, claimCode, await sha256(claimToken), expiresAt, timestamp, timestamp],
+    );
+  } catch (error) {
+    if (!isActiveClaimGuardError(error)) throw error;
+    const winner = await activeClaimForIdentity(db, identity.projectId, identity.providerUserId, now());
+    if (!winner) {
+      throw new HttpError(409, 'Creator access changed while your claim was starting. Please try again.', 'claim_start_conflict');
+    }
+    return json(await resumableClaimPayload(env, winner));
+  }
+
   const row = await claimById(db, claimId);
   if (!row) throw new HttpError(500, 'Creator access claim could not be created.', 'claim_creation_failed');
   return json({ claimToken, claim: publicClaim(row) }, { status: 201 });
@@ -210,6 +239,9 @@ export async function submitCreatorAccessPost(request: Request, env: Env): Promi
   } catch (error) {
     const usedBy = await db.first<{ id: string }>(`SELECT id FROM creator_access_claims WHERE submitted_x_url = ? AND id <> ? LIMIT 1`, [postUrl, row.id]);
     if (usedBy) throw new HttpError(409, 'This X post has already been used for a Linkary access claim.', 'x_post_already_used');
+    if (isActiveClaimGuardError(error)) {
+      throw new HttpError(409, 'Another Creator Earn Access claim is already active. Restart Creator Earn Access to resume it.', ACTIVE_CLAIM_GUARD);
+    }
     throw error;
   }
   const updated = await claimFromToken(db, token);
