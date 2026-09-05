@@ -6,6 +6,7 @@ const migration = readFileSync(new URL('../migrations/0023_personal_profile_iden
 const route = readFileSync(new URL('../src/routes/profileIdentity.ts', import.meta.url), 'utf8');
 const publicRenderer = readFileSync(new URL('../src/routes/publicProfileIdentity.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
+const profileAccess = readFileSync(new URL('../frontend/src/ProfileAccessExperience.tsx', import.meta.url), 'utf8');
 const editor = readFileSync(new URL('../frontend/src/ProfileExperienceIdentityV1.tsx', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const model = readFileSync(new URL('../src/db/models.ts', import.meta.url), 'utf8');
@@ -39,7 +40,9 @@ test('identity settings are personal-profile owned, CSRF protected and presentat
 });
 
 test('profile edit page exposes role and headline selection as Personal Profile UI', () => {
-  assert.equal(app.includes("ProfileExperienceIdentityV1"), true);
+  assert.equal(app.includes("ProfileAccessExperience"), true);
+  assert.equal(profileAccess.includes("ProfileExperienceIdentityV1"), true);
+  assert.match(profileAccess, /profile\.profile_type === 'creator'[\s\S]*setState\('editable'\)/);
   assert.equal(editor.includes('Primary public role'), true);
   assert.equal(editor.includes('Professional headline'), true);
   assert.equal(editor.includes('Select your identity'), true);
