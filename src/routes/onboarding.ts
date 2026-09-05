@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import type { PlatformIdentityRow } from '../db/models';
+import type { D1PreparedStatement } from '../platform';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -162,57 +163,71 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
     }
     throw new HttpError(409, 'This Linkary username is already claimed', 'username_claimed');
   }
+
   const verificationStatus = identity ? 'verified_x' : 'pending';
   const timestamp = now();
-  let profileId: string;
+  const profileId = id('pro');
   let organizationId: string | null = null;
+  let creatorDisplayName: string | null = null;
+  let projectName: string | null = null;
+  let projectInternalSlug: string | null = null;
+  let creatorOwnerLink: { id: string } | null = null;
 
   if (body.accountType === 'creator') {
     if (await db.first<{ id: string }>(`SELECT id FROM profiles WHERE owner_user_id = ? AND profile_type = 'creator'`, [auth.user.id])) {
       throw new HttpError(409, 'Creator profile already exists', 'creator_profile_exists');
     }
-    profileId = id('pro');
-    const displayName = body.displayName?.trim() || identity?.current_display_name || auth.user.display_name || username;
-    await db.run(
-      `INSERT INTO profiles (id, owner_user_id, organization_id, primary_platform_identity_id, profile_type, username, display_name, bio, avatar_url, visibility, verification_status, seo_title, seo_description, published_at, created_at, updated_at)
-       VALUES (?, ?, NULL, ?, 'creator', ?, ?, '', NULL, 'private', ?, NULL, NULL, NULL, ?, ?)`,
-      [profileId, auth.user.id, identity?.id || null, username, displayName, verificationStatus, timestamp, timestamp],
-    );
+    creatorDisplayName = body.displayName?.trim() || identity?.current_display_name || auth.user.display_name || username;
+    if (identity) {
+      creatorOwnerLink = await db.first<{ id: string }>(
+        `SELECT id FROM platform_identity_links WHERE platform_identity_id = ? AND user_id = ? AND link_type = 'owns' AND ended_at IS NULL ORDER BY verified_at DESC LIMIT 1`,
+        [identity.id, auth.user.id],
+      );
+    }
   } else {
-    const orgName = body.organizationName?.trim() || body.displayName?.trim() || identity?.current_display_name || username;
-    if (orgName.length < 2 || orgName.length > 100) throw new HttpError(400, 'Company or project name must be 2 to 100 characters', 'invalid_organization_name');
+    projectName = body.organizationName?.trim() || body.displayName?.trim() || identity?.current_display_name || username;
+    if (projectName.length < 2 || projectName.length > 100) throw new HttpError(400, 'Company or project name must be 2 to 100 characters', 'invalid_organization_name');
     organizationId = id('org');
-    profileId = id('pro');
-    const internalSlug = `${username}-${organizationId.slice(-6)}`;
-    await db.batch([
-      db.statement(
-        `INSERT INTO organizations (id, name, slug_internal, website, status, verification_status, created_by_user_id, archived_at, archived_by_user_id, merged_into_organization_id, created_at, updated_at)
-         VALUES (?, ?, ?, NULL, 'active', ?, ?, NULL, NULL, NULL, ?, ?)`,
-        [organizationId, orgName, internalSlug, verificationStatus, auth.user.id, timestamp, timestamp],
-      ),
-      db.statement(
-        `INSERT INTO organization_memberships (id, user_id, organization_id, role, billing_manager, status, created_at, updated_at)
-         VALUES (?, ?, ?, 'owner', 1, 'active', ?, ?)`,
-        [id('mem'), auth.user.id, organizationId, timestamp, timestamp],
-      ),
-      db.statement(
-        `INSERT INTO profiles (id, owner_user_id, organization_id, primary_platform_identity_id, profile_type, username, display_name, bio, avatar_url, visibility, verification_status, seo_title, seo_description, published_at, created_at, updated_at)
-         VALUES (?, NULL, ?, ?, 'project', ?, ?, '', NULL, 'private', ?, NULL, NULL, NULL, ?, ?)`,
-        [profileId, organizationId, identity?.id || null, username, orgName, verificationStatus, timestamp, timestamp],
-      ),
-    ]);
+    projectInternalSlug = `${username}-${organizationId.slice(-6)}`;
   }
-
-  await db.run(
-    `INSERT INTO profile_username_history (id, profile_id, username, claimed_at, released_at, redirect_until, release_review_state)
-     VALUES (?, ?, ?, ?, NULL, NULL, 'held')`,
-    [id('puh'), profileId, username, timestamp],
-  );
 
   const inviteOwnerType = body.accountType === 'creator' ? 'profile' : 'organization';
   const inviteOwnerId = body.accountType === 'creator' ? profileId : organizationId!;
   const initialInviteCredits = body.accountType === 'creator' ? 10 : 50;
-  await db.batch([
+  const writes: D1PreparedStatement[] = [];
+
+  if (body.accountType === 'creator') {
+    writes.push(db.statement(
+      `INSERT INTO profiles (id, owner_user_id, organization_id, primary_platform_identity_id, profile_type, username, display_name, bio, avatar_url, visibility, verification_status, seo_title, seo_description, published_at, created_at, updated_at)
+       VALUES (?, ?, NULL, ?, 'creator', ?, ?, '', NULL, 'private', ?, NULL, NULL, NULL, ?, ?)`,
+      [profileId, auth.user.id, identity?.id || null, username, creatorDisplayName!, verificationStatus, timestamp, timestamp],
+    ));
+  } else {
+    writes.push(
+      db.statement(
+        `INSERT INTO organizations (id, name, slug_internal, website, status, verification_status, created_by_user_id, archived_at, archived_by_user_id, merged_into_organization_id, created_at, updated_at)
+         VALUES (?, ?, ?, NULL, 'active', ?, ?, NULL, NULL, NULL, ?, ?)`,
+        [organizationId!, projectName!, projectInternalSlug!, verificationStatus, auth.user.id, timestamp, timestamp],
+      ),
+      db.statement(
+        `INSERT INTO organization_memberships (id, user_id, organization_id, role, billing_manager, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'owner', 1, 'active', ?, ?)`,
+        [id('mem'), auth.user.id, organizationId!, timestamp, timestamp],
+      ),
+      db.statement(
+        `INSERT INTO profiles (id, owner_user_id, organization_id, primary_platform_identity_id, profile_type, username, display_name, bio, avatar_url, visibility, verification_status, seo_title, seo_description, published_at, created_at, updated_at)
+         VALUES (?, NULL, ?, ?, 'project', ?, ?, '', NULL, 'private', ?, NULL, NULL, NULL, ?, ?)`,
+        [profileId, organizationId!, identity!.id, username, projectName!, verificationStatus, timestamp, timestamp],
+      ),
+    );
+  }
+
+  writes.push(
+    db.statement(
+      `INSERT INTO profile_username_history (id, profile_id, username, claimed_at, released_at, redirect_until, release_review_state)
+       VALUES (?, ?, ?, ?, NULL, NULL, 'held')`,
+      [id('puh'), profileId, username, timestamp],
+    ),
     db.statement(
       `INSERT INTO invite_balances (id, owner_type, owner_id, available_credits, lifetime_granted, lifetime_used, quality_score, privileges_status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 0, 0, 'active', ?, ?)`,
@@ -223,35 +238,37 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
        VALUES (?, ?, ?, 'grant', ?, 'initial_onboarding_allocation', NULL, ?)`,
       [id('iled'), inviteOwnerType, inviteOwnerId, initialInviteCredits, timestamp],
     ),
-  ]);
+  );
 
   if (identity) {
     if (body.accountType === 'creator') {
-      const ownerLink = await db.first<{ id: string }>(
-        `SELECT id FROM platform_identity_links WHERE platform_identity_id = ? AND user_id = ? AND link_type = 'owns' AND ended_at IS NULL ORDER BY verified_at DESC LIMIT 1`,
-        [identity.id, auth.user.id],
-      );
-      if (ownerLink) await db.run(`UPDATE platform_identity_links SET profile_id = ? WHERE id = ?`, [profileId, ownerLink.id]);
+      if (creatorOwnerLink) {
+        writes.push(db.statement(`UPDATE platform_identity_links SET profile_id = ? WHERE id = ?`, [profileId, creatorOwnerLink.id]));
+      }
     } else {
-      await db.run(
+      writes.push(db.statement(
         `INSERT INTO platform_identity_links (id, platform_identity_id, user_id, organization_id, profile_id, link_type, verified_at, ended_at)
          VALUES (?, ?, ?, ?, ?, 'represents', ?, NULL)`,
-        [id('pil'), identity.id, auth.user.id, organizationId, profileId, timestamp],
-      );
+        [id('pil'), identity.id, auth.user.id, organizationId!, profileId, timestamp],
+      ));
     }
   }
 
-  await db.run(`UPDATE access_post_submissions SET status = 'consumed', consumed_at = ? WHERE user_id = ? AND status = 'authenticated'`, [timestamp, auth.user.id]);
-  await db.run(
-    `UPDATE invite_redemptions SET chosen_account_type = ?, organization_id = COALESCE(organization_id, ?)
-     WHERE user_id = ? AND chosen_account_type IS NULL`,
-    [body.accountType, organizationId, auth.user.id],
+  writes.push(
+    db.statement(`UPDATE access_post_submissions SET status = 'consumed', consumed_at = ? WHERE user_id = ? AND status = 'authenticated'`, [timestamp, auth.user.id]),
+    db.statement(
+      `UPDATE invite_redemptions SET chosen_account_type = ?, organization_id = COALESCE(organization_id, ?)
+       WHERE user_id = ? AND chosen_account_type IS NULL`,
+      [body.accountType, organizationId, auth.user.id],
+    ),
+    db.statement(
+      `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+       VALUES (?, ?, 'user', 'onboarding.completed', 'profile', ?, ?, ?, ?)`,
+      [id('aud'), auth.user.id, profileId, organizationId, JSON.stringify({ accountType: body.accountType, username, verificationStatus }), timestamp],
+    ),
   );
-  await db.run(
-    `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
-     VALUES (?, ?, 'user', 'onboarding.completed', 'profile', ?, ?, ?, ?)`,
-    [id('aud'), auth.user.id, profileId, organizationId, JSON.stringify({ accountType: body.accountType, username, verificationStatus }), timestamp],
-  );
+
+  await db.batch(writes);
 
   return json({
     profileId,
