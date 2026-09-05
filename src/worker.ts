@@ -2,10 +2,11 @@ import baseWorker from './index';
 import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
-import { errorResponse } from './http';
+import { errorResponse, methodNotAllowed } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
+import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -34,6 +35,20 @@ export default {
     if (url.pathname === '/api/auth/telegram-identity') {
       try { return await currentPersonalTelegramIdentity(request, env); }
       catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/campaign-costs') {
+      try {
+        if (request.method === 'GET') return await listCampaignCosts(request, env);
+        if (request.method === 'POST') return await recordCampaignCost(request, env);
+        return methodNotAllowed(['GET', 'POST']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const voidCost = url.pathname.match(/^\/api\/campaign-costs\/([^/]+)\/void$/);
+    if (voidCost) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await voidCampaignCost(request, env, decodeURIComponent(voidCost[1]));
+      } catch (error) { return errorResponse(error); }
     }
 
     if (request.method === 'GET' && env.DB) {
