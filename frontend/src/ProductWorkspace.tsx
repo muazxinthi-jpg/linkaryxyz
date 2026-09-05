@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSignOut } from '@coinbase/cdp-hooks';
+import FounderGrowthIntelligencePanel from './FounderGrowthIntelligencePanel';
 import './workspace-mobile.css';
 
 export type AccountType = 'creator' | 'project';
@@ -71,6 +72,7 @@ export function ProductWorkspace({
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const showGrowthIntelligence = profile.profile_type === 'project' && currentPath === '/campaigns' && Boolean(profile.organization_id);
 
   return (
     <main className={`ops-shell workspace-${profile.profile_type}`} data-workspace-type={profile.profile_type}>
@@ -135,7 +137,10 @@ export function ProductWorkspace({
             </div>
           </details>
         </header>
-        <div className="ops-page">{children}</div>
+        <div className="ops-page">
+          {children}
+          {showGrowthIntelligence && profile.organization_id && <FounderGrowthIntelligencePanel organizationId={profile.organization_id} />}
+        </div>
       </section>
     </main>
   );
