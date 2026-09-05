@@ -75,6 +75,7 @@ type MetricRow = {
 };
 
 type OutcomeEvidenceRow = { source: string; records: number };
+type TrendRow = { day: string; clicks?: number; outcomes?: number; value?: number; spend?: number };
 
 type SocialStats = { views: number; engagements: number; reportedJoins: number; deliverables: number };
 type EvidenceMix = { manual: number; tracked: number; verified: number; estimated: number };
@@ -212,17 +213,30 @@ function channelForActivity(activity: ActivityRow, deliverablePlatforms: Map<str
   return activity.activity_type || 'other';
 }
 
+function trendDays(days: number): string[] {
+  const result: string[] = [];
+  const today = new Date();
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const value = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - offset));
+    result.push(value.toISOString().slice(0, 10));
+  }
+  return result;
+}
+
 export async function founderGrowthIntelligence(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   const organizationId = new URL(request.url).searchParams.get('organizationId')?.trim();
   if (!organizationId) throw new HttpError(400, 'organizationId is required', 'organization_required');
+  const requestedDays = Number(new URL(request.url).searchParams.get('range') || 30);
+  const rangeDays = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
+  const since = `-${rangeDays - 1} days`;
 
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
   const membership = await organizationMembership(db, auth.user.id, organizationId);
   if (!membership) throw new HttpError(403, 'Growth Intelligence access denied', 'forbidden');
 
-  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution] = await Promise.all([
+  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution, clickTrend, outcomeTrend, spendTrend] = await Promise.all([
     db.all<CampaignRow>(
       `SELECT c.id, c.name, COALESCE(c.source_type, 'external') AS source_type,
               COALESCE(c.execution_mode, 'tracked_elsewhere') AS execution_mode, c.status, c.budget_usd,
@@ -324,6 +338,9 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
        LIMIT 5000`,
       [organizationId],
     ),
+    db.all<TrendRow>(`SELECT substr(click.occurred_at, 1, 10) AS day, COUNT(*) AS clicks FROM tracked_link_clicks click JOIN tracked_links t ON t.id = click.tracked_link_id WHERE t.organization_id = ? AND click.occurred_at >= date('now', ?) GROUP BY substr(click.occurred_at, 1, 10)`, [organizationId, since]),
+    db.all<TrendRow>(`SELECT substr(occurred_at, 1, 10) AS day, COUNT(*) AS outcomes, COALESCE(SUM(value_usd), 0) AS value FROM conversion_events WHERE organization_id = ? AND occurred_at >= date('now', ?) GROUP BY substr(occurred_at, 1, 10)`, [organizationId, since]),
+    db.all<TrendRow>(`SELECT substr(incurred_at, 1, 10) AS day, COALESCE(SUM(usd_equivalent), 0) AS spend FROM campaign_cost_entries WHERE organization_id = ? AND status = 'active' AND incurred_at >= date('now', ?) GROUP BY substr(incurred_at, 1, 10)`, [organizationId, since]),
   ]);
 
   const preferred = new Map<string, MetricRow>();
@@ -487,6 +504,10 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
     .map(partnerPerformance)
     .sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks)
     .slice(0, 100);
+  const trend = new Map(trendDays(rangeDays).map((day) => [day, { day, clicks: 0, outcomes: 0, value: 0, spend: 0 }]));
+  for (const row of clickTrend) { const point = trend.get(row.day); if (point) point.clicks += number(row.clicks); }
+  for (const row of outcomeTrend) { const point = trend.get(row.day); if (point) { point.outcomes += number(row.outcomes); point.value += number(row.value); } }
+  for (const row of spendTrend) { const point = trend.get(row.day); if (point) point.spend += number(row.spend); }
 
   return json({
     summary: {
@@ -498,6 +519,8 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
     campaigns: campaignResults,
     activities: activityResults,
     partners: partnerResults,
+    trend: Array.from(trend.values()),
+    trend_range_days: rangeDays,
     partner_attribution: partnerAttributionCoverage,
     channels: Array.from(channelGroups.values()).map(channelResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks),
     methodology: {
