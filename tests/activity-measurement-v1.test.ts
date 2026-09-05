@@ -6,6 +6,9 @@ const migration = readFileSync(new URL('../migrations/0024_activity_measurement_
 const schema = readFileSync(new URL('../src/db/attributionSchema.ts', import.meta.url), 'utf8');
 const route = readFileSync(new URL('../src/routes/activityMeasurement.ts', import.meta.url), 'utf8');
 const tracking = readFileSync(new URL('../src/routes/tracking.ts', import.meta.url), 'utf8');
+const ui = readFileSync(new URL('../frontend/src/ActivityMeasurementPanel.tsx', import.meta.url), 'utf8');
+const lifecycle = readFileSync(new URL('../frontend/src/ActivityLifecycleActions.tsx', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../frontend/src/activity-measurement.css', import.meta.url), 'utf8');
 
 test('measurement V1 stores exact published deliverables on the existing activity chain', () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS campaign_activity_deliverables/);
@@ -42,6 +45,8 @@ test('manual measurement writes are permissioned to Project operators or the exa
 test('measurement reads stay activity/campaign scoped and indexed', () => {
   assert.match(route, /WHERE \$\{whereColumn\} = \?/);
   assert.match(route, /campaignId or activityId is required/);
+  assert.match(route, /WHERE t\.activity_id = \?/);
+  assert.match(route, /WHERE activity_id = \?/);
   assert.match(migration, /idx_activity_deliverables_activity/);
   assert.match(migration, /idx_activity_deliverables_campaign/);
   assert.match(migration, /idx_activity_metrics_activity/);
@@ -68,4 +73,46 @@ test('existing tracked-links API exposes measurement operations without a parall
   assert.match(tracking, /searchParams\.get\('measurement'\) === '1'/);
   assert.match(tracking, /createActivityDeliverable/);
   assert.match(tracking, /listActivityMeasurements/);
+});
+
+test('activity UI keeps reported social metrics separate from Linkary first-party performance', () => {
+  assert.match(ui, /Performance evidence/);
+  assert.match(ui, /Compare reported social performance with Linkary first-party traffic and outcomes/);
+  assert.match(ui, /REPORTED VIEWS/);
+  assert.match(ui, /LINKARY CLICKS/);
+  assert.match(ui, /OUTCOMES/);
+  assert.match(ui, /VALUE/);
+  assert.match(ui, /CTR/);
+  assert.match(ui, /Engagement rate/);
+  assert.match(ui, /manual evidence/);
+  assert.match(ui, /Linkary-tracked clicks and outcomes remain separate first-party signals/);
+});
+
+test('activity UI supports platform-aware V1 performance entry', () => {
+  assert.match(ui, /Views \/ impressions/);
+  assert.match(ui, /Bookmarks/);
+  assert.match(ui, /Reported joins/);
+  assert.match(ui, /Forwards/);
+  assert.match(ui, /Pageviews/);
+  assert.match(ui, /Publisher-reported clicks/);
+  assert.match(ui, /operation=deliverable/);
+  assert.match(ui, /operation=metrics/);
+  assert.match(ui, /operation=review-deliverable/);
+  assert.match(ui, /Accept deliverable/);
+  assert.match(ui, /Reject/);
+});
+
+test('every campaign activity exposes the measurement panel without replacing lifecycle controls', () => {
+  assert.match(lifecycle, /import ActivityMeasurementPanel from '\.\/ActivityMeasurementPanel'/);
+  assert.match(lifecycle, /<ActivityMeasurementPanel activityId=\{activityId\} writable=\{writable\} \/>/);
+  assert.match(lifecycle, /Activity lifecycle actions/);
+});
+
+test('measurement modal satisfies the Beta mobile acceptance baseline', () => {
+  assert.match(css, /@media\s*\(max-width:\s*430px\)/);
+  assert.match(css, /@media\s*\(max-width:\s*320px\)/);
+  assert.match(css, /min-height:\s*44px/);
+  assert.match(css, /max-height:\s*calc\(100dvh - 16px\)/);
+  assert.match(css, /overflow-y:\s*auto/);
+  assert.match(css, /overflow-wrap:\s*anywhere/);
 });
