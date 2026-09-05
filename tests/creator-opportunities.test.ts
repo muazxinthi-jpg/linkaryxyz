@@ -85,6 +85,28 @@ test('Creator opportunity UI applies through personal Creator identity and shows
   assert.equal(ui.includes('My applications'), true);
 });
 
+test('My Work exposes only assigned activity evidence and the exact Linkary tracking link', () => {
+  const ui = readFileSync(new URL('../frontend/src/CreatorOpportunitiesExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(ui.includes('My work'), true);
+  assert.equal(ui.includes('/api/tracked-links?measurement=1&mine=1'), true);
+  assert.equal(ui.includes('Only activities assigned to your Creator identity or one of your exact Community Manager portfolios appear here.'), true);
+  assert.equal(ui.includes('Use this exact link in the published content'), true);
+  assert.equal(ui.includes('Linkary clicks'), true);
+  assert.equal(ui.includes('Attributed value'), true);
+  assert.equal(ui.includes('<ActivityMeasurementPanel activityId={item.activityId} canSubmit={true} canReview={false} />'), true);
+});
+
+test('My Work stays readable and actionable on tablet and phone widths', () => {
+  const css = readFileSync(new URL('../frontend/src/creator-opportunities.css', import.meta.url), 'utf8');
+  assert.equal(css.includes('.creator-work-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))'), true);
+  assert.equal(css.includes('@media(max-width:760px)'), true);
+  assert.equal(css.includes('.creator-work-grid{grid-template-columns:1fr;padding:10px}'), true);
+  assert.equal(css.includes('@media(max-width:430px)'), true);
+  assert.equal(css.includes('.creator-work-link-row input,.creator-work-link-row .ops-button{width:100%;min-height:44px}'), true);
+  assert.equal(css.includes('@media(max-width:340px)'), true);
+  assert.equal(css.includes('.creator-work-metrics{grid-template-columns:1fr}'), true);
+});
+
 test('mobile workspace keeps six primary destinations for Creator and Project contexts', () => {
   const css = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
   assert.equal(css.includes('.ops-nav a[href="/tracking"]'), true);
