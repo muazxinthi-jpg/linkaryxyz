@@ -1,6 +1,6 @@
 # Linkary Current Beta Build State
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
 This is the concise current-state handoff for active Linkary Beta work. If an older handoff conflicts with this file, verify against `main`, current migrations and CI before rebuilding anything.
 
@@ -9,7 +9,8 @@ This is the concise current-state handoff for active Linkary Beta work. If an ol
 The core Beta product is built and production-live:
 
 - invite-only Creator and Project onboarding
-- Email, Google, X and Telegram authentication
+- Email, Google and X sign-in
+- authenticated Personal Profile Telegram linking, separate from Linkary sign-in
 - Creator Earn Access with manual Superadmin review
 - Creator and verified Project public profiles
 - Project roles, access requests, Team invitations and ownership transfer
@@ -22,7 +23,11 @@ The core Beta product is built and production-live:
 - exact Creator / exact Telegram Community assignment
 - Campaign Activity Lifecycle V1
 - Campaign Lifecycle V1
+- activity measurement evidence with explicit provenance
+- actual spend ledger separate from budget/planned cost
 - tracking links, clicks, outcomes, attribution and reports
+- immutable tracking-link partner snapshots for reassignment-safe historical attribution
+- Founder Growth Intelligence across campaigns, activities, partners and channels
 - Creator Campaign Proof
 - Project Growth Proof
 - Community Campaign Proof
@@ -51,24 +56,30 @@ with only the allowed V1 transitions enforced by the backend.
 - Activity completion records that work happened, but does not create performance proof.
 - Campaign completion/archival does not create proof or rewrite activity status.
 - Exact Creator / exact Telegram Community provenance remains authoritative.
+- New tracking links freeze the exact partner at link creation so later activity reassignment cannot rewrite historical attribution.
+- Legacy backfilled tracking-link partner snapshots must remain labeled as legacy/backfilled provenance, not proven link-creation history.
 - Community Manager personal Telegram verification is separate from Community asset verification.
 - Community verification is asset-level.
 - Manual outcome/value evidence remains Manual.
 - Strong public outcome/value sources remain `linkary_tracked`, `telegram_verified`, and `provider_verified`.
+- Missing metric denominators remain unavailable instead of being fabricated.
 - Cancelled activity does not qualify as Worked before.
 - No opaque reputation score or fabricated trend.
 
 ## Production D1 state
 
-The protected production D1 migration workflow was run successfully from `main` on 2026-09-04 using the controlled apply path.
+The protected production D1 migration workflow was run successfully from `main` on 2026-09-05 using the controlled apply path.
 
 Production schema is current through:
 
-- `0020_exact_activity_partner_assignment.sql`
-- `0021_collaboration_inquiries.sql`
-- `0022_collaboration_inquiry_activations.sql`
+- `0023_personal_profile_identity.sql`
+- `0024_activity_measurement_evidence.sql`
+- `0025_actual_spend_ledger.sql`
+- `0026_immutable_tracked_link_partner_snapshots.sql`
 
-The migration workflow remains protected:
+The migration post-check returned `No migrations to apply!`.
+
+The protected workflow remains:
 
 - manual `workflow_dispatch` only
 - always checks out `main`
@@ -79,6 +90,18 @@ The migration workflow remains protected:
 Normal app deployments report D1 migration drift but never apply schema changes.
 
 Never rewrite a deployed migration.
+
+## Authentication model
+
+Linkary account sign-in is:
+
+- Email verification
+- Google
+- X
+
+Telegram is a separate authenticated Personal Profile connection. It is linked only after the user has a Linkary session and must not create a Linkary user, session, wallet, Community verification, campaign proof or `auth_identities` record.
+
+Real acceptance must therefore test Email/Google/X sign-in and Telegram profile linking as separate flows.
 
 ## Campaign Lifecycle V1 is complete
 
@@ -95,6 +118,22 @@ Supported transitions:
 Lifecycle mutation is authenticated, CSRF protected and Project permissioned. Owner/Admin/Campaign Manager can write. Analyst/Viewer remain read-only.
 
 Campaign status changes do not mutate activity statuses or create/delete tracking, clicks, outcomes, exact partner assignments, attribution confidence, reports, inquiries, proof or Relationship Memory.
+
+## Growth Intelligence / attribution acceptance is the next critical gate
+
+The schema and runtime code are now production-ready for this acceptance sequence:
+
+1. Project -> Campaign -> Activity -> Creator A.
+2. Create a new tracking link while Creator A is the exact assigned partner.
+3. Open the tracking link through a real browser to record a real Linkary click.
+4. Record a known outcome and optional attributed USD value. Founder-entered outcomes must stay visibly Manual evidence.
+5. Record actual spend if testing ROI/ROAS, keeping it separate from budget and planned cost.
+6. Confirm Growth Intelligence calculations and partner snapshot coverage.
+7. Reassign the activity from Creator A to Creator B.
+8. Confirm the original tracking link, click, outcome and attributed value remain historically attributed to Creator A.
+9. Repeat with Community Manager -> exact Telegram Community.
+
+Use designated test data so acceptance does not masquerade as real customer proof.
 
 ## Production reliability is now stronger
 
@@ -142,17 +181,19 @@ Static responsive hardening and regression coverage now exist for the named Issu
 
 Before broad onboarding, run:
 
-1. Creator Invite -> auth -> Earn Access -> X evidence -> Superadmin approval -> onboarding -> profile.
-2. Project Invite -> auth -> official Project X -> claim -> workspace -> Team roles.
-3. Email / Google / X / Telegram authentication with real accounts.
-4. Owner / Admin / Campaign Manager / Analyst / Viewer permission matrix with separate users.
-5. Creator evidence loop:
+1. Growth attribution integrity: Creator A -> tracking link -> real click -> outcome/value -> Creator B reassignment, then repeat with exact Telegram Community.
+2. Creator Invite -> auth -> Earn Access -> X evidence -> Superadmin approval -> onboarding -> profile.
+3. Project Invite -> auth -> official Project X -> claim -> workspace -> Team roles.
+4. Email / Google / X sign-in with real accounts, plus separate Telegram Personal Profile linking.
+5. Owner / Admin / Campaign Manager / Analyst / Viewer permission matrix with separate users.
+6. Creator evidence loop:
    `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`.
-6. Community evidence loop using `Community Manager -> exact Telegram Community`.
-7. Invite click -> signup -> registration attribution.
-8. Opportunity -> application -> Project decision.
-9. Public Creator/Project profile acceptance on real mobile devices.
-10. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
+7. Community evidence loop using `Community Manager -> exact Telegram Community`.
+8. Invite click -> signup -> registration attribution.
+9. Opportunity -> application -> Project decision.
+10. Public Creator/Project profile acceptance on real mobile devices.
+11. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
+12. Add `main` branch protection/ruleset requiring the normal PR + green CI release path before controlled Beta.
 
 ## What to build next
 
@@ -160,11 +201,13 @@ Do **not** start another major feature.
 
 The next work is:
 
-1. finish real-account/end-to-end acceptance
-2. finish issue #42 authenticated visual/device acceptance
-3. fix every P0/P1 found
-4. keep documentation synchronized with `main`
-5. open a small controlled Beta cohort only after the acceptance gate is clean
+1. finish real attribution/end-to-end acceptance
+2. finish real-account auth/onboarding/role/invite acceptance
+3. finish issue #42 authenticated visual/device acceptance
+4. fix every P0/P1 found
+5. protect `main` against accidental direct pushes
+6. keep documentation synchronized with `main`
+7. open a small controlled Beta cohort only after the acceptance gate is clean
 
 ## Deferred until Beta stability
 
