@@ -5,6 +5,7 @@ import { ensureAttributionSchema } from '../db/attributionSchema';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { organizationMembership } from './organizations';
+import { getLinkaryUrls } from '../urls';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -55,6 +56,27 @@ type MetricRow = {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type AssignedActivityRow = {
+  activity_id: string;
+  activity_title: string;
+  activity_type: string;
+  activity_status: string;
+  campaign_id: string;
+  campaign_name: string;
+  campaign_status: string;
+  organization_id: string;
+  project_name: string;
+  assignment_kind: 'creator' | 'community';
+  partner_display_name: string | null;
+  partner_handle: string | null;
+  tracking_code: string | null;
+  tracking_clicks: number;
+  deliverables: number;
+  outcomes: number;
+  attributed_value_usd: number;
+  created_at: string;
 };
 
 async function accessForActivity(db: Db, userId: string, activityId: string): Promise<ActivityAccess> {
@@ -159,6 +181,90 @@ async function campaignReadAccess(db: Db, userId: string, campaignId: string): P
   return campaign.organization_id;
 }
 
+export async function listMyAssignedActivities(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
+
+  const rows = await db.all<AssignedActivityRow>(
+    `SELECT a.id AS activity_id,
+            a.title AS activity_title,
+            a.activity_type,
+            a.status AS activity_status,
+            c.id AS campaign_id,
+            c.name AS campaign_name,
+            c.status AS campaign_status,
+            o.id AS organization_id,
+            o.name AS project_name,
+            la.assignment_kind,
+            pne.display_name AS partner_display_name,
+            pne.primary_handle AS partner_handle,
+            (SELECT t.code
+               FROM tracked_links t
+              WHERE t.activity_id = a.id
+                AND t.status = 'active'
+              ORDER BY t.created_at DESC
+              LIMIT 1) AS tracking_code,
+            (SELECT COUNT(click.id)
+               FROM tracked_links t
+               LEFT JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
+              WHERE t.activity_id = a.id) AS tracking_clicks,
+            (SELECT COUNT(d.id)
+               FROM campaign_activity_deliverables d
+              WHERE d.activity_id = a.id) AS deliverables,
+            (SELECT COUNT(e.id)
+               FROM conversion_events e
+              WHERE e.activity_id = a.id) AS outcomes,
+            (SELECT COALESCE(SUM(e.value_usd), 0)
+               FROM conversion_events e
+              WHERE e.activity_id = a.id) AS attributed_value_usd,
+            a.created_at
+       FROM campaign_activity_linkary_assignments la
+       JOIN campaign_activities a ON a.id = la.activity_id
+       JOIN campaigns c ON c.id = a.campaign_id
+       JOIN organizations o ON o.id = c.organization_id
+       LEFT JOIN profiles cp ON cp.id = la.creator_profile_id
+       LEFT JOIN partner_managers pm ON pm.id = la.partner_manager_id
+       LEFT JOIN profiles mp ON mp.id = pm.profile_id
+       LEFT JOIN project_network_entities pne ON pne.id = la.entity_id
+      WHERE o.status = 'active'
+        AND o.verification_status = 'verified_x'
+        AND (
+          (la.assignment_kind = 'creator' AND cp.owner_user_id = ?)
+          OR
+          (la.assignment_kind = 'community' AND mp.owner_user_id = ?)
+        )
+      ORDER BY CASE a.status WHEN 'live' THEN 0 WHEN 'planned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+               a.updated_at DESC
+      LIMIT 100`,
+    [auth.user.id, auth.user.id],
+  );
+
+  const trackingBase = getLinkaryUrls(request, env).tracking;
+  return json({
+    assignments: rows.map((row) => ({
+      activityId: row.activity_id,
+      activityTitle: row.activity_title,
+      activityType: row.activity_type,
+      activityStatus: row.activity_status,
+      campaignId: row.campaign_id,
+      campaignName: row.campaign_name,
+      campaignStatus: row.campaign_status,
+      organizationId: row.organization_id,
+      projectName: row.project_name,
+      assignmentKind: row.assignment_kind,
+      partnerDisplayName: row.partner_display_name,
+      partnerHandle: row.partner_handle,
+      trackingUrl: row.tracking_code ? `${trackingBase}/r/${encodeURIComponent(row.tracking_code)}` : null,
+      trackingClicks: Number(row.tracking_clicks || 0),
+      deliverables: Number(row.deliverables || 0),
+      outcomes: Number(row.outcomes || 0),
+      attributedValueUsd: Number(row.attributed_value_usd || 0),
+      createdAt: row.created_at,
+    })),
+  });
+}
+
 export async function listActivityMeasurements(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   const url = new URL(request.url);
@@ -174,7 +280,7 @@ export async function listActivityMeasurements(request: Request, env: Env): Prom
   }
 
   const whereColumn = activityId ? 'activity_id' : 'campaign_id';
-  const scope = activityId || campaignId as string;
+  const scope = (activityId || campaignId) as string;
   const deliverables = await db.all<DeliverableRow>(
     `SELECT id, organization_id, campaign_id, activity_id, platform, content_url, published_at, evidence_state,
             submitted_by_user_id, created_at, updated_at
