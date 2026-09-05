@@ -4,6 +4,24 @@ import { getLinkaryUrls } from './urls';
 const APP_SHELL_ASSET = '/assets/linkary-app/index.html';
 
 const productionShellCss = `
+.preview-disclosure {
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border: 1px solid rgba(17, 21, 23, .12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  color: #555d60;
+  font: 600 11px/1.35 Inter, sans-serif;
+  letter-spacing: .02em;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.metric-float .preview-example-badge {
+  background: #f2f2ee;
+  color: #52585b;
+}
+
 @media (max-width: 900px) {
   .auth-page.active { display: block; min-height: 100svh; }
   .auth-brand { display: none; }
@@ -45,6 +63,7 @@ const productionShellCss = `
   .auth-options { gap: 12px; align-items: flex-start; }
   .auth-options label, .auth-options button { font-size: 12px; }
   .demo, .terms { font-size: 11px; line-height: 1.45; }
+  .preview-disclosure { margin-inline: auto; }
 }
 
 @media (max-width: 380px) {
@@ -70,12 +89,25 @@ function socialPreviewMeta(publicSite: string): string {
   return `<link rel="canonical" href="${root}/"><meta property="og:type" content="website"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="Linkary | Growth Intelligence Network"><meta property="og:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta property="og:url" content="${root}/"><meta property="og:image" content="${image}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linkary | Growth Intelligence Network"><meta name="twitter:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta name="twitter:image" content="${image}">`;
 }
 
+function trustSafePublicPreview(html: string): string {
+  const disclosure = '<p class="preview-disclosure" role="note">Illustrative product preview · Example data, not live customer results.</p>';
+  return html
+    .replace('<div class="hero-ui">', `<div class="hero-ui">${disclosure}`)
+    .replace(/<i class="status live">● Live data<\/i>/g, '<i class="status preview-example-badge">Example data</i>')
+    .replace(/<em>Updated 2m ago<\/em>/g, '<em>Illustrative product preview</em>')
+    .replace('<span class="status complete">✓ Verified creator</span>', '<span class="status complete">Example creator</span>')
+    .replace('<section class="attribution matrix-light">', '<section class="attribution matrix-light" id="attribution">')
+    .replace('<a>Campaigns</a><a>Creators</a><a>Analytics</a>', '<a href="#workflow">Campaigns</a><a href="#roles">Creators</a><a href="#attribution">Attribution</a>')
+    .replace('<a>About</a><a>Contact</a><a>Privacy</a>', '<a href="#roles">About</a><a href="#faq">FAQ</a>')
+    .replace('<a>Documentation</a><a>Help center</a><a href="./uilib.md">UI library</a>', '<a href="#workflow">How it works</a><a href="#faq">Help & questions</a>');
+}
+
 function productionHtml(html: string, appBase: string, publicSite: string): string {
   const withoutPrototypeNavigation = html.replace(/<nav class="preview-nav"[\s\S]*?<\/nav>/i, '');
   const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
   const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function clean(){history.replaceState(null,'',window.location.pathname+window.location.search);}function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/login');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'||window.location.hash==='#home'){clean();}window.addEventListener('DOMContentLoaded',function(){if(window.location.hash==='#home')clean();});document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route]'):null;if(!node)return;var route=node.getAttribute('data-route');if(route==='auth'){event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/signup':'/login');return;}if(route==='home'){event.preventDefault();event.stopImmediatePropagation();clean();window.scrollTo({top:0,behavior:'smooth'});}},true);})();</script>`;
   const preview = socialPreviewMeta(publicSite);
-  return withoutPrototypeNavigation
+  return trustSafePublicPreview(withoutPrototypeNavigation)
     .replace('</head>', `${preview}<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}</head>`);
 }
 
