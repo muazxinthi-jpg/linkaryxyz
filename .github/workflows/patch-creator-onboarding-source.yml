@@ -1,0 +1,59 @@
+name: Patch Creator onboarding source
+
+on:
+  push:
+    branches:
+      - fix/creator-onboarding-stable-username
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/creator-onboarding-stable-username
+          fetch-depth: 0
+      - name: Apply exact Creator username source patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          backend = Path('src/routes/onboarding.ts')
+          text = backend.read_text()
+          old = """  const username = body.accountType === 'creator' && !identity && !body.username?.trim()\n    ? `member_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`\n    : normalizeProfileUsername(body.username || '');"""
+          new = "  const username = normalizeProfileUsername(body.username || '');"
+          assert text.count(old) == 1, 'backend fallback pattern changed'
+          backend.write_text(text.replace(old, new))
+
+          frontend = Path('frontend/src/AppV2.tsx')
+          text = frontend.read_text()
+
+          old_effect = "  useEffect(() => { if (accountType === 'project' && status.xIdentity?.current_handle) setUsername(status.xIdentity.current_handle.toLowerCase()); }, [accountType, status.xIdentity?.current_handle]);"
+          new_effect = """  useEffect(() => {\n    if (accountType === 'project' && status.xIdentity?.current_handle) setUsername(status.xIdentity.current_handle.toLowerCase());\n    else if (accountType === 'creator') setUsername(status.suggestedUsername || '');\n  }, [accountType, status.xIdentity?.current_handle, status.suggestedUsername]);"""
+          assert text.count(old_effect) == 1, 'onboarding username effect pattern changed'
+          text = text.replace(old_effect, new_effect)
+
+          replacements = {
+            "readOnly={accountType === 'project' || (accountType === 'creator' && !status.xIdentity?.current_handle)}": "readOnly={accountType === 'project'}",
+            "placeholder={accountType === 'creator' && !status.xIdentity?.current_handle ? 'Connect X to claim a username' : 'username'}": 'placeholder="username"',
+            "required={Boolean(status.xIdentity?.current_handle) || accountType === 'project'}": 'required',
+            "status.xIdentity?.current_handle ? 'Your X identity is connected. Choose your public username.' : 'Connect X to claim a public username. Until then, Linkary uses your sign-in identity privately.'": "status.xIdentity?.current_handle ? 'Prefilled from your connected X identity. You can choose your Linkary public username.' : 'Choose your Linkary public username. This does not connect or verify an X identity.'",
+          }
+          for old, new in replacements.items():
+            assert text.count(old) == 1, f'frontend pattern changed: {old}'
+            text = text.replace(old, new)
+          frontend.write_text(text)
+
+          Path('.github/workflows/patch-creator-onboarding-source.yml').unlink()
+          PY
+      - name: Commit source patch
+        run: |
+          git config user.name "linkary-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Require stable Creator username during onboarding"
+          git push origin HEAD:fix/creator-onboarding-stable-username
