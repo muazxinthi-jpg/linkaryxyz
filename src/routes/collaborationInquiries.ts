@@ -191,6 +191,25 @@ async function markShortlistActive(db: Db, request: Request, env: Env, organizat
   );
 }
 
+async function currentPendingInquiry(
+  db: Db,
+  organizationId: string,
+  targetProfileId: string,
+  targetKind: 'creator' | 'community_manager',
+  partnerManagerId: string | null,
+): Promise<{ id: string; created_at: string; updated_at: string } | null> {
+  return db.first<{ id: string; created_at: string; updated_at: string }>(
+    `SELECT id, created_at, updated_at FROM collaboration_inquiries
+      WHERE organization_id = ?
+        AND target_profile_id = ?
+        AND target_kind = ?
+        AND status = 'pending'
+        AND COALESCE(partner_manager_id, '') = COALESCE(?, '')
+      ORDER BY created_at ASC LIMIT 1`,
+    [organizationId, targetProfileId, targetKind, partnerManagerId],
+  );
+}
+
 export async function handleCollaborationInquiryMutation(
   request: Request,
   env: Env,
@@ -264,28 +283,78 @@ export async function handleCollaborationInquiryMutation(
       campaignId = campaign.id;
     }
 
-    const existing = await db.first<{ id: string }>(
-      `SELECT id FROM collaboration_inquiries
-        WHERE organization_id = ?
-          AND target_profile_id = ?
-          AND target_kind = ?
-          AND status = 'pending'
-          AND COALESCE(partner_manager_id, '') = COALESCE(?, '')
-        LIMIT 1`,
-      [body.organizationId, body.targetProfileId, body.targetKind, partnerManagerId],
-    );
+    const existing = await currentPendingInquiry(db, body.organizationId, body.targetProfileId, body.targetKind, partnerManagerId);
     if (existing) throw new HttpError(409, 'A collaboration inquiry is already waiting for this partner', 'inquiry_already_pending');
 
     const id = inquiryId();
     const timestamp = now();
+    const targetGuard = body.targetKind === 'creator'
+      ? `EXISTS (
+           SELECT 1 FROM profiles target
+            WHERE target.id = ? AND target.profile_type = 'creator' AND target.visibility = 'published'
+              AND target.owner_user_id IS NOT NULL AND target.owner_user_id != ?
+         )`
+      : `EXISTS (
+           SELECT 1 FROM partner_managers manager
+           JOIN profiles target ON target.id = manager.profile_id
+            WHERE manager.id = ? AND manager.profile_id = ?
+              AND manager.manager_type = 'community_manager' AND manager.visibility = 'public'
+              AND target.owner_user_id IS NOT NULL AND target.owner_user_id != ?
+         )
+         AND (? IS NULL OR EXISTS (
+           SELECT 1 FROM partner_manager_assets asset
+            WHERE asset.id = ? AND asset.manager_id = ? AND asset.asset_type = 'telegram_community'
+         ))`;
+    const targetParams = body.targetKind === 'creator'
+      ? [body.targetProfileId, userId]
+      : [partnerManagerId, body.targetProfileId, userId, partnerAssetId, partnerAssetId, partnerManagerId];
+
     await db.run(
       `INSERT INTO collaboration_inquiries
         (id,organization_id,created_by_user_id,target_kind,target_profile_id,partner_manager_id,partner_asset_id,campaign_id,inquiry_type,budget_usd,message,deliverables,status,responded_at,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending',NULL,?,?)`,
-      [id, body.organizationId, userId, body.targetKind, body.targetProfileId, partnerManagerId, partnerAssetId, campaignId, body.inquiryType, budget, message, deliverables, timestamp, timestamp],
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM organizations project
+          JOIN organization_memberships actor ON actor.organization_id = project.id
+           WHERE project.id = ? AND project.status = 'active' AND project.verification_status = 'verified_x'
+             AND actor.user_id = ? AND actor.status = 'active'
+             AND actor.role IN ('owner','admin','marketing_manager')
+        )
+          AND ${targetGuard}
+          AND (? IS NULL OR EXISTS (
+            SELECT 1 FROM campaigns campaign WHERE campaign.id = ? AND campaign.organization_id = ?
+          ))
+          AND NOT EXISTS (
+            SELECT 1 FROM collaboration_inquiries existing_inquiry
+             WHERE existing_inquiry.organization_id = ?
+               AND existing_inquiry.target_profile_id = ?
+               AND existing_inquiry.target_kind = ?
+               AND existing_inquiry.status = 'pending'
+               AND COALESCE(existing_inquiry.partner_manager_id, '') = COALESCE(?, '')
+          )`,
+      [
+        id, body.organizationId, userId, body.targetKind, body.targetProfileId, partnerManagerId, partnerAssetId,
+        campaignId, body.inquiryType, budget, message, deliverables, timestamp, timestamp,
+        body.organizationId, userId,
+        ...targetParams,
+        campaignId, campaignId, body.organizationId,
+        body.organizationId, body.targetProfileId, body.targetKind, partnerManagerId,
+      ],
     );
-    await markShortlistContacted(db, request, env, body.organizationId, body.targetKind, targetUsername, partnerManagerId);
-    return json({ id, status: 'pending' }, { status: 201 });
+
+    const authoritative = await currentPendingInquiry(db, body.organizationId, body.targetProfileId, body.targetKind, partnerManagerId);
+    if (!authoritative) {
+      await requireOperationalProjectAccess(db, userId, body.organizationId, true);
+      throw new HttpError(409, 'The collaboration inquiry could not be created. Refresh and try again.', 'inquiry_state_conflict');
+    }
+    const createdByThisRequest = authoritative.id === id && authoritative.created_at === timestamp && authoritative.updated_at === timestamp;
+    if (createdByThisRequest) {
+      await markShortlistContacted(db, request, env, body.organizationId, body.targetKind, targetUsername, partnerManagerId);
+    }
+    return json(
+      { id: authoritative.id, status: 'pending', duplicate: !createdByThisRequest },
+      { status: createdByThisRequest ? 201 : 200 },
+    );
   }
 
   if (body.action === 'review_inquiry') {
@@ -308,8 +377,29 @@ export async function handleCollaborationInquiryMutation(
     );
     if (!inquiry || inquiry.owner_user_id !== userId) throw new HttpError(404, 'Collaboration inquiry not found', 'inquiry_not_found');
     if (inquiry.status !== 'pending') throw new HttpError(409, 'This inquiry has already been decided', 'inquiry_already_reviewed');
+
     const timestamp = now();
-    await db.run('UPDATE collaboration_inquiries SET status = ?, responded_at = ?, updated_at = ? WHERE id = ?', [body.decision, timestamp, timestamp, inquiry.id]);
+    await db.run(
+      `UPDATE collaboration_inquiries
+          SET status = ?, responded_at = ?, updated_at = ?
+        WHERE id = ? AND status = 'pending'
+          AND EXISTS (
+            SELECT 1 FROM profiles target
+             WHERE target.id = collaboration_inquiries.target_profile_id AND target.owner_user_id = ?
+          )`,
+      [body.decision, timestamp, timestamp, inquiry.id, userId],
+    );
+    const current = await db.first<{ status: string; responded_at: string | null; updated_at: string; owner_user_id: string | null }>(
+      `SELECT ci.status, ci.responded_at, ci.updated_at, p.owner_user_id
+         FROM collaboration_inquiries ci
+         JOIN profiles p ON p.id = ci.target_profile_id
+        WHERE ci.id = ?`,
+      [inquiry.id],
+    );
+    if (!current || current.owner_user_id !== userId) throw new HttpError(404, 'Collaboration inquiry not found', 'inquiry_not_found');
+    if (current.status !== body.decision || current.responded_at !== timestamp || current.updated_at !== timestamp) {
+      throw new HttpError(409, 'This inquiry was already decided by another request', 'inquiry_already_reviewed');
+    }
     if (body.decision === 'accepted') {
       await markShortlistInDiscussion(db, request, env, inquiry.organization_id, inquiry.target_kind, inquiry.target_username, inquiry.partner_manager_id);
     }
@@ -326,10 +416,11 @@ export async function handleCollaborationInquiryMutation(
       target_username: string;
       partner_manager_id: string | null;
       partner_asset_id: string | null;
+      campaign_id: string | null;
       status: string;
     }>(
       `SELECT ci.id, ci.organization_id, ci.target_kind, ci.target_profile_id, p.username AS target_username,
-              ci.partner_manager_id, ci.partner_asset_id, ci.status
+              ci.partner_manager_id, ci.partner_asset_id, ci.campaign_id, ci.status
          FROM collaboration_inquiries ci
          JOIN profiles p ON p.id = ci.target_profile_id
         WHERE ci.id = ?`,
@@ -365,7 +456,9 @@ export async function handleCollaborationInquiryMutation(
         WHERE a.id = ?`,
       [body.activityId],
     );
-    if (!activity || activity.organization_id !== inquiry.organization_id) throw new HttpError(404, 'Activity not found for this Project', 'activity_not_found');
+    if (!activity || activity.organization_id !== inquiry.organization_id || (inquiry.campaign_id && activity.campaign_id !== inquiry.campaign_id)) {
+      throw new HttpError(404, 'Activity not found for this Project or inquiry campaign', 'activity_not_found');
+    }
 
     const matchesAcceptedPartner = inquiry.target_kind === 'creator'
       ? activity.assignment_kind === 'creator'
@@ -383,21 +476,99 @@ export async function handleCollaborationInquiryMutation(
 
     const timestamp = now();
     await db.run(
-      `INSERT INTO collaboration_inquiry_activations
+      `INSERT OR IGNORE INTO collaboration_inquiry_activations
         (inquiry_id, activity_id, organization_id, activated_by_user_id, activated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [inquiry.id, activity.id, inquiry.organization_id, userId, timestamp],
+       SELECT ci.id, a.id, ci.organization_id, ?, ?
+         FROM collaboration_inquiries ci
+         JOIN campaign_activities a ON a.id = ?
+         JOIN campaigns c ON c.id = a.campaign_id
+         JOIN campaign_activity_linkary_assignments la ON la.activity_id = a.id
+        WHERE ci.id = ?
+          AND ci.status = 'accepted'
+          AND c.organization_id = ci.organization_id
+          AND (ci.campaign_id IS NULL OR ci.campaign_id = a.campaign_id)
+          AND EXISTS (
+            SELECT 1 FROM organizations project
+            JOIN organization_memberships actor ON actor.organization_id = project.id
+             WHERE project.id = ci.organization_id
+               AND project.status = 'active' AND project.verification_status = 'verified_x'
+               AND actor.user_id = ? AND actor.status = 'active'
+               AND actor.role IN ('owner','admin','marketing_manager')
+          )
+          AND (
+            (ci.target_kind = 'creator'
+              AND la.assignment_kind = 'creator'
+              AND la.creator_profile_id = ci.target_profile_id
+              AND la.partner_manager_id IS NULL
+              AND la.partner_asset_id IS NULL)
+            OR
+            (ci.target_kind = 'community_manager'
+              AND la.assignment_kind = 'community'
+              AND la.partner_manager_id = ci.partner_manager_id
+              AND la.partner_asset_id IS NOT NULL
+              AND (ci.partner_asset_id IS NULL OR la.partner_asset_id = ci.partner_asset_id))
+          )`,
+      [userId, timestamp, body.activityId, inquiry.id, userId],
     );
-    await markShortlistActive(db, request, env, inquiry.organization_id, inquiry.target_kind, inquiry.target_username, inquiry.partner_manager_id);
-    return json({
-      ok: true,
-      inquiryId: inquiry.id,
-      activityId: activity.id,
-      campaignId: activity.campaign_id,
-      campaignName: activity.campaign_name,
-      activatedAt: timestamp,
-      existing: false,
-    }, { status: 201 });
+
+    const activated = await db.first<{ inquiry_id: string; activity_id: string; activated_by_user_id: string; activated_at: string }>(
+      'SELECT inquiry_id, activity_id, activated_by_user_id, activated_at FROM collaboration_inquiry_activations WHERE inquiry_id = ?',
+      [inquiry.id],
+    );
+    if (activated) {
+      if (activated.activity_id !== body.activityId) {
+        throw new HttpError(409, 'This collaboration inquiry is already activated in another activity', 'inquiry_already_activated');
+      }
+      const createdByThisRequest = activated.activated_by_user_id === userId && activated.activated_at === timestamp;
+      if (createdByThisRequest) {
+        await markShortlistActive(db, request, env, inquiry.organization_id, inquiry.target_kind, inquiry.target_username, inquiry.partner_manager_id);
+      }
+      return json({
+        ok: true,
+        inquiryId: inquiry.id,
+        activityId: activated.activity_id,
+        campaignId: activity.campaign_id,
+        campaignName: activity.campaign_name,
+        activatedAt: activated.activated_at,
+        existing: !createdByThisRequest,
+      }, { status: createdByThisRequest ? 201 : 200 });
+    }
+
+    const activityClaim = await db.first<{ inquiry_id: string }>('SELECT inquiry_id FROM collaboration_inquiry_activations WHERE activity_id = ?', [body.activityId]);
+    if (activityClaim) throw new HttpError(409, 'This activity is already linked to another collaboration inquiry', 'activity_already_activated');
+
+    await requireOperationalProjectAccess(db, userId, inquiry.organization_id, true);
+    const currentInquiry = await db.first<{ status: string }>('SELECT status FROM collaboration_inquiries WHERE id = ?', [inquiry.id]);
+    if (currentInquiry?.status !== 'accepted') throw new HttpError(409, 'Only accepted collaboration inquiries can be activated', 'inquiry_not_accepted');
+    const currentActivity = await db.first<{
+      organization_id: string;
+      campaign_id: string;
+      assignment_kind: 'creator' | 'community' | null;
+      creator_profile_id: string | null;
+      partner_manager_id: string | null;
+      partner_asset_id: string | null;
+    }>(
+      `SELECT c.organization_id, a.campaign_id, la.assignment_kind, la.creator_profile_id, la.partner_manager_id, la.partner_asset_id
+         FROM campaign_activities a
+         JOIN campaigns c ON c.id = a.campaign_id
+         LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = a.id
+        WHERE a.id = ?`,
+      [body.activityId],
+    );
+    if (!currentActivity || currentActivity.organization_id !== inquiry.organization_id || (inquiry.campaign_id && currentActivity.campaign_id !== inquiry.campaign_id)) {
+      throw new HttpError(404, 'Activity not found for this Project or inquiry campaign', 'activity_not_found');
+    }
+    const stillMatches = inquiry.target_kind === 'creator'
+      ? currentActivity.assignment_kind === 'creator'
+        && currentActivity.creator_profile_id === inquiry.target_profile_id
+        && !currentActivity.partner_manager_id
+        && !currentActivity.partner_asset_id
+      : currentActivity.assignment_kind === 'community'
+        && currentActivity.partner_manager_id === inquiry.partner_manager_id
+        && Boolean(currentActivity.partner_asset_id)
+        && (!inquiry.partner_asset_id || currentActivity.partner_asset_id === inquiry.partner_asset_id);
+    if (!stillMatches) throw new HttpError(409, 'Assign the accepted inquiry partner to this exact activity before activation.', 'activation_partner_mismatch');
+    throw new HttpError(409, 'The inquiry activation changed before this request completed. Refresh and try again.', 'inquiry_activation_conflict');
   }
 
   if (body.action === 'withdraw_inquiry') {
@@ -406,7 +577,27 @@ export async function handleCollaborationInquiryMutation(
     if (!inquiry) throw new HttpError(404, 'Collaboration inquiry not found', 'inquiry_not_found');
     await requireOperationalProjectAccess(db, userId, inquiry.organization_id, true);
     if (inquiry.status !== 'pending') throw new HttpError(409, 'Only pending inquiries can be withdrawn', 'inquiry_not_pending');
-    await db.run("UPDATE collaboration_inquiries SET status = 'withdrawn', updated_at = ? WHERE id = ?", [now(), inquiry.id]);
+
+    const timestamp = now();
+    await db.run(
+      `UPDATE collaboration_inquiries
+          SET status = 'withdrawn', updated_at = ?
+        WHERE id = ? AND status = 'pending'
+          AND EXISTS (
+            SELECT 1 FROM organizations project
+            JOIN organization_memberships actor ON actor.organization_id = project.id
+             WHERE project.id = collaboration_inquiries.organization_id
+               AND project.status = 'active' AND project.verification_status = 'verified_x'
+               AND actor.user_id = ? AND actor.status = 'active'
+               AND actor.role IN ('owner','admin','marketing_manager')
+          )`,
+      [timestamp, inquiry.id, userId],
+    );
+    const current = await db.first<{ status: string; updated_at: string }>('SELECT status, updated_at FROM collaboration_inquiries WHERE id = ?', [inquiry.id]);
+    if (current?.status !== 'withdrawn' || current.updated_at !== timestamp) {
+      await requireOperationalProjectAccess(db, userId, inquiry.organization_id, true);
+      throw new HttpError(409, 'Only pending inquiries can be withdrawn', 'inquiry_not_pending');
+    }
     return json({ ok: true, id: inquiry.id, status: 'withdrawn' });
   }
 
