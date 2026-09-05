@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS campaign_activity_metrics (
   deliverable_id TEXT NOT NULL REFERENCES campaign_activity_deliverables(id) ON DELETE CASCADE,
   metric_key TEXT NOT NULL,
   metric_value REAL NOT NULL CHECK (metric_value >= 0),
-  provenance TEXT NOT NULL CHECK (provenance IN ('creator_manual', 'founder_manual', 'linkary_first_party', 'telegram_verified', 'provider_verified', 'estimated')),
+  provenance TEXT NOT NULL CHECK (provenance IN ('creator_manual', 'partner_manual', 'founder_manual', 'linkary_first_party', 'telegram_verified', 'provider_verified', 'estimated')),
   observed_at TEXT,
   created_by_user_id TEXT REFERENCES users(id),
   created_at TEXT NOT NULL,
