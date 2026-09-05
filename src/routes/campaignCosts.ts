@@ -37,12 +37,18 @@ async function campaignAccess(db: Db, userId: string, campaignId: string, write 
 export async function listCampaignCosts(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   const url = new URL(request.url);
-  const campaignId = url.searchParams.get('campaignId')?.trim();
-  if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
+  const activityId = url.searchParams.get('activityId')?.trim() || null;
+  let campaignId = url.searchParams.get('campaignId')?.trim() || null;
 
   const db = new Db(requireDb(env));
+  await ensureAttributionSchema(db);
+  if (!campaignId && activityId) {
+    const activity = await db.first<{ campaign_id: string }>('SELECT campaign_id FROM campaign_activities WHERE id = ?', [activityId]);
+    campaignId = activity?.campaign_id || null;
+  }
+  if (!campaignId) throw new HttpError(400, 'campaignId or activityId is required', 'campaign_required');
+
   const campaign = await campaignAccess(db, auth.user.id, campaignId);
-  const activityId = url.searchParams.get('activityId')?.trim();
   if (activityId) {
     const activity = await db.first<{ id: string }>('SELECT id FROM campaign_activities WHERE id = ? AND campaign_id = ?', [activityId, campaignId]);
     if (!activity) throw new HttpError(400, 'Choose an activity from this campaign', 'invalid_activity');
