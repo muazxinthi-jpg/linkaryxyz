@@ -102,6 +102,7 @@ export function ProductWorkspace({
           ))}
         </nav>
         <div className="ops-sidebar-footer">
+          <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active ops-plan-nav' : 'ops-plan-nav'}>Plan & billing</NavLink>
           {me.user?.superadmin && (
             <section className="ops-admin-nav" aria-label="Superadmin tools">
               <span>SUPERADMIN</span>
@@ -116,6 +117,7 @@ export function ProductWorkspace({
       <section className="ops-main">
         <header className="ops-topbar">
           <div><strong>{profile.display_name}</strong><span>/{profile.username}</span></div>
+          <NavLink className="ops-plan-link" to="/settings/plan">Plan & billing</NavLink>
           <a className="ops-public-profile-link" href={`https://linkary.xyz/${profile.username}`} target="_blank" rel="noreferrer">Public profile ↗</a>
           <details className="ops-mobile-account-menu">
             <summary aria-label="Open workspace menu">More</summary>
@@ -126,6 +128,7 @@ export function ProductWorkspace({
                   {label}
                 </NavLink>
               ))}
+              <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active' : ''}>Plan & billing</NavLink>
               {me.user?.superadmin && (
                 <>
                   <span className="ops-mobile-menu-label">SUPERADMIN</span>
