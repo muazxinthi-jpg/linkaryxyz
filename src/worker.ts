@@ -11,6 +11,11 @@ import { founderGrowthIntelligence } from './routes/growthIntelligence';
 import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 import { renderInviteLanding } from './routes/invites';
 import { redirectTrackedLink } from './routes/tracking';
+import {
+  applyToCampaignOpportunityIntegrity,
+  listCampaignOpportunitiesIntegrity,
+  reviewCampaignOpportunityApplicationIntegrity,
+} from './routes/opportunityIntegrity';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -57,6 +62,19 @@ export default {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await createNetworkInviteIntegrity(request, env);
       } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/campaign-opportunities' && request.method === 'GET') {
+      try { return await listCampaignOpportunitiesIntegrity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/campaign-opportunity-applications' && request.method === 'POST') {
+      try { return await applyToCampaignOpportunityIntegrity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    const opportunityApplication = url.pathname.match(/^\/api\/campaign-opportunity-applications\/([^/]+)$/);
+    if (opportunityApplication && request.method === 'PATCH') {
+      try { return await reviewCampaignOpportunityApplicationIntegrity(request, env, decodeURIComponent(opportunityApplication[1])); }
+      catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/growth-intelligence') {
       try {
