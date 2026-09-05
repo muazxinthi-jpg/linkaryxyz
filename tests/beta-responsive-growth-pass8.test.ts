@@ -39,6 +39,13 @@ test('Growth tabs and campaign actions keep practical phone targets and long con
   assert.equal(phone.includes('.growth-workspace.growth-campaign-actions>.campaign-lifecycle-control{grid-column:1/-1;width:100%;}'), true);
 });
 
+test('Campaign cards preserve readable copy in the sidebar-constrained tablet band', () => {
+  const compactDesktop = squash(mediaBlock('@media (min-width:901px) and (max-width:1180px)', '@media (max-width:700px)'));
+  assert.equal(compactDesktop.includes('.growth-workspace.growth-campaign-list>article{grid-template-columns:minmax(260px,1fr)minmax(180px,220px);'), true);
+  assert.equal(compactDesktop.includes('.growth-workspace.growth-campaign-main{min-width:260px;}'), true);
+  assert.equal(compactDesktop.includes('.growth-workspace.growth-campaign-actions{grid-column:1/-1;justify-content:flex-start;'), true);
+});
+
 test('Founder growth report becomes a labeled card layout instead of an 840px phone table', () => {
   const phone = squash(mediaBlock('@media (max-width:700px)', '@media (max-width:430px)'));
   assert.equal(phone.includes('.growth-workspace.growth-report-table{overflow:visible;}'), true);
