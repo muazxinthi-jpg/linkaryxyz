@@ -28,6 +28,15 @@ type TrackingContextRow = {
   partner_name: string | null;
 };
 
+type TrackedPartnerSnapshotInput = {
+  partner_entity_id: string | null;
+  creator_profile_id: string | null;
+  partner_manager_id: string | null;
+  partner_asset_id: string | null;
+  partner_manager_name: string | null;
+  partner_verification_status: string | null;
+};
+
 function utmContext(row: TrackingContextRow): TrackingUtmContext {
   return {
     campaignName: row.campaign_name || 'campaign',
@@ -65,7 +74,7 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
     campaign_id: string;
     organization_id: string;
     destination_url: string | null;
-  } & TrackingContextRow>(
+  } & TrackingContextRow & TrackedPartnerSnapshotInput>(
     `SELECT a.campaign_id,
             c.organization_id,
             a.destination_url,
@@ -73,12 +82,26 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
             a.title AS activity_title,
             a.activity_type,
             cla.assignment_kind,
-            pne.primary_handle AS partner_handle,
-            pne.display_name AS partner_name
+            cla.entity_id AS partner_entity_id,
+            cla.creator_profile_id,
+            cla.partner_manager_id,
+            cla.partner_asset_id,
+            COALESCE(cpi.current_handle, pa.handle, pne.primary_handle) AS partner_handle,
+            COALESCE(cp.display_name, pa.name, pne.display_name) AS partner_name,
+            pm.display_name AS partner_manager_name,
+            CASE
+              WHEN cla.assignment_kind = 'creator' THEN CASE WHEN cp.verification_status = 'verified_x' THEN 'verified' ELSE 'unverified' END
+              WHEN cla.assignment_kind = 'community' THEN COALESCE(pa.verification_status, 'unverified')
+              ELSE NULL
+            END AS partner_verification_status
        FROM campaign_activities a
        JOIN campaigns c ON c.id = a.campaign_id
        LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = a.id
        LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
+       LEFT JOIN profiles cp ON cp.id = cla.creator_profile_id
+       LEFT JOIN platform_identities cpi ON cpi.id = cp.primary_platform_identity_id
+       LEFT JOIN partner_managers pm ON pm.id = cla.partner_manager_id
+       LEFT JOIN partner_manager_assets pa ON pa.id = cla.partner_asset_id
       WHERE a.id = ?`,
     [body.activityId],
   );
@@ -88,10 +111,32 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
   const code = randomToken(8);
   const linkId = id('tl');
   const timestamp = now();
-  await db.run(
-    "INSERT INTO tracked_links (id, organization_id, campaign_id, activity_id, code, destination_url, status, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)",
-    [linkId, activity.organization_id, activity.campaign_id, body.activityId, code, activity.destination_url, auth.user.id, timestamp, timestamp],
-  );
+  await db.batch([
+    db.statement(
+      "INSERT INTO tracked_links (id, organization_id, campaign_id, activity_id, code, destination_url, status, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)",
+      [linkId, activity.organization_id, activity.campaign_id, body.activityId, code, activity.destination_url, auth.user.id, timestamp, timestamp],
+    ),
+    db.statement(
+      `INSERT INTO tracked_link_partner_snapshots
+        (tracked_link_id, activity_id, assignment_kind, partner_entity_id, creator_profile_id, partner_manager_id, partner_asset_id,
+         partner_display_name, partner_handle, partner_manager_name, partner_verification_status, snapshot_source, captured_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'link_creation', ?)`,
+      [
+        linkId,
+        body.activityId,
+        activity.assignment_kind,
+        activity.partner_entity_id,
+        activity.creator_profile_id,
+        activity.partner_manager_id,
+        activity.partner_asset_id,
+        activity.partner_name,
+        activity.partner_handle,
+        activity.partner_manager_name,
+        activity.partner_verification_status,
+        timestamp,
+      ],
+    ),
+  ]);
 
   const trackingBase = getLinkaryUrls(request, env).tracking;
   const trackedDestination = buildTrackedDestination(activity.destination_url, utmContext(activity));
@@ -102,6 +147,14 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
     destinationUrl: activity.destination_url,
     effectiveDestinationUrl: trackedDestination.effectiveDestinationUrl,
     utm: trackedDestination.utm,
+    partnerSnapshot: {
+      source: 'link_creation',
+      capturedAt: timestamp,
+      kind: activity.assignment_kind,
+      entityId: activity.partner_entity_id,
+      displayName: activity.partner_name,
+      handle: activity.partner_handle,
+    },
   }, { status: 201 });
 }
 
@@ -147,9 +200,11 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
        t.created_at,
        t.updated_at,
        camp.name AS campaign_name,
-       cla.assignment_kind,
-       pne.primary_handle AS partner_handle,
-       pne.display_name AS partner_name,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE cla.assignment_kind END AS assignment_kind,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle ELSE pne.primary_handle END AS partner_handle,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name ELSE pne.display_name END AS partner_name,
+       snap.snapshot_source AS partner_snapshot_source,
+       snap.captured_at AS partner_snapshot_captured_at,
        COUNT(click.id) AS clicks,
        COUNT(click.visitor_id_hash) AS identified_clicks,
        COUNT(DISTINCT click.visitor_id_hash) AS estimated_unique_clicks,
@@ -157,6 +212,7 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
      FROM tracked_links t
      LEFT JOIN campaigns camp ON camp.id = t.campaign_id
      LEFT JOIN campaign_activities a ON a.id = t.activity_id
+     LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = t.id
      LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = t.activity_id
      LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
      LEFT JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
@@ -220,12 +276,13 @@ export async function redirectTrackedLink(request: Request, env: Env, code: stri
             camp.name AS campaign_name,
             a.title AS activity_title,
             a.activity_type,
-            cla.assignment_kind,
-            pne.primary_handle AS partner_handle,
-            pne.display_name AS partner_name
+            CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE cla.assignment_kind END AS assignment_kind,
+            CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle ELSE pne.primary_handle END AS partner_handle,
+            CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name ELSE pne.display_name END AS partner_name
        FROM tracked_links t
        LEFT JOIN campaigns camp ON camp.id = t.campaign_id
        LEFT JOIN campaign_activities a ON a.id = t.activity_id
+       LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = t.id
        LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = t.activity_id
        LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
       WHERE t.code = ?`,
