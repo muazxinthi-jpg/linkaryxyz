@@ -30,8 +30,10 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function isAuthenticationBoundary(error: unknown): boolean {
-  return error instanceof RequestError && (error.status === 401 || error.status === 403);
+function requestGateState(error: unknown): GateState {
+  if (error instanceof RequestError && error.status === 401) return 'legacy';
+  if (error instanceof RequestError && error.status === 403) return 'forbidden';
+  return 'unavailable';
 }
 
 function UnavailableScreen({ onRetry }: { onRetry: () => void }) {
@@ -41,6 +43,18 @@ function UnavailableScreen({ onRetry }: { onRetry: () => void }) {
         <h1>Linkary is temporarily unavailable</h1>
         <p>We could not load this workspace. Your current page has been preserved.</p>
         <button type="button" className="btn primary" onClick={onRetry}>Retry</button>
+      </div>
+    </main>
+  );
+}
+
+function ForbiddenScreen() {
+  return (
+    <main className="loading-screen" role="status" aria-live="polite">
+      <div>
+        <h1>Access unavailable</h1>
+        <p>Your account does not have access to this Linkary workspace or action.</p>
+        <a className="btn primary" href="/">Return to Linkary</a>
       </div>
     </main>
   );
@@ -63,7 +77,7 @@ type Experience =
   | 'admin-readiness'
   | 'admin-community-verifications';
 
-type GateState = 'loading' | 'legacy' | 'unavailable' | 'ready';
+type GateState = 'loading' | 'legacy' | 'forbidden' | 'unavailable' | 'ready';
 
 function ProductGate({ experience }: { experience: Experience }) {
   const [state, setState] = useState<GateState>('loading');
@@ -93,7 +107,7 @@ function ProductGate({ experience }: { experience: Experience }) {
         setState('ready');
       } catch (error) {
         if (cancelled) return;
-        setState(isAuthenticationBoundary(error) ? 'legacy' : 'unavailable');
+        setState(requestGateState(error));
       }
     })();
     return () => {
@@ -102,6 +116,7 @@ function ProductGate({ experience }: { experience: Experience }) {
   }, [retryKey]);
 
   if (state === 'legacy') return <AppV2 />;
+  if (state === 'forbidden') return <ForbiddenScreen />;
   if (state === 'unavailable') return <UnavailableScreen onRetry={() => setRetryKey((value) => value + 1)} />;
   if (state === 'ready' && me && status) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
@@ -117,7 +132,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
     if (experience === 'admin-readiness' || experience === 'admin-community-verifications') {
-      if (!me.user?.superadmin) return <AppV2 />;
+      if (!me.user?.superadmin) return <ForbiddenScreen />;
       if (experience === 'admin-community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
       return <AdminReadinessExperience me={me} status={status} />;
     }
@@ -141,12 +156,13 @@ function TeamInviteGate() {
     void getJson<ProductMe>('/api/auth/me')
       .then((result) => { if (!cancelled) setState(result.authenticated ? 'ready' : 'legacy'); })
       .catch((error: unknown) => {
-        if (!cancelled) setState(isAuthenticationBoundary(error) ? 'legacy' : 'unavailable');
+        if (!cancelled) setState(requestGateState(error));
       });
     return () => { cancelled = true; };
   }, [retryKey]);
 
   if (state === 'legacy') return <AppV2 />;
+  if (state === 'forbidden') return <ForbiddenScreen />;
   if (state === 'unavailable') return <UnavailableScreen onRetry={() => setRetryKey((value) => value + 1)} />;
   if (state === 'ready') return <TeamInviteAcceptExperience />;
   return <main className="loading-screen"><div className="spinner" /><p>Opening team invitation</p></main>;
