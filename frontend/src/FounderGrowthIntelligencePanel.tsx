@@ -214,7 +214,7 @@ function EvidenceChart({ mix }: { mix: IntelligenceResponse['summary']['evidence
   return <article className="fgi-chart evidence-chart"><header><div><span>DATA CONFIDENCE</span><strong>Evidence composition</strong></div><small>Trust guardrail · not a growth KPI</small></header><div className="fgi-evidence-chart-body"><div className="fgi-donut" style={style} role="img" aria-label={`Evidence composition: ${entries.map(([label, amount]) => `${label} ${amount}`).join(', ')}`}><b>{number(entries.reduce((sum, entry) => sum + entry[1], 0))}</b><small>signals</small></div><div className="fgi-donut-key">{entries.map(([label, amount, color]) => <span key={label} tabIndex={0} aria-label={`${label}: ${number(amount)} signals, ${((amount / total) * 100).toFixed(1)} percent`}><i style={{ background: color }} />{label}<b>{number(amount)} · {((amount / total) * 100).toFixed(0)}%</b></span>)}</div></div></article>;
 }
 
-export default function FounderGrowthIntelligencePanel({ organizationId }: { organizationId: string }) {
+export default function FounderGrowthIntelligencePanel({ organizationId, variant = 'detail' }: { organizationId: string; variant?: 'overview' | 'detail' }) {
   const [data, setData] = useState<IntelligenceResponse | null>(null);
   const [tab, setTab] = useState<Tab>('campaigns');
   const [range, setRange] = useState<7 | 30 | 90>(30);
@@ -254,6 +254,21 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
   const midpoint = Math.floor(data.trend.length / 2);
   const earlier = data.trend.slice(0, midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
   const recent = data.trend.slice(midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
+
+  if (variant === 'overview') return <section className="fgi-shell fgi-overview" aria-label="Project growth overview">
+    <header className="fgi-header">
+      <div><span className="fgi-kicker">PROJECT HEALTH</span><h2>Growth snapshot</h2><p>Thirty-day movement from recorded Linkary evidence. Open Growth for campaign, partner, channel and methodology detail.</p></div>
+      <div className="fgi-actions"><div className="fgi-range" aria-label="Overview trend range">{([7, 30, 90] as const).map((days) => <button type="button" key={days} className={range === days ? 'active' : ''} onClick={() => setRange(days)}>{days}d</button>)}</div><a href="/campaigns">Open Growth →</a></div>
+    </header>
+    <div className="fgi-summary fgi-overview-summary">
+      <article><span>LINKARY CLICKS</span><strong>{compact(summary.tracked_clicks)}</strong><Delta value={change(recent.clicks, earlier.clicks)} /></article>
+      <article><span>OUTCOMES</span><strong>{compact(summary.outcomes)}</strong><Delta value={change(recent.outcomes, earlier.outcomes)} /></article>
+      <article><span>ATTRIBUTED VALUE</span><strong>{money(summary.attributed_value_usd)}</strong><Delta value={change(recent.value, earlier.value)} /></article>
+      <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>{summary.roas === null ? 'Record spend and value for return' : `${multiple(summary.roas)} return on recorded spend`}</small></article>
+    </div>
+    <div className="fgi-overview-grid"><TrendChart points={data.trend} campaigns={data.campaigns} /><aside className="fgi-overview-drivers"><span>TOP DRIVERS</span><div><small>CAMPAIGN</small><strong>{strongestCampaign?.name || 'Not enough ROI evidence'}</strong></div><div><small>CHANNEL</small><strong>{strongestChannel ? human(strongestChannel.label) : 'Not enough channel evidence'}</strong></div><div><small>PARTNER</small><strong>{strongestPartner?.label || 'Not enough partner evidence'}</strong></div></aside></div>
+    <div className="fgi-baseline-note"><div><span>BASELINE → CURRENT</span><strong>Project popularity baseline is not recorded yet</strong></div><p>Campaign lift requires dated observations for followers, community members, website users, waitlist or sign-ups. Growth currently reports measured movement without inventing overall Project lift.</p></div>
+  </section>;
 
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
     <header className="fgi-header">
