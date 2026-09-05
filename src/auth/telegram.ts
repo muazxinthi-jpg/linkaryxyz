@@ -23,7 +23,12 @@ function config(request: Request, env: Env) {
 
 export async function verifyTelegramIdentity(token: string, clientId: string, key: JWTVerifyGetKey = keys) {
   const { payload } = await jwtVerify(token, key, {
-    issuer, audience: clientId, algorithms: ['RS256'], requiredClaims: ['sub', 'iat', 'exp'], maxTokenAge: '10m', clockTolerance: 5,
+    issuer, audience: clientId,
+    // Telegram Login can be configured in BotFather to use any of the
+    // algorithms documented for its OIDC provider. Keep the verification
+    // allowlist explicit while accepting the configured provider algorithm.
+    algorithms: ['RS256', 'ES256', 'EdDSA', 'ES256K'],
+    requiredClaims: ['sub', 'iat', 'exp'], maxTokenAge: '10m', clockTolerance: 5,
   });
   // Telegram's OIDC subject is distinct from its stable numeric Bot API user ID.
   if (!Number.isSafeInteger(payload.id) || Number(payload.id) <= 0) throw new Error('Missing Telegram user ID');
