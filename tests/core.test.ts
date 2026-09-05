@@ -143,7 +143,8 @@ test('growth product keeps tracking primary and Linkary execution optional', () 
   assert.equal(growth.includes('Run anywhere. Track here.'), true);
   assert.equal(growth.includes('Running a campaign through Linkary is optional'), true);
   assert.equal(growth.includes('Founder growth report'), true);
-  assert.equal(growth.includes('Missing spend or outcome data is left out rather than estimated.'), true);
+  assert.equal(growth.includes('Missing financial or outcome data is left unavailable rather than estimated.'), true);
+  assert.equal(growth.includes('ROI and cost-efficiency use recorded actual spend, never campaign budget or planned cost.'), true);
 });
 
 test('partner directory models managers, portfolios, combined audience and evidence-based overlap', () => {
