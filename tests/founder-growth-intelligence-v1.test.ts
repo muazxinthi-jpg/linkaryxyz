@@ -25,6 +25,7 @@ test('Growth Intelligence uses bounded Project-scoped queries instead of databas
   assert.match(route, /LIMIT 250/);
   assert.match(route, /LIMIT 1000/);
   assert.match(route, /LIMIT 2500/);
+  assert.match(route, /LIMIT 5000/);
   assert.match(route, /LIMIT 10000/);
 });
 
@@ -41,7 +42,7 @@ test('manual social performance uses strongest available provenance and excludes
   assert.match(route, /PROVENANCE_PRIORITY\.indexOf\(metric\.provenance\) < PROVENANCE_PRIORITY\.indexOf\(current\.provenance\)/);
 });
 
-test('Founder Growth Intelligence derives ROI from actual spend and leaves missing denominators unavailable', () => {
+test('Founder Growth Intelligence derives Project and channel ROI from actual spend and leaves missing denominators unavailable', () => {
   assert.match(route, /SUM\(cost\.usd_equivalent\).*cost\.status = 'active'/s);
   assert.match(route, /cpm: spend > 0 && views > 0 \? \(spend \/ views\) \* 1000 : null/);
   assert.match(route, /cpc: spend > 0 && clicks > 0 \? spend \/ clicks : null/);
@@ -58,10 +59,32 @@ test('unique click intelligence stays privacy-conscious and explicitly estimated
   assert.doesNotMatch(route.toLowerCase(), /fingerprint/);
 });
 
-test('partner and channel comparisons do not silently allocate campaign overhead', () => {
+test('partner comparison uses tracking-link provenance instead of mutable activity assignment metrics', () => {
+  assert.match(route, /LEFT JOIN tracked_link_partner_snapshots snap ON snap\.tracked_link_id = t\.id/);
+  assert.match(route, /CASE WHEN snap\.tracked_link_id IS NOT NULL THEN snap\.assignment_kind ELSE la\.assignment_kind END AS partner_kind/);
+  assert.match(route, /CASE WHEN snap\.tracked_link_id IS NOT NULL THEN snap\.snapshot_source ELSE 'current_fallback' END AS attribution_source/);
+  assert.match(route, /const partnerGroups = new Map<string, PartnerGroup>\(\)/);
+  assert.match(route, /spend_scope: 'not_allocated'/);
+  assert.match(route, /actual_spend_usd: null/);
+  assert.match(route, /attribution_scope: 'tracking_link_partner_provenance'/);
+  assert.doesNotMatch(route, /if \(activity\.partner_key && activity\.partner_display_name\)/);
+});
+
+test('partner snapshot coverage stays explicit during the migration window', () => {
+  assert.match(route, /link_creation: 0/);
+  assert.match(route, /legacy_backfill: 0/);
+  assert.match(route, /current_fallback: 0/);
+  assert.match(route, /partner_attribution: partnerAttributionCoverage/);
+  assert.match(route, /protected D1 backfill migration is applied/);
+  assert.match(route, /not presented as proven creation-time history/);
+});
+
+test('partner and channel comparisons never silently allocate unavailable costs', () => {
+  assert.match(route, /spend_scope: 'not_allocated'/);
   assert.match(route, /spend_scope: 'activity_attached'/);
-  assert.match(route, /Partner and channel cost metrics use only actual costs attached directly to activities/);
-  assert.match(route, /Campaign-level overhead is not allocated automatically/);
+  assert.match(route, /Partner comparison uses tracking-link partner provenance only/);
+  assert.match(route, /Activity-level spend and social metrics are not automatically reassigned to historical partners/);
+  assert.match(route, /campaign-level overhead is not allocated automatically/);
 });
 
 test('Growth Intelligence UI compares campaigns, activities, partners and channels', () => {
@@ -78,6 +101,15 @@ test('Growth Intelligence UI compares campaigns, activities, partners and channe
   assert.match(panel, /STRONGEST CHANNEL/);
 });
 
+test('partner UI shows only safe tracked attribution metrics and provenance coverage', () => {
+  assert.match(panel, /function PartnerMetricStrip/);
+  assert.match(panel, /TRACKING LINKS/);
+  assert.match(panel, /VALUE \/ CLICK/);
+  assert.match(panel, /Spend\/social metrics not reassigned/);
+  assert.match(panel, /current-assignment fallback until the protected database migration is applied/);
+  assert.match(panel, /partnerCoverageLabel/);
+});
+
 test('Growth Intelligence UI keeps evidence provenance and methodology visible', () => {
   assert.match(panel, /Evidence mix/);
   assert.match(panel, /Manual \{summary\.evidence_mix\.manual\}/);
@@ -86,6 +118,7 @@ test('Growth Intelligence UI keeps evidence provenance and methodology visible',
   assert.match(panel, /Estimated \{summary\.evidence_mix\.estimated\}/);
   assert.match(panel, /Reported views and engagement can be manual\. Linkary clicks are first-party/);
   assert.match(panel, /How these metrics are calculated/);
+  assert.match(panel, /data\.methodology\.partner_attribution/);
 });
 
 test('Growth Intelligence is attached only to the Project Growth workspace', () => {
