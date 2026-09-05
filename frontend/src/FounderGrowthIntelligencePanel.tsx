@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import './founder-growth-intelligence.css';
+
+type TrendPoint = { day: string; clicks: number; outcomes: number; value: number; spend: number };
 
 type Performance = {
   deliverables: number;
@@ -88,6 +90,8 @@ type IntelligenceResponse = {
     partner_attribution: string;
     missing_metrics: string;
   };
+  trend: TrendPoint[];
+  trend_range_days: number;
 };
 
 type Tab = 'campaigns' | 'activities' | 'partners' | 'channels';
@@ -149,9 +153,41 @@ function PartnerMetricStrip({ value }: { value: GroupPerformance }) {
   </div>;
 }
 
+function TrendChart({ points }: { points: TrendPoint[] }) {
+  const max = Math.max(1, ...points.flatMap((point) => [point.clicks, point.outcomes]));
+  const path = (key: 'clicks' | 'outcomes') => points.map((point, index) => `${index ? 'L' : 'M'} ${(index / Math.max(1, points.length - 1)) * 100} ${100 - (point[key] / max) * 92}`).join(' ');
+  return <article className="fgi-chart trend-chart"><header><div><span>PERFORMANCE TREND</span><strong>Clicks and outcomes over time</strong></div><small>Linkary clicks · recorded outcomes</small></header><svg viewBox="0 0 100 100" role="img" aria-label="Daily Linkary clicks and outcomes trend" preserveAspectRatio="none"><path className="grid" d="M0 8H100M0 50H100M0 92H100"/><path className="click-line" d={path('clicks')} /><path className="outcome-line" d={path('outcomes')} /></svg><div className="fgi-chart-key"><span><i className="click"/>Clicks</span><span><i className="outcome"/>Outcomes</span><small>{points[0]?.day} — {points.at(-1)?.day}</small></div></article>;
+}
+
+function FunnelChart({ value }: { value: Performance }) {
+  const rows = [['Reported views', value.views, 'manual'], ['Linkary clicks', value.tracked_clicks, 'tracked'], ['Outcomes', value.outcomes, 'outcomes']] as const;
+  const max = Math.max(1, ...rows.map((row) => row[1]));
+  return <article className="fgi-chart funnel-chart"><header><div><span>GROWTH FUNNEL</span><strong>From reach to outcomes</strong></div><small>Not a verification ladder</small></header>{rows.map(([label, amount, tone]) => <div className={`fgi-funnel-row ${tone}`} key={label}><div><span>{label}</span><strong>{compact(amount)}</strong></div><i style={{ width: `${Math.max(5, (amount / max) * 100)}%` }} /></div>)}</article>;
+}
+
+function ChannelChart({ channels }: { channels: GroupPerformance[] }) {
+  const max = Math.max(1, ...channels.map((channel) => channel.tracked_clicks));
+  return <article className="fgi-chart channel-chart"><header><div><span>CHANNEL COMPARISON</span><strong>Where clicks came from</strong></div><small>Measured activity channels</small></header>{channels.slice(0, 6).map((channel) => <div className="fgi-channel-row" key={channel.key}><span>{human(channel.label)}</span><i><b style={{ width: `${(channel.tracked_clicks / max) * 100}%` }} /></i><strong>{compact(channel.tracked_clicks)}</strong></div>)}</article>;
+}
+
+function EvidenceChart({ mix }: { mix: IntelligenceResponse['summary']['evidence_mix'] }) {
+  const entries = [['Manual', mix.manual, '#cbb98c'], ['Tracked', mix.tracked, '#f2613f'], ['Verified', mix.verified, '#27363a'], ['Estimated', mix.estimated, '#91989a']] as const;
+  const total = Math.max(1, ...entries.map((entry) => entry[1]), entries.reduce((sum, entry) => sum + entry[1], 0));
+  let cursor = 0;
+  const stops = entries.map(([, amount, color]) => {
+    const next = cursor + (amount / total) * 100;
+    const stop = `${color} ${cursor}% ${next}%`;
+    cursor = next;
+    return stop;
+  });
+  const style = { background: `conic-gradient(${stops.join(', ')})` } as CSSProperties;
+  return <article className="fgi-chart evidence-chart"><header><div><span>EVIDENCE COMPOSITION</span><strong>What supports this view</strong></div><small>Signal provenance, not quality ranking</small></header><div className="fgi-evidence-chart-body"><div className="fgi-donut" style={style} role="img" aria-label={`Evidence composition: ${entries.map(([label, amount]) => `${label} ${amount}`).join(', ')}`}><b>{number(entries.reduce((sum, entry) => sum + entry[1], 0))}</b><small>signals</small></div><div className="fgi-donut-key">{entries.map(([label, amount, color]) => <span key={label}><i style={{ background: color }} />{label}<b>{number(amount)}</b></span>)}</div></div></article>;
+}
+
 export default function FounderGrowthIntelligencePanel({ organizationId }: { organizationId: string }) {
   const [data, setData] = useState<IntelligenceResponse | null>(null);
   const [tab, setTab] = useState<Tab>('campaigns');
+  const [range, setRange] = useState<7 | 30 | 90>(30);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
@@ -160,7 +196,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
     setLoading(true);
     setMessage('');
     try {
-      const response = await fetch(`/api/growth-intelligence?organizationId=${encodeURIComponent(organizationId)}`, { credentials: 'same-origin' });
+      const response = await fetch(`/api/growth-intelligence?organizationId=${encodeURIComponent(organizationId)}&range=${range}`, { credentials: 'same-origin' });
       const payload = (await response.json().catch(() => ({}))) as IntelligenceResponse & { message?: string };
       if (!response.ok) throw new Error(payload.message || 'Growth Intelligence could not be loaded.');
       setData(payload);
@@ -172,7 +208,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
     }
   }
 
-  useEffect(() => { void load(); }, [organizationId]);
+  useEffect(() => { void load(); }, [organizationId, range]);
 
   const strongestCampaign = useMemo(() => data?.campaigns.filter((item) => item.roas !== null).sort((a, b) => Number(b.roas || 0) - Number(a.roas || 0))[0] || null, [data]);
   const strongestPartner = useMemo(() => data?.partners.filter((item) => item.outcomes > 0 || item.attributed_value_usd > 0 || item.tracked_clicks > 0).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks)[0] || null, [data]);
@@ -189,7 +225,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
     <header className="fgi-header">
       <div><span className="fgi-kicker">FOUNDER GROWTH INTELLIGENCE</span><h2>See what actually produced results</h2><p>Compare social performance, Linkary first-party traffic, outcomes, actual spend and attributed value without treating manual evidence as verified.</p></div>
-      <button type="button" onClick={() => void load()}>Refresh</button>
+      <div className="fgi-actions"><div className="fgi-range" aria-label="Trend range">{([7, 30, 90] as const).map((days) => <button type="button" key={days} className={range === days ? 'active' : ''} onClick={() => setRange(days)}>{days}d</button>)}</div><button type="button" onClick={() => void load()}>Refresh</button></div>
     </header>
 
     <div className="fgi-summary">
@@ -206,6 +242,8 @@ export default function FounderGrowthIntelligencePanel({ organizationId }: { org
       <article><span>STRONGEST PARTNER</span><strong>{strongestPartner?.label || 'Not enough partner evidence'}</strong><small>{strongestPartner ? `${compact(strongestPartner.tracked_clicks)} clicks · ${compact(strongestPartner.outcomes)} outcomes · ${partnerCoverageLabel(strongestPartner.snapshot_coverage)}` : 'Create partner-bound tracking links to build comparable partner evidence.'}</small></article>
       <article><span>STRONGEST CHANNEL</span><strong>{strongestChannel ? human(strongestChannel.label) : 'Not enough channel evidence'}</strong><small>{strongestChannel ? `${compact(strongestChannel.tracked_clicks)} clicks · ${money(strongestChannel.attributed_value_usd)} value` : 'Channel intelligence builds from measured activities.'}</small></article>
     </div>
+
+    <div className="fgi-chart-grid"><TrendChart points={data.trend} /><FunnelChart value={summary} /><EvidenceChart mix={summary.evidence_mix} /><ChannelChart channels={data.channels} /></div>
 
     <div className="fgi-evidence">
       <div><strong>Evidence mix</strong><span>Manual {summary.evidence_mix.manual}</span><span>Tracked {summary.evidence_mix.tracked}</span><span>Verified {summary.evidence_mix.verified}</span><span>Estimated {summary.evidence_mix.estimated}</span></div>
