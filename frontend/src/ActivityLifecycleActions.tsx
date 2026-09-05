@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import ActivityMeasurementPanel from './ActivityMeasurementPanel';
 import './activity-lifecycle.css';
 
 type ActivityStatus = 'planned' | 'live' | 'completed' | 'cancelled';
@@ -75,6 +76,7 @@ export default function ActivityLifecycleActions({ activityId, initialStatus, wr
         onClick={() => void update(next)}
       >{saving === next ? 'Updating...' : actionLabel(next)}</button>)}
     </div>}
+    <ActivityMeasurementPanel activityId={activityId} writable={writable} />
     {message && <small className="activity-lifecycle-message" role="status">{message}</small>}
   </div>;
 }
