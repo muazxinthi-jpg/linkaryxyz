@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import FounderGrowthIntelligencePanel from './FounderGrowthIntelligencePanel';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 
 type InviteBalance = {
@@ -9,17 +10,11 @@ type InviteBalance = {
   lifetime_used: number;
 };
 type Project = { id: string; name: string; status: string; verification_status: string; role: string };
-type Campaign = { id: string; name: string; status: string };
-type Summary = { conversions: number; value_usd: number; tracked_clicks: number; tracking_links: number; conversion_rate: number };
 
 async function apiJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: 'same-origin' });
   if (!response.ok) throw new Error('Request failed');
   return response.json() as Promise<T>;
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value || 0);
 }
 
 export default function DashboardExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
@@ -33,8 +28,6 @@ export default function DashboardExperience({ me, status }: { me: ProductMe; sta
   const [linkClicks, setLinkClicks] = useState<number | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [projectCount, setProjectCount] = useState(0);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [totals, setTotals] = useState<Summary>({ conversions: 0, value_usd: 0, tracked_clicks: 0, tracking_links: 0, conversion_rate: 0 });
   const [walletCount, setWalletCount] = useState(0);
 
   function changeProfile(id: string) {
@@ -46,8 +39,6 @@ export default function DashboardExperience({ me, status }: { me: ProductMe; sta
     if (!profile) return;
     setProject(null);
     setProjectCount(0);
-    setCampaigns([]);
-    setTotals({ conversions: 0, value_usd: 0, tracked_clicks: 0, tracking_links: 0, conversion_rate: 0 });
 
     void apiJson<{ balances: InviteBalance[] }>('/api/invites/balances')
       .then((result) => {
@@ -66,34 +57,12 @@ export default function DashboardExperience({ me, status }: { me: ProductMe; sta
       .catch(() => setWalletCount(0));
 
     void apiJson<{ organizations: Project[] }>('/api/organizations')
-      .then(async (result) => {
+      .then((result) => {
         setProjectCount(result.organizations.length);
         const selected = profile.organization_id
           ? result.organizations.find((item) => item.id === profile.organization_id)
           : null;
-        if (!selected) return;
-        setProject(selected);
-        const campaignResult = await apiJson<{ campaigns: Campaign[] }>(
-          `/api/campaigns?organizationId=${encodeURIComponent(selected.id)}`,
-        ).catch(() => ({ campaigns: [] }));
-        setCampaigns(campaignResult.campaigns);
-        const summaries = await Promise.all(
-          campaignResult.campaigns.slice(0, 100).map((campaign) =>
-            apiJson<{ summary: Summary }>(`/api/campaign-outcomes?campaignId=${encodeURIComponent(campaign.id)}`)
-              .then((result) => result.summary)
-              .catch(() => null),
-          ),
-        );
-        const aggregate = summaries.reduce<Summary>((acc, item) => {
-          if (!item) return acc;
-          acc.conversions += item.conversions;
-          acc.value_usd += item.value_usd;
-          acc.tracked_clicks += item.tracked_clicks;
-          acc.tracking_links += item.tracking_links;
-          return acc;
-        }, { conversions: 0, value_usd: 0, tracked_clicks: 0, tracking_links: 0, conversion_rate: 0 });
-        aggregate.conversion_rate = aggregate.tracked_clicks ? aggregate.conversions / aggregate.tracked_clicks : 0;
-        setTotals(aggregate);
+        if (selected) setProject(selected);
       })
       .catch(() => undefined);
   }, [profileId]);
@@ -124,23 +93,18 @@ export default function DashboardExperience({ me, status }: { me: ProductMe; sta
           </section>
         )}
 
-        <section className="dashboard-next-metrics">
-          {projectMode ? (
-            <>
-              <article><span>TRACKED CAMPAIGNS</span><strong>{campaigns.length}</strong><small>Run anywhere</small></article>
-              <article><span>TRACKED CLICKS</span><strong>{totals.tracked_clicks.toLocaleString()}</strong><small>Across growth activity</small></article>
-              <article><span>OUTCOMES</span><strong>{totals.conversions.toLocaleString()}</strong><small>{(totals.conversion_rate * 100).toFixed(totals.conversion_rate ? 1 : 0)}% conversion</small></article>
-              <article><span>ATTRIBUTED VALUE</span><strong>{money(totals.value_usd)}</strong><small>Recorded outcomes</small></article>
-            </>
-          ) : (
+        {projectMode && profile.organization_id ? (
+          <FounderGrowthIntelligencePanel organizationId={profile.organization_id} variant="overview" />
+        ) : (
+          <section className="dashboard-next-metrics">
             <>
               <article><span>PROFILE</span><strong>{profile.visibility === 'published' ? 'Published' : 'Draft'}</strong><small>{linkClicks === null ? 'Public identity' : `${linkClicks} link click${linkClicks === 1 ? '' : 's'}`}</small></article>
               <article><span>INVITES</span><strong>{balance?.available_credits ?? 'N/A'}</strong><small>{balance ? `${balance.lifetime_used} used` : 'Network access'}</small></article>
               <article><span>WALLETS</span><strong>{walletCount}</strong><small>Additional destinations</small></article>
               <article><span>PROJECTS</span><strong>{projectCount}</strong><small>{projectCount ? 'Workspaces you can access' : 'Connect to a Project'}</small></article>
             </>
-          )}
-        </section>
+          </section>
+        )}
 
         {projectMode ? (
           <section className="dashboard-next-actions">
