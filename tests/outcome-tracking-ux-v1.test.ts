@@ -7,6 +7,7 @@ const tracking = readFileSync(new URL('../frontend/src/TrackingExperience.tsx', 
 
 const squash = (value: string) => value.replace(/\s+/g, '');
 const route = squash(conversions);
+const lowerRoute = route.toLowerCase();
 const view = squash(tracking);
 
 test('Outcome Tracking V1 exposes a consistent founder outcome taxonomy without removing custom outcomes', () => {
@@ -44,11 +45,11 @@ test('manual outcome writes validate value, time and canonical outcome identifie
 });
 
 test('outcome reads expose the exact activity partner context instead of only the manager or campaign', () => {
-  assert.equal(route.includes('leftjoincampaign_activity_linkary_assignmentslaonla.activity_id=e.activity_id'), true);
-  assert.equal(route.includes('la.assignment_kindaspartner_kind'), true);
-  assert.equal(route.includes('la.partner_asset_id'), true);
-  assert.equal(route.includes('coalesce(cp.display_name,pa.name,ne.display_name)aspartner_display_name'), true);
-  assert.equal(route.includes('pm.display_nameaspartner_manager_name'), true);
+  assert.equal(lowerRoute.includes('leftjoincampaign_activity_linkary_assignmentslaonla.activity_id=e.activity_id'), true);
+  assert.equal(lowerRoute.includes('la.assignment_kindaspartner_kind'), true);
+  assert.equal(lowerRoute.includes('la.partner_asset_id'), true);
+  assert.equal(lowerRoute.includes('coalesce(cp.display_name,pa.name,ne.display_name)aspartner_display_name'), true);
+  assert.equal(lowerRoute.includes('pm.display_nameaspartner_manager_name'), true);
 });
 
 test('Outcome CSV carries activity, tracking, evidence and exact partner context together', () => {
