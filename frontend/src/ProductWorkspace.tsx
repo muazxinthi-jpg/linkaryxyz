@@ -64,6 +64,7 @@ export function ProductWorkspace({
     ['/campaigns', 'Growth'],
     ['/tracking', 'Evidence'],
     ['/partners', 'Partners'],
+    ['/creators', 'Network'],
     ['/profile', 'Profile'],
     ['/wallets', 'Wallets'],
     ['/invites', 'Invites'],
