@@ -8,6 +8,12 @@ import { hmacSha256, randomToken } from '../security/crypto';
 import { organizationMembership, requireOperationalProjectAccess } from './organizations';
 import { getLinkaryUrls } from '../urls';
 import { buildTrackedDestination, type TrackingUtmContext } from '../trackingUtm';
+import {
+  createActivityDeliverable,
+  listActivityMeasurements,
+  reviewActivityDeliverable,
+  saveActivityMetrics,
+} from './activityMeasurement';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -33,6 +39,20 @@ function utmContext(row: TrackingContextRow): TrackingUtmContext {
 }
 
 export async function createTrackedLink(request: Request, env: Env): Promise<Response> {
+  const requestUrl = new URL(request.url);
+  const operation = requestUrl.searchParams.get('operation');
+  if (operation === 'deliverable') return createActivityDeliverable(request, env);
+  if (operation === 'metrics') {
+    const deliverableId = requestUrl.searchParams.get('deliverableId')?.trim();
+    if (!deliverableId) throw new HttpError(400, 'deliverableId is required', 'deliverable_required');
+    return saveActivityMetrics(request, env, deliverableId);
+  }
+  if (operation === 'review-deliverable') {
+    const deliverableId = requestUrl.searchParams.get('deliverableId')?.trim();
+    if (!deliverableId) throw new HttpError(400, 'deliverableId is required', 'deliverable_required');
+    return reviewActivityDeliverable(request, env, deliverableId);
+  }
+
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
   const body = await readJson<{ activityId?: string }>(request);
@@ -85,8 +105,10 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
 }
 
 export async function listTrackedLinks(request: Request, env: Env): Promise<Response> {
-  const auth = await requireAuth(request, env);
   const url = new URL(request.url);
+  if (url.searchParams.get('measurement') === '1') return listActivityMeasurements(request, env);
+
+  const auth = await requireAuth(request, env);
   const campaignId = url.searchParams.get('campaignId');
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
 
