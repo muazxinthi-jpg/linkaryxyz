@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "app:dev": "vite --config frontend/vite.config.ts",
+    "backend:check": "tsc -p tsconfig.json --noEmit",
     "app:check": "tsc -p frontend/tsconfig.json --noEmit",
     "app:build": "vite build --config frontend/vite.config.ts",
     "postinstall": "npm run app:build",
     "test": "tsx --test tests/*.test.ts",
-    "check": "npm run test && npm run app:check && npm run deploy:dry",
+    "check": "npm run test && npm run backend:check && npm run app:check && npm run deploy:dry",
     "deploy": "npm run app:build && wrangler deploy",
     "deploy:dry": "npm run app:build && wrangler deploy --dry-run",
     "types": "wrangler types"
