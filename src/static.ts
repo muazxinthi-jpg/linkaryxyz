@@ -95,6 +95,7 @@ function trustSafePublicPreview(html: string): string {
     .replace('<div class="hero-ui">', `<div class="hero-ui">${disclosure}`)
     .replace(/<i class="status live">● Live data<\/i>/g, '<i class="status preview-example-badge">Example data</i>')
     .replace(/<em>Updated 2m ago<\/em>/g, '<em>Illustrative product preview</em>')
+    .replace('<span class="status complete">✓ Verified creator</span>', '<span class="status complete">Example creator</span>')
     .replace('<section class="attribution matrix-light">', '<section class="attribution matrix-light" id="attribution">')
     .replace('<a>Campaigns</a><a>Creators</a><a>Analytics</a>', '<a href="#workflow">Campaigns</a><a href="#roles">Creators</a><a href="#attribution">Attribution</a>')
     .replace('<a>About</a><a>Contact</a><a>Privacy</a>', '<a href="#roles">About</a><a href="#faq">FAQ</a>')
