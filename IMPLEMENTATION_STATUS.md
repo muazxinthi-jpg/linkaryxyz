@@ -1,6 +1,6 @@
 # Linkary implementation status
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
 This file is a current repository-level status summary for Linkary Beta. When an older handoff conflicts with this file, verify against `main` and the current migrations/tests before rebuilding anything.
 
@@ -24,7 +24,13 @@ The core product is built. Remaining launch work is real-account/end-to-end acce
 - [x] Protected production D1 migration workflow is pinned to `main`, defaults to verify-only, and requires an explicit `apply` selection before writing schema changes.
 - [x] Ongoing hourly production health monitoring checks the current Beta app-shell route surface and `/api/auth/me` with retries.
 - [x] Current `main` regression, TypeScript and Wrangler verification are green. The latest `main` CI run is authoritative for the exact test count.
-- [x] Protected production D1 apply workflow completed successfully from `main` on 2026-09-04. Production schema is current through `0022_collaboration_inquiry_activations.sql`.
+- [x] Protected production D1 apply workflow completed successfully from `main` on 2026-09-05. Production schema is current through `0026_immutable_tracked_link_partner_snapshots.sql`, and the post-check reported `No migrations to apply!`.
+
+Current production D1 additions now include:
+
+- `0024_activity_measurement_evidence.sql`, activity deliverables, performance metrics, evidence state and provenance.
+- `0025_actual_spend_ledger.sql`, actual incurred-cost ledger kept separate from budget and planned cost.
+- `0026_immutable_tracked_link_partner_snapshots.sql`, immutable tracking-link partner provenance for reassignment-safe historical attribution.
 
 Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow.
 
@@ -33,14 +39,15 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Email authentication.
 - [x] Google authentication.
 - [x] X authentication.
-- [x] Telegram authentication.
+- [x] Personal Telegram account linking through authenticated profile settings.
+- [x] Telegram linking is separate from Linkary sign-in and does not create a Linkary account, session, wallet or sign-in identity.
 - [x] Server-side provider-token/identity validation.
 - [x] Secure Linkary sessions, CSRF protection, logout and revocation.
 - [x] Invite-only registration.
 - [x] Creator Earn Access with fixed X-post evidence and manual Superadmin approval.
 - [x] Creator first workspace receives 10 network invites.
 - [x] Project first workspace receives 50 network invites.
-- [ ] Final real-account production QA for Email, Google, X and Telegram.
+- [ ] Final real-account production QA for Email, Google and X sign-in, plus separate Telegram profile linking.
 - [ ] Second real Creator Earn Access acceptance from post through approval/onboarding.
 - [ ] Second real official-X Project registration acceptance.
 
@@ -116,13 +123,20 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Exact Community assignment through Community Manager -> exact Telegram Community asset.
 - [x] Exact assignment provenance through the existing attribution participant chain.
 - [x] Tracking links and redirects.
+- [x] Immutable partner snapshot captured when a new tracking link is created.
+- [x] Historical tracking/click/outcome partner attribution reads snapshot provenance before mutable activity assignment.
 - [x] Click attribution.
 - [x] Outcome/conversion recording.
 - [x] Evidence source/confidence handling.
+- [x] Activity measurement evidence and provenance.
+- [x] Actual spend ledger, separate from campaign budget and planned activity cost.
 - [x] Attributed value.
 - [x] Growth reports and CSV export.
+- [x] Founder Growth Intelligence with campaign/activity/partner/channel comparison.
 - [x] Source performance.
 - [x] Campaign opportunities and Creator applications.
+- [ ] Real Creator A -> tracking link -> click -> outcome/value -> Creator B reassignment acceptance.
+- [ ] Real exact Telegram Community version of the same historical-attribution acceptance.
 
 ### Activity Lifecycle V1
 
@@ -153,10 +167,13 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - Activity completion is not performance proof.
 - Campaign completion is not performance proof.
 - Exact Creator / exact Telegram Community provenance is authoritative.
+- Tracking-link partner snapshots preserve historical attribution when an activity is reassigned.
+- Legacy backfilled partner snapshots must stay labeled as legacy, not proven creation-time attribution.
 - Personal Telegram verification is separate from Community verification.
 - Community verification is asset-level.
 - Manual evidence remains visibly manual.
 - Strong public outcome/value sources remain `linkary_tracked`, `telegram_verified`, and `provider_verified`.
+- Missing metric denominators remain unavailable rather than fabricated.
 - Cancelled activity does not qualify as Worked before.
 - No editable fake proof metrics.
 - No opaque Linkary Score until enough defensible data exists.
@@ -219,26 +236,30 @@ Static responsive coverage does not close Issue #42 by itself.
 
 ## Launch-critical work remaining
 
-1. Run full Creator onboarding/Earn Access acceptance.
-2. Run full official-X Project onboarding acceptance.
-3. Test Email / Google / X / Telegram authentication with real accounts.
-4. Test Project role permission matrix with separate accounts.
-5. Run the full Creator evidence loop:
+1. Run the real attribution integrity acceptance first: Creator A -> tracking link -> real click -> outcome/value -> Creator B reassignment, then verify historical attribution remains Creator A. Repeat with an exact Telegram Community.
+2. Run full Creator onboarding/Earn Access acceptance.
+3. Run full official-X Project onboarding acceptance.
+4. Test Email / Google / X sign-in with real accounts and Telegram as separate Personal Profile linking.
+5. Test Project role permission matrix with separate accounts.
+6. Run the full Creator evidence loop:
    `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Completed Activity -> Relationship Memory -> Work Again`.
-6. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
-7. Test Invite -> signup -> registration attribution.
-8. Test Opportunity -> application -> acceptance.
-9. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
-10. Final documentation/launch copy check.
-11. Open controlled Beta onboarding only after the above passes.
+7. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
+8. Test Invite -> signup -> registration attribution.
+9. Test Opportunity -> application -> acceptance.
+10. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
+11. Add `main` branch protection/ruleset requiring the normal PR + green CI path before controlled Beta.
+12. Final documentation/launch copy check.
+13. Open controlled Beta onboarding only after the above passes.
 
 ## Controlled Beta definition
 
 Do not call broad Beta onboarding ready until:
 
-- production D1 ledger is current through `0022`
+- production D1 ledger is current through `0026_immutable_tracked_link_partner_snapshots.sql`
+- real attribution reassignment acceptance passes for Creator and exact Community
 - Issue #42 authenticated visual/device acceptance is clean
 - real auth/onboarding/role/invite/evidence loops pass
+- `main` has deliberate release protection against accidental direct pushes
 - no open P0 security, authentication, permission, attribution, data-integrity or mobile-usability blocker remains
 
 After that, onboard a small controlled cohort first, observe real use, fix friction, then expand.
@@ -258,4 +279,3 @@ Do not delay Beta for:
 - subscription billing
 - delegated wallet signing
 - referral revenue sharing
-- advanced audience-overlap intelligence
