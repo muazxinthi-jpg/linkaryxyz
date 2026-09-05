@@ -10,8 +10,8 @@ const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8'
 test('add-member and access-request upserts cannot overwrite Project ownership', () => {
   assert.match(projectAccess, /existing\?\.role === 'owner'.*owner_protected/s);
   assert.match(projectAccess, /ON CONFLICT\(user_id, organization_id\) DO UPDATE SET[\s\S]*WHERE organization_memberships\.role != 'owner'/);
-  assert.match(projectAccess, /UPDATE organization_memberships SET role = \?, updated_at = \? WHERE user_id = \? AND organization_id = \? AND role != 'owner'/);
-  assert.match(projectAccess, /UPDATE organization_memberships SET status = 'removed'.*AND role != 'owner'/s);
+  assert.match(projectAccess, /UPDATE organization_memberships[\s\S]*SET role = \?, updated_at = \?[\s\S]*WHERE user_id = \? AND organization_id = \? AND status = 'active' AND role = \? AND role != 'owner'[\s\S]*EXISTS \([\s\S]*actor\.status = 'active'/);
+  assert.match(projectAccess, /UPDATE organization_memberships[\s\S]*SET status = 'removed'.*status = 'active' AND role = \? AND role != 'owner'/s);
 });
 
 test('email-bound Team invites require a present matching verified email in both auth paths', () => {
