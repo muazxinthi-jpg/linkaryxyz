@@ -372,7 +372,8 @@ export async function adjustUsageCredits(request: Request, env: Env): Promise<Re
   const auth = await requireSuperadmin(request, env);
   await verifyCsrf(request, env, auth);
   const body = await readJson<CreditAdjustment>(request);
-  if (!body.ownerType || !body.ownerId || !Number.isInteger(body.amount) || body.amount === 0 || Math.abs(body.amount) > 100_000_000 || !body.reason?.trim()) {
+  const amount = body.amount;
+  if (!body.ownerType || !body.ownerId || typeof amount !== 'number' || !Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 100_000_000 || !body.reason?.trim()) {
     throw new HttpError(400, 'Owner, non-zero credit amount and reason are required', 'invalid_usage_credit_adjustment');
   }
   const db = new Db(requireDb(env));
@@ -388,7 +389,7 @@ export async function adjustUsageCredits(request: Request, env: Env): Promise<Re
     [body.ownerType, body.ownerId],
   );
   const currentBalance = Number(balance?.balance || 0);
-  const nextBalance = currentBalance + (body.amount as number);
+  const nextBalance = currentBalance + amount;
   if (nextBalance < 0) throw new HttpError(409, 'Adjustment would make usage credits negative', 'negative_usage_credit_balance');
 
   const timestamp = new Date().toISOString();
@@ -398,7 +399,7 @@ export async function adjustUsageCredits(request: Request, env: Env): Promise<Re
       `INSERT INTO usage_credit_ledger
         (id, owner_type, owner_id, transaction_type, amount, reason, feature_key, provider, related_id, idempotency_key, created_by_user_id, created_at)
        VALUES (?, ?, ?, 'admin_adjustment', ?, ?, NULL, NULL, NULL, NULL, ?, ?)`,
-      [`ucred_${crypto.randomUUID().replace(/-/g, '')}`, body.ownerType, body.ownerId, body.amount, reason, auth.user.id, timestamp],
+      [`ucred_${crypto.randomUUID().replace(/-/g, '')}`, body.ownerType, body.ownerId, amount, reason, auth.user.id, timestamp],
     ),
     db.statement(
       `INSERT INTO audit_logs
@@ -409,7 +410,7 @@ export async function adjustUsageCredits(request: Request, env: Env): Promise<Re
         auth.user.id,
         `${body.ownerType}:${body.ownerId}`,
         body.ownerType === 'organization' ? body.ownerId : null,
-        JSON.stringify({ amount: body.amount, reason, previousBalance: currentBalance, nextBalance }),
+        JSON.stringify({ amount, reason, previousBalance: currentBalance, nextBalance }),
         timestamp,
       ],
     ),
