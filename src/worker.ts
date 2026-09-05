@@ -12,6 +12,17 @@ import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 import { renderInviteLanding } from './routes/invites';
 import { redirectTrackedLink } from './routes/tracking';
 import {
+  addProfileBlockIntegrity,
+  deleteProfileBlockIntegrity,
+  getEditableProfileIntegrity,
+  listProfileBlocksIntegrity,
+  profileAnalyticsIntegrity,
+  publishProfileIntegrity,
+  reorderProfileBlocksIntegrity,
+  updateProfileBlockIntegrity,
+  updateProfileIntegrity,
+} from './routes/profileRoleIntegrity';
+import {
   applyToCampaignOpportunityIntegrity,
   listCampaignOpportunitiesIntegrity,
   reviewCampaignOpportunityApplicationIntegrity,
@@ -67,6 +78,49 @@ export default {
         return await createNetworkInviteIntegrity(request, env);
       } catch (error) { return errorResponse(error); }
     }
+
+    const profileBlock = url.pathname.match(/^\/api\/profiles\/([^/]+)\/blocks\/([^/]+)$/);
+    if (profileBlock) {
+      try {
+        const profileId = decodeURIComponent(profileBlock[1]);
+        const blockId = decodeURIComponent(profileBlock[2]);
+        if (request.method === 'PATCH') return await updateProfileBlockIntegrity(request, env, profileId, blockId);
+        if (request.method === 'DELETE') return await deleteProfileBlockIntegrity(request, env, profileId, blockId);
+        return methodNotAllowed(['PATCH', 'DELETE']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const profileSubroute = url.pathname.match(/^\/api\/profiles\/([^/]+)\/(blocks|blocks-reorder|publish|unpublish|analytics)$/);
+    if (profileSubroute) {
+      try {
+        const profileId = decodeURIComponent(profileSubroute[1]);
+        const action = profileSubroute[2];
+        if (action === 'blocks') {
+          if (request.method === 'GET') return await listProfileBlocksIntegrity(request, env, profileId);
+          if (request.method === 'POST') return await addProfileBlockIntegrity(request, env, profileId);
+          return methodNotAllowed(['GET', 'POST']);
+        }
+        if (action === 'blocks-reorder') {
+          if (request.method === 'POST') return await reorderProfileBlocksIntegrity(request, env, profileId);
+          return methodNotAllowed(['POST']);
+        }
+        if (action === 'publish' || action === 'unpublish') {
+          if (request.method === 'POST') return await publishProfileIntegrity(request, env, profileId, action === 'publish');
+          return methodNotAllowed(['POST']);
+        }
+        if (request.method === 'GET') return await profileAnalyticsIntegrity(request, env, profileId);
+        return methodNotAllowed(['GET']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const editableProfile = url.pathname.match(/^\/api\/profiles\/([^/]+)$/);
+    if (editableProfile) {
+      try {
+        const profileId = decodeURIComponent(editableProfile[1]);
+        if (request.method === 'GET') return await getEditableProfileIntegrity(request, env, profileId);
+        if (request.method === 'PATCH') return await updateProfileIntegrity(request, env, profileId);
+        return methodNotAllowed(['GET', 'PATCH']);
+      } catch (error) { return errorResponse(error); }
+    }
+
     if (url.pathname === '/api/partner-manager-assets' && request.method === 'POST') {
       try { return await savePartnerManagerAssetIntegrity(request, env); }
       catch (error) { return errorResponse(error); }
