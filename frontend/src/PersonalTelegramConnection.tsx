@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useGetAccessToken,
   useIsInitialized,
@@ -10,6 +10,7 @@ import {
   useVerifyEmailOTP,
 } from '@coinbase/cdp-hooks';
 import './personal-telegram-connection.css';
+import { telegramOAuthDiagnostic } from './telegramOAuthDiagnostic';
 
 type TelegramIdentity = {
   currentHandle: string | null;
@@ -54,6 +55,8 @@ function oauthFailure(detail?: string | null): string {
 
 export default function PersonalTelegramConnection({ defaultEmail = '' }: { defaultEmail?: string | null }) {
   const { linkOAuth, oauthState } = useLinkOAuth();
+  const latestOAuthState = useRef(oauthState);
+  latestOAuthState.current = oauthState;
   const { getAccessToken } = useGetAccessToken();
   const { isInitialized } = useIsInitialized();
   const { isSignedIn } = useIsSignedIn();
@@ -100,6 +103,7 @@ export default function PersonalTelegramConnection({ defaultEmail = '' }: { defa
 
   useEffect(() => {
     if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) !== '1' || oauthState?.status !== 'error') return;
+    telegramOAuthDiagnostic('cdp_link_error', oauthState);
     sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
     setBusy('');
     setMessage(oauthFailure(oauthState.errorDescription || oauthState.error));
@@ -111,11 +115,15 @@ export default function PersonalTelegramConnection({ defaultEmail = '' }: { defa
     let cancelled = false;
     void (async () => {
       setBusy('telegram-sync');
+      telegramOAuthDiagnostic('cdp_link_returned', latestOAuthState.current);
+      telegramOAuthDiagnostic('current_link_sync_started', latestOAuthState.current);
       try {
         await syncCurrentAccount();
+        telegramOAuthDiagnostic('current_link_sync_success', latestOAuthState.current);
         sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
         if (!cancelled) setMessage('Telegram connected to your Personal Profile.');
       } catch (error) {
+        telegramOAuthDiagnostic('current_link_sync_failed', latestOAuthState.current, error);
         if (!cancelled) setMessage(error instanceof Error ? error.message : 'Telegram could not be connected.');
       } finally {
         if (!cancelled) setBusy('');
@@ -152,6 +160,7 @@ export default function PersonalTelegramConnection({ defaultEmail = '' }: { defa
   }, [restore, isInitialized, isSignedIn]);
 
   async function connectTelegram() {
+    telegramOAuthDiagnostic('telegram_link_clicked', latestOAuthState.current);
     if (!isInitialized) {
       setMessage('Your Linkary sign-in is still loading. Try again in a moment.');
       return;
@@ -165,11 +174,14 @@ export default function PersonalTelegramConnection({ defaultEmail = '' }: { defa
     setMessage('Opening Telegram…');
     sessionStorage.setItem(TELEGRAM_LINK_PENDING, '1');
     try {
+      telegramOAuthDiagnostic('cdp_link_started', latestOAuthState.current);
       await linkOAuth('telegram');
+      telegramOAuthDiagnostic('cdp_link_returned', latestOAuthState.current);
       if (sessionStorage.getItem(TELEGRAM_LINK_PENDING) === '1') {
         setMessage('Finish the Telegram connection. Linkary will confirm it belongs to this account when you return.');
       }
     } catch (error) {
+      telegramOAuthDiagnostic('cdp_link_error', latestOAuthState.current, error);
       sessionStorage.removeItem(TELEGRAM_LINK_PENDING);
       setBusy('');
       setMessage(oauthFailure(error instanceof Error ? error.message : null));
