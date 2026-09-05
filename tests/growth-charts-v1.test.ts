@@ -14,12 +14,22 @@ test('Growth charts aggregate Project-scoped time series without changing eviden
 });
 
 test('Growth UI renders selectable, evidence-aware visual comparisons responsively', () => {
-  for (const token of ['TRACTION TIMELINE', 'GROWTH FUNNEL', 'CHANNEL COMPARISON', 'EVIDENCE COMPOSITION', 'Not a verification ladder', 'Signal provenance, not quality ranking']) assert.match(panel, new RegExp(token));
-  assert.match(panel, /role="img" aria-label="Daily Linkary clicks and outcomes trend"/);
+  for (const token of ['TRACTION TIMELINE', 'GROWTH FUNNEL', 'CHANNEL COMPARISON', 'DATA CONFIDENCE', 'Evidence composition', 'Not a verification ladder', 'Trust guardrail · not a growth KPI']) assert.match(panel, new RegExp(token));
+  assert.match(panel, /role="img" aria-label="Interactive daily Linkary clicks and outcomes trend"/);
   assert.match(panel, /aria-label=\{`Evidence composition:/);
   assert.match(panel, /\[7, 30, 90\]/);
   assert.match(css, /\.fgi-chart-grid/);
   assert.match(css, /\.fgi-donut/);
+});
+
+test('Growth charts expose exact values through pointer, touch and keyboard interaction', () => {
+  for (const token of ['onPointerEnter', 'onPointerDown', 'onFocus', 'fgi-chart-tooltip', 'Hover, focus or tap a day', 'Trust guardrail · not a growth KPI']) assert.match(panel, new RegExp(token));
+  assert.match(panel, /className="trend-hit"/);
+  assert.match(panel, /role="status"/);
+  assert.match(panel, /role="group" aria-label="Interactive daily click volume/);
+  assert.match(css, /touch-action:pan-y/);
+  assert.match(css, /\.fgi-momentum-bars button\.active/);
+  assert.match(css, /\.fgi-channel-row:hover small/);
 });
 
 test('Growth dashboard adds richer traction context without inventing a Project popularity baseline', () => {
