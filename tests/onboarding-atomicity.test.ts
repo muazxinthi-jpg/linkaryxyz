@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const onboarding = readFileSync(new URL('../src/routes/onboarding.ts', import.meta.url), 'utf8');
 const complete = onboarding.slice(onboarding.indexOf('export async function completeOnboarding'));
-const legacy = onboarding.slice(onboarding.indexOf('async function recoverLegacyProject'), onboarding.indexOf('export async function completeOnboarding'));
+const legacy = onboarding.slice(onboarding.indexOf('async function recoverLegacyProject'), onboarding.indexOf('async function completedOnboardingRetry'));
 
 test('normal Creator and Project onboarding commits through one atomic D1 batch', () => {
   assert.equal(complete.includes('const writes: D1PreparedStatement[] = [];'), true);
