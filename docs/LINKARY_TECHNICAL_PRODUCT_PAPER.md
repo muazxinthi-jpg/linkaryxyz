@@ -365,6 +365,21 @@ The UI must clearly warn users that future rewards or airdrops may be sent to th
 
 Customer-facing wallet UI should use simple product language such as `Your Linkary wallet`, `Additional EVM wallet` and `Additional Solana wallet`. Provider or infrastructure details are not necessary in normal user flows.
 
+### 13.1 Premium NFT profile layer
+
+NFT presentation is a premium Personal Profile feature rather than a free-profile entitlement.
+
+The Personal Pro / Collector plan at `$4.99/month` unlocks:
+
+- NFT Showcase
+- NFT Wallet Discovery
+- NFT Avatar
+- NFT Collection / collection showcase support
+
+NFT Wallet Discovery should use attached Linkary/CDP wallets and optional saved external EVM/Solana wallets. Discovery is on demand and must not continuously poll every wallet.
+
+The customer-facing UI should not expose Alchemy branding as a requirement. If NFT discovery is temporarily unavailable, core Linkary identity, profiles, invites, campaign evidence and tracking must continue to work.
+
 ## 14. Telegram attribution
 
 Personal Telegram identity verification is separate from Telegram campaign attribution and separate from exact Community ownership verification.
@@ -392,21 +407,44 @@ Telegram signals feed the same attribution confidence model.
 
 Telegram attribution must be event-driven and scoped to the Project, campaign, activity or exact Community involved. Linkary must not repeatedly scan the full user or campaign database to re-check all Communities. A person who is only using a personal profile should not trigger Telegram campaign-attribution work.
 
-## 15. Onchain attribution
+## 15. Alchemy and onchain attribution
 
-Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
+Alchemy is an attribution/analytics and wallet-asset discovery layer, not Linkary's wallet infrastructure.
 
 Initial preferred chain allocation:
 
 1. Base
-2. BNB Chain
+2. Ethereum
 3. Solana
 4. Arbitrum
 5. Robinhood Chain
 
+### 15.1 Controlled-Beta Alchemy requirement
+
+Basic Alchemy integration is part of the Controlled Beta because it powers the paid NFT profile experience.
+
+Controlled-Beta Alchemy scope includes:
+
+- server-side Alchemy API key configuration
+- NFT wallet discovery
+- NFT metadata/artwork resolution
+- NFT Avatar selection
+- NFT Showcase selection
+- NFT Collection / collection metadata support where available
+- graceful provider-failure handling
+- internal usage monitoring so Linkary can remain within the available free allowance during the controlled cohort where practical
+
+Basic NFT discovery is therefore a Controlled-Beta launch dependency for the `$4.99/month` Personal Pro / Collector entitlement.
+
+Advanced automated onchain attribution is a separate layer and does not need to block the first controlled cohort. It can be activated progressively after the first-party attribution loop is proven with real users.
+
+### 15.2 Advanced onchain attribution
+
 Use shared Project-level subscriptions/webhooks where possible.
 
 Onchain signals should be matched to Project activities, campaigns and outcomes using confidence labels and a review path for ambiguous attribution.
+
+Potential signals include token purchases, mints, swaps, staking, deposits, claims and relevant contract interactions when a defensible Project/campaign relationship exists.
 
 Normal personal-profile activity must not trigger continuous blockchain polling or a scan across Project campaign records. Wallet/NFT information can be loaded from the relevant provider when the user or profile needs it. Automated onchain attribution should only be activated for the relevant Project/campaign scope and should prefer provider webhooks/subscriptions or targeted reads over broad polling.
 
@@ -421,10 +459,13 @@ Current delivery stack includes:
 - Linkary app subdomain
 - Linkary-owned tracking infrastructure
 - Coinbase CDP authentication/wallet infrastructure
+- Alchemy for paid NFT discovery and future scoped onchain attribution
+- Cloudflare Workers AI as the primary AI inference layer
+- OpenRouter as an optional secondary/specialized AI route
 
 Production D1 migrations are manual and versioned. They must not automatically run on every Worker deployment.
 
-Secrets such as tracking salts and database deployment credentials stay server-side and must never reach browser code.
+Secrets such as tracking salts, Alchemy credentials, AI provider credentials and database deployment credentials stay server-side and must never reach browser code.
 
 ### 16.1 Lightweight data-access and scaling rules
 
@@ -442,6 +483,8 @@ Core rules:
 - External providers should be called on demand, from shared subscriptions/webhooks, or for active attribution workflows. Do not poll every user's wallet/social account continuously.
 - Future Telegram tracking should use shared Project-level bot/webhook infrastructure with event-driven writes. Do not create one polling loop per user or Community.
 - Future Alchemy/onchain attribution should use shared Project-level subscriptions/webhooks or targeted reads for relevant campaigns/wallets. It should not scan all Linkary users or all D1 campaign rows on each blockchain event.
+- AI should run on explicit user request, meaningful evidence changes or controlled background jobs, not on every page load.
+- AI summaries/results should be cached where safe and invalidated when their underlying evidence materially changes.
 - Expensive derived intelligence should be computed from scoped evidence and can later use cached/roll-up summaries when real Beta volume justifies it.
 - Keep provider-specific enrichment optional. A failure or quota limit in an enrichment provider should not take down Linkary identity, profiles, invites or first-party tracking.
 
@@ -452,6 +495,106 @@ The practical consequence is that database size by itself should not make every 
 Formal versioned migrations remain the source of truth for production D1 schema changes.
 
 Any additive runtime schema safety guard must be idempotent and must not repeat DDL on every campaign, tracking or outcome request. Runtime safety checks should be cached within a Worker isolate, while controlled migrations remain the authoritative production deployment path.
+
+### 16.3 LinkaryAI architecture
+
+Linkary uses one provider-independent internal AI service, referred to as `LinkaryAI`.
+
+Product features should call the LinkaryAI service rather than calling an external model provider directly. The provider can therefore change without rewriting product features.
+
+Initial provider routing:
+
+1. Cloudflare Workers AI: primary provider for controlled-Beta inference.
+2. OpenRouter: secondary/specialized route and optional free-model fallback where appropriate.
+3. Gemini: deferred until a use case materially benefits from its multimodal/large-context capabilities.
+4. Groq: deferred until a use case materially benefits from its latency profile.
+
+The Controlled Beta should not connect every provider to every feature. One internal gateway should own model routing, usage policy and failure behavior.
+
+Recommended server-side control records include:
+
+- `ai_settings`
+- `ai_feature_routes`
+- `ai_usage_logs`
+- an AI cache or equivalent cached-result store where useful
+
+Superadmin controls should include:
+
+- global AI on/off
+- per-feature on/off
+- provider/model selection
+- allowed free models
+- request/rate caps
+- daily and monthly usage caps
+- fallback behavior
+- paid-model enable/disable
+
+Paid AI is disabled by default during the Controlled Beta. The safe default is equivalent to:
+
+- `paid_models_enabled = false`
+- `paid_daily_budget_usd = 0`
+- `paid_monthly_budget_usd = 0`
+
+If free or explicitly approved inference is unavailable, the feature must fail gracefully rather than silently incur paid usage.
+
+### 16.4 Evidence-first AI rules
+
+AI is an intelligence layer above Linkary evidence. It is never an evidence source by itself.
+
+AI may:
+
+- improve profile bios, headlines and SEO copy
+- improve or structure campaign briefs
+- summarize Growth Intelligence
+- summarize relationship history
+- classify or organize existing evidence
+- answer scoped questions about Project/campaign evidence
+- recommend creators or Communities using defensible Linkary data
+
+AI must not manufacture or upgrade:
+
+- clicks
+- outcomes
+- attributed value
+- verified evidence
+- wallet ownership
+- Creator verification
+- Project verification
+- Telegram personal identity verification
+- exact Community verification
+- campaign proof
+- public reputation claims
+
+An AI-generated interpretation should remain distinguishable from tracked, correlated or verified evidence.
+
+### 16.5 AI rollout
+
+AI rollout is phased:
+
+`AI-0 - Infrastructure`
+
+- LinkaryAI gateway
+- Workers AI adapter
+- OpenRouter adapter
+- Superadmin routing and budget controls
+- usage logs
+- caching/failure handling
+
+`AI-1 - Lightweight product assistance`
+
+- profile/headline/SEO assistance
+- campaign brief assistance
+- Founder Growth Intelligence summaries
+- relationship summaries
+
+`AI-2 - Linkary Intelligence`
+
+- Ask Linkary over scoped Project evidence
+- partner matching/ranking
+- repeated-campaign pattern detection
+- recommendation layers built from Linkary evidence
+
+AI-0 belongs in the Controlled-Beta build phase. AI-1 can be enabled gradually during the controlled cohort. AI-2 should expand only after Linkary has enough real evidence to produce defensible recommendations.
 
 ## 17. UI and UX principles
 
@@ -505,9 +648,66 @@ Backend terminology may exist in technical documentation and admin/developer too
 
 ## 18. Beta launch boundary
 
-Before broad onboarding, Linkary should prioritize a complete core loop over more integrations.
+Before broad onboarding, Linkary should prioritize a complete core loop over unnecessary integrations, while including the external services that are required for the actual paid Beta experience.
 
-Beta-ready core:
+### 18.1 Locked launch pricing and entitlements
+
+Launch pricing is split between optional Personal Profile premium features and Project subscriptions.
+
+#### Free - `$0`
+
+Free participation remains available for normal Personal Profiles, Creators and Community Managers. Core identity, public profile, discovery participation, campaign proof when earned, Community portfolio where applicable, invites according to product allocation, wallet basics and Linkary first-party campaign participation must not require the personal premium subscription.
+
+NFT Wallet Discovery, NFT Showcase, NFT Avatar and NFT Collection display are not included in Free.
+
+#### Personal Pro / Collector - `$4.99/month`
+
+Target: users who want a premium Web3 personal-profile presentation.
+
+Includes:
+
+- NFT Wallet Discovery
+- NFT Showcase
+- NFT Avatar
+- NFT Collection / collection showcase support
+- the normal free personal-profile capabilities
+
+This is a Personal Profile entitlement, not a replacement for Project subscriptions.
+
+#### Project Manual - `$9.99/month`
+
+Target: individual founders and small Projects that primarily track growth manually and through Linkary first-party links.
+
+Includes:
+
+- one Project subscription scope
+- manual campaign tracking
+- Linkary first-party tracked links within the plan allowance
+- campaign history/reporting appropriate to the entry paid Project tier
+- contact/discovery allowances according to the commercial entitlement configuration
+- no unlimited paid social/provider automation
+
+#### Project Automate - `$33.99/month`
+
+Target: Projects that need more automation, provider-assisted data and recurring campaign operations.
+
+Includes the Project Manual foundation plus higher tracking/automation allowances, team/workflow capacity and controlled automated-provider/AI usage according to configured plan limits.
+
+External-provider usage must be bounded by plan credits, fair-use controls or explicit add-ons. It must never be marketed as unlimited when Linkary incurs variable provider cost.
+
+#### Project Growth - `$99.99/month`
+
+Target: higher-volume Projects and growth teams that need deeper Growth Intelligence, larger operating limits and more automation.
+
+Includes higher campaign/tracking/contact/team/AI/provider allowances, advanced reporting/intelligence and API/export access as those capabilities become available.
+
+#### Scale / Agency / Enterprise
+
+Custom or higher-volume pricing can be introduced for agencies, large portfolios and enterprise requirements. It should preserve explicit provider/AI allowances rather than hide unlimited variable-cost usage inside a flat plan.
+
+Exact contact unlock counts, AI request quotas and provider credits remain configurable commercial entitlements so Linkary can tune them from real Controlled-Beta usage without changing the locked headline prices.
+
+### 18.2 Beta-ready core
 
 1. Invite-only onboarding
 2. Personal and Project identities
@@ -524,9 +724,16 @@ Beta-ready core:
 13. Wallet reward destinations
 14. Basic admin/recovery/verification controls
 15. Responsive readable UX across desktop, tablet and mobile
+16. Alchemy-backed NFT Wallet Discovery for the paid Personal Pro / Collector tier
+17. NFT Showcase and NFT Avatar production acceptance for the paid Personal Pro / Collector tier
+18. AI-0 infrastructure with safe provider routing and paid-model kill switches before broader AI rollout
 
 For the controlled Beta, the Partner Directory scope in item 10 is Creators and Community Managers with exact Community assets. KOL Manager portfolio discovery remains deferred until the core acceptance loop is proven with real users.
 
-Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
+Alchemy-backed NFT discovery is a Controlled-Beta dependency because it is part of the `$4.99/month` paid Personal Profile product. Advanced Alchemy onchain attribution/webhooks, however, can iterate from real beta-user behavior after the first-party attribution loop is proven.
+
+AI-0 infrastructure is part of the Controlled-Beta build phase, but AI-2 recommendation/agentic intelligence is not a launch blocker. AI should be enabled feature by feature with usage controls and evidence-first safeguards.
+
+Telegram automation, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
 
 Personal Telegram OAuth is also not a launch dependency for creating Community Manager portfolios or listing exact Communities. Provider failure must degrade to an unverified personal Telegram state rather than block onboarding. Exact Community verification remains available through Linkary-reviewed public evidence, and no verified personal Telegram identity badge may be shown until the OAuth identity actually succeeds.
