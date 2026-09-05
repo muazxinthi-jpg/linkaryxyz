@@ -77,12 +77,12 @@ test('callback state is session-bound, expires and is consumed only once', async
     const { authorizationUrl } = await start.json() as { authorizationUrl: string };
     const state = new URL(authorizationUrl).searchParams.get('state');
     const path = `/api/auth/telegram/callback?state=${state}&error=access_denied`;
-    assert.equal((await finishTelegramConnection(f.request(path, 'b'), f.env)).headers.get('location'), '/profile?telegram=failed');
+    assert.match((await finishTelegramConnection(f.request(path, 'b'), f.env)).headers.get('location') || '', /telegram=failed&telegram_phase=session_verified/);
     assert.equal(f.sql.prepare('SELECT used_at FROM oauth_states').get()!.used_at, null);
-    assert.equal((await finishTelegramConnection(f.request(path), f.env)).headers.get('location'), '/profile?telegram=cancelled');
-    assert.equal((await finishTelegramConnection(f.request(path), f.env)).headers.get('location'), '/profile?telegram=failed');
+    assert.match((await finishTelegramConnection(f.request(path), f.env)).headers.get('location') || '', /telegram=cancelled&telegram_phase=provider_cancelled/);
+    assert.match((await finishTelegramConnection(f.request(path), f.env)).headers.get('location') || '', /telegram=failed&telegram_phase=session_verified/);
     f.sql.exec("UPDATE oauth_states SET used_at=NULL, expires_at='2000-01-01'");
-    assert.equal((await finishTelegramConnection(f.request(path), f.env)).headers.get('location'), '/profile?telegram=failed');
+    assert.match((await finishTelegramConnection(f.request(path), f.env)).headers.get('location') || '', /telegram=failed&telegram_phase=session_verified/);
     assert.equal(f.sql.prepare('SELECT count(*) AS n FROM platform_identity_links').get()!.n, 0);
   } finally { f.sql.close(); }
 });
@@ -132,10 +132,10 @@ test('full callback exchanges PKCE code, verifies Telegram and persists only the
     const state = new URL(start.authorizationUrl).searchParams.get('state');
     const request = f.request(`/api/auth/telegram/callback?state=${state}&code=test-code`);
     const callback = await finishTelegramConnection(request, f.env);
-    assert.equal(callback.headers.get('location'), '/profile?telegram=connected');
+    assert.equal(callback.headers.get('location'), '/profile?telegram=connected&telegram_phase=identity_saved');
     assert.equal(callback.headers.get('referrer-policy'), 'no-referrer');
     assert.equal(callback.headers.get('set-cookie'), null);
-    assert.equal((await finishTelegramConnection(request, f.env)).headers.get('location'), '/profile?telegram=failed');
+    assert.match((await finishTelegramConnection(request, f.env)).headers.get('location') || '', /telegram=failed&telegram_phase=session_verified/);
     assert.equal(exchanges, 1);
     const identity = f.sql.prepare("SELECT * FROM platform_identities WHERE provider_uid='7654321'").get()!;
     assert.equal(identity.current_handle, 'verifiedperson');

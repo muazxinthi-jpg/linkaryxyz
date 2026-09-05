@@ -11,6 +11,7 @@ export default function PersonalTelegramConnection() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const outcome = url.searchParams.get('telegram');
+    const phase = url.searchParams.get('telegram_phase');
     const messages: Record<string, string> = {
       connected: 'Telegram connected to your Personal Profile.',
       cancelled: 'Telegram connection was cancelled. You can try again whenever you are ready.',
@@ -18,8 +19,9 @@ export default function PersonalTelegramConnection() {
       failed: 'Telegram could not be connected. Please try again from your signed-in Linkary account.',
     };
     if (outcome) {
-      setMessage(messages[outcome] || '');
+      setMessage(outcome === 'failed' && phase ? `${messages[outcome]} Diagnostic phase: ${phase}.` : messages[outcome] || '');
       url.searchParams.delete('telegram');
+      url.searchParams.delete('telegram_phase');
       window.history.replaceState(window.history.state, '', url);
     }
     let cancelled = false;

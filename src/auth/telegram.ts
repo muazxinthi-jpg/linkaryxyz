@@ -82,8 +82,10 @@ export async function saveTelegramIdentity(db: Db, userId: string, identity: Awa
 export async function finishTelegramConnection(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
   let result = 'failed';
+  let phase = 'init';
   try {
     const auth = await requireAuth(request, env);
+    phase = 'session_verified';
     const settings = config(request, env);
     const url = new URL(request.url);
     const state = url.searchParams.get('state');
@@ -95,8 +97,10 @@ export async function finishTelegramConnection(request: Request, env: Env): Prom
         AND json_extract(access_context_json, '$.userId') = ? AND json_extract(access_context_json, '$.sessionId') = ?
       RETURNING code_verifier`, [new Date().toISOString(), provider, await sha256(state), new Date().toISOString(), auth.user.id, auth.session.id]);
     if (!row) throw new Error('Invalid or expired state');
+    phase = 'state_consumed';
     if (url.searchParams.has('error')) {
       result = 'cancelled';
+      phase = 'provider_cancelled';
     } else {
       const code = url.searchParams.get('code');
       if (!code || code.length > 4096) throw new Error('Invalid code');
@@ -104,6 +108,7 @@ export async function finishTelegramConnection(request: Request, env: Env): Prom
         headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: `Basic ${btoa(`${settings.clientId}:${settings.secret}`)}` },
         body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: settings.redirectUri, client_id: settings.clientId, code_verifier: row.code_verifier }) });
       if (!response.ok) throw new Error('Telegram exchange failed');
+      phase = 'token_exchanged';
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Empty Telegram response');
       let text = '';
@@ -122,16 +127,18 @@ export async function finishTelegramConnection(request: Request, env: Env): Prom
       const body = JSON.parse(text) as { id_token?: unknown };
       if (typeof body.id_token !== 'string' || body.id_token.length > 16384) throw new Error('Invalid Telegram response');
       const identity = await verifyTelegramIdentity(body.id_token, settings.clientId);
+      phase = 'token_verified';
       // Recheck session after the external exchange, before linking.
       const current = await requireAuth(request, env);
       if (current.user.id !== auth.user.id || current.session.id !== auth.session.id) throw new Error('Session changed');
       await saveTelegramIdentity(db, auth.user.id, identity);
       result = 'connected';
+      phase = 'identity_saved';
     }
   } catch (error) {
     if (error instanceof HttpError && error.code === 'telegram_already_linked') result = 'conflict';
     // Never log provider bodies, callback URLs, tokens, or exceptions containing them.
-    console.error('[Linkary Telegram Connection]', { stage: 'callback_failed', result, timestamp: new Date().toISOString() });
+    console.error('[Linkary Telegram Connection]', { stage: 'callback_failed', result, phase, errorCode: error instanceof HttpError ? error.code : 'unexpected', timestamp: new Date().toISOString() });
   }
-  return new Response(null, { status: 303, headers: { location: `/profile?telegram=${result}`, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
+  return new Response(null, { status: 303, headers: { location: `/profile?telegram=${result}&telegram_phase=${phase}`, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
 }
