@@ -66,6 +66,25 @@
   max-width:100%;
 }
 
+/* The workspace sidebar and page gutters reduce card width before the phone shell
+   activates. Move actions to their own row so campaign copy never collapses. */
+@media (min-width:901px) and (max-width:1180px){
+  .growth-workspace .growth-campaign-list > article{
+    grid-template-columns:minmax(260px,1fr) minmax(180px,220px);
+    align-items:start;
+  }
+
+  .growth-workspace .growth-campaign-main{
+    min-width:260px;
+  }
+
+  .growth-workspace .growth-campaign-actions{
+    grid-column:1/-1;
+    justify-content:flex-start;
+    padding-top:2px;
+  }
+}
+
 @media (max-width:700px){
   .growth-workspace .ops-heading-row{
     align-items:stretch;
