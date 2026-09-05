@@ -33,8 +33,11 @@ test('Outcome Ledger exposes outcome-type filtering and keeps it in CSV parity',
   assert.equal(view.includes('Alloutcometypes'), true);
 });
 
-test('Outcome rows distinguish current activity partner context from immutable outcome evidence', () => {
-  assert.equal(view.includes('Currentactivitypartner:'), true);
+test('Outcome rows distinguish immutable link-creation attribution from legacy partner backfills', () => {
+  assert.equal(view.includes('Currentactivitypartner:'), false);
+  assert.equal(view.includes('Attributedpartnerattracking-linkcreation'), true);
+  assert.equal(view.includes('Legacypartnersnapshot'), true);
+  assert.equal(view.includes('Legacysnapshot,notprovenlink-creationhistory'), true);
   assert.equal(view.includes('outcome.partner_display_name'), true);
   assert.equal(view.includes("outcome.partner_kind==='community'"), true);
 });
