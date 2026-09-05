@@ -7,6 +7,7 @@ import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity'
 import { getLinkaryUrls } from './urls';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
+import { founderGrowthIntelligence } from './routes/growthIntelligence';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -35,6 +36,12 @@ export default {
     if (url.pathname === '/api/auth/telegram-identity') {
       try { return await currentPersonalTelegramIdentity(request, env); }
       catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/growth-intelligence') {
+      try {
+        if (request.method === 'GET') return await founderGrowthIntelligence(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/campaign-costs') {
       try {
