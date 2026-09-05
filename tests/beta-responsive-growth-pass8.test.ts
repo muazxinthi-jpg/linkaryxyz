@@ -68,7 +68,7 @@ test('Growth modals stay inside the dynamic phone viewport with reachable contro
 
 test('Growth acceptance does not weaken campaign or evidence semantics', () => {
   assert.equal(view.includes('CampaignLifecycleActions'), true);
-  assert.equal(view.includes('ThesefiguresonlyuserecordedLinkaryevidence.Missingspendoroutcomedataisleftoutratherthanestimated.'), true);
+  assert.equal(view.includes('ROIandcost-efficiencyuserecordedactualspend,nevercampaignbudgetorplannedcost.Missingfinancialoroutcomedataisleftunavailableratherthanestimated.'), true);
   assert.equal(lifecycle.includes('Completingthecampaigndoesnotcreateperformanceproof.'), true);
   assert.equal(lifecycle.includes('Attributionconfidenceisnotchanged.'), true);
 });
