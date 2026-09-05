@@ -5,6 +5,7 @@ import test from 'node:test';
 const route = readFileSync(new URL('../src/routes/growthIntelligence.ts', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../frontend/src/FounderGrowthIntelligencePanel.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/founder-growth-intelligence.css', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../frontend/src/DashboardExperience.tsx', import.meta.url), 'utf8');
 
 test('Growth charts aggregate Project-scoped time series without changing evidence provenance', () => {
   assert.match(route, /rangeDays = \[7, 30, 90\]/);
@@ -37,4 +38,13 @@ test('Growth dashboard adds richer traction context without inventing a Project 
   assert.match(route, /SELECT c\.id, c\.name, c\.starts_at/);
   assert.match(css, /\.fgi-momentum-bars/);
   assert.match(css, /\.fgi-baseline-note/);
+});
+
+test('Project Overview shows an executive growth snapshot while Growth keeps diagnostic depth', () => {
+  assert.match(dashboard, /FounderGrowthIntelligencePanel organizationId=\{profile\.organization_id\} variant="overview"/);
+  assert.doesNotMatch(dashboard, /campaign-outcomes\?campaignId/);
+  for (const token of ['PROJECT HEALTH', 'Growth snapshot', 'Open Growth →', 'TOP DRIVERS', 'BASELINE → CURRENT']) assert.match(panel, new RegExp(token));
+  assert.match(panel, /if \(variant === 'overview'\)/);
+  assert.match(css, /\.fgi-overview-grid/);
+  assert.match(css, /\.fgi-overview-summary/);
 });
