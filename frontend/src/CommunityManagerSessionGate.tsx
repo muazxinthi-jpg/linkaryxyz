@@ -60,13 +60,26 @@ export default function CommunityManagerSessionGate({ me, status }: { me: Produc
       setGateState('checking');
       return;
     }
-    if (!isSignedIn) {
-      setGateState('reconnect');
-      return;
-    }
     let cancelled = false;
     void (async () => {
       setGateState('checking');
+      // A Personal Telegram connection is already bound to the authenticated
+      // Linkary account. It must be enough to open Communities; CDP is only a
+      // legacy session-recovery path for accounts that still need it.
+      try {
+        const telegram = await api<{ connected: boolean }>('/api/auth/telegram-identity');
+        if (telegram.connected) {
+          if (!cancelled) {
+            setMessage('');
+            setGateState('ready');
+          }
+          return;
+        }
+      } catch {}
+      if (!isSignedIn) {
+        if (!cancelled) setGateState('reconnect');
+        return;
+      }
       try {
         const token = await getAccessToken();
         const csrfToken = csrf();
