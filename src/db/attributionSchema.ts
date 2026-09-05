@@ -131,6 +131,31 @@ async function applyAttributionRuntimeSchema(db: Db): Promise<void> {
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS tracked_link_partner_snapshots (
+    tracked_link_id TEXT PRIMARY KEY NOT NULL REFERENCES tracked_links(id) ON DELETE CASCADE,
+    activity_id TEXT REFERENCES campaign_activities(id) ON DELETE SET NULL,
+    assignment_kind TEXT CHECK (assignment_kind IN ('creator', 'community')),
+    partner_entity_id TEXT REFERENCES project_network_entities(id),
+    creator_profile_id TEXT REFERENCES profiles(id),
+    partner_manager_id TEXT REFERENCES partner_managers(id),
+    partner_asset_id TEXT REFERENCES partner_manager_assets(id),
+    partner_display_name TEXT,
+    partner_handle TEXT,
+    partner_manager_name TEXT,
+    partner_verification_status TEXT,
+    snapshot_source TEXT NOT NULL CHECK (snapshot_source IN ('link_creation', 'legacy_backfill')),
+    captured_at TEXT NOT NULL,
+    CHECK (
+      (assignment_kind IS NULL AND partner_entity_id IS NULL AND creator_profile_id IS NULL AND partner_manager_id IS NULL AND partner_asset_id IS NULL)
+      OR
+      (assignment_kind = 'creator' AND partner_entity_id IS NOT NULL AND creator_profile_id IS NOT NULL AND partner_manager_id IS NULL AND partner_asset_id IS NULL)
+      OR
+      (assignment_kind = 'community' AND partner_entity_id IS NOT NULL AND creator_profile_id IS NULL AND partner_manager_id IS NOT NULL AND partner_asset_id IS NOT NULL)
+    )
+  )`);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_tracked_link_partner_snapshots_entity ON tracked_link_partner_snapshots(partner_entity_id, captured_at DESC) WHERE partner_entity_id IS NOT NULL');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_tracked_link_partner_snapshots_creator ON tracked_link_partner_snapshots(creator_profile_id, captured_at DESC) WHERE creator_profile_id IS NOT NULL');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_tracked_link_partner_snapshots_community ON tracked_link_partner_snapshots(partner_asset_id, captured_at DESC) WHERE partner_asset_id IS NOT NULL');
   await db.run(`CREATE TABLE IF NOT EXISTS tracked_link_clicks (
     id TEXT PRIMARY KEY NOT NULL,
     tracked_link_id TEXT NOT NULL REFERENCES tracked_links(id),
