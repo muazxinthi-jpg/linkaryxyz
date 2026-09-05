@@ -7,9 +7,30 @@ import { requireAuth, verifyCsrf } from '../auth/session';
 import { hmacSha256, randomToken } from '../security/crypto';
 import { organizationMembership, requireOperationalProjectAccess } from './organizations';
 import { getLinkaryUrls } from '../urls';
+import { buildTrackedDestination, type TrackingUtmContext } from '../trackingUtm';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
+
+type TrackingContextRow = {
+  campaign_name: string | null;
+  activity_title: string | null;
+  activity_type: string | null;
+  assignment_kind: 'creator' | 'community' | null;
+  partner_handle: string | null;
+  partner_name: string | null;
+};
+
+function utmContext(row: TrackingContextRow): TrackingUtmContext {
+  return {
+    campaignName: row.campaign_name || 'campaign',
+    activityTitle: row.activity_title || 'activity',
+    activityType: row.activity_type || 'other',
+    assignmentKind: row.assignment_kind,
+    partnerHandle: row.partner_handle,
+    partnerName: row.partner_name,
+  };
+}
 
 export async function createTrackedLink(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
@@ -19,8 +40,25 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
 
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
-  const activity = await db.first<{ campaign_id: string; organization_id: string; destination_url: string | null }>(
-    'SELECT a.campaign_id, c.organization_id, a.destination_url FROM campaign_activities a JOIN campaigns c ON c.id = a.campaign_id WHERE a.id = ?',
+  const activity = await db.first<{
+    campaign_id: string;
+    organization_id: string;
+    destination_url: string | null;
+  } & TrackingContextRow>(
+    `SELECT a.campaign_id,
+            c.organization_id,
+            a.destination_url,
+            c.name AS campaign_name,
+            a.title AS activity_title,
+            a.activity_type,
+            cla.assignment_kind,
+            pne.primary_handle AS partner_handle,
+            pne.display_name AS partner_name
+       FROM campaign_activities a
+       JOIN campaigns c ON c.id = a.campaign_id
+       LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = a.id
+       LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
+      WHERE a.id = ?`,
     [body.activityId],
   );
   if (!activity || !activity.destination_url) throw new HttpError(409, 'An activity destination URL is required', 'destination_required');
@@ -35,7 +73,15 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
   );
 
   const trackingBase = getLinkaryUrls(request, env).tracking;
-  return json({ id: linkId, code, url: `${trackingBase}/r/${encodeURIComponent(code)}` }, { status: 201 });
+  const trackedDestination = buildTrackedDestination(activity.destination_url, utmContext(activity));
+  return json({
+    id: linkId,
+    code,
+    url: `${trackingBase}/r/${encodeURIComponent(code)}`,
+    destinationUrl: activity.destination_url,
+    effectiveDestinationUrl: trackedDestination.effectiveDestinationUrl,
+    utm: trackedDestination.utm,
+  }, { status: 201 });
 }
 
 export async function listTrackedLinks(request: Request, env: Env): Promise<Response> {
@@ -74,11 +120,20 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
        t.status,
        t.created_at,
        t.updated_at,
-       COUNT(c.id) AS clicks,
-       MAX(c.occurred_at) AS last_click_at
+       camp.name AS campaign_name,
+       cla.assignment_kind,
+       pne.primary_handle AS partner_handle,
+       pne.display_name AS partner_name,
+       COUNT(click.id) AS clicks,
+       COUNT(click.visitor_id_hash) AS identified_clicks,
+       COUNT(DISTINCT click.visitor_id_hash) AS estimated_unique_clicks,
+       MAX(click.occurred_at) AS last_click_at
      FROM tracked_links t
+     LEFT JOIN campaigns camp ON camp.id = t.campaign_id
      LEFT JOIN campaign_activities a ON a.id = t.activity_id
-     LEFT JOIN tracked_link_clicks c ON c.tracked_link_id = t.id
+     LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = t.activity_id
+     LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
+     LEFT JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
      WHERE ${where}
      GROUP BY t.id
      ORDER BY t.created_at DESC`,
@@ -87,7 +142,22 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
 
   const trackingBase = getLinkaryUrls(request, env).tracking;
   return json({
-    links: links.map((row: any) => ({ ...row, url: `${trackingBase}/r/${encodeURIComponent(row.code)}` })),
+    links: links.map((row: any) => {
+      const trackedDestination = buildTrackedDestination(String(row.destination_url || ''), utmContext(row));
+      const clicks = Number(row.clicks || 0);
+      const identifiedClicks = Number(row.identified_clicks || 0);
+      const estimatedUniqueClicks = identifiedClicks > 0 ? Number(row.estimated_unique_clicks || 0) : null;
+      return {
+        ...row,
+        clicks,
+        identified_clicks: identifiedClicks,
+        estimated_unique_clicks: estimatedUniqueClicks,
+        repeat_clicks: estimatedUniqueClicks === null ? null : Math.max(0, identifiedClicks - estimatedUniqueClicks),
+        effective_destination_url: trackedDestination.effectiveDestinationUrl,
+        utm: trackedDestination.utm,
+        url: `${trackingBase}/r/${encodeURIComponent(row.code)}`,
+      };
+    }),
   });
 }
 
@@ -113,8 +183,26 @@ export async function updateTrackedLinkStatus(request: Request, env: Env, linkId
 export async function redirectTrackedLink(request: Request, env: Env, code: string): Promise<Response> {
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
-  const link = await db.first<{ id: string; destination_url: string; status: string }>(
-    'SELECT id, destination_url, status FROM tracked_links WHERE code = ?',
+  const link = await db.first<{
+    id: string;
+    destination_url: string;
+    status: string;
+  } & TrackingContextRow>(
+    `SELECT t.id,
+            t.destination_url,
+            t.status,
+            camp.name AS campaign_name,
+            a.title AS activity_title,
+            a.activity_type,
+            cla.assignment_kind,
+            pne.primary_handle AS partner_handle,
+            pne.display_name AS partner_name
+       FROM tracked_links t
+       LEFT JOIN campaigns camp ON camp.id = t.campaign_id
+       LEFT JOIN campaign_activities a ON a.id = t.activity_id
+       LEFT JOIN campaign_activity_linkary_assignments cla ON cla.activity_id = t.activity_id
+       LEFT JOIN project_network_entities pne ON pne.id = cla.entity_id
+      WHERE t.code = ?`,
     [code],
   );
   if (!link || link.status !== 'active') throw new HttpError(404, 'Tracking link not found', 'tracking_not_found');
@@ -129,5 +217,6 @@ export async function redirectTrackedLink(request: Request, env: Env, code: stri
     'INSERT INTO tracked_link_clicks (id, tracked_link_id, visitor_id_hash, referrer_host, occurred_at) VALUES (?, ?, ?, ?, ?)',
     [id('tlc'), link.id, visitorHash, referrerHost, now()],
   );
-  return Response.redirect(link.destination_url, 302);
+  const trackedDestination = buildTrackedDestination(link.destination_url, utmContext(link));
+  return Response.redirect(trackedDestination.effectiveDestinationUrl, 302);
 }
