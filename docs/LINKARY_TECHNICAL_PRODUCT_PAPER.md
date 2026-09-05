@@ -1,6 +1,6 @@
 # Linkary Technical Product Paper
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 ## 1. Product thesis
 
@@ -161,6 +161,8 @@ During Beta, personal Telegram OAuth is optional and must not block creation of 
 Exact Community ownership verification remains a separate evidence workflow. A Community can be submitted for Linkary review using Community-specific public Telegram proof even when the manager's personal Telegram OAuth is unavailable. Personal Telegram verification and exact Community verification must never be conflated.
 
 ### 6.2 KOL Manager
+
+KOL Manager portfolio discovery is a future extension, not a controlled-Beta launch requirement. The current Beta directory deliberately scopes discovery to Creators and Community Managers with exact Community assets. Do not implement this section while the Beta acceptance gates in section 18 remain incomplete.
 
 A KOL Manager is a POC who may represent multiple creators or KOLs across X, TikTok, YouTube, Instagram, Farcaster or other channels.
 
@@ -522,6 +524,8 @@ Beta-ready core:
 13. Wallet reward destinations
 14. Basic admin/recovery/verification controls
 15. Responsive readable UX across desktop, tablet and mobile
+
+For the controlled Beta, the Partner Directory scope in item 10 is Creators and Community Managers with exact Community assets. KOL Manager portfolio discovery remains deferred until the core acceptance loop is proven with real users.
 
 Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
 
