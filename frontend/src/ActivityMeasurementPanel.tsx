@@ -38,8 +38,13 @@ type MeasurementResponse = {
 };
 
 type ApiPayload = { error?: string; message?: string };
-
 type Field = { key: string; label: string };
+
+type ActivityMeasurementPanelProps = {
+  activityId: string;
+  canSubmit: boolean;
+  canReview?: boolean;
+};
 
 const PROVENANCE_PRIORITY: Metric['provenance'][] = [
   'provider_verified',
@@ -131,7 +136,7 @@ function metricValue(metrics: Metric[], deliverableId: string, keys: string[]): 
   return 0;
 }
 
-export default function ActivityMeasurementPanel({ activityId, writable }: { activityId: string; writable: boolean }) {
+export default function ActivityMeasurementPanel({ activityId, canSubmit, canReview = false }: ActivityMeasurementPanelProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState('');
@@ -188,7 +193,7 @@ export default function ActivityMeasurementPanel({ activityId, writable }: { act
   async function addDeliverable(event: React.FormEvent) {
     event.preventDefault();
     const token = csrf();
-    if (!token || !contentUrl.trim()) return;
+    if (!token || !contentUrl.trim() || !canSubmit) return;
     setSaving('deliverable');
     setMessage('');
     try {
@@ -210,7 +215,7 @@ export default function ActivityMeasurementPanel({ activityId, writable }: { act
 
   async function review(deliverableId: string, evidenceState: 'accepted' | 'rejected') {
     const token = csrf();
-    if (!token) return;
+    if (!token || !canReview) return;
     setSaving(`review:${deliverableId}`);
     try {
       await api(`/api/tracked-links?operation=review-deliverable&deliverableId=${encodeURIComponent(deliverableId)}`, {
@@ -229,7 +234,7 @@ export default function ActivityMeasurementPanel({ activityId, writable }: { act
 
   async function saveMetrics(deliverable: Deliverable) {
     const token = csrf();
-    if (!token) return;
+    if (!token || !canSubmit) return;
     const draft = metricDrafts[deliverable.id] || {};
     const metrics = Object.fromEntries(Object.entries(draft)
       .filter(([, value]) => value !== '')
@@ -278,7 +283,7 @@ export default function ActivityMeasurementPanel({ activityId, writable }: { act
             {rollup.reportedJoins > 0 && <span>Reported joins <strong>{number(rollup.reportedJoins)}</strong></span>}
           </div>
 
-          {writable && <form className="activity-measurement-add" onSubmit={addDeliverable}>
+          {canSubmit && <form className="activity-measurement-add" onSubmit={addDeliverable}>
             <div><h3>Add published work</h3><p>Attach the exact post, message, video or article. Submission confirms the URL was supplied, not that its reported metrics are verified.</p></div>
             <div className="activity-measurement-fields">
               <label>Platform<select value={platform} onChange={(event) => setPlatform(event.target.value as Deliverable['platform'])}><option value="x">X</option><option value="telegram">Telegram</option><option value="youtube">YouTube</option><option value="article">Article / publication</option><option value="website">Website</option><option value="other">Other</option></select></label>
@@ -300,9 +305,9 @@ export default function ActivityMeasurementPanel({ activityId, writable }: { act
 
                 {!!deliverableMetrics.length && <div className="activity-measurement-existing">{deliverableMetrics.map((metric) => <span key={metric.id}><strong>{human(metric.metric_key)}: {number(metric.metric_value)}</strong><small>{human(metric.provenance)}</small></span>)}</div>}
 
-                {writable && <div className="activity-measurement-edit">
+                {canSubmit && <div className="activity-measurement-edit">
                   <div className="activity-measurement-metric-grid">{FIELDS[deliverable.platform].map((field) => <label key={field.key}>{field.label}<input type="number" min="0" step="1" value={draft[field.key] || ''} onChange={(event) => setMetricDrafts((current) => ({ ...current, [deliverable.id]: { ...(current[deliverable.id] || {}), [field.key]: event.target.value } }))} placeholder="0" /></label>)}</div>
-                  <div className="activity-measurement-actions"><button type="button" className="ops-button small primary" onClick={() => void saveMetrics(deliverable)} disabled={saving === `metrics:${deliverable.id}`}>{saving === `metrics:${deliverable.id}` ? 'Saving...' : 'Save reported metrics'}</button>{deliverable.evidence_state === 'submitted' && <><button type="button" className="ops-button small" onClick={() => void review(deliverable.id, 'accepted')} disabled={saving === `review:${deliverable.id}`}>Accept deliverable</button><button type="button" className="ops-button small ghost" onClick={() => void review(deliverable.id, 'rejected')} disabled={saving === `review:${deliverable.id}`}>Reject</button></>}</div>
+                  <div className="activity-measurement-actions"><button type="button" className="ops-button small primary" onClick={() => void saveMetrics(deliverable)} disabled={saving === `metrics:${deliverable.id}`}>{saving === `metrics:${deliverable.id}` ? 'Saving...' : 'Save reported metrics'}</button>{canReview && deliverable.evidence_state === 'submitted' && <><button type="button" className="ops-button small" onClick={() => void review(deliverable.id, 'accepted')} disabled={saving === `review:${deliverable.id}`}>Accept deliverable</button><button type="button" className="ops-button small ghost" onClick={() => void review(deliverable.id, 'rejected')} disabled={saving === `review:${deliverable.id}`}>Reject</button></>}</div>
                   <small className="activity-measurement-note">Metrics entered here are manual evidence. Linkary-tracked clicks and outcomes remain separate first-party signals.</small>
                 </div>}
               </article>;
