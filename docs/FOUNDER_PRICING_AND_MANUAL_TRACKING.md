@@ -1,127 +1,152 @@
-# Linkary Founder Freemium and Manual Tracking Model
+# Linkary Pricing and Manual Tracking Model
 
-This document is a locked product direction for the new Linkary build.
+This document is a locked product direction for the Linkary Controlled Beta and launch pricing.
 
 ## Core principle
 
-Linkary should allow founders to enter the platform for free and experience the network before paying. Monetization should begin when founders want higher-value actions such as revealing business contact details, managing more projects, accessing longer history, or enabling paid/automated data features.
+Linkary should keep network participation and basic Personal Profile utility free while monetizing premium personal-profile presentation and higher-value Project workflows.
 
-The entry experience must remain inexpensive for Linkary to operate. Manual campaign tracking and Linkary-owned first-party attribution should be available without requiring paid social APIs.
+Manual campaign tracking and Linkary-owned first-party attribution should remain inexpensive to operate and must not depend on paid social APIs.
 
-## Recommended launch pricing
+Variable-cost features such as automated provider data and AI must use explicit limits, credits, fair-use controls or add-ons. Linkary must not promise unlimited paid-provider usage inside a low-cost flat plan.
 
-### Free
+## Locked launch pricing
 
-Target: founders evaluating Linkary and beginning to organize their growth activity.
+### Free - $0
 
-Includes:
-- create a founder account
-- create and claim one project/company profile
-- browse discoverable creators, communities, promotional platforms, and POCs
-- see public reputation summaries and non-sensitive public profile information
-- shortlist/save profiles
-- up to 3 lifetime contact unlocks after account/project verification
-- up to 3 active manually tracked campaigns
-- basic manual metrics dashboard
-- Linkary first-party tracked links within a conservative usage allowance
-- 30-day campaign history
-
-No paid social-data automation is included.
-
-### Founder Starter - $9.99/month
-
-Target: individual founders and small teams that primarily operate campaigns manually.
+Target: normal Personal Profiles, Creators, Community Managers and users entering the Linkary network.
 
 Includes:
-- 1 project seat
-- 25 new contact unlock credits each billing month
-- previously unlocked contacts remain unlocked for that BillingAccount and do not consume another credit
-- unlimited manually entered campaigns, subject to reasonable anti-abuse/fair-use safeguards
-- 12-month campaign history
-- manual campaign performance dashboard
-- save and organize creators, communities, POCs, promotional platforms, publications, and partners
-- Linkary first-party tracked links with a higher usage allowance
-- CSV export of the founder's own manually entered campaign data
-- reputation and verified review access according to product visibility rules
 
-This plan does not include paid social API calls or automated social performance refreshes.
+- Personal Profile and public profile
+- selectable public identity
+- social and normal featured profile content
+- discovery participation
+- Creator/Community campaign proof when legitimately earned
+- Community portfolio where applicable
+- Linkary invite allocation according to product rules
+- wallet basics and optional reward destinations
+- participation in Project campaigns/opportunities according to product permissions
 
-### Growth - suggested $39/month at launch
+Not included:
 
-Target: active teams operating several campaigns and projects.
+- NFT Wallet Discovery
+- NFT Showcase
+- NFT Avatar
+- NFT Collection / collection showcase premium presentation
 
-Suggested allowances:
-- 3 project seats
-- 100 contact unlock credits/month
-- team access
-- unlimited manual campaign history
-- richer comparison/reporting
-- higher first-party tracking limits
-- additional exports
-- future limited automated-provider credits can be offered separately, not bundled as unlimited usage
+### Personal Pro / Collector - $4.99/month
 
-### Scale - suggested $99/month at launch
+Target: users who want a premium Web3 personal-profile presentation.
 
-Target: high-volume projects and small agencies.
+Includes the Free Personal Profile capabilities plus:
 
-Suggested allowances:
-- 10 project seats
-- 300 contact unlock credits/month
-- larger team
-- much higher Linkary-owned tracking allowance
-- API/export access when available
-- advanced reporting
-- provider/API automation charged through defined included credits or add-ons, never unlimited
+- NFT Wallet Discovery
+- NFT Showcase
+- NFT Avatar
+- NFT Collection / collection showcase support
 
-Agency/enterprise can remain custom.
+Alchemy powers the wallet/NFT discovery layer server-side. The feature should be on demand rather than continuously polling user wallets.
+
+Personal Pro / Collector is a Personal Profile subscription. It does not replace Project subscriptions.
+
+### Project Manual - $9.99/month
+
+Target: individual founders and small Projects that primarily operate campaigns manually and through Linkary first-party tracking.
+
+Includes:
+
+- one Project subscription scope
+- manual campaign tracking
+- Linkary first-party tracking links within the plan allowance
+- campaign history and entry paid reporting
+- Project partner/discovery workflows according to product permissions
+- contact unlock allowance according to the current commercial configuration
+- CSV/export capabilities available to this tier
+
+This plan does not include unlimited paid social-data automation or unlimited external-provider calls.
+
+### Project Automate - $33.99/month
+
+Target: active Projects that need more automation, provider-assisted data and recurring campaign operations.
+
+Includes the Project Manual foundation plus:
+
+- higher campaign/tracking allowances
+- larger team/workflow capacity
+- controlled automated-provider features
+- controlled AI usage
+- richer recurring reporting and operational automation
+
+Provider/API usage must be bounded by plan credits, usage caps, fair-use controls or explicit add-ons.
+
+### Project Growth - $99.99/month
+
+Target: higher-volume Projects and growth teams.
+
+Includes the Project Automate foundation plus:
+
+- substantially higher campaign/tracking limits
+- higher team/contact/provider/AI allowances
+- deeper Founder Growth Intelligence
+- advanced reporting and comparisons
+- larger export/API allowances as those capabilities become available
+
+### Scale / Agency / Enterprise
+
+Custom or higher-volume pricing can be introduced for agencies, multi-Project operators and enterprise requirements.
+
+The commercial design should preserve explicit provider and AI allowances rather than hide unlimited variable-cost usage inside a flat subscription.
+
+## Configurable entitlements
+
+The headline prices above are locked for launch.
+
+The following values remain configurable from real Controlled-Beta usage:
+
+- contact unlock counts
+- first-party tracking allowances
+- Project/team limits beyond the headline scope
+- AI request/model allowances
+- automated-provider credits
+- export/API allowances
+- fair-use thresholds
+
+Changing a quota does not require changing the locked headline plan prices.
 
 ## Contact unlock model
 
-Use credits rather than unlimited contact visibility.
+Use credits rather than unlimited contact visibility where contact-unlock monetization is enabled.
 
-One contact unlock should reveal the discoverable business contact record for one creator, POC, manager, community representative, promotional platform contact, or similar entity.
+One contact unlock should reveal the discoverable business contact record for one creator, POC, manager, community representative, promotional platform contact or similar entity.
 
 Rules:
+
 - one unlock consumes one contact credit
 - once unlocked by a BillingAccount, that same contact remains unlocked for that BillingAccount
 - revisiting the same contact does not consume another credit
 - credits belong to the BillingAccount, not an individual team member
 - do not charge separately for each field within the same contact record
 - contact access should be auditable
-- do not expose private/personal contact details that were not intentionally made discoverable, supplied for business discovery, or otherwise lawfully available for this purpose
+- do not expose private/personal contact details that were not intentionally made discoverable, supplied for business discovery or otherwise lawfully available for this purpose
 - allow people/platforms to control or remove contact information where applicable
 
 Example unlocked contact record:
+
 - preferred contact name
 - business email if available/allowed
 - Telegram username or verified Telegram contact route
 - X account
 - website/contact form
-- LinkedIn or other business channel if intentionally provided
-
-## Why $9.99 is an entry tier, not the whole product
-
-The $9.99 Founder Starter plan should optimize for conversion and network growth, not maximize immediate ARPU.
-
-Linkary's higher-value monetization comes later from:
-- more project seats
-- higher contact-unlock volumes
-- teams and agencies
-- advanced attribution
-- automated provider data
-- creator/community intelligence
-- comparisons and scoring
-- API/export access
-- workflow/MCP capabilities
-
-Do not bundle expensive provider calls into the $9.99 plan.
+- LinkedIn or another intentionally supplied business channel
 
 ## Manual campaign tracking
 
-Founders must be able to create a campaign and manually enter results even when Linkary has no API connection to the underlying social platform.
+Projects must be able to create a campaign and manually enter results even when Linkary has no API connection to the underlying social platform.
 
 Suggested fields:
-- project
+
+- Project
 - campaign name
 - campaign objective
 - promotional platform/channel
@@ -146,9 +171,10 @@ Suggested fields:
 - conversions
 - revenue attributed manually where known
 - founder notes
-- evidence/attachments later
+- evidence/attachments
 
-Linkary can calculate derived metrics without any third-party social API:
+Linkary can calculate derived metrics without a paid third-party social API when the required source values exist:
+
 - CPM
 - CPC
 - cost per Telegram join
@@ -160,13 +186,14 @@ Linkary can calculate derived metrics without any third-party social API:
 - ROAS when revenue is entered
 - promised-vs-delivered variance
 
-Manual values must be visibly labeled as founder-entered/manual data and must not be represented as Linkary-verified provider metrics.
+Manual values must remain visibly labeled as manual/founder-entered data and must not be represented as provider-verified metrics.
 
 ## First-party tracking remains available
 
 Manual campaign tracking does not mean Linkary is blind.
 
-Linkary-owned redirects such as `l.linkary.xyz/...` can automatically record first-party signals at low marginal cost:
+Linkary-owned redirects can automatically record low-marginal-cost first-party signals such as:
+
 - clicks
 - campaign/source relationship
 - creator/platform/POC relationship
@@ -175,33 +202,47 @@ Linkary-owned redirects such as `l.linkary.xyz/...` can automatically record fir
 - country/device/referrer where appropriate
 - downstream Linkary registration/conversion
 
-For Telegram, Linkary can later combine the redirect with dedicated Telegram invite links and Bot API member events to measure joins and retention without relying on paid social-data APIs.
+For Telegram, Linkary can later combine redirects with dedicated invite links and Bot API member events to measure joins and retention without relying on paid social-data APIs.
 
 ## Data provenance labels
 
-Every metric should carry a provenance state such as:
-- `linkary_first_party`
-- `telegram_bot_verified`
-- `provider_verified`
-- `founder_manual`
-- `creator_manual`
-- `estimated`
+Every metric should preserve an explicit provenance/evidence state, for example:
 
-The UI must make the source clear.
+- Linkary first-party / Tracked
+- Telegram verified
+- provider verified
+- founder manual
+- creator manual
+- estimated/correlated
+
+The UI must make the source and confidence clear.
+
+## AI and provider cost rule
+
+AI and external provider usage must be controlled centrally.
+
+During Controlled Beta:
+
+- paid AI models default to disabled
+- free/approved inference is preferred
+- provider calls should be scoped and on demand where possible
+- usage should be logged and capped
+- failure or quota exhaustion must degrade gracefully rather than break identity, profiles, invites or first-party tracking
+
+The $4.99 Personal Pro / Collector tier may use Alchemy for NFT discovery without exposing provider terminology in the normal user experience.
 
 ## Product flywheel
 
 Free access creates network density.
 
-Founder browses Linkary
--> discovers creator/community/POC/platform
--> unlocks contact
--> runs campaign
--> tracks campaign manually and/or through Linkary links
--> records outcome
--> leaves structured reputation feedback
--> Linkary accumulates proprietary campaign history
--> future founders make better decisions
--> valuable contact and intelligence access drives paid conversion
+User joins Linkary
+-> builds a Personal Profile
+-> creator/community becomes discoverable
+-> Project discovers a partner
+-> Project runs and tracks a campaign
+-> outcomes and evidence accumulate
+-> Relationship Memory improves
+-> Growth Intelligence becomes more valuable
+-> premium personal presentation and higher-value Project workflows drive paid conversion
 
-This allows Linkary to serve a large initial user base while keeping variable API costs close to zero for Free and Founder Starter users.
+This allows Linkary to grow the network while keeping Free participation inexpensive and monetizing the features that create additional presentation, automation and intelligence value.
