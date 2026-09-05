@@ -44,16 +44,17 @@ test('manual outcome writes validate value, time and canonical outcome identifie
   assert.equal(conversions.includes("throw new HttpError(400, 'Outcome time cannot be in the future'"), true);
 });
 
-test('outcome reads expose the exact activity partner context instead of only the manager or campaign', () => {
+test('outcome reads expose immutable exact-partner snapshot context with current assignment only as a safe fallback', () => {
+  assert.equal(lowerRoute.includes('leftjointracked_link_partner_snapshotssnaponsnap.tracked_link_id=e.tracked_link_id'), true);
   assert.equal(lowerRoute.includes('leftjoincampaign_activity_linkary_assignmentslaonla.activity_id=e.activity_id'), true);
-  assert.equal(lowerRoute.includes('la.assignment_kindaspartner_kind'), true);
-  assert.equal(lowerRoute.includes('la.partner_asset_id'), true);
-  assert.equal(lowerRoute.includes('coalesce(cp.display_name,pa.name,ne.display_name)aspartner_display_name'), true);
-  assert.equal(lowerRoute.includes('pm.display_nameaspartner_manager_name'), true);
+  assert.equal(lowerRoute.includes('casewhensnap.tracked_link_idisnotnullthensnap.assignment_kindelsela.assignment_kindendaspartner_kind'), true);
+  assert.equal(lowerRoute.includes('casewhensnap.tracked_link_idisnotnullthensnap.partner_asset_idelsela.partner_asset_idendaspartner_asset_id'), true);
+  assert.equal(lowerRoute.includes('snap.snapshot_sourceaspartner_snapshot_source'), true);
+  assert.equal(lowerRoute.includes('snap.captured_ataspartner_snapshot_captured_at'), true);
 });
 
 test('Outcome CSV carries activity, tracking, evidence and exact partner context together', () => {
-  for (const heading of ['Exact Partner Type', 'Exact Partner', 'Partner Handle', 'Community Manager', 'Source', 'Confidence']) {
+  for (const heading of ['Exact Partner Type', 'Exact Partner', 'Partner Handle', 'Community Manager', 'Partner Snapshot Source', 'Partner Snapshot Captured At', 'Source', 'Confidence']) {
     assert.equal(conversions.includes(`'${heading}'`), true, heading);
   }
 });

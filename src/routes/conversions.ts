@@ -134,7 +134,20 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   if (source) { clauses.push('e.source = ?'); params.push(source); }
   if (confidence) { clauses.push('e.attribution_confidence = ?'); params.push(confidence); }
   if (eventType) { clauses.push('e.event_type = ?'); params.push(normalizeOutcomeType(eventType)); }
-  if (search) { clauses.push('(lower(e.external_event_key) LIKE ? OR lower(e.event_type) LIKE ? OR lower(COALESCE(cp.display_name, pa.name, ne.display_name, \'\')) LIKE ?)'); const term = `%${search.toLowerCase()}%`; params.push(term, term, term); }
+  if (search) {
+    clauses.push(`(
+      lower(e.external_event_key) LIKE ?
+      OR lower(e.event_type) LIKE ?
+      OR lower(
+        CASE
+          WHEN snap.tracked_link_id IS NOT NULL THEN COALESCE(snap.partner_display_name, '')
+          ELSE COALESCE(cp.display_name, pa.name, ne.display_name, '')
+        END
+      ) LIKE ?
+    )`);
+    const term = `%${search.toLowerCase()}%`;
+    params.push(term, term, term);
+  }
   if (from) { clauses.push('e.occurred_at >= ?'); params.push(from); }
   if (to) { clauses.push('e.occurred_at <= ?'); params.push(to); }
 
@@ -156,20 +169,30 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
        e.attribution_confidence,
        e.occurred_at,
        e.created_at,
-       la.assignment_kind AS partner_kind,
-       la.entity_id AS partner_entity_id,
-       la.partner_asset_id,
-       COALESCE(cp.display_name, pa.name, ne.display_name) AS partner_display_name,
-       COALESCE(cpi.current_handle, pa.handle, ne.primary_handle) AS partner_handle,
-       pm.display_name AS partner_manager_name,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_entity_id ELSE la.entity_id END AS partner_entity_id,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_asset_id ELSE la.partner_asset_id END AS partner_asset_id,
        CASE
+         WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name
+         ELSE COALESCE(cp.display_name, pa.name, ne.display_name)
+       END AS partner_display_name,
+       CASE
+         WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle
+         ELSE COALESCE(cpi.current_handle, pa.handle, ne.primary_handle)
+       END AS partner_handle,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_manager_name ELSE pm.display_name END AS partner_manager_name,
+       CASE
+         WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_verification_status
          WHEN la.assignment_kind = 'creator' THEN CASE WHEN cp.verification_status = 'verified_x' THEN 'verified' ELSE 'unverified' END
          WHEN la.assignment_kind = 'community' THEN COALESCE(pa.verification_status, 'unverified')
          ELSE NULL
-       END AS partner_verification_status
+       END AS partner_verification_status,
+       snap.snapshot_source AS partner_snapshot_source,
+       snap.captured_at AS partner_snapshot_captured_at
      FROM conversion_events e
      LEFT JOIN tracked_links t ON t.id = e.tracked_link_id
      LEFT JOIN campaign_activities a ON a.id = e.activity_id
+     LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = e.tracked_link_id
      LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = e.activity_id
      LEFT JOIN project_network_entities ne ON ne.id = la.entity_id
      LEFT JOIN profiles cp ON cp.id = la.creator_profile_id
@@ -185,8 +208,8 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   if (format === 'csv') {
     const header = [
       'Outcome ID', 'Campaign', 'Activity', 'Activity Type', 'Exact Partner Type', 'Exact Partner', 'Partner Handle',
-      'Community Manager', 'Tracking Code', 'Destination', 'External Outcome ID', 'Outcome Type', 'Value USD', 'Source',
-      'Confidence', 'Occurred At',
+      'Community Manager', 'Partner Snapshot Source', 'Partner Snapshot Captured At', 'Tracking Code', 'Destination',
+      'External Outcome ID', 'Outcome Type', 'Value USD', 'Source', 'Confidence', 'Occurred At',
     ];
     const lines = [header.map(csvCell).join(',')];
     for (const row of conversions) {
@@ -199,6 +222,8 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
         row.partner_display_name,
         row.partner_handle,
         row.partner_manager_name,
+        row.partner_snapshot_source,
+        row.partner_snapshot_captured_at,
         row.tracking_code,
         row.destination_url,
         row.external_event_key,
