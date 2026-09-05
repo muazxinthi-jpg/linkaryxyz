@@ -36,7 +36,7 @@ export async function createOrganization(request: Request, env: Env): Promise<Re
   const name = body.name?.trim() || body.displayName?.trim() || '';
   if (name.length < 2 || name.length > 100) throw new HttpError(400, 'Project name must be 2 to 100 characters', 'invalid_organization_name');
   if (!body.username) throw new HttpError(400, 'Choose a Linkary username for this project', 'username_required');
-  const username = normalizeProfileUsername(body.username);
+  const username = normalizeProfileUsername(body.username!);
   if (isSystemRoute(username)) throw new HttpError(409, 'This username is reserved by Linkary', 'route_collision');
   const db = new Db(requireDb(env));
   if (await db.first<{ id: string }>('SELECT id FROM profiles WHERE username = ?', [username])) {
