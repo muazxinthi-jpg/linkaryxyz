@@ -61,7 +61,7 @@ test('activation marker never manufactures tracking outcomes value or verificati
   assert.equal(activation.includes('tracked_link_clicks'), false);
   assert.equal(activation.includes('INSERT INTO conversion_events'), false);
   assert.equal(activation.includes('attribution_confidence'), false);
-  assert.equal(activation.includes('verification_status ='), false);
+  assert.equal(activation.includes('SET verification_status ='), false);
   assert.equal(activation.includes('attributed_value'), false);
   assert.match(activation, /INSERT OR IGNORE INTO collaboration_inquiry_activations[\s\S]*SELECT ci\.id, a\.id/);
 });

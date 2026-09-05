@@ -9,9 +9,9 @@ const submit = route.slice(route.indexOf('export async function submitCreatorAcc
 
 test('0028 resolves duplicate unexpired active Creator claims before installing guards', () => {
   assert.equal(migration.includes('ROW_NUMBER() OVER'), true);
-  assert.equal(migration.includes("CASE status\n          WHEN 'approved' THEN 0\n          WHEN 'submitted' THEN 1"), true);
-  assert.equal(migration.includes("UPDATE creator_access_claims\n   SET status = 'revoked'"), true);
-  assert.equal(migration.includes("UPDATE invites\n   SET status = 'revoked'"), true);
+  assert.match(migration, /CASE status\s+WHEN 'approved' THEN 0\s+WHEN 'submitted' THEN 1/);
+  assert.match(migration, /UPDATE creator_access_claims\s+SET status = 'revoked'/);
+  assert.match(migration, /UPDATE invites\s+SET status = 'revoked'/);
   assert.equal(migration.includes("WHERE status = 'active'"), true);
 });
 
