@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const route = readFileSync(new URL('../src/routes/projectAccess.ts', import.meta.url), 'utf8');
 
@@ -77,7 +77,7 @@ test('ownership transfer cannot promote a second owner after another transfer wi
   assert.equal(source.includes("'ownership_conflict'"), true);
 });
 
-test('Project transition race repair is code-only and adds no schema migration', () => {
-  const migrations = readdirSync(new URL('../migrations/', import.meta.url));
-  assert.equal(migrations.some((name) => name.startsWith('0029_')), false);
+test('commercial migration 0029 does not change Project access transition schema', () => {
+  const migration = readFileSync(new URL('../migrations/0029_commercial_plan_catalog_and_usage_credits.sql', import.meta.url), 'utf8');
+  assert.doesNotMatch(migration, /project_access_requests|organization_memberships/);
 });

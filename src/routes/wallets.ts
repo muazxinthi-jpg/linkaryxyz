@@ -26,7 +26,6 @@ const EVM_NFT_NETWORKS = [
   { chain: 'Ethereum', host: 'eth-mainnet', openSea: 'ethereum' },
   { chain: 'Base', host: 'base-mainnet', openSea: 'base' },
   { chain: 'Arbitrum', host: 'arb-mainnet', openSea: 'arbitrum' },
-  { chain: 'BNB Chain', host: 'bnb-mainnet', openSea: 'bsc' },
 ] as const;
 
 async function ensureSchema(db: Db): Promise<void> {

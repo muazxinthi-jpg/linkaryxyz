@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/routes/opportunityIntegrity.ts', import.meta.url), 'utf8');
 
@@ -50,7 +50,7 @@ test('application review rechecks active Project authority at execution time', (
   assert.equal(review.includes("throw new HttpError(403, 'Application review access denied', 'forbidden')"), true);
 });
 
-test('Opportunity race repair is code-only and adds no migration after 0028', () => {
-  const migrations = readdirSync(new URL('../migrations/', import.meta.url));
-  assert.equal(migrations.some((name) => name.startsWith('0029_')), false);
+test('commercial migration 0029 does not change Opportunity application race schema', () => {
+  const migration = readFileSync(new URL('../migrations/0029_commercial_plan_catalog_and_usage_credits.sql', import.meta.url), 'utf8');
+  assert.doesNotMatch(migration, /campaign_opportunities|campaign_opportunity_applications/);
 });
