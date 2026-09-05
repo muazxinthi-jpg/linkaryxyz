@@ -37,6 +37,16 @@ interface AccessEntitlement {
   sources: ('invite' | 'earned_creator')[];
 }
 
+interface ClaimedProfile {
+  id: string;
+  profile_type: AccountType;
+  organization_id: string | null;
+  owner_user_id: string | null;
+  primary_platform_identity_id: string | null;
+  visibility: string;
+  verification_status: string;
+}
+
 async function accessEntitlement(db: Db, userId: string): Promise<AccessEntitlement> {
   const allowed = new Set<AccountType>();
   const sources = new Set<'invite' | 'earned_creator'>();
@@ -131,6 +141,70 @@ async function recoverLegacyProject(
   return json({ profileId: profile.id, organizationId: profile.organization_id, username, profileType: 'project', visibility: 'private', verificationStatus: 'verified_x', recovered: true });
 }
 
+async function completedOnboardingRetry(
+  db: Db,
+  auth: { user: { id: string } },
+  accountType: AccountType,
+  identity: PlatformIdentityRow | null,
+  profile: ClaimedProfile,
+  username: string,
+): Promise<Response | null> {
+  if (profile.profile_type !== accountType) return null;
+
+  let ownerType: 'profile' | 'organization';
+  let ownerId: string;
+  let organizationId: string | null = null;
+
+  if (accountType === 'creator') {
+    if (profile.owner_user_id !== auth.user.id) return null;
+    ownerType = 'profile';
+    ownerId = profile.id;
+  } else {
+    if (!identity || !profile.organization_id) return null;
+    if (profile.verification_status !== 'verified_x' || profile.primary_platform_identity_id !== identity.id) return null;
+    const owner = await db.first<{ user_id: string }>(
+      `SELECT user_id FROM organization_memberships WHERE organization_id = ? AND user_id = ? AND role = 'owner' AND status = 'active' LIMIT 1`,
+      [profile.organization_id, auth.user.id],
+    );
+    if (!owner) return null;
+    const represents = await db.first<{ id: string }>(
+      `SELECT id FROM platform_identity_links WHERE platform_identity_id = ? AND user_id = ? AND organization_id = ? AND profile_id = ? AND link_type = 'represents' AND ended_at IS NULL LIMIT 1`,
+      [identity.id, auth.user.id, profile.organization_id, profile.id],
+    );
+    if (!represents) return null;
+    ownerType = 'organization';
+    ownerId = profile.organization_id;
+    organizationId = profile.organization_id;
+  }
+
+  const usernameHistory = await db.first<{ id: string }>(
+    `SELECT id FROM profile_username_history WHERE profile_id = ? AND username = ? AND released_at IS NULL LIMIT 1`,
+    [profile.id, username],
+  );
+  if (!usernameHistory) return null;
+  const inviteBalance = await db.first<{ id: string }>(
+    `SELECT id FROM invite_balances WHERE owner_type = ? AND owner_id = ? LIMIT 1`,
+    [ownerType, ownerId],
+  );
+  if (!inviteBalance) return null;
+  const completionAudit = await db.first<{ id: string }>(
+    `SELECT id FROM audit_logs WHERE actor_user_id = ? AND action = 'onboarding.completed' AND resource_type = 'profile' AND resource_id = ? LIMIT 1`,
+    [auth.user.id, profile.id],
+  );
+  if (!completionAudit) return null;
+
+  return json({
+    profileId: profile.id,
+    organizationId,
+    username,
+    profileType: accountType,
+    visibility: profile.visibility,
+    verificationStatus: profile.verification_status,
+    initialInviteCredits: accountType === 'creator' ? 10 : 50,
+    idempotent: true,
+  });
+}
+
 export async function completeOnboarding(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
@@ -156,8 +230,13 @@ export async function completeOnboarding(request: Request, env: Env): Promise<Re
     const verifiedHandle = identity?.current_handle ? normalizeProfileUsername(identity.current_handle) : null;
     if (!verifiedHandle || username !== verifiedHandle) throw new HttpError(409, 'A Project Linkary username must match the verified Project X handle', 'project_handle_mismatch');
   }
-  const claimedProfile = await db.first<{ id: string; profile_type: AccountType; organization_id: string | null }>(`SELECT id, profile_type, organization_id FROM profiles WHERE username = ?`, [username]);
+  const claimedProfile = await db.first<ClaimedProfile>(
+    `SELECT id, profile_type, organization_id, owner_user_id, primary_platform_identity_id, visibility, verification_status FROM profiles WHERE username = ?`,
+    [username],
+  );
   if (claimedProfile) {
+    const retry = await completedOnboardingRetry(db, auth, body.accountType, identity, claimedProfile, username);
+    if (retry) return retry;
     if (body.accountType === 'project' && claimedProfile.profile_type === 'project' && identity) {
       return recoverLegacyProject(db, auth, identity, claimedProfile, username);
     }
