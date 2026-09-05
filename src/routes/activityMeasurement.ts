@@ -192,7 +192,45 @@ export async function listActivityMeasurements(request: Request, env: Env): Prom
     [scope],
   );
 
-  return json({ deliverables, metrics });
+  let firstParty: null | {
+    clicks: number;
+    identifiedClicks: number;
+    estimatedUniqueClicks: number | null;
+    repeatClicks: number | null;
+    outcomes: number;
+    attributedValueUsd: number;
+  } = null;
+  if (activityId) {
+    const clickSummary = await db.first<{ clicks: number; identified_clicks: number; estimated_unique_clicks: number }>(
+      `SELECT COUNT(click.id) AS clicks,
+              COUNT(click.visitor_id_hash) AS identified_clicks,
+              COUNT(DISTINCT click.visitor_id_hash) AS estimated_unique_clicks
+         FROM tracked_links t
+         LEFT JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
+        WHERE t.activity_id = ?`,
+      [activityId],
+    );
+    const outcomeSummary = await db.first<{ outcomes: number; attributed_value_usd: number }>(
+      `SELECT COUNT(id) AS outcomes,
+              COALESCE(SUM(value_usd), 0) AS attributed_value_usd
+         FROM conversion_events
+        WHERE activity_id = ?`,
+      [activityId],
+    );
+    const clicks = Number(clickSummary?.clicks || 0);
+    const identifiedClicks = Number(clickSummary?.identified_clicks || 0);
+    const estimatedUniqueClicks = identifiedClicks > 0 ? Number(clickSummary?.estimated_unique_clicks || 0) : null;
+    firstParty = {
+      clicks,
+      identifiedClicks,
+      estimatedUniqueClicks,
+      repeatClicks: estimatedUniqueClicks === null ? null : Math.max(0, identifiedClicks - estimatedUniqueClicks),
+      outcomes: Number(outcomeSummary?.outcomes || 0),
+      attributedValueUsd: Number(outcomeSummary?.attributed_value_usd || 0),
+    };
+  }
+
+  return json({ deliverables, metrics, firstParty });
 }
 
 export async function createActivityDeliverable(request: Request, env: Env): Promise<Response> {
