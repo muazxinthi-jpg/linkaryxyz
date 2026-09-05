@@ -9,9 +9,55 @@ import { organizationMembership, requireOperationalProjectAccess } from './organ
 const id = () => `cev_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
 
+export const OUTCOME_TYPE_CATALOG = [
+  { value: 'signup', label: 'Signup' },
+  { value: 'telegram_join', label: 'Telegram Join' },
+  { value: 'retained_user', label: 'Retained User' },
+  { value: 'wallet_connect', label: 'Wallet Connect' },
+  { value: 'lead', label: 'Lead' },
+  { value: 'purchase', label: 'Purchase' },
+  { value: 'deposit', label: 'Deposit' },
+  { value: 'subscription', label: 'Subscription' },
+  { value: 'token_purchase', label: 'Token Purchase' },
+  { value: 'custom', label: 'Custom Outcome' },
+] as const;
+
 function csvCell(value: unknown): string {
   const text = value === null || value === undefined ? '' : String(value);
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function normalizeOutcomeType(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 80);
+  if (!normalized) throw new HttpError(400, 'Choose a valid outcome type', 'invalid_outcome_type');
+  return normalized;
+}
+
+function normalizeValueUsd(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new HttpError(400, 'Attributed value must be zero or greater', 'invalid_outcome_value');
+  }
+  return parsed;
+}
+
+function normalizeOccurredAt(value: unknown): string {
+  if (value === undefined || value === null || value === '') return now();
+  if (typeof value !== 'string') throw new HttpError(400, 'Choose a valid outcome time', 'invalid_outcome_time');
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new HttpError(400, 'Choose a valid outcome time', 'invalid_outcome_time');
+  if (parsed.getTime() > Date.now() + (5 * 60 * 1000)) {
+    throw new HttpError(400, 'Outcome time cannot be in the future', 'invalid_outcome_time');
+  }
+  return parsed.toISOString();
 }
 
 export async function createConversion(request: Request, env: Env): Promise<Response> {
@@ -32,6 +78,9 @@ export async function createConversion(request: Request, env: Env): Promise<Resp
   await requireOperationalProjectAccess(db, auth.user.id, link.organization_id, true);
 
   const eventKey = body.eventKey.trim().slice(0, 180);
+  const eventType = normalizeOutcomeType(body.eventType);
+  const valueUsd = normalizeValueUsd(body.valueUsd);
+  const occurredAt = normalizeOccurredAt(body.occurredAt);
   const existing = await db.first<{ id: string }>(
     'SELECT id FROM conversion_events WHERE organization_id = ? AND external_event_key = ?',
     [link.organization_id, eventKey],
@@ -48,13 +97,13 @@ export async function createConversion(request: Request, env: Env): Promise<Resp
       link.activity_id,
       body.trackedLinkId,
       eventKey,
-      body.eventType.trim().slice(0, 80),
-      typeof body.valueUsd === 'number' ? body.valueUsd : null,
-      body.occurredAt || now(),
+      eventType,
+      valueUsd,
+      occurredAt,
       now(),
     ],
   );
-  return json({ ok: true, id: conversionId, duplicate: false }, { status: 201 });
+  return json({ ok: true, id: conversionId, duplicate: false, source: 'manual', attributionConfidence: 'manual' }, { status: 201 });
 }
 
 export async function listConversions(request: Request, env: Env): Promise<Response> {
@@ -73,6 +122,7 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   const activityId = url.searchParams.get('activityId')?.trim();
   const source = url.searchParams.get('source')?.trim();
   const confidence = url.searchParams.get('confidence')?.trim();
+  const eventType = url.searchParams.get('eventType')?.trim();
   const search = url.searchParams.get('search')?.trim();
   const from = url.searchParams.get('from')?.trim();
   const to = url.searchParams.get('to')?.trim();
@@ -83,7 +133,8 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   if (activityId) { clauses.push('e.activity_id = ?'); params.push(activityId); }
   if (source) { clauses.push('e.source = ?'); params.push(source); }
   if (confidence) { clauses.push('e.attribution_confidence = ?'); params.push(confidence); }
-  if (search) { clauses.push('(lower(e.external_event_key) LIKE ? OR lower(e.event_type) LIKE ?)'); const term = `%${search.toLowerCase()}%`; params.push(term, term); }
+  if (eventType) { clauses.push('e.event_type = ?'); params.push(normalizeOutcomeType(eventType)); }
+  if (search) { clauses.push('(lower(e.external_event_key) LIKE ? OR lower(e.event_type) LIKE ? OR lower(COALESCE(cp.display_name, pa.name, ne.display_name, \'\')) LIKE ?)'); const term = `%${search.toLowerCase()}%`; params.push(term, term, term); }
   if (from) { clauses.push('e.occurred_at >= ?'); params.push(from); }
   if (to) { clauses.push('e.occurred_at <= ?'); params.push(to); }
 
@@ -104,10 +155,27 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
        e.source,
        e.attribution_confidence,
        e.occurred_at,
-       e.created_at
+       e.created_at,
+       la.assignment_kind AS partner_kind,
+       la.entity_id AS partner_entity_id,
+       la.partner_asset_id,
+       COALESCE(cp.display_name, pa.name, ne.display_name) AS partner_display_name,
+       COALESCE(cpi.current_handle, pa.handle, ne.primary_handle) AS partner_handle,
+       pm.display_name AS partner_manager_name,
+       CASE
+         WHEN la.assignment_kind = 'creator' THEN CASE WHEN cp.verification_status = 'verified_x' THEN 'verified' ELSE 'unverified' END
+         WHEN la.assignment_kind = 'community' THEN COALESCE(pa.verification_status, 'unverified')
+         ELSE NULL
+       END AS partner_verification_status
      FROM conversion_events e
      LEFT JOIN tracked_links t ON t.id = e.tracked_link_id
      LEFT JOIN campaign_activities a ON a.id = e.activity_id
+     LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = e.activity_id
+     LEFT JOIN project_network_entities ne ON ne.id = la.entity_id
+     LEFT JOIN profiles cp ON cp.id = la.creator_profile_id
+     LEFT JOIN platform_identities cpi ON cpi.id = cp.primary_platform_identity_id
+     LEFT JOIN partner_managers pm ON pm.id = la.partner_manager_id
+     LEFT JOIN partner_manager_assets pa ON pa.id = la.partner_asset_id
      WHERE ${clauses.join(' AND ')}
      ORDER BY e.occurred_at DESC
      LIMIT ?`,
@@ -115,7 +183,11 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
   );
 
   if (format === 'csv') {
-    const header = ['Outcome ID', 'Campaign', 'Activity', 'Activity Type', 'Tracking Code', 'Destination', 'External Outcome ID', 'Outcome Type', 'Value USD', 'Source', 'Confidence', 'Occurred At'];
+    const header = [
+      'Outcome ID', 'Campaign', 'Activity', 'Activity Type', 'Exact Partner Type', 'Exact Partner', 'Partner Handle',
+      'Community Manager', 'Tracking Code', 'Destination', 'External Outcome ID', 'Outcome Type', 'Value USD', 'Source',
+      'Confidence', 'Occurred At',
+    ];
     const lines = [header.map(csvCell).join(',')];
     for (const row of conversions) {
       lines.push([
@@ -123,6 +195,10 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
         campaign.name,
         row.activity_title,
         row.activity_type,
+        row.partner_kind,
+        row.partner_display_name,
+        row.partner_handle,
+        row.partner_manager_name,
         row.tracking_code,
         row.destination_url,
         row.external_event_key,
@@ -143,7 +219,19 @@ export async function listConversions(request: Request, env: Env): Promise<Respo
     });
   }
 
-  return json({ conversions, filters: { activityId: activityId || null, source: source || null, confidence: confidence || null, search: search || null, from: from || null, to: to || null } });
+  return json({
+    conversions,
+    outcomeTypes: OUTCOME_TYPE_CATALOG,
+    filters: {
+      activityId: activityId || null,
+      source: source || null,
+      confidence: confidence || null,
+      eventType: eventType || null,
+      search: search || null,
+      from: from || null,
+      to: to || null,
+    },
+  });
 }
 
 export async function campaignOutcomeSummary(request: Request, env: Env): Promise<Response> {
