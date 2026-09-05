@@ -42,6 +42,15 @@ test('manual measurement writes are permissioned to Project operators or the exa
   assert.match(route, /Only the Project team can review submitted deliverables/);
 });
 
+test('assigned partner work is exact-user scoped and reuses the measurement route', () => {
+  assert.match(route, /export async function listMyAssignedActivities/);
+  assert.match(route, /la\.assignment_kind = 'creator' AND cp\.owner_user_id = \?/);
+  assert.match(route, /la\.assignment_kind = 'community' AND mp\.owner_user_id = \?/);
+  assert.match(route, /LIMIT 100/);
+  assert.match(tracking, /url\.searchParams\.get\('measurement'\) === '1' && url\.searchParams\.get\('mine'\) === '1'/);
+  assert.match(tracking, /return listMyAssignedActivities\(request, env\)/);
+});
+
 test('measurement reads stay activity/campaign scoped and indexed', () => {
   assert.match(route, /WHERE \$\{whereColumn\} = \?/);
   assert.match(route, /campaignId or activityId is required/);
@@ -102,9 +111,16 @@ test('activity UI supports platform-aware V1 performance entry', () => {
   assert.match(ui, /Reject/);
 });
 
+test('measurement UI separates contributor submission from Project review authority', () => {
+  assert.match(ui, /canSubmit: boolean/);
+  assert.match(ui, /canReview\?: boolean/);
+  assert.match(ui, /if \(!token \|\| !contentUrl\.trim\(\) \|\| !canSubmit\) return/);
+  assert.match(ui, /if \(!token \|\| !canReview\) return/);
+});
+
 test('every campaign activity exposes the measurement panel without replacing lifecycle controls', () => {
   assert.match(lifecycle, /import ActivityMeasurementPanel from '\.\/ActivityMeasurementPanel'/);
-  assert.match(lifecycle, /<ActivityMeasurementPanel activityId=\{activityId\} writable=\{writable\} \/>/);
+  assert.match(lifecycle, /<ActivityMeasurementPanel activityId=\{activityId\} canSubmit=\{writable\} canReview=\{writable\} \/>/);
   assert.match(lifecycle, /Activity lifecycle actions/);
 });
 
