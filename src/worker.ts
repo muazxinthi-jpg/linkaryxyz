@@ -8,6 +8,7 @@ import { getLinkaryUrls } from './urls';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 import { founderGrowthIntelligence } from './routes/growthIntelligence';
+import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -36,6 +37,12 @@ export default {
     if (url.pathname === '/api/auth/telegram-identity') {
       try { return await currentPersonalTelegramIdentity(request, env); }
       catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/invites') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await createNetworkInviteIntegrity(request, env);
+      } catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/growth-intelligence') {
       try {
