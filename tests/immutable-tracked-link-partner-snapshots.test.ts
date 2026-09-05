@@ -24,7 +24,8 @@ test('tracked links have a dedicated immutable exact-partner snapshot schema', (
 test('legacy tracked links are frozen once without pretending to know historical link-creation provenance', () => {
   assert.equal(migrationView.includes('insertorignoreintotracked_link_partner_snapshots'), true);
   assert.equal(migrationView.includes("'legacy_backfill'"), true);
-  assert.equal(migration.includes('not proven link-creation provenance'), true);
+  assert.equal(migration.includes('never presented as'), true);
+  assert.equal(migration.includes('proven link-creation provenance'), true);
 });
 
 test('new tracking links snapshot the exact partner in the same write batch', () => {
