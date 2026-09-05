@@ -16,6 +16,10 @@ import {
   listCampaignOpportunitiesIntegrity,
   reviewCampaignOpportunityApplicationIntegrity,
 } from './routes/opportunityIntegrity';
+import {
+  reviewCommunityVerificationIntegrity,
+  savePartnerManagerAssetIntegrity,
+} from './routes/communityVerificationIntegrity';
 
 function host(value: string): string | null {
   try { return new URL(value).hostname.toLowerCase(); }
@@ -61,6 +65,21 @@ export default {
       try {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await createNetworkInviteIntegrity(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/partner-manager-assets' && request.method === 'POST') {
+      try { return await savePartnerManagerAssetIntegrity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    const communityVerificationReview = url.pathname.match(/^\/api\/admin\/community-verifications\/([^/]+)\/(approve|reject)$/);
+    if (communityVerificationReview && request.method === 'POST') {
+      try {
+        return await reviewCommunityVerificationIntegrity(
+          request,
+          env,
+          decodeURIComponent(communityVerificationReview[1]),
+          communityVerificationReview[2] as 'approve' | 'reject',
+        );
       } catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/campaign-opportunities' && request.method === 'GET') {

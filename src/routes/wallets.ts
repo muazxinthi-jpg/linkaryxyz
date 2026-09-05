@@ -106,7 +106,7 @@ async function fetchEvmNfts(apiKey: string, ownerAddress: string): Promise<Owned
       const response = await fetch(endpoint.toString(), { headers: { accept: 'application/json' } });
       if (!response.ok) return [] as OwnedNft[];
       const payload = await response.json() as { ownedNfts?: Array<Record<string, unknown>> };
-      return (payload.ownedNfts || []).map((raw) => {
+      return (payload.ownedNfts || []).map<OwnedNft | null>((raw) => {
         const image = (raw.image || {}) as Record<string, unknown>;
         const contract = (raw.contract || {}) as Record<string, unknown>;
         const openSea = (contract.openSeaMetadata || contract.openSea || {}) as Record<string, unknown>;
@@ -130,7 +130,7 @@ async function fetchEvmNfts(apiKey: string, ownerAddress: string): Promise<Owned
           contractAddress,
           tokenId,
         } satisfies OwnedNft;
-      }).filter((item): item is OwnedNft => Boolean(item));
+      }).filter((item): item is OwnedNft => item !== null);
     } catch {
       return [] as OwnedNft[];
     }
@@ -157,7 +157,7 @@ async function fetchSolanaNfts(apiKey: string, ownerAddress: string): Promise<Ow
     });
     if (!response.ok) return [];
     const payload = await response.json() as { result?: { items?: Array<Record<string, unknown>> } };
-    return (payload.result?.items || []).map((raw) => {
+    return (payload.result?.items || []).map<OwnedNft | null>((raw) => {
       const content = (raw.content || {}) as Record<string, unknown>;
       const links = (content.links || {}) as Record<string, unknown>;
       const metadata = (content.metadata || {}) as Record<string, unknown>;
@@ -179,7 +179,7 @@ async function fetchSolanaNfts(apiKey: string, ownerAddress: string): Promise<Ow
         contractAddress: idValue,
         tokenId: idValue,
       } satisfies OwnedNft;
-    }).filter((item): item is OwnedNft => Boolean(item));
+    }).filter((item): item is OwnedNft => item !== null);
   } catch {
     return [];
   }

@@ -38,6 +38,9 @@ jobs:
       - name: Run regression tests
         run: npm test
 
+      - name: Type-check Worker backend
+        run: npm run backend:check
+
       - name: Type-check authenticated app
         run: npm run app:check
 
