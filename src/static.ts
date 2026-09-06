@@ -133,7 +133,8 @@ function isLegacyPrototype(html: string): boolean {
 function socialPreviewMeta(publicSite: string): string {
   const root = publicSite.replace(/\/$/, '');
   const image = `${root}/assets/brand/linkary-banner.jpeg`;
-  return `<link rel="canonical" href="${root}/"><meta property="og:type" content="website"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="Linkary | Growth Intelligence Network"><meta property="og:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta property="og:url" content="${root}/"><meta property="og:image" content="${image}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linkary | Growth Intelligence Network"><meta name="twitter:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta name="twitter:image" content="${image}">`;
+  const icon = `${root}/assets/brand/linkary-icon-black.png`;
+  return `<link rel="canonical" href="${root}/"><link rel="icon" type="image/png" href="${icon}"><link rel="apple-touch-icon" href="${icon}"><meta property="og:type" content="website"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="Linkary | Growth Intelligence Network"><meta property="og:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta property="og:url" content="${root}/"><meta property="og:image" content="${image}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linkary | Growth Intelligence Network"><meta name="twitter:description" content="Connect creator campaigns to clicks, communities, conversions, and real growth outcomes."><meta name="twitter:image" content="${image}">`;
 }
 
 function pricingSection(): string {
@@ -166,8 +167,11 @@ function productionHtml(html: string, appBase: string, publicSite: string): stri
   const safeAppBase = JSON.stringify(appBase.replace(/\/$/, ''));
   const redirectScript = `<script id="linkary-production-routing">(function(){var app=${safeAppBase};function clean(){history.replaceState(null,'',window.location.pathname+window.location.search);}function go(path){window.location.replace(app+path);}if(window.location.hash==='#auth'||window.location.hash.indexOf('#auth/')===0){go('/login');return;}if(window.location.hash==='#dashboard'||window.location.hash.indexOf('#dashboard/')===0){go('/dashboard');return;}if(window.location.hash==='#library'||window.location.hash==='#home'){clean();}window.addEventListener('DOMContentLoaded',function(){if(window.location.hash==='#home')clean();});document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-route]'):null;if(!node)return;var route=node.getAttribute('data-route');if(route==='auth'){event.preventDefault();event.stopImmediatePropagation();window.location.href=app+(node.getAttribute('data-auth')==='signup'?'/signup':'/login');return;}if(route==='home'){event.preventDefault();event.stopImmediatePropagation();clean();window.scrollTo({top:0,behavior:'smooth'});}},true);})();</script>`;
   const preview = socialPreviewMeta(publicSite);
+  const headInjection = `${preview}<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}${pricingClientScript(appBase)}</head>`;
   return trustSafePublicPreview(withoutPrototypeNavigation)
-    .replace('</head>', `${preview}<style id="linkary-production-shell-fixes">${productionShellCss}</style>${redirectScript}${pricingClientScript(appBase)}</head>`);
+    // Use a callback so `$` sequences inside scripts are inserted literally.
+    // A replacement string would interpret `$'` as the document tail and corrupt the page.
+    .replace('</head>', () => headInjection);
 }
 
 function normalizeAssetRequest(request: Request): Request {
