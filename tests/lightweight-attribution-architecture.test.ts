@@ -48,6 +48,10 @@ test('technical paper locks the lightweight event-driven boundary and current ch
   assert.match(paper, /Normal personal-profile usage does not scan Project campaigns/);
   assert.match(paper, /Future Telegram tracking should use shared Project-level bot\/webhook infrastructure with event-driven writes/);
   assert.match(paper, /Future Alchemy\/onchain attribution should use shared Project-level subscriptions\/webhooks or targeted reads/);
-  assert.match(paper, /2\. BNB Chain/);
-  assert.doesNotMatch(paper, /2\. Ethereum\n3\. Solana/);
+  assert.match(paper, /1\. Ethereum/);
+  assert.match(paper, /2\. Base/);
+  assert.match(paper, /3\. BNB Chain/);
+  assert.match(paper, /4\. Solana/);
+  assert.match(paper, /5\. Robinhood Chain/);
+  assert.match(paper, /Arbitrum is not part of the current Controlled Beta chain set/);
 });

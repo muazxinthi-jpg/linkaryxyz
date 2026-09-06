@@ -1,6 +1,8 @@
 # Linkary Technical Product Paper
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
+
+This document is the canonical product and technical source of truth for Linkary. When an implementation decision, pricing rule, provider architecture, chain allocation or product boundary changes, this paper must be updated in the same delivery cycle so stale planning notes do not override the current architecture.
 
 ## 1. Product thesis
 
@@ -314,6 +316,12 @@ The founder should be able to understand both an individual campaign and the Pro
 
 Linkary first-party tracking URLs are used instead of raw destination URLs when possible.
 
+The canonical production tracking route is:
+
+`https://l.linkary.xyz/r/{code}`
+
+The legacy `https://app.linkary.xyz/r/{code}` route remains supported for previously created links, but new tracking links should use the dedicated `l.linkary.xyz` domain.
+
 Tracking links support:
 
 - active
@@ -321,6 +329,10 @@ Tracking links support:
 - archived
 
 No hard delete is required for historical evidence.
+
+For new tracking links, the effective destination and attribution context must be immutable once created. Linkary preserves existing destination UTM parameters, adds optional `utm_term` only when absent, and writes authoritative Linkary attribution identifiers such as the activity and creator context. A later campaign or partner edit must not silently rewrite the historical destination or UTM context of an already issued tracking link.
+
+Redirect delivery stays on the critical path. Click persistence and other nonessential write work should run asynchronously where the runtime supports it, and a temporary click-logging failure must never block the visitor redirect.
 
 Outcome records support:
 
@@ -348,7 +360,7 @@ Invites are not automatically unlimited. Future refresh/increase can depend on t
 
 Linkary tracks invite clicks, registrations, use and referral quality through Linkary-owned infrastructure. TwitterAPI.io is not required for the invite/referral onboarding loop.
 
-## 13. Wallet architecture
+## 13. Wallet and NFT architecture
 
 Coinbase CDP remains Linkary's embedded wallet infrastructure.
 
@@ -359,11 +371,31 @@ Each Linkary profile can additionally store optional manually entered reward des
 - EVM wallet address
 - Solana wallet address
 
-These addresses do not need to be connected wallets.
+These addresses do not need to be connected wallets. Manually entered addresses are destination data, not signing-verification proof, and the UI must never imply that Linkary has cryptographically proven ownership merely because an address was saved.
 
 The UI must clearly warn users that future rewards or airdrops may be sent to the saved addresses and that users are responsible for entering an address they control. Blockchain transfers cannot generally be reversed.
 
 Customer-facing wallet UI should use simple product language such as `Your Linkary wallet`, `Additional EVM wallet` and `Additional Solana wallet`. Provider or infrastructure details are not necessary in normal user flows.
+
+### 13.1 NFT commercial boundary
+
+NFT profile functionality is a paid Personal Pro / Collector feature. The Free plan may use normal profile images and may store supported wallet destinations, but it must not receive Linkary's wallet-powered NFT profile features.
+
+Personal Pro / Collector currently unlocks:
+
+- wallet-based NFT discovery
+- NFT Showcase
+- NFT avatar selection
+- NFT collection presentation
+- NFT-labelled profile blocks or NFT items in the public profile
+
+The entitlement must be enforced server-side, not only by hiding or disabling frontend controls. A Free user must not be able to bypass the paywall by calling the NFT discovery endpoint or creating an `nft_item` profile block directly.
+
+Alchemy NFT discovery should only be invoked for an entitled NFT workflow so Free-account browsing does not consume provider capacity for a feature the account cannot publish.
+
+A Free user may still upload a normal image as a normal avatar or featured image. Linkary does not need to determine whether that uploaded picture visually depicts an NFT. What remains paid is Linkary's NFT-aware discovery, provenance context, NFT avatar, NFT Showcase, collection presentation and NFT-labelled profile functionality.
+
+Current Personal Pro / Collector Beta price is $4.99 per month and includes the commercial NFT feature set defined above.
 
 ## 14. Telegram attribution
 
@@ -392,23 +424,27 @@ Telegram signals feed the same attribution confidence model.
 
 Telegram attribution must be event-driven and scoped to the Project, campaign, activity or exact Community involved. Linkary must not repeatedly scan the full user or campaign database to re-check all Communities. A person who is only using a personal profile should not trigger Telegram campaign-attribution work.
 
-## 15. Onchain attribution
+## 15. Onchain attribution and supported chain set
 
-Alchemy is an attribution/analytics layer, not Linkary's wallet infrastructure.
+Alchemy is an attribution/analytics and NFT data layer, not Linkary's wallet infrastructure.
 
-Initial preferred chain allocation:
+The Controlled Beta chain set is locked to:
 
-1. Base
-2. BNB Chain
-3. Solana
-4. Arbitrum
+1. Ethereum
+2. Base
+3. BNB Chain
+4. Solana
 5. Robinhood Chain
+
+Arbitrum is not part of the current Controlled Beta chain set and must not be substituted for one of the five chains above unless this technical paper is deliberately updated first.
+
+Provider capability can differ by chain. The product must represent `available`, `unavailable` and provider-error states honestly instead of presenting every empty provider response as an empty wallet. If a selected chain or provider endpoint does not support a specific NFT/indexing feature, the UI must say that the feature is unavailable on that network rather than silently querying a different chain.
 
 Use shared Project-level subscriptions/webhooks where possible.
 
 Onchain signals should be matched to Project activities, campaigns and outcomes using confidence labels and a review path for ambiguous attribution.
 
-Normal personal-profile activity must not trigger continuous blockchain polling or a scan across Project campaign records. Wallet/NFT information can be loaded from the relevant provider when the user or profile needs it. Automated onchain attribution should only be activated for the relevant Project/campaign scope and should prefer provider webhooks/subscriptions or targeted reads over broad polling.
+Normal personal-profile activity must not trigger continuous blockchain polling or a scan across Project campaign records. Wallet/NFT information can be loaded from the relevant provider when the entitled user or profile needs it. Automated onchain attribution should only be activated for the relevant Project/campaign scope and should prefer provider webhooks/subscriptions or targeted reads over broad polling.
 
 ## 16. Infrastructure principles
 
@@ -421,10 +457,12 @@ Current delivery stack includes:
 - Linkary app subdomain
 - Linkary-owned tracking infrastructure
 - Coinbase CDP authentication/wallet infrastructure
+- Alchemy for scoped NFT/onchain data and transaction verification where required
+- LinkaryAI provider abstraction for governed AI features
 
 Production D1 migrations are manual and versioned. They must not automatically run on every Worker deployment.
 
-Secrets such as tracking salts and database deployment credentials stay server-side and must never reach browser code.
+Secrets such as tracking salts, provider credentials and database deployment credentials stay server-side and must never reach browser code.
 
 ### 16.1 Lightweight data-access and scaling rules
 
@@ -452,6 +490,32 @@ The practical consequence is that database size by itself should not make every 
 Formal versioned migrations remain the source of truth for production D1 schema changes.
 
 Any additive runtime schema safety guard must be idempotent and must not repeat DDL on every campaign, tracking or outcome request. Runtime safety checks should be cached within a Worker isolate, while controlled migrations remain the authoritative production deployment path.
+
+### 16.3 LinkaryAI architecture and governance
+
+Linkary AI is provider-agnostic. Product code should call the `LinkaryAI` abstraction rather than coupling customer features directly to one model vendor.
+
+Controlled Beta provider order is:
+
+1. Cloudflare Workers AI as the primary provider
+2. Gemini as an explicit fallback option
+3. Groq as an explicit fallback option
+4. OpenRouter as an explicit fallback option
+
+Provider keys remain server-side. Regular users should not need to know which provider or model completed a request.
+
+AI is governed by versioned prompts, platform/owner budgets, Usage Credit reservation and debit controls, and audit-safe telemetry. Telemetry must not store raw private prompts or generated response bodies merely for observability.
+
+AI must preserve the same evidence boundary as the rest of Linkary. It may summarize or improve presentation of existing facts, but it must not fabricate employers, partnerships, investments, followers, campaign results, revenue, credentials, verification, Project history or performance evidence, and it must never upgrade Manual or Correlated information into Verified evidence without a separate qualifying evidence workflow.
+
+Locked Controlled Beta task weights are:
+
+- Profile / SEO improvement: 5 Usage Credits
+- Campaign brief assist: 10 Usage Credits
+- Match explanation: 10 Usage Credits
+- Growth summary: 15 Usage Credits
+
+The AI-0 governance foundation may exist before user-facing AI controls. A user-facing AI feature must still pass its own entitlement, UX, evidence and failure-mode acceptance before it is considered launched.
 
 ## 17. UI and UX principles
 
@@ -527,6 +591,8 @@ Beta-ready core:
 
 For the controlled Beta, the Partner Directory scope in item 10 is Creators and Community Managers with exact Community assets. KOL Manager portfolio discovery remains deferred until the core acceptance loop is proven with real users.
 
-Telegram automation, Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
+Telegram automation, advanced Alchemy/onchain attribution, advanced audience overlap and richer campaign execution can iterate from real beta-user behavior. They are not launch dependencies and should not add background polling or database-wide work to the initial Beta architecture.
+
+The current Alchemy requirement for Beta covers the scoped provider functions already used by the product, including entitled NFT discovery and transaction/onchain verification where implemented. It does not mean continuous wallet monitoring or broad automated onchain attribution is required for launch.
 
 Personal Telegram OAuth is also not a launch dependency for creating Community Manager portfolios or listing exact Communities. Provider failure must degrade to an unverified personal Telegram state rather than block onboarding. Exact Community verification remains available through Linkary-reviewed public evidence, and no verified personal Telegram identity badge may be shown until the OAuth identity actually succeeds.
