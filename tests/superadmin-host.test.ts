@@ -145,11 +145,21 @@ test('verified Superadmin login reconciles a stale historical CDP link atomicall
   assert.match(cdp, /await db\.batch\(statements\)/);
 });
 
-test('Superadmin recovery fails closed when the canonical owner has a genuinely different CDP identity', () => {
-  assert.match(cdp, /canonicalLink && canonicalLink\.cdp_user_id !== cdpUserId/);
-  assert.match(cdp, /canonicalDifferentIdentity/);
-  assert.match(cdp, /superadmin_multiple_cdp_identities/);
+test('verified Superadmin login retires stale canonical CDP identities instead of dead-ending', () => {
+  assert.match(cdp, /const staleCanonicalLink = canonicalLink && canonicalLink\.cdp_user_id !== cdpUserId/);
+  assert.match(cdp, /SET cdp_user_link_id = NULL, status = 'disabled'/);
+  assert.match(cdp, /DELETE FROM cdp_user_links/);
+  assert.match(cdp, /DELETE FROM auth_identities[\s\S]*provider_user_id <> \?/);
+  assert.match(cdp, /superadmin\.cdp_identity\.retired/);
+  assert.match(cdp, /replacementCdpUserId: cdpUserId/);
+  assert.doesNotMatch(cdp, /superadmin_multiple_cdp_identities/);
   assert.match(cdp, /superadmin_identity_conflict/);
+});
+
+test('Superadmin wallet recovery reactivates the wallet returned by the verified current CDP identity', () => {
+  assert.match(cdp, /ON CONFLICT\(provider, chain_family, address\) DO UPDATE SET/);
+  assert.match(cdp, /cdp_user_link_id = excluded\.cdp_user_link_id/);
+  assert.match(cdp, /status = 'active'/);
 });
 
 test('Superadmin CDP reconciliation is not a general account merge path', () => {
