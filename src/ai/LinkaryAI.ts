@@ -6,6 +6,7 @@ export type AiProvider = 'workers_ai' | 'gemini' | 'groq' | 'openrouter';
 export type LinkaryAiPrompt = {
   system: string;
   user: string;
+  maxOutputTokens: number;
 };
 
 export type LinkaryAiResult = {
@@ -107,6 +108,7 @@ async function runWorkers(env: Env, model: string, prompt: LinkaryAiPrompt): Pro
         { role: 'system', content: prompt.system },
         { role: 'user', content: prompt.user },
       ],
+      max_tokens: prompt.maxOutputTokens,
       stream: false,
     });
   } catch {
@@ -128,6 +130,7 @@ async function runGemini(env: Env, model: string, prompt: LinkaryAiPrompt): Prom
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: prompt.system }] },
         contents: [{ role: 'user', parts: [{ text: prompt.user }] }],
+        generationConfig: { maxOutputTokens: prompt.maxOutputTokens },
       }),
     });
   } catch {
@@ -164,6 +167,7 @@ async function runOpenAiCompatible(
       },
       body: JSON.stringify({
         model,
+        max_tokens: prompt.maxOutputTokens,
         messages: [
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
