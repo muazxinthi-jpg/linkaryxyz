@@ -13,6 +13,7 @@ type PublicPlan = {
   effectivePriceCents: number | null;
   currency: string;
   monthlyUsageCredits: number;
+  monthlyContactReveals: number;
   projectSeatLimit: number | null;
   features: string[];
   promotion: { id: string; label: string; discountType: string; discountValue: number } | null;
@@ -49,9 +50,8 @@ function money(cents: number | null, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(cents / 100);
 }
 
-function eligiblePlans(profile: ProductProfile, plans: PublicPlan[]): PublicPlan[] {
-  if (profile.profile_type === 'creator') return plans.filter((plan) => plan.code === 'free' || plan.code === 'personal_pro');
-  return plans.filter((plan) => ['project_manual', 'project_automate', 'project_growth', 'scale'].includes(plan.code));
+function planGroup(plan: PublicPlan): 'Personal plans' | 'Project plans' {
+  return ['free', 'personal_pro'].includes(plan.code) ? 'Personal plans' : 'Project plans';
 }
 
 function accessSource(current: CurrentBilling): string {
@@ -95,7 +95,8 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
     return () => { cancelled = true; };
   }, [profile?.id, refreshKey]);
 
-  const visiblePlans = useMemo(() => profile ? eligiblePlans(profile as ProductProfile, plans) : [], [profile, plans]);
+  const visiblePlans = useMemo(() => plans, [plans]);
+  const planGroups = useMemo(() => ['Personal plans', 'Project plans'] as const, []);
 
   if (!profile) return null;
 
@@ -128,8 +129,10 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
           </section>
         )}
 
-        <section className="billing-plan-grid" aria-label="Available Linkary plans">
-          {visiblePlans.map((plan) => {
+        {planGroups.map((group) => <section key={group} className="billing-plan-section" aria-labelledby={`billing-${group.replace(/\s/g, '-').toLowerCase()}`}>
+          <div className="billing-section-heading"><div><span className="ops-kicker">{group === 'Personal plans' ? 'FOR INDIVIDUALS' : 'FOR PROJECT TEAMS'}</span><h2 id={`billing-${group.replace(/\s/g, '-').toLowerCase()}`}>{group}</h2></div><p>{group === 'Personal plans' ? 'Identity, creator and collector tools.' : 'Campaign, tracking and team operations.'}</p></div>
+          <div className="billing-plan-grid">
+          {visiblePlans.filter((plan) => planGroup(plan) === group).map((plan) => {
             const isCurrent = current?.plan.code === plan.code;
             const discounted = plan.basePriceCents !== null && plan.effectivePriceCents !== null && plan.effectivePriceCents < plan.basePriceCents;
             const paid = plan.billingPeriod === 'monthly' && (plan.effectivePriceCents || 0) > 0;
@@ -147,6 +150,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
                 </div>
                 <p>{plan.description}</p>
                 <div className="billing-allowance"><strong>{plan.monthlyUsageCredits.toLocaleString()}</strong><span>monthly usage credits</span></div>
+                <div className="billing-allowance"><strong>{plan.monthlyContactReveals ? plan.monthlyContactReveals.toLocaleString() : '—'}</strong><span>monthly contact reveals</span></div>
                 <ul>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
                 {isCurrent ? (
                   <button type="button" className="ops-button ghost" disabled>Current plan</button>
@@ -160,7 +164,8 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
               </article>
             );
           })}
-        </section>
+          </div>
+        </section>)}
 
         {selectedPlan && (
           <BillingCheckoutPanel

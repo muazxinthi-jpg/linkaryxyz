@@ -41,13 +41,14 @@ test('current billing honors paid periods and Superadmin entitlements without ma
   assert.doesNotMatch(billingCurrent, /INSERT INTO billing_entitlement_grants/);
 });
 
-test('billing UI uses the same live public plan catalog and keeps creator and Project packages separated', () => {
+test('billing UI uses the same live public plan catalog and groups personal and Project packages', () => {
   assert.match(billingUi, /api\/billing\/plans/);
   assert.match(billingUi, /api\/billing\/current\?profileId=/);
-  assert.match(billingUi, /plan\.code === 'free' \|\| plan\.code === 'personal_pro'/);
-  assert.match(billingUi, /project_manual/);
-  assert.match(billingUi, /project_automate/);
-  assert.match(billingUi, /project_growth/);
+  assert.match(billingUi, /function planGroup\(plan: PublicPlan\)/);
+  assert.match(billingUi, /Personal plans/);
+  assert.match(billingUi, /Project plans/);
+  assert.match(billingUi, /monthlyContactReveals/);
+  assert.match(billingUi, /Project plans/);
 });
 
 test('paid plan selection opens verified Linkary wallet checkout instead of self-granting access', () => {

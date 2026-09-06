@@ -21,6 +21,7 @@ type PlanRow = {
   base_price_cents: number | null;
   currency: string;
   monthly_usage_credits: number;
+  monthly_contact_reveals?: number;
   project_seat_limit: number | null;
   features_json: string;
 };
@@ -48,6 +49,10 @@ function safeFeatures(value: string): string[] {
   }
 }
 
+function contactRevealAllowance(code: string): number {
+  return ({ free: 0, personal_pro: 10, project_manual: 50, project_automate: 250, project_growth: 1000 } as Record<string, number>)[code] || 0;
+}
+
 function publicPlan(plan: PlanRow) {
   return {
     code: plan.code,
@@ -59,6 +64,7 @@ function publicPlan(plan: PlanRow) {
     effectivePriceCents: plan.base_price_cents,
     currency: plan.currency,
     monthlyUsageCredits: plan.monthly_usage_credits,
+    monthlyContactReveals: plan.monthly_contact_reveals ?? contactRevealAllowance(plan.code),
     projectSeatLimit: plan.project_seat_limit,
     features: safeFeatures(plan.features_json),
     promotion: null,

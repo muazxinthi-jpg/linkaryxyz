@@ -72,6 +72,20 @@ export function ProductWorkspace({
     ['/settings/team-invites', 'Team'],
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
+  const navSections = profile.profile_type === 'creator'
+    ? [
+      ['WORKSPACE', creatorNav.slice(0, 2)],
+      ['NETWORK', creatorNav.slice(2, 5)],
+      ['IDENTITY', creatorNav.slice(5, 8)],
+      ['MANAGE', creatorNav.slice(8)],
+    ] as const
+    : [
+      ['WORKSPACE', projectNav.slice(0, 2)],
+      ['GROWTH', projectNav.slice(2, 4)],
+      ['NETWORK', projectNav.slice(4, 6)],
+      ['IDENTITY', projectNav.slice(6, 9)],
+      ['MANAGE', projectNav.slice(9)],
+    ] as const;
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
   const showGrowthIntelligence = profile.profile_type === 'project' && currentPath === '/campaigns' && Boolean(profile.organization_id);
 
@@ -95,11 +109,14 @@ export function ProductWorkspace({
           </div>
         </div>
         <nav className="ops-nav">
-          {nav.map(([path, label]) => (
-            <NavLink key={path} to={path} className={() => currentPath === path ? 'active' : ''}>
-              {label}
-            </NavLink>
-          ))}
+          {navSections.map(([section, items]) => <div className="ops-nav-section" key={section}>
+            <span className="ops-nav-section-label">{section}</span>
+            {items.map(([path, label]) => (
+              <NavLink key={path} to={path} className={() => currentPath === path ? 'active' : ''}>
+                {label}
+              </NavLink>
+            ))}
+          </div>)}
         </nav>
         <div className="ops-sidebar-footer">
           <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active ops-plan-nav' : 'ops-plan-nav'}>Plan & billing</NavLink>
