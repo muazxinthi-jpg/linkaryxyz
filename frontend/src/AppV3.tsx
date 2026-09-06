@@ -14,6 +14,7 @@ import ProjectExperienceBeta from './ProjectExperienceBeta';
 import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
+import AdminCommercialExperience from './AdminCommercialExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import CommunityManagerSessionGate from './CommunityManagerSessionGate';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
@@ -77,7 +78,8 @@ type Experience =
   | 'projects'
   | 'team-invites'
   | 'admin-readiness'
-  | 'admin-community-verifications';
+  | 'admin-community-verifications'
+  | 'admin-commercial';
 
 type GateState = 'loading' | 'legacy' | 'forbidden' | 'unavailable' | 'ready';
 
@@ -134,9 +136,10 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'billing') return <BillingExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
-    if (experience === 'admin-readiness' || experience === 'admin-community-verifications') {
+    if (experience === 'admin-readiness' || experience === 'admin-community-verifications' || experience === 'admin-commercial') {
       if (!me.user?.superadmin) return <ForbiddenScreen />;
       if (experience === 'admin-community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
+      if (experience === 'admin-commercial') return <AdminCommercialExperience me={me} status={status} />;
       return <AdminReadinessExperience me={me} status={status} />;
     }
     return <TrackingExperience me={me} status={status} />;
@@ -190,5 +193,6 @@ export default function AppV3() {
   if (location.pathname === '/settings') return <ProductGate experience="projects" />;
   if (location.pathname === '/admin/readiness') return <ProductGate experience="admin-readiness" />;
   if (location.pathname === '/admin/community-verifications') return <ProductGate experience="admin-community-verifications" />;
+  if (location.pathname === '/admin/commercial') return <ProductGate experience="admin-commercial" />;
   return <AppV2 />;
 }

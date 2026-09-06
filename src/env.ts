@@ -1,8 +1,9 @@
-import type { D1Database, Fetcher } from './platform';
+import type { D1Database, Fetcher, WorkersAiBinding } from './platform';
 
 export interface Env {
   ASSETS: Fetcher;
   DB?: D1Database;
+  AI?: WorkersAiBinding;
 
   // Linkary primary authentication / embedded wallet configuration.
   // CDP_PROJECT_ID is public client configuration. CDP API credentials are
@@ -20,6 +21,17 @@ export interface Env {
   // Server-only Alchemy key used for wallet asset discovery and onchain
   // attribution. Never expose this value to the browser.
   ALCHEMY_API_KEY?: string;
+
+  // LinkaryAI provider configuration. Workers AI is the primary provider.
+  // External provider keys are server-only Cloudflare secret bindings and are
+  // considered configured only when an explicit model is also selected.
+  AI_WORKERS_MODEL?: string;
+  GEMINI_API_KEY?: string;
+  AI_GEMINI_MODEL?: string;
+  GROQ_API_KEY?: string;
+  AI_GROQ_MODEL?: string;
+  OPENROUTER_API_KEY?: string;
+  AI_OPENROUTER_MODEL?: string;
 
   SESSION_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;

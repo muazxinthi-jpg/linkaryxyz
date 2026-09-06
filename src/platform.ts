@@ -20,6 +20,10 @@ export interface Fetcher {
   fetch(input: Request | string, init?: RequestInit): Promise<Response>;
 }
 
+export interface WorkersAiBinding {
+  run(model: string, input: Record<string, unknown>): Promise<unknown>;
+}
+
 export interface ExecutionContextLike {
   waitUntil(promise: Promise<unknown>): void;
 }
