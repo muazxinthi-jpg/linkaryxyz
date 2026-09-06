@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSignOut } from '@coinbase/cdp-hooks';
 import FounderGrowthIntelligencePanel from './FounderGrowthIntelligencePanel';
+import SuperadminWorkspace from './SuperadminWorkspace';
 import './workspace-mobile.css';
 
 export type AccountType = 'creator' | 'project';
@@ -28,6 +29,8 @@ export function ProductWorkspace({
 }) {
   const navigate = useNavigate();
   const { signOut } = useSignOut();
+  const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
+  const showSuperadmin = isSuperadminHost && Boolean(me.user?.superadmin);
 
   async function logout() {
     try {
@@ -46,6 +49,8 @@ export function ProductWorkspace({
     navigate('/login', { replace: true });
     window.location.reload();
   }
+
+  if (showSuperadmin) return <SuperadminWorkspace me={me}>{children}</SuperadminWorkspace>;
 
   const creatorNav = [
     ['/dashboard', 'Overview'],
@@ -72,9 +77,6 @@ export function ProductWorkspace({
     ['/settings/team-invites', 'Team'],
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
-  const showSuperadmin = typeof window !== 'undefined'
-    && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz'
-    && Boolean(me.user?.superadmin);
   const navSections = profile.profile_type === 'creator'
     ? [
       ['WORKSPACE', creatorNav.slice(0, 2)],
@@ -123,16 +125,6 @@ export function ProductWorkspace({
         </nav>
         <div className="ops-sidebar-footer">
           <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active ops-plan-nav' : 'ops-plan-nav'}>Plan & billing</NavLink>
-          {showSuperadmin && (
-            <section className="ops-admin-nav" aria-label="Superadmin tools">
-              <span>SUPERADMIN</span>
-              <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
-              <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
-              <NavLink to="/admin/commercial" className={() => currentPath === '/admin/commercial' ? 'active' : ''}>Commercial accounts</NavLink>
-              <NavLink to="/admin/coupons" className={() => currentPath === '/admin/coupons' ? 'active' : ''}>Coupons</NavLink>
-              <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
-            </section>
-          )}
           <button type="button" onClick={() => void logout()}>Log out</button>
         </div>
       </aside>
@@ -151,16 +143,6 @@ export function ProductWorkspace({
                 </NavLink>
               ))}
               <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active' : ''}>Plan & billing</NavLink>
-              {showSuperadmin && (
-                <>
-                  <span className="ops-mobile-menu-label">SUPERADMIN</span>
-                  <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
-                  <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
-                  <NavLink to="/admin/commercial" className={() => currentPath === '/admin/commercial' ? 'active' : ''}>Commercial accounts</NavLink>
-                  <NavLink to="/admin/coupons" className={() => currentPath === '/admin/coupons' ? 'active' : ''}>Coupons</NavLink>
-                  <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
-                </>
-              )}
               <button type="button" onClick={() => void logout()}>Log out</button>
             </div>
           </details>
