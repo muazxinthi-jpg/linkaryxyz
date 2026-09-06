@@ -490,7 +490,7 @@ function AppShell({ me, status, onLogout }: { me: MeResponse; status: Onboarding
           </select>
         </div>
         <nav>{nav.map(([path, label]) => <NavLink key={path} to={`/${path}`} className={({ isActive }) => isActive ? 'active' : ''}>{label}</NavLink>)}</nav>
-        {me.user?.superadmin && <NavLink className="admin-link" to="/admin">Superadmin</NavLink>}
+        {me.user?.superadmin && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz' && <NavLink className="admin-link" to="/admin">Superadmin</NavLink>}
         <div className="sidebar-user"><span>{status.user.displayName || status.user.email || 'Linkary user'}</span><button onClick={onLogout}>Log out</button></div>
       </aside>
       <section className="app-content">
@@ -506,7 +506,7 @@ function AppShell({ me, status, onLogout }: { me: MeResponse; status: Onboarding
             <Route path="/profile" element={<FoundationPage name="profile" />} />
             <Route path="/invites" element={<FoundationPage name="invites" />} />
             <Route path="/settings" element={<FoundationPage name="settings" />} />
-            <Route path="/admin/*" element={me.user?.superadmin ? <AdminPage /> : <Navigate to="/dashboard" replace />} />
+            <Route path="/admin/*" element={me.user?.superadmin && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz' ? <AdminPage /> : <Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
