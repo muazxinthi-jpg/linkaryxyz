@@ -267,13 +267,14 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
   const profile = await requireEditableProfile(db, auth.user.id, profileId);
-  const [row, sections, channels, identity] = await Promise.all([
+  const [row, sections, channels, identity, monthlyRows] = await Promise.all([
     db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]),
     db.first<{ total: number }>('SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1', [profileId]),
     db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1 AND block_type IN ('social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin')`, [profileId]),
     profile.primary_platform_identity_id
       ? db.first<{ current_handle: string | null; metadata_json: string }>('SELECT current_handle, metadata_json FROM platform_identities WHERE id = ? AND platform = \'x\' LIMIT 1', [profile.primary_platform_identity_id])
       : Promise.resolve(null),
+    db.all<{ month: string; count: number }>(`SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count FROM profile_engagement_events WHERE profile_id = ? AND created_at >= datetime('now', '-11 months') GROUP BY month ORDER BY month ASC`, [profileId]),
   ]);
   let xFollowers: number | null = null;
   if (identity?.metadata_json) {
@@ -285,11 +286,22 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
       // Provider metadata is optional enrichment and never blocks the profile editor.
     }
   }
+  const monthlyMap = new Map(monthlyRows.map((item) => [item.month, Number(item.count || 0)]));
+  const monthlyClicks: Array<{ month: string; count: number }> = [];
+  const cursor = new Date();
+  cursor.setUTCDate(1);
+  cursor.setUTCMonth(cursor.getUTCMonth() - 11);
+  for (let index = 0; index < 12; index += 1) {
+    const month = cursor.toISOString().slice(0, 7);
+    monthlyClicks.push({ month, count: monthlyMap.get(month) || 0 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
   return json({
     linkClicks: Number(row?.link_clicks || 0),
     sections: Number(sections?.total || 0),
     connectedChannels: Number(channels?.total || 0),
     x: { handle: identity?.current_handle || null, followers: xFollowers, source: xFollowers === null ? 'awaiting_provider' : 'provider' },
+    monthlyClicks,
   });
 }
 

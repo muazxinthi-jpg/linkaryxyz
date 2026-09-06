@@ -153,6 +153,7 @@ type ProfileCardAnalytics = {
   sections: number;
   connectedChannels: number;
   x: { handle: string | null; followers: number | null; source: 'provider' | 'awaiting_provider' };
+  monthlyClicks: Array<{ month: string; count: number }>;
 };
 
 function compactMetric(value: number | null): string {
@@ -164,19 +165,18 @@ function ProfileShareCard({ profile, data, analytics, completionPercent, blocks 
   const avatar = safeHttps(data.avatarUrl);
   const displayName = data.displayName || profile.display_name;
   const xFollowers = analytics.x.followers === null ? 'Awaiting X data' : compactMetric(analytics.x.followers);
+  const maxClicks = Math.max(1, ...analytics.monthlyClicks.map((item) => item.count));
   const achievements = [
     data.visibility === 'published' ? 'Published profile' : 'Draft profile',
     analytics.connectedChannels > 0 ? `${analytics.connectedChannels} connected channel${analytics.connectedChannels === 1 ? '' : 's'}` : 'Add social channels',
     blocks.some((block) => block.enabled && block.type === 'nft_item') ? 'NFT showcase' : null,
     completionPercent >= 80 ? 'Profile ready' : null,
   ].filter((item): item is string => Boolean(item));
-  return <section className="profile-share-card" aria-label="Profile share card preview">
-    <div className="profile-share-card-cover"><span className="profile-share-card-brand"><i /><b>Linkary</b></span><small>{profile.profile_type === 'project' ? 'PROJECT IDENTITY' : 'CREATOR IDENTITY'}</small></div>
-    <div className="profile-share-card-body">
-      <div className="profile-share-card-head"><div className="profile-share-card-avatar">{avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : displayName.slice(0, 2).toUpperCase()}</div><div><strong>{displayName}</strong><span>@{profile.username}</span>{data.bio && <p>{data.bio}</p>}</div></div>
-      <div className="profile-share-card-metrics"><article><span>X FOLLOWERS</span><strong>{xFollowers}</strong><small>{analytics.x.source === 'provider' ? 'Provider reported' : 'Connect X data when available'}</small></article><article><span>PROFILE CLICKS</span><strong>{compactMetric(analytics.linkClicks)}</strong><small>Measured by Linkary</small></article><article><span>PROFILE SECTIONS</span><strong>{analytics.sections}</strong><small>Published on profile</small></article><article><span>READINESS</span><strong>{completionPercent}%</strong><small>Identity completeness</small></article></div>
-      <div className="profile-share-card-achievements"><span>ACHIEVEMENTS</span><div>{achievements.map((item) => <b key={item}>{item}</b>)}</div></div>
-      <footer><span>Metrics are labeled by source. Provider metrics appear only after a verified API refresh.</span><b>linkary.xyz/{profile.username}</b></footer>
+  return <section className="profile-share-card" aria-label="Your social card preview">
+    <header className="profile-share-card-title"><div><span>YOUR SOCIAL CARD</span><strong>Shareable identity and activity summary</strong></div><small>Based on available Linkary data</small></header>
+    <div className="profile-share-card-grid">
+      <aside className="profile-share-card-identity"><div className="profile-share-card-avatar">{avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : displayName.slice(0, 2).toUpperCase()}</div><strong>{displayName}</strong><span>@{profile.username}</span><b>{profile.profile_type === 'project' ? 'PROJECT IDENTITY' : 'CREATOR IDENTITY'}</b>{data.bio && <p>{data.bio}</p>}<div className="profile-share-card-achievements">{achievements.map((item) => <em key={item}>{item}</em>)}</div></aside>
+      <main className="profile-share-card-data"><div className="profile-share-card-metrics"><article><span>X FOLLOWERS</span><strong>{xFollowers}</strong><small>{analytics.x.source === 'provider' ? 'Provider reported' : 'Awaiting verified X provider'}</small></article><article><span>PROFILE CLICKS</span><strong>{compactMetric(analytics.linkClicks)}</strong><small>Measured by Linkary</small></article><article><span>SECTIONS</span><strong>{analytics.sections}</strong><small>Published profile content</small></article><article><span>READINESS</span><strong>{completionPercent}%</strong><small>Identity completeness</small></article></div><section className="profile-share-card-activity"><div><span>LINKARY PROFILE ACTIVITY</span><small>Monthly public-link clicks</small></div><div className="profile-share-card-heatmap" aria-label="Monthly profile click activity">{analytics.monthlyClicks.map((item) => <i key={item.month} title={`${item.month}: ${item.count} clicks`} style={{ opacity: item.count ? .28 + item.count / maxClicks * .72 : .12 }} />)}</div><div className="profile-share-card-activity-labels">{analytics.monthlyClicks.map((item) => <small key={item.month}>{item.month.slice(5)}</small>)}</div></section><div className="profile-share-card-footer"><span>Provider metrics appear only after a verified API refresh. Linkary metrics are measured directly.</span><b>linkary.xyz/{profile.username}</b></div></main>
     </div>
   </section>;
 }
@@ -189,7 +189,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
 
   const [data, setData] = useState<ProfileData>({ displayName: '', bio: '', avatarUrl: '', seoTitle: '', seoDescription: '', visibility: 'private' });
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [analytics, setAnalytics] = useState<ProfileCardAnalytics>({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' } });
+  const [analytics, setAnalytics] = useState<ProfileCardAnalytics>({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' }, monthlyClicks: [] });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
   const [showSeo, setShowSeo] = useState(false);
@@ -214,7 +214,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
       const [profileResult, blockResult, analyticsResult] = await Promise.all([
         apiJson<{ profile: ProfileData }>(`/api/profiles/${encodeURIComponent(profile.id)}`),
         apiJson<{ blocks: Block[] }>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`),
-        apiJson<ProfileCardAnalytics>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(() => ({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' as const } })),
+        apiJson<ProfileCardAnalytics>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(() => ({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' as const }, monthlyClicks: [] })),
       ]);
       setData({ ...profileResult.profile, bio: profileResult.profile.bio || '', avatarUrl: profileResult.profile.avatarUrl || '', seoTitle: profileResult.profile.seoTitle || '', seoDescription: profileResult.profile.seoDescription || '' });
       setAvatarFailed(false);
