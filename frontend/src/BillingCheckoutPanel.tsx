@@ -275,7 +275,7 @@ export default function BillingCheckoutPanel({
       )}
 
       {message && <div className="ops-message" role="status" aria-live="polite">{message}</div>}
-      <div className="billing-checkout-foot"><strong>No fake $0 payments.</strong><span>100% coupons are recorded as coupon redemptions and activate one billing period directly. Paid checkouts still require a verified Base USDC transfer.</span></div>
+      <div className="billing-checkout-foot"><strong>No silent wallet debits.</strong><span>Every renewal requires your approval during Controlled Beta. A 100% coupon is recorded as a coupon redemption and activates one billing period directly, while paid checkouts still require a verified Base USDC transfer.</span></div>
     </section>
   );
 }
