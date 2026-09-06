@@ -270,7 +270,7 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   const [row, sections, channels, identity, monthlyRows] = await Promise.all([
     db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]),
     db.first<{ total: number }>('SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1', [profileId]),
-    db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1 AND block_type IN ('social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin')`, [profileId]),
+    db.all<ProfileBlockRow>(`SELECT * FROM profile_blocks WHERE profile_id = ? AND enabled = 1 AND block_type IN ('link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin')`, [profileId]),
     profile.primary_platform_identity_id
       ? db.first<{ current_handle: string | null; metadata_json: string }>('SELECT current_handle, metadata_json FROM platform_identities WHERE id = ? AND platform = \'x\' LIMIT 1', [profile.primary_platform_identity_id])
       : Promise.resolve(null),
@@ -333,7 +333,7 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   return json({
     linkClicks: Number(row?.link_clicks || 0),
     sections: Number(sections?.total || 0),
-    connectedChannels: Number(channels?.total || 0),
+    connectedChannels: channels.filter(block => Boolean(block.url) && isSocialBlock(block)).length,
     x: { handle: identity?.current_handle || null, followers: xFollowers, source: xFollowers === null ? 'awaiting_provider' : 'provider' },
     monthlyClicks,
     platformClicks,
