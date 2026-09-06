@@ -1,10 +1,13 @@
 export type TrackingUtmContext = {
   campaignName: string;
+  activityId: string;
   activityTitle: string;
   activityType: string;
   assignmentKind: 'creator' | 'community' | null;
   partnerHandle: string | null;
   partnerName: string | null;
+  creatorProfileId: string | null;
+  utmTerm?: string | null;
 };
 
 export type TrackingUtmResult = {
@@ -14,6 +17,9 @@ export type TrackingUtmResult = {
     medium: string;
     campaign: string;
     content: string;
+    term: string | null;
+    linkaryActivity: string;
+    linkaryCreator: string | null;
   } | null;
 };
 
@@ -45,6 +51,10 @@ function mediumFor(context: TrackingUtmContext): string {
   return 'growth';
 }
 
+function setIfMissing(params: URLSearchParams, key: string, value: string | null | undefined): void {
+  if (value && !params.has(key)) params.set(key, value);
+}
+
 export function buildTrackedDestination(destinationUrl: string, context: TrackingUtmContext): TrackingUtmResult {
   let destination: URL;
   try {
@@ -58,17 +68,39 @@ export function buildTrackedDestination(destinationUrl: string, context: Trackin
   }
 
   const contentSource = context.partnerHandle || context.partnerName || context.activityTitle;
-  const utm = {
+  const generated = {
     source: compactSlug(sourceFor(context), 'linkary'),
     medium: compactSlug(mediumFor(context), 'growth'),
     campaign: compactSlug(context.campaignName, 'campaign'),
     content: compactSlug(contentSource, 'activity'),
   };
 
-  if (!destination.searchParams.has('utm_source')) destination.searchParams.set('utm_source', utm.source);
-  if (!destination.searchParams.has('utm_medium')) destination.searchParams.set('utm_medium', utm.medium);
-  if (!destination.searchParams.has('utm_campaign')) destination.searchParams.set('utm_campaign', utm.campaign);
-  if (!destination.searchParams.has('utm_content')) destination.searchParams.set('utm_content', utm.content);
+  setIfMissing(destination.searchParams, 'utm_source', generated.source);
+  setIfMissing(destination.searchParams, 'utm_medium', generated.medium);
+  setIfMissing(destination.searchParams, 'utm_campaign', generated.campaign);
+  setIfMissing(destination.searchParams, 'utm_content', generated.content);
+  setIfMissing(destination.searchParams, 'utm_term', context.utmTerm?.trim().slice(0, 120));
 
-  return { effectiveDestinationUrl: destination.toString(), utm };
+  // Linkary-owned attribution parameters are authoritative. Unlike customer UTMs,
+  // these values must always describe the actual Linkary activity/creator that
+  // created the tracked link, even if the destination already contains stale keys.
+  destination.searchParams.set('linkary_activity', context.activityId);
+  if (context.assignmentKind === 'creator' && context.creatorProfileId) {
+    destination.searchParams.set('linkary_creator', context.creatorProfileId);
+  } else {
+    destination.searchParams.delete('linkary_creator');
+  }
+
+  return {
+    effectiveDestinationUrl: destination.toString(),
+    utm: {
+      source: destination.searchParams.get('utm_source') || generated.source,
+      medium: destination.searchParams.get('utm_medium') || generated.medium,
+      campaign: destination.searchParams.get('utm_campaign') || generated.campaign,
+      content: destination.searchParams.get('utm_content') || generated.content,
+      term: destination.searchParams.get('utm_term'),
+      linkaryActivity: context.activityId,
+      linkaryCreator: context.assignmentKind === 'creator' ? context.creatorProfileId : null,
+    },
+  };
 }
