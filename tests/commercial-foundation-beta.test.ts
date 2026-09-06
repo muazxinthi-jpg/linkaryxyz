@@ -70,15 +70,16 @@ test('Controlled Beta readiness requires a server-only Alchemy API key', () => {
   assert.equal(configured.missing.length, 0);
 });
 
-test('Controlled Beta NFT discovery uses Ethereum, Base, Arbitrum and Solana, not BNB Chain', () => {
+test('Controlled Beta Alchemy chain registry is Ethereum, Base, BNB Chain, Solana and Robinhood', () => {
+  const chains = read('../src/chains.ts');
   const wallets = read('../src/routes/wallets.ts');
 
-  assert.equal(wallets.includes("{ chain: 'Ethereum', host: 'eth-mainnet'"), true);
-  assert.equal(wallets.includes("{ chain: 'Base', host: 'base-mainnet'"), true);
-  assert.equal(wallets.includes("{ chain: 'Arbitrum', host: 'arb-mainnet'"), true);
+  for (const key of ['ethereum', 'base', 'bnb', 'solana', 'robinhood']) {
+    assert.equal(chains.includes(`key: '${key}'`), true, `missing ${key}`);
+  }
+  assert.equal(chains.includes("key: 'arbitrum'"), false);
+  assert.equal(wallets.includes('BETA_CHAIN_CAPABILITIES'), true);
   assert.equal(wallets.includes('solana-mainnet.g.alchemy.com'), true);
-  assert.equal(wallets.includes('BNB Chain'), false);
-  assert.equal(wallets.includes('bnb-mainnet'), false);
 });
 
 test('public billing catalog has safe fallback values before migration 0029 is applied', () => {
