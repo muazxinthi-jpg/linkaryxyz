@@ -49,8 +49,8 @@ test('production head injection cannot expand dollar replacement tokens and rest
   const staticSource = await read('src/static.ts');
   assert.match(staticSource, /const headInjection =/);
   assert.match(staticSource, /\.replace\('\<\/head\>', \(\) => headInjection\)/);
-  assert.match(staticSource, /rel=\\"icon\\"/);
-  assert.match(staticSource, /rel=\\"apple-touch-icon\\"/);
+  assert.match(staticSource, /rel="icon"/);
+  assert.match(staticSource, /rel="apple-touch-icon"/);
   assert.match(staticSource, /linkary-icon-black\.png/);
   assert.doesNotMatch(staticSource, /\.replace\('\<\/head\>', `\$\{/);
 });
