@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
+import SuperadminHostGate from './SuperadminHostGate';
 import AuthSessionContinuity from './AuthSessionContinuity';
 import UiSafetyGuard from './UiSafetyGuard';
 import OnboardingCompletionBoundary from './OnboardingCompletionBoundary';
@@ -41,6 +42,17 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
+const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
+
+function RootApp() {
+  if (!isSuperadminHost) return <App />;
+  return (
+    <SuperadminHostGate
+      render={() => <App />}
+    />
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <CDPReactProvider config={cdpConfig}>
@@ -48,7 +60,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthSessionContinuity>
           <UiSafetyGuard />
           <OnboardingCompletionBoundary />
-          <App />
+          <RootApp />
         </AuthSessionContinuity>
       </BrowserRouter>
     </CDPReactProvider>
