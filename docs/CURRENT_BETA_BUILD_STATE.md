@@ -1,8 +1,8 @@
 # Linkary Current Beta Build State
 
-Updated: 2026-09-05
+Updated: 2026-09-06
 
-This is the concise current-state handoff for active Linkary Beta work. If an older handoff conflicts with this file, verify against `main`, current migrations and CI before rebuilding anything.
+This is the concise current-state handoff for active Linkary Beta work. If an older handoff conflicts with this file, verify against `main`, the canonical `docs/LINKARY_TECHNICAL_PRODUCT_PAPER.md`, current migrations and the latest `main` CI before rebuilding anything.
 
 ## Current production product
 
@@ -26,6 +26,7 @@ The core Beta product is built and production-live:
 - activity measurement evidence with explicit provenance
 - actual spend ledger separate from budget/planned cost
 - tracking links, clicks, outcomes, attribution and reports
+- canonical new-link route `https://l.linkary.xyz/r/{code}` with immutable destination/UTM context
 - immutable tracking-link partner snapshots for reassignment-safe historical attribution
 - Founder Growth Intelligence across campaigns, activities, partners and channels
 - Creator Campaign Proof
@@ -33,15 +34,16 @@ The core Beta product is built and production-live:
 - Community Campaign Proof
 - Relationship Memory
 - Work Again
-- NFT showcase/avatar metadata resilience for EVM/Base/Abstract/Solana
+- chain-aware NFT picker and bounded pagination for Ethereum, Base, BNB Chain, Solana and Robinhood Chain
 - Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
+- LinkaryAI AI-0 governance foundation
 - hourly production app-shell/API health monitoring
 
 Current `main` regression, TypeScript and Wrangler verification are green. Treat the latest `main` CI run as the authoritative test count rather than hard-coding a count in planning documents.
 
 ## Current Linkary loop
 
-`Discover -> Inquire -> Accept -> Explicit activation -> Campaign -> Activity -> exact Partner -> Mark live/completed -> Track -> Outcome -> Proof -> Relationship Memory -> Work Again`
+`Identity -> Discovery -> Relationship -> Inquiry -> Accept -> Explicit activation -> Campaign -> Activity -> Exact Partner -> Track -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`
 
 Campaigns also have their own operational lifecycle:
 
@@ -57,6 +59,7 @@ with only the allowed V1 transitions enforced by the backend.
 - Campaign completion/archival does not create proof or rewrite activity status.
 - Exact Creator / exact Telegram Community provenance remains authoritative.
 - New tracking links freeze the exact partner at link creation so later activity reassignment cannot rewrite historical attribution.
+- New tracking links freeze effective destination and UTM attribution context.
 - Legacy backfilled tracking-link partner snapshots must remain labeled as legacy/backfilled provenance, not proven link-creation history.
 - Community Manager personal Telegram verification is separate from Community asset verification.
 - Community verification is asset-level.
@@ -68,16 +71,19 @@ with only the allowed V1 transitions enforced by the backend.
 
 ## Production D1 state
 
-The protected production D1 migration workflow was run successfully from `main` on 2026-09-05 using the controlled apply path.
+Production D1 is current through `0034_project_growth_baselines.sql`.
 
-Production schema is current through:
+Relevant current migration history includes:
 
-- `0023_personal_profile_identity.sql`
 - `0024_activity_measurement_evidence.sql`
 - `0025_actual_spend_ledger.sql`
 - `0026_immutable_tracked_link_partner_snapshots.sql`
+- deployed migrations `0027` through `0031`
+- `0032_immutable_tracking_utm_context.sql`
+- `0033_ai0_governance_and_usage.sql`
+- `0034_project_growth_baselines.sql`
 
-The migration post-check returned `No migrations to apply!`.
+The latest production migration-state check returned `No migrations to apply!`.
 
 The protected workflow remains:
 
@@ -89,7 +95,15 @@ The protected workflow remains:
 
 Normal app deployments report D1 migration drift but never apply schema changes.
 
-Never rewrite a deployed migration.
+Never rewrite a deployed migration. Do not add another migration during the current acceptance-only phase.
+
+## Production readiness and release controls
+
+- Production readiness was observed at 34/34 required tables, 5/5 required automation checks and 9/9 production configuration checks.
+- `main` is protected and requires `verify-and-deploy` plus `Workers Builds: linkary-xyz`.
+- Required-check enforcement has been observed blocking a merge until the Worker build finished successfully.
+- Latest production deploy completed regression, backend TypeScript, authenticated-app TypeScript, Wrangler, Cloudflare deployment and live health checks successfully.
+- Direct-push rejection and deliberate emergency-bypass behavior should still be explicitly exercised as release-control acceptance evidence before widening the cohort.
 
 ## Authentication model
 
@@ -105,7 +119,7 @@ Real acceptance must therefore test Email/Google/X sign-in and Telegram profile 
 
 ## Campaign Lifecycle V1 is complete
 
-Campaign Lifecycle is no longer the next feature.
+Campaign Lifecycle V1 is no longer the next feature.
 
 Supported transitions:
 
@@ -119,19 +133,45 @@ Lifecycle mutation is authenticated, CSRF protected and Project permissioned. Ow
 
 Campaign status changes do not mutate activity statuses or create/delete tracking, clicks, outcomes, exact partner assignments, attribution confidence, reports, inquiries, proof or Relationship Memory.
 
+## Alchemy / NFT Controlled Beta state
+
+The locked Controlled Beta chain set is:
+
+1. Ethereum
+2. Base
+3. BNB Chain
+4. Solana
+5. Robinhood Chain
+
+Arbitrum is not part of the current Controlled Beta chain set.
+
+Live production facts already observed:
+
+- Alchemy production configuration is present and readiness reached 9/9.
+- a real Ethereum wallet returned NFT artwork in the live Profile editor.
+- the chain-aware picker/pagination implementation is deployed.
+- EVM discovery is bounded to 100 items per page and preserves provider cursor state for `Load more`.
+- chain-specific browsing does not need to fetch every supported chain.
+- unsupported/provider-error states are distinct from a genuine empty-wallet result.
+
+Live acceptance still needs to verify more-than-one-page browsing, chain switching, Solana, provider-capability states, avatar save/reload/public rendering and NFT Showcase save/reload/public rendering.
+
+Issue #168 remains open because a Free Personal account can currently access paid NFT-aware profile functionality. The canonical Personal Pro / Collector boundary requires server-side enforcement. Free must retain normal image upload and reward-wallet destinations, but not wallet NFT discovery, NFT avatar, NFT Showcase, NFT collection presentation or NFT-labelled profile items.
+
 ## Growth Intelligence / attribution acceptance is the next critical gate
 
-The schema and runtime code are now production-ready for this acceptance sequence:
+The schema and runtime code are production-ready for this acceptance sequence:
 
 1. Project -> Campaign -> Activity -> Creator A.
 2. Create a new tracking link while Creator A is the exact assigned partner.
-3. Open the tracking link through a real browser to record a real Linkary click.
-4. Record a known outcome and optional attributed USD value. Founder-entered outcomes must stay visibly Manual evidence.
-5. Record actual spend if testing ROI/ROAS, keeping it separate from budget and planned cost.
-6. Confirm Growth Intelligence calculations and partner snapshot coverage.
-7. Reassign the activity from Creator A to Creator B.
-8. Confirm the original tracking link, click, outcome and attributed value remain historically attributed to Creator A.
-9. Repeat with Community Manager -> exact Telegram Community.
+3. Confirm the new URL uses `https://l.linkary.xyz/r/{code}`.
+4. Open the tracking link through a real browser to record a real Linkary click and inspect the final destination/UTM parameters.
+5. Record a known outcome and optional attributed USD value. Founder-entered outcomes must stay visibly Manual evidence.
+6. Record actual spend if testing ROI/ROAS, keeping it separate from budget and planned cost.
+7. Confirm Growth Intelligence calculations and partner snapshot coverage.
+8. Reassign the activity from Creator A to Creator B.
+9. Confirm the original tracking link, click, outcome and attributed value remain historically attributed to Creator A.
+10. Repeat with Community Manager -> exact Telegram Community.
 
 Use designated test data so acceptance does not masquerade as real customer proof.
 
@@ -182,18 +222,22 @@ Static responsive hardening and regression coverage now exist for the named Issu
 Before broad onboarding, run:
 
 1. Growth attribution integrity: Creator A -> tracking link -> real click -> outcome/value -> Creator B reassignment, then repeat with exact Telegram Community.
-2. Creator Invite -> auth -> Earn Access -> X evidence -> Superadmin approval -> onboarding -> profile.
-3. Project Invite -> auth -> official Project X -> claim -> workspace -> Team roles.
-4. Email / Google / X sign-in with real accounts, plus separate Telegram Personal Profile linking.
-5. Owner / Admin / Campaign Manager / Analyst / Viewer permission matrix with separate users.
-6. Creator evidence loop:
+2. Canonical tracking-domain/UTM redirect acceptance with a real `l.linkary.xyz/r/{code}` link.
+3. Creator Invite -> auth -> Earn Access -> X evidence -> Superadmin approval -> onboarding -> profile.
+4. Project Invite -> auth -> official Project X -> claim -> workspace -> Team roles.
+5. Email / Google / X sign-in with real accounts, plus separate Telegram Personal Profile linking.
+6. Owner / Admin / Campaign Manager / Analyst / Viewer permission matrix with separate users.
+7. Creator evidence loop:
    `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Relationship Memory -> Work Again`.
-7. Community evidence loop using `Community Manager -> exact Telegram Community`.
-8. Invite click -> signup -> registration attribution.
-9. Opportunity -> application -> Project decision.
-10. Public Creator/Project profile acceptance on real mobile devices.
-11. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
-12. Add `main` branch protection/ruleset requiring the normal PR + green CI release path before controlled Beta.
+8. Community evidence loop using `Community Manager -> exact Telegram Community`.
+9. Invite click -> signup -> registration attribution.
+10. Opportunity -> application -> Project decision.
+11. Public Creator/Project profile acceptance on real mobile devices.
+12. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
+13. NFT chain/pagination/persistence live acceptance.
+14. Fix Issue #168 before monetized Personal Pro onboarding.
+15. Resolve or disposition Issue #169 during landing-page UI/content QA.
+16. Explicitly verify direct-push/emergency-bypass release-control behavior.
 
 ## What to build next
 
@@ -204,10 +248,11 @@ The next work is:
 1. finish real attribution/end-to-end acceptance
 2. finish real-account auth/onboarding/role/invite acceptance
 3. finish issue #42 authenticated visual/device acceptance
-4. fix every P0/P1 found
-5. protect `main` against accidental direct pushes
-6. keep documentation synchronized with `main`
-7. open a small controlled Beta cohort only after the acceptance gate is clean
+4. finish live NFT acceptance and fix Issue #168
+5. fix every P0/P1 found
+6. verify the already protected `main` release path end to end
+7. keep documentation synchronized with `main`
+8. open a small controlled Beta cohort only after the acceptance gate is clean
 
 ## Deferred until Beta stability
 
@@ -216,9 +261,10 @@ Keep these deferred while acceptance blockers remain:
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
 - advanced Alchemy webhook attribution
+- user-facing AI expansion beyond the already deployed AI-0 foundation
 - AI partner recommendations / Linkary Score
 - reputation voting/moderation
-- billing, payments and payouts
+- payments and payouts
 - referral revenue automation
 - delegated wallet signing
 - advanced audience-overlap intelligence

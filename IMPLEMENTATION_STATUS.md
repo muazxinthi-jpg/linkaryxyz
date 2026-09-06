@@ -1,8 +1,8 @@
 # Linkary implementation status
 
-Updated: 2026-09-05
+Updated: 2026-09-06
 
-This file is a current repository-level status summary for Linkary Beta. When an older handoff conflicts with this file, verify against `main` and the current migrations/tests before rebuilding anything.
+This file is a current repository-level status summary for Linkary Beta. When an older handoff conflicts with this file, verify against `main`, the canonical `docs/LINKARY_TECHNICAL_PRODUCT_PAPER.md`, current migrations and current CI before rebuilding anything.
 
 ## Beta product loop
 
@@ -23,16 +23,23 @@ The core product is built. Remaining launch work is real-account/end-to-end acce
 - [x] Production deployments perform a read-only D1 migration-state check. They never auto-apply D1 migrations.
 - [x] Protected production D1 migration workflow is pinned to `main`, defaults to verify-only, and requires an explicit `apply` selection before writing schema changes.
 - [x] Ongoing hourly production health monitoring checks the current Beta app-shell route surface and `/api/auth/me` with retries.
+- [x] `main` is protected with required `verify-and-deploy` and `Workers Builds: linkary-xyz` checks. Required-check enforcement has been observed blocking merge until the Worker build completed successfully.
 - [x] Current `main` regression, TypeScript and Wrangler verification are green. The latest `main` CI run is authoritative for the exact test count.
-- [x] Protected production D1 apply workflow completed successfully from `main` on 2026-09-05. Production schema is current through `0026_immutable_tracked_link_partner_snapshots.sql`, and the post-check reported `No migrations to apply!`.
+- [x] Latest production deployment on 2026-09-06 completed Cloudflare deploy and live health verification successfully.
+- [x] Production schema is current through `0034_project_growth_baselines.sql`; the latest production migration-state check reported `No migrations to apply!`.
+- [x] Production Beta readiness was observed at 34/34 required tables, 5/5 required automation checks and 9/9 production configuration checks.
 
-Current production D1 additions now include:
+Production D1 history relevant to the current acceptance phase includes:
 
 - `0024_activity_measurement_evidence.sql`, activity deliverables, performance metrics, evidence state and provenance.
 - `0025_actual_spend_ledger.sql`, actual incurred-cost ledger kept separate from budget and planned cost.
 - `0026_immutable_tracked_link_partner_snapshots.sql`, immutable tracking-link partner provenance for reassignment-safe historical attribution.
+- migrations `0027` through `0031`, which are already deployed and covered by the protected migration ledger.
+- `0032_immutable_tracking_utm_context.sql`, immutable effective destination and UTM attribution context for new tracking links.
+- `0033_ai0_governance_and_usage.sql`, LinkaryAI governance and Usage Credit accounting foundation.
+- `0034_project_growth_baselines.sql`, Project growth baseline persistence.
 
-Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow.
+Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow. No new migration is part of the current Beta acceptance work.
 
 ## Authentication and access
 
@@ -69,7 +76,8 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Project Growth Proof.
 - [x] Public campaign opportunities.
 - [x] Community Portfolio.
-- [x] NFT collection and NFT avatar support with EVM/Base/Abstract/Solana metadata resilience, IPFS/Arweave and onchain tokenURI fallback.
+- [x] Chain-aware NFT picker and pagination foundation for the Controlled Beta chain set: Ethereum, Base, BNB Chain, Solana and Robinhood Chain.
+- [ ] Issue #168: enforce the canonical Personal Pro / Collector entitlement server-side for NFT discovery, NFT avatar, NFT Showcase, collection presentation and NFT-labelled profile items. Free accounts must retain normal image upload and reward-wallet destinations.
 
 ## Project organization and permissions
 
@@ -123,7 +131,9 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Exact Community assignment through Community Manager -> exact Telegram Community asset.
 - [x] Exact assignment provenance through the existing attribution participant chain.
 - [x] Tracking links and redirects.
+- [x] Canonical production tracking route is `https://l.linkary.xyz/r/{code}` for new links, with legacy app-domain compatibility retained.
 - [x] Immutable partner snapshot captured when a new tracking link is created.
+- [x] Immutable effective destination/UTM context for new tracking links.
 - [x] Historical tracking/click/outcome partner attribution reads snapshot provenance before mutable activity assignment.
 - [x] Click attribution.
 - [x] Outcome/conversion recording.
@@ -137,6 +147,7 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Campaign opportunities and Creator applications.
 - [ ] Real Creator A -> tracking link -> click -> outcome/value -> Creator B reassignment acceptance.
 - [ ] Real exact Telegram Community version of the same historical-attribution acceptance.
+- [ ] Real canonical tracking-domain/UTM redirect acceptance with a production tracking link.
 
 ### Activity Lifecycle V1
 
@@ -178,15 +189,27 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - No editable fake proof metrics.
 - No opaque Linkary Score until enough defensible data exists.
 
-## Wallets
+## Wallets and NFT data
 
 - [x] Coinbase CDP remains Linkary wallet infrastructure.
 - [x] Base wallet foundation.
 - [x] Optional manual EVM reward destination.
 - [x] Optional manual Solana reward destination.
 - [x] Clear warning that additional wallets do not need to be connected and may receive eligible rewards/airdrops directly.
+- [x] Alchemy production configuration is present and Beta readiness reached 9/9.
+- [x] Real Ethereum NFT artwork has been observed in the live profile editor.
+- [x] Chain-aware, bounded NFT discovery/pagination is deployed for the locked Beta chain set.
+- [ ] Live acceptance of more-than-one-page NFT browsing, chain selection, avatar persistence and NFT Showcase persistence.
+- [ ] Issue #168 paid NFT entitlement enforcement.
 - [ ] Advanced Alchemy webhook/onchain attribution remains deferred.
-- [ ] Payments, subscriptions, payouts and delegated signing remain deferred.
+
+## LinkaryAI foundation
+
+- [x] Provider-agnostic `LinkaryAI` foundation.
+- [x] Cloudflare Workers AI primary routing with governed Gemini, Groq and OpenRouter fallback configuration.
+- [x] Versioned prompt registry, budget controls, Usage Credit reservation/debit and audit-safe telemetry.
+- [x] Evidence-first safeguards prevent AI from upgrading uncertain evidence into verified proof.
+- [ ] User-facing AI features remain outside the current acceptance-only work until the Beta gate is deliberately advanced.
 
 ## Inbox and Superadmin
 
@@ -237,30 +260,35 @@ Static responsive coverage does not close Issue #42 by itself.
 ## Launch-critical work remaining
 
 1. Run the real attribution integrity acceptance first: Creator A -> tracking link -> real click -> outcome/value -> Creator B reassignment, then verify historical attribution remains Creator A. Repeat with an exact Telegram Community.
-2. Run full Creator onboarding/Earn Access acceptance.
-3. Run full official-X Project onboarding acceptance.
-4. Test Email / Google / X sign-in with real accounts and Telegram as separate Personal Profile linking.
-5. Test Project role permission matrix with separate accounts.
-6. Run the full Creator evidence loop:
+2. Run a real canonical `l.linkary.xyz/r/{code}` UTM redirect/click/outcome acceptance.
+3. Run full Creator onboarding/Earn Access acceptance.
+4. Run full official-X Project onboarding acceptance.
+5. Test Email / Google / X sign-in with real accounts and Telegram as separate Personal Profile linking.
+6. Test Project role permission matrix with separate accounts.
+7. Run the full Creator evidence loop:
    `Project -> Campaign -> Activity -> Creator -> Tracking Link -> Click -> Outcome -> Attribution -> Proof -> Completed Activity -> Relationship Memory -> Work Again`.
-7. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
-8. Test Invite -> signup -> registration attribution.
-9. Test Opportunity -> application -> acceptance.
-10. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
-11. Add `main` branch protection/ruleset requiring the normal PR + green CI path before controlled Beta.
-12. Final documentation/launch copy check.
-13. Open controlled Beta onboarding only after the above passes.
+8. Run the same evidence loop with `Community Manager -> exact Telegram Community`.
+9. Test Invite -> signup -> registration attribution.
+10. Test Opportunity -> application -> acceptance.
+11. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
+12. Resolve Issue #168 NFT commercial entitlement enforcement before monetized Personal Pro onboarding.
+13. Resolve or disposition Issue #169 landing-positioning mismatch during UI/content QA.
+14. Explicitly acceptance-test direct-push/emergency-bypass behavior for the already protected `main` branch.
+15. Final documentation/launch copy check.
+16. Open controlled Beta onboarding only after the above passes.
 
 ## Controlled Beta definition
 
 Do not call broad Beta onboarding ready until:
 
-- production D1 ledger is current through `0026_immutable_tracked_link_partner_snapshots.sql`
+- production D1 ledger is current through `0034_project_growth_baselines.sql`
+- latest production migration-state check reports `No migrations to apply!`
 - real attribution reassignment acceptance passes for Creator and exact Community
+- canonical tracking-domain/UTM acceptance passes
 - Issue #42 authenticated visual/device acceptance is clean
 - real auth/onboarding/role/invite/evidence loops pass
-- `main` has deliberate release protection against accidental direct pushes
-- no open P0 security, authentication, permission, attribution, data-integrity or mobile-usability blocker remains
+- `main` release protection is acceptance-tested
+- no open P0 security, authentication, permission, attribution, entitlement, data-integrity or mobile-usability blocker remains
 
 After that, onboard a small controlled cohort first, observe real use, fix friction, then expand.
 
@@ -271,12 +299,11 @@ Do not delay Beta for:
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
 - advanced Alchemy webhook attribution
-- AI recommendations
+- AI recommendations beyond the already deployed AI-0 foundation
 - Linkary Score
 - public voting/reputation system
 - reviews/disputes
 - automated payouts
-- subscription billing
 - delegated wallet signing
 - referral revenue sharing
 - advanced audience-overlap intelligence
