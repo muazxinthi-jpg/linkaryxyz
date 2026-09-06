@@ -9,6 +9,9 @@ CDP_PROJECT_ID=
 CDP_API_KEY_ID=
 CDP_API_KEY_SECRET=
 
+# Linkary paid-plan settlement. Public Base EVM address only, never a private key.
+BILLING_TREASURY_EVM_ADDRESS=
+
 # @LinkaryAuthBot > BotFather > Login Widget (RS256 signing)
 TELEGRAM_CLIENT_ID=
 TELEGRAM_CLIENT_SECRET=
