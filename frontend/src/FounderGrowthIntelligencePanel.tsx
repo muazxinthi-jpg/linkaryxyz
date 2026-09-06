@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import './founder-growth-intelligence.css';
+import './growth-baseline.css';
 
 type TrendPoint = { day: string; clicks: number; outcomes: number; value: number; spend: number };
 
@@ -94,6 +95,7 @@ type IntelligenceResponse = {
   trend: TrendPoint[];
   trend_range_days: number;
 };
+type GrowthBaseline = { id: string; metric_key: string; metric_value: number; observed_at: string; provenance: string; source_url: string | null; notes: string | null };
 
 type Tab = 'campaigns' | 'activities' | 'partners' | 'channels';
 
@@ -132,6 +134,7 @@ function Delta({ value, label = 'vs prior half' }: { value: number | null; label
 function human(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
+function csrfToken() { const hit = document.cookie.split('; ').find((part) => part.startsWith('__Host-linkary_csrf=')); return hit ? decodeURIComponent(hit.split('=').slice(1).join('=')) : ''; }
 
 function partnerCoverageLabel(coverage?: SnapshotCoverage): string {
   if (!coverage) return 'Tracking-link attribution';
@@ -216,20 +219,29 @@ function EvidenceChart({ mix }: { mix: IntelligenceResponse['summary']['evidence
 
 export default function FounderGrowthIntelligencePanel({ organizationId, variant = 'detail' }: { organizationId: string; variant?: 'overview' | 'detail' }) {
   const [data, setData] = useState<IntelligenceResponse | null>(null);
+  const [baselines, setBaselines] = useState<GrowthBaseline[]>([]);
   const [tab, setTab] = useState<Tab>('campaigns');
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [baselineForm, setBaselineForm] = useState({ metricKey: 'x_followers', metricValue: '', observedAt: new Date().toISOString().slice(0, 10), provenance: 'founder_manual' });
 
   async function load() {
     if (!organizationId) return;
     setLoading(true);
     setMessage('');
     try {
-      const response = await fetch(`/api/growth-intelligence?organizationId=${encodeURIComponent(organizationId)}&range=${range}`, { credentials: 'same-origin' });
+      const [response, baselineResponse] = await Promise.all([
+        fetch(`/api/growth-intelligence?organizationId=${encodeURIComponent(organizationId)}&range=${range}`, { credentials: 'same-origin' }),
+        fetch(`/api/growth-baselines?organizationId=${encodeURIComponent(organizationId)}`, { credentials: 'same-origin' }),
+      ]);
       const payload = (await response.json().catch(() => ({}))) as IntelligenceResponse & { message?: string };
       if (!response.ok) throw new Error(payload.message || 'Growth Intelligence could not be loaded.');
       setData(payload);
+      if (baselineResponse.ok) {
+        const baselinePayload = (await baselineResponse.json().catch(() => ({}))) as { baselines?: GrowthBaseline[] };
+        setBaselines(baselinePayload.baselines || []);
+      }
     } catch (error) {
       setData(null);
       setMessage(error instanceof Error ? error.message : 'Growth Intelligence could not be loaded.');
@@ -254,6 +266,21 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
   const midpoint = Math.floor(data.trend.length / 2);
   const earlier = data.trend.slice(0, midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
   const recent = data.trend.slice(midpoint).reduce((total, point) => ({ clicks: total.clicks + point.clicks, outcomes: total.outcomes + point.outcomes, value: total.value + point.value }), { clicks: 0, outcomes: 0, value: 0 });
+  const latestBaselines = new Map<string, GrowthBaseline>();
+  for (const baseline of baselines) if (!latestBaselines.has(baseline.metric_key)) latestBaselines.set(baseline.metric_key, baseline);
+  const baselineSummary = Array.from(latestBaselines.values()).map((baseline) => `${human(baseline.metric_key)} ${number(baseline.metric_value)}`).join(' · ');
+  async function saveBaseline(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch('/api/growth-baselines', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken() },
+      body: JSON.stringify({ organizationId, ...baselineForm, metricValue: Number(baselineForm.metricValue) }),
+    });
+    if (!response.ok) { setMessage('Baseline could not be saved.'); return; }
+    setBaselineForm((current) => ({ ...current, metricValue: '' }));
+    await load();
+  }
 
   if (variant === 'overview') return <section className="fgi-shell fgi-overview" aria-label="Project growth overview">
     <header className="fgi-header">
@@ -267,7 +294,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
       <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>{summary.roas === null ? 'Record spend and value for return' : `${multiple(summary.roas)} return on recorded spend`}</small></article>
     </div>
     <div className="fgi-overview-grid"><TrendChart points={data.trend} campaigns={data.campaigns} /><aside className="fgi-overview-drivers"><span>TOP DRIVERS</span><div><small>CAMPAIGN</small><strong>{strongestCampaign?.name || 'Not enough ROI evidence'}</strong></div><div><small>CHANNEL</small><strong>{strongestChannel ? human(strongestChannel.label) : 'Not enough channel evidence'}</strong></div><div><small>PARTNER</small><strong>{strongestPartner?.label || 'Not enough partner evidence'}</strong></div></aside></div>
-    <div className="fgi-baseline-note"><div><span>BASELINE → CURRENT</span><strong>Project popularity baseline is not recorded yet</strong></div><p>Campaign lift requires dated observations for followers, community members, website users, waitlist or sign-ups. Growth currently reports measured movement without inventing overall Project lift.</p></div>
+    <div className="fgi-baseline-note"><div><span>BASELINE → CURRENT</span><strong>{baselineSummary || 'Project popularity baseline is not recorded yet'}</strong></div><p>{baselineSummary ? 'Latest dated Project traction observations are shown above. Add more observations as the Project grows; this ledger remains separate from campaign evidence.' : 'Campaign lift requires dated observations for followers, community members, website users, waitlist or sign-ups. Growth currently reports measured movement without inventing overall Project lift.'}</p><form className="fgi-baseline-form" onSubmit={saveBaseline}><select aria-label="Baseline metric" value={baselineForm.metricKey} onChange={(event) => setBaselineForm((current) => ({ ...current, metricKey: event.target.value }))}><option value="x_followers">X followers</option><option value="community_members">Community members</option><option value="website_users">Website users</option><option value="waitlist_members">Waitlist members</option><option value="signups">Sign-ups</option><option value="wallet_users">Wallet users</option></select><input aria-label="Baseline value" type="number" min="0" step="any" required placeholder="Value" value={baselineForm.metricValue} onChange={(event) => setBaselineForm((current) => ({ ...current, metricValue: event.target.value }))} /><input aria-label="Observed date" type="date" required value={baselineForm.observedAt} onChange={(event) => setBaselineForm((current) => ({ ...current, observedAt: event.target.value }))} /><select aria-label="Baseline provenance" value={baselineForm.provenance} onChange={(event) => setBaselineForm((current) => ({ ...current, provenance: event.target.value }))}><option value="founder_manual">Founder manual</option><option value="provider_verified">Provider verified</option><option value="telegram_verified">Telegram verified</option><option value="estimated">Estimated</option></select><button type="submit">Save observation</button></form></div>
   </section>;
 
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
@@ -293,7 +320,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
 
     <div className="fgi-chart-grid"><TrendChart points={data.trend} campaigns={data.campaigns} /><MomentumChart points={data.trend} /><FunnelChart value={summary} /><EvidenceChart mix={summary.evidence_mix} /><ChannelChart channels={data.channels} /></div>
 
-    <div className="fgi-baseline-note"><div><span>TRACTION BASELINE</span><strong>Project popularity baseline is not recorded yet</strong></div><p>Campaign lift needs a dated starting observation such as followers, community members, website users, waitlist or sign-ups. Until that ledger is available, Linkary shows measured campaign movement without claiming overall Project growth or causality.</p></div>
+    <div className="fgi-baseline-note"><div><span>TRACTION BASELINE</span><strong>{baselineSummary || 'Project popularity baseline is not recorded yet'}</strong></div><p>{baselineSummary ? 'Latest dated Project traction observations are shown above. Add observations over time to make baseline-to-current movement visible without mixing it with campaign evidence.' : 'Campaign lift needs a dated starting observation such as followers, community members, website users, waitlist or sign-ups. Until that ledger is available, Linkary shows measured campaign movement without claiming overall Project growth or causality.'}</p><form className="fgi-baseline-form" onSubmit={saveBaseline}><select aria-label="Baseline metric" value={baselineForm.metricKey} onChange={(event) => setBaselineForm((current) => ({ ...current, metricKey: event.target.value }))}><option value="x_followers">X followers</option><option value="community_members">Community members</option><option value="website_users">Website users</option><option value="waitlist_members">Waitlist members</option><option value="signups">Sign-ups</option><option value="wallet_users">Wallet users</option></select><input aria-label="Baseline value" type="number" min="0" step="any" required placeholder="Value" value={baselineForm.metricValue} onChange={(event) => setBaselineForm((current) => ({ ...current, metricValue: event.target.value }))} /><input aria-label="Observed date" type="date" required value={baselineForm.observedAt} onChange={(event) => setBaselineForm((current) => ({ ...current, observedAt: event.target.value }))} /><select aria-label="Baseline provenance" value={baselineForm.provenance} onChange={(event) => setBaselineForm((current) => ({ ...current, provenance: event.target.value }))}><option value="founder_manual">Founder manual</option><option value="provider_verified">Provider verified</option><option value="telegram_verified">Telegram verified</option><option value="estimated">Estimated</option></select><button type="submit">Save observation</button></form></div>
 
     <div className="fgi-evidence">
       <div><strong>Evidence mix</strong><span>Manual {summary.evidence_mix.manual}</span><span>Tracked {summary.evidence_mix.tracked}</span><span>Verified {summary.evidence_mix.verified}</span><span>Estimated {summary.evidence_mix.estimated}</span></div>

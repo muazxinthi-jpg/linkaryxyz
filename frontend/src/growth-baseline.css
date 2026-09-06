@@ -1,0 +1,37 @@
+.fgi-baseline-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fgi-baseline-form input,
+.fgi-baseline-form select {
+  min-height: 36px;
+  border: 1px solid rgba(39, 54, 58, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.fgi-baseline-form button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #ff5a1f;
+  color: #fff;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fgi-baseline-form button:hover,
+.fgi-baseline-form button:focus-visible { background: #d94716; }
+
+@media (max-width: 760px) {
+  .fgi-baseline-form { grid-template-columns: 1fr; }
+  .fgi-baseline-form button { width: 100%; }
+}
