@@ -63,8 +63,9 @@ test('Superadmin navigation exposes access, readiness and commercial controls', 
     assert.equal(superadminWorkspace.includes(label), true, `missing ${label}`);
   }
   assert.match(creatorReview, /\/api\/admin\/creator-access\?status=submitted/);
-  assert.match(creatorReview, /\/approve/);
-  assert.match(creatorReview, /\/reject/);
+  assert.match(creatorReview, /decision: 'approve' \| 'reject'/);
+  assert.match(creatorReview, /decide\(claim, 'approve'\)/);
+  assert.match(creatorReview, /decide\(claim, 'reject'\)/);
 });
 
 test('normal app admin URLs still redirect away from the normal product host', () => {
