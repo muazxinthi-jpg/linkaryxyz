@@ -39,14 +39,19 @@ test('migration ledger alone never makes an incomplete production schema ready',
 });
 
 test('Superadmins can reach a dedicated Beta readiness workspace', () => {
-  const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
-  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
+  const superadminApp = readFileSync(new URL('../frontend/src/SuperadminApp.tsx', import.meta.url), 'utf8');
+  const superadminWorkspace = readFileSync(new URL('../frontend/src/SuperadminWorkspace.tsx', import.meta.url), 'utf8');
+  const gate = readFileSync(new URL('../frontend/src/SuperadminHostGate.tsx', import.meta.url), 'utf8');
   const readinessUi = readFileSync(new URL('../frontend/src/AdminReadinessExperience.tsx', import.meta.url), 'utf8');
   const admin = readFileSync(new URL('../src/routes/admin.ts', import.meta.url), 'utf8');
 
-  assert.equal(app.includes("location.pathname === '/admin/readiness'"), true);
-  assert.equal(app.includes("if (!me.user?.superadmin)"), true);
-  assert.equal(workspace.includes('Beta readiness'), true);
+  assert.equal(main.includes('SuperadminHostGate'), true);
+  assert.equal(main.includes('<SuperadminApp me={me} />'), true);
+  assert.equal(superadminApp.includes("location.pathname === '/admin/readiness'"), true);
+  assert.equal(superadminApp.includes('<AdminReadinessExperience me={me} status={status} />'), true);
+  assert.equal(gate.includes('current.data.user?.superadmin'), true);
+  assert.equal(superadminWorkspace.includes('Beta readiness'), true);
   assert.equal(readinessUi.includes('/api/admin/health'), true);
   assert.equal(readinessUi.includes('Ready for Beta'), true);
   assert.equal(admin.includes('readBetaSchemaReadiness'), true);
