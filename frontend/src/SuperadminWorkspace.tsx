@@ -8,9 +8,12 @@ function readCookie(name: string): string | null {
 }
 
 const adminSections = [
+  ['ACCESS', [
+    ['/admin/creator-access', 'Creator access'],
+    ['/admin/community-verifications', 'Community reviews'],
+  ]],
   ['OPERATIONS', [
     ['/admin/readiness', 'Beta readiness'],
-    ['/admin/community-verifications', 'Community reviews'],
   ]],
   ['COMMERCIAL', [
     ['/admin/commercial', 'Commercial accounts'],
