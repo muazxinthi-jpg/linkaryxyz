@@ -6,10 +6,33 @@ import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
 import { createAdminCoupon, listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
 import { redirectTrackedLink } from './routes/tracking';
 
+function configuredHost(value: string | undefined, fallback: string): string {
+  try { return new URL(value || fallback).hostname.toLowerCase(); }
+  catch { return new URL(fallback).hostname.toLowerCase(); }
+}
+
+function noIndex(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
+    const superadminHost = configuredHost(env.SUPERADMIN_BASE_URL, 'https://sadmin.linkary.xyz');
+    const isSuperadminHost = url.hostname.toLowerCase() === superadminHost;
     const trackedRedirect = url.pathname.match(/^\/r\/([^/]+)$/);
+
+    if (isSuperadminHost && url.pathname === '/robots.txt') {
+      return new Response('User-agent: *\nDisallow: /\n', {
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'public, max-age=3600',
+          'x-robots-tag': 'noindex, nofollow, noarchive',
+        },
+      });
+    }
 
     if (trackedRedirect) {
       if (request.method !== 'GET') return methodNotAllowed(['GET']);
@@ -51,6 +74,20 @@ export default {
           return errorResponse(error);
         }
       }
+    }
+
+    // sadmin.linkary.xyz deliberately gets its own host-scoped __Host cookies.
+    // For non-API navigation we internally reuse the authenticated app shell by
+    // presenting the request to the Worker as app.linkary.xyz. The browser stays
+    // on the Superadmin hostname, so its session never becomes a cross-subdomain
+    // cookie and the existing security boundary remains intact.
+    if (isSuperadminHost && !url.pathname.startsWith('/api/')) {
+      const appBase = new URL(env.APP_BASE_URL || 'https://app.linkary.xyz');
+      const shellUrl = new URL(request.url);
+      shellUrl.protocol = appBase.protocol;
+      shellUrl.host = appBase.host;
+      const shellRequest = new Request(shellUrl.toString(), request);
+      return noIndex(await worker.fetch(shellRequest, env, ctx));
     }
 
     return worker.fetch(request, env, ctx);

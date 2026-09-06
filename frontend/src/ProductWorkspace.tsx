@@ -125,6 +125,8 @@ export function ProductWorkspace({
               <span>SUPERADMIN</span>
               <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
               <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
+              <NavLink to="/admin/commercial" className={() => currentPath === '/admin/commercial' ? 'active' : ''}>Commercial accounts</NavLink>
+              <NavLink to="/admin/coupons" className={() => currentPath === '/admin/coupons' ? 'active' : ''}>Coupons</NavLink>
               <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
             </section>
           )}
@@ -151,6 +153,8 @@ export function ProductWorkspace({
                   <span className="ops-mobile-menu-label">SUPERADMIN</span>
                   <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
                   <NavLink to="/admin/community-verifications" className={() => currentPath === '/admin/community-verifications' ? 'active' : ''}>Community reviews</NavLink>
+                  <NavLink to="/admin/commercial" className={() => currentPath === '/admin/commercial' ? 'active' : ''}>Commercial accounts</NavLink>
+                  <NavLink to="/admin/coupons" className={() => currentPath === '/admin/coupons' ? 'active' : ''}>Coupons</NavLink>
                   <NavLink to="/admin" className={() => currentPath === '/admin' ? 'active' : ''}>Admin review</NavLink>
                 </>
               )}
