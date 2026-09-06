@@ -106,6 +106,32 @@ function ScaledCard(props: Props & { preview?: boolean }) {
   </div>;
 }
 
+async function cardPng(): Promise<Blob> {
+  const source = document.querySelector<HTMLDivElement>('.lsc-dialog .lsc-canvas') || document.querySelector<HTMLDivElement>('.lsc-canvas');
+  if (!source) throw new Error('Card is not ready');
+  const clone = source.cloneNode(true) as HTMLDivElement;
+  clone.style.transform = 'none';
+  clone.style.margin = '0';
+  clone.querySelectorAll<HTMLElement>('[tabindex]').forEach(node => node.removeAttribute('tabindex'));
+  const rules = [...document.styleSheets].flatMap(sheet => {
+    try { return [...sheet.cssRules].map(rule => rule.cssText); } catch { return []; }
+  }).filter(rule => rule.includes('.lsc-'));
+  const markup = new XMLSerializer().serializeToString(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" width="1120" height="660"><foreignObject width="1120" height="660"><xhtml:style>${rules.join('\n')}</xhtml:style>${markup}</foreignObject></svg>`;
+  const image = new Image();
+  image.decoding = 'async';
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Unable to render card')); });
+  const canvas = document.createElement('canvas');
+  canvas.width = 2240;
+  canvas.height = 1320;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas is unavailable');
+  context.scale(2, 2);
+  context.drawImage(image, 0, 0, 1120, 660);
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Unable to create PNG')), 'image/png'));
+}
+
 export default function ProfileSocialCard(props: Props) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState('');
@@ -122,10 +148,30 @@ export default function ProfileSocialCard(props: Props) {
     try { await navigator.clipboard.writeText(`https://linkary.xyz/${encodeURIComponent(props.profile.username)}`); setCopied('Link copied'); }
     catch { setCopied('Copy from the public link in your card.'); }
   }
+  async function copyImage() {
+    try {
+      const blob = await cardPng();
+      if (!('ClipboardItem' in window) || !navigator.clipboard?.write) throw new Error('Image clipboard unavailable');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setCopied('Card image copied');
+    } catch {
+      try {
+        const blob = await cardPng();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${props.profile.username}-linkary-card.png`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        setCopied('Clipboard blocked; card image downloaded');
+      } catch { setCopied('Card image could not be created'); }
+    }
+  }
+  const imageButton = <button type="button" onClick={() => void copyImage()}>Copy card image</button>;
   return <section className="lsc" aria-label="Your social card">
     <header className="lsc-heading"><span>YOUR SOCIAL CARD</span><small>Open to explore</small></header>
     <div className="lsc-preview-wrap"><ScaledCard {...props} preview /><button ref={opener} type="button" className="lsc-open-overlay" aria-label="Open full-size social card" onClick={() => setExpanded(true)} /></div>
-    <div className="lsc-actions"><button type="button" onClick={() => setExpanded(true)}>Expand card ↗</button><button type="button" onClick={() => void copyLink()}>Copy profile link</button></div><p role="status" className="lsc-copy-status">{copied}</p>
-    {expanded && createPortal(<dialog ref={dialog} className="lsc-dialog" aria-labelledby="lsc-dialog-title" onCancel={() => setExpanded(false)} onClose={() => setExpanded(false)} onClick={e => { if (e.target === e.currentTarget) setExpanded(false); }}><div className="lsc-dialog-content"><header><h2 id="lsc-dialog-title">Your social card</h2><button type="button" autoFocus onClick={() => setExpanded(false)} aria-label="Close social card">Close ×</button></header><div className="lsc-full-scroll"><div className="lsc-full-width"><ScaledCard {...props} /></div></div><div className="lsc-actions"><button type="button" onClick={() => void copyLink()}>Copy profile link</button><span role="status">{copied || 'Hover or touch the chart to explore your activity.'}</span></div></div></dialog>, document.body)}
+    <div className="lsc-actions"><button type="button" onClick={() => setExpanded(true)}>Expand card ↗</button>{imageButton}<button type="button" onClick={() => void copyLink()}>Copy profile link</button></div><p role="status" className="lsc-copy-status">{copied}</p>
+    {expanded && createPortal(<dialog ref={dialog} className="lsc-dialog" aria-labelledby="lsc-dialog-title" onCancel={() => setExpanded(false)} onClose={() => setExpanded(false)} onClick={e => { if (e.target === e.currentTarget) setExpanded(false); }}><div className="lsc-dialog-content"><header><h2 id="lsc-dialog-title">Your social card</h2><button type="button" autoFocus onClick={() => setExpanded(false)} aria-label="Close social card">Close ×</button></header><div className="lsc-full-scroll"><div className="lsc-full-width"><ScaledCard {...props} /></div></div><div className="lsc-actions">{imageButton}<button type="button" onClick={() => void copyLink()}>Copy profile link</button><span role="status">{copied || 'Hover or touch the chart to explore your activity.'}</span></div></div></dialog>, document.body)}
   </section>;
 }
