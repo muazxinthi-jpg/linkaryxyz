@@ -86,6 +86,6 @@ test('public preview remains contained and evidence/verification boundaries stay
   assert.equal(view.includes("if(error.code==='verification_required')return'VerifytheXidentityforthisprofilebeforepublishing.';"), true);
   assert.equal(view.includes("constaction=data.visibility==='published'?'unpublish':'publish';"), true);
   assert.equal(view.includes('LinkaryProofisaddedautomaticallyfromcampaignevidence,nottypedmetrics.'), true);
-  assert.equal(view.includes('Manuallyaddedaddressesarenotsigning-verificationproof.'), true);
+  assert.equal(view.includes('<NftWalletGallery'), true);
   assert.equal(view.includes('https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}'), true);
 });
