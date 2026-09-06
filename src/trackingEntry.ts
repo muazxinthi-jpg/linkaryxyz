@@ -3,7 +3,9 @@ import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { errorResponse, methodNotAllowed } from './http';
 import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
-import { createAdminCoupon, listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
+import { listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
+import { createAdminCoupon100 } from './routes/adminCouponCreate100';
+import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
 function configuredHost(value: string | undefined, fallback: string): string {
@@ -46,7 +48,7 @@ export default {
     if (url.pathname === '/api/admin/commercial/coupons') {
       try {
         if (request.method === 'GET') return await listAdminCoupons(request, env);
-        if (request.method === 'POST') return await createAdminCoupon(request, env);
+        if (request.method === 'POST') return await createAdminCoupon100(request, env);
         return methodNotAllowed(['GET', 'POST']);
       } catch (error) {
         return errorResponse(error);
@@ -58,6 +60,15 @@ export default {
       try {
         if (request.method === 'PATCH') return await updateAdminCouponStatus(request, env, decodeURIComponent(adminCoupon[1]));
         return methodNotAllowed(['PATCH']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/billing/coupon/redeem-free') {
+      try {
+        if (request.method === 'POST') return await redeemFreeCoupon(request, env);
+        return methodNotAllowed(['POST']);
       } catch (error) {
         return errorResponse(error);
       }

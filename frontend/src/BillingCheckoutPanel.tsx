@@ -39,6 +39,17 @@ type CheckoutQuote = {
   expiresAt: string;
 };
 
+type FreeCouponResult = {
+  ok: boolean;
+  status: 'redeemed';
+  couponCode: string;
+  finalPriceCents: 0;
+  plan: { code: string; name: string };
+  periodStart: string;
+  periodEnd: string;
+  monthlyUsageCredits: number;
+};
+
 type VerifyResult = {
   ok: boolean;
   status: 'pending' | 'paid';
@@ -77,6 +88,7 @@ function safeMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return error instanceof Error ? error.message : 'Checkout could not be completed.';
   if (error.code === 'coupon_invalid') return 'That coupon is invalid or has expired.';
   if (error.code === 'coupon_exhausted' || error.code === 'coupon_account_exhausted') return 'That coupon is no longer available for this account.';
+  if (error.code === 'coupon_active_entitlement') return 'This account already has active paid access. Use the coupon after the current access period ends.';
   if (error.code === 'billing_checkout_expired') return 'The quote expired before payment was submitted. Create a new quote.';
   if (error.code === 'billing_transfer_mismatch') return 'The Base transaction does not match this Linkary checkout.';
   if (error.code === 'billing_wallet_mismatch') return 'Use the Linkary wallet connected to this account.';
@@ -120,11 +132,26 @@ export default function BillingCheckoutPanel({
   const balanceAtomic = config?.balanceAtomic ? BigInt(config.balanceAtomic) : null;
   const needsFunding = balanceAtomic !== null && BigInt(expectedAtomic) > balanceAtomic;
 
-  async function createQuote() {
-    if (!config?.payerWalletAddress) {
-      setMessage('Your Linkary wallet is not ready for checkout yet.');
-      return;
+  async function tryFreeCoupon(csrf: string): Promise<boolean> {
+    const code = coupon.trim();
+    if (!code) return false;
+    try {
+      const result = await apiJson<FreeCouponResult>('/api/billing/coupon/redeem-free', {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrf },
+        body: JSON.stringify({ profileId: profile.id, planCode: plan.code, couponCode: code }),
+      });
+      setQuote(null);
+      setMessage(`${result.couponCode} applied. ${result.plan.name} is active through ${new Date(result.periodEnd).toLocaleDateString()} with ${result.monthlyUsageCredits.toLocaleString()} Usage Credits.`);
+      onPaid();
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'coupon_not_free') return false;
+      throw error;
     }
+  }
+
+  async function createQuote() {
     const csrf = cookie('__Host-linkary_csrf');
     if (!csrf) {
       setMessage('Your secure session needs to be refreshed before checkout.');
@@ -133,6 +160,11 @@ export default function BillingCheckoutPanel({
     setBusy('quote');
     setMessage('');
     try {
+      if (await tryFreeCoupon(csrf)) return;
+      if (!config?.payerWalletAddress) {
+        setMessage('Your Linkary wallet is not ready for paid checkout yet.');
+        return;
+      }
       const next = await apiJson<CheckoutQuote>('/api/billing/checkout', {
         method: 'POST',
         headers: { 'x-csrf-token': csrf },
@@ -203,7 +235,7 @@ export default function BillingCheckoutPanel({
   return (
     <section className="billing-checkout" aria-label={`Checkout for ${plan.name}`}>
       <div className="billing-checkout-head">
-        <div><span>SECURE WALLET CHECKOUT</span><h2>{plan.name}</h2><p>Pay with USDC on Base from your Linkary wallet. Access activates only after Linkary verifies the onchain transfer.</p></div>
+        <div><span>SECURE PLAN CHECKOUT</span><h2>{plan.name}</h2><p>Pay with USDC on Base from your Linkary wallet, or redeem an eligible 100% Superadmin coupon without an onchain payment.</p></div>
         <button type="button" className="ops-button ghost" onClick={onClose}>Close</button>
       </div>
 
@@ -214,15 +246,15 @@ export default function BillingCheckoutPanel({
       </div>
 
       {!config?.configured && busy !== 'config' && (
-        <div className="ops-message">Wallet checkout is not enabled yet. The billing treasury and production migrations must be configured before payments can be accepted.</div>
+        <div className="ops-message">Wallet checkout is not enabled yet. A valid 100% coupon can still activate one billing period without an onchain payment.</div>
       )}
 
-      {config?.configured && (
+      {busy !== 'config' && (
         <div className="billing-checkout-actions">
           {!quote && (
             <>
               <label className="billing-coupon">Coupon code <input value={coupon} onChange={(event) => setCoupon(event.target.value.toUpperCase())} placeholder="Optional" maxLength={40} /></label>
-              <button type="button" className="ops-button primary" disabled={busy !== '' || !config.payerWalletAddress} onClick={() => void createQuote()}>{busy === 'quote' ? 'Creating quote…' : 'Create secure quote'}</button>
+              <button type="button" className="ops-button primary" disabled={busy !== '' || (!coupon.trim() && (!config?.configured || !config.payerWalletAddress))} onClick={() => void createQuote()}>{busy === 'quote' ? 'Checking coupon…' : coupon.trim() ? 'Apply coupon / continue' : 'Create secure quote'}</button>
             </>
           )}
           {quote && (
@@ -243,7 +275,7 @@ export default function BillingCheckoutPanel({
       )}
 
       {message && <div className="ops-message" role="status" aria-live="polite">{message}</div>}
-      <div className="billing-checkout-foot"><strong>No silent wallet debits.</strong><span>Every renewal requires your approval during Controlled Beta. Linkary never activates a paid plan from a browser-only success message.</span></div>
+      <div className="billing-checkout-foot"><strong>No fake $0 payments.</strong><span>Every renewal requires your approval during Controlled Beta. A 100% coupon is recorded as a coupon redemption and activates one billing period directly, while paid checkouts still require a verified Base USDC transfer.</span></div>
     </section>
   );
 }
