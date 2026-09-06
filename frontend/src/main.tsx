@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
+import SuperadminApp from './SuperadminApp';
 import SuperadminHostGate from './SuperadminHostGate';
 import AuthSessionContinuity from './AuthSessionContinuity';
 import UiSafetyGuard from './UiSafetyGuard';
@@ -49,7 +50,7 @@ function RootApp() {
     return (
       <>
         <UiSafetyGuard />
-        <SuperadminHostGate render={() => <App />} />
+        <SuperadminHostGate render={(me) => <SuperadminApp me={me} />} />
       </>
     );
   }
