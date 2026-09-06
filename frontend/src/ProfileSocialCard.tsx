@@ -113,6 +113,24 @@ async function cardPng(): Promise<Blob> {
   clone.style.transform = 'none';
   clone.style.margin = '0';
   clone.querySelectorAll<HTMLElement>('[tabindex]').forEach(node => node.removeAttribute('tabindex'));
+  // The live card may use a cross-origin avatar. Embed it in the SVG first so
+  // the exported PNG contains the same profile image instead of a blank circle.
+  await Promise.all([...clone.querySelectorAll<HTMLImageElement>('.lsc-avatar img')].map(async image => {
+    try {
+      const response = await fetch(image.currentSrc || image.src, { mode: 'cors' });
+      if (!response.ok) throw new Error('Avatar unavailable');
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Avatar conversion failed'));
+        reader.onerror = () => reject(reader.error || new Error('Avatar conversion failed'));
+        reader.readAsDataURL(blob);
+      });
+      image.src = dataUrl;
+    } catch {
+      image.remove();
+    }
+  }));
   const rules = [...document.styleSheets].flatMap(sheet => {
     try { return [...sheet.cssRules].map(rule => rule.cssText); } catch { return []; }
   }).filter(rule => rule.includes('.lsc-'));
