@@ -13,9 +13,10 @@ test('Beta runtime readiness fails closed when onboarding configuration is missi
   assert.deepEqual(readiness.missing, [...REQUIRED_BETA_CONFIGURATION]);
 });
 
-test('Beta runtime readiness passes only with database, Coinbase server auth, Alchemy, security secrets and canonical URLs', () => {
+test('Beta runtime readiness passes only with database, Coinbase server auth, Alchemy, AI, security secrets and canonical URLs', () => {
   const readiness = assessBetaConfiguration({
     DB: {},
+    AI: {},
     CDP_PROJECT_ID: 'project',
     CDP_API_KEY_ID: 'key-id',
     CDP_API_KEY_SECRET: 'key-secret',
@@ -35,6 +36,7 @@ test('Beta runtime readiness passes only with database, Coinbase server auth, Al
 test('partial Coinbase server credentials never report onboarding ready', () => {
   const common = {
     DB: {},
+    AI: {},
     CDP_PROJECT_ID: 'project',
     ALCHEMY_API_KEY: 'alchemy-test-key',
     SESSION_SECRET: 'creator-access-signing-secret',
@@ -54,6 +56,7 @@ test('partial Coinbase server credentials never report onboarding ready', () => 
 test('missing Creator claim signing or tracking privacy secrets block readiness without revealing a secret value', () => {
   const common = {
     DB: {},
+    AI: {},
     CDP_PROJECT_ID: 'project',
     CDP_API_KEY_ID: 'key-id',
     CDP_API_KEY_SECRET: 'key-secret',
@@ -72,6 +75,25 @@ test('missing Creator claim signing or tracking privacy secrets block readiness 
   assert.equal(missingTrackingSalt.missing.includes('Tracking visitor privacy salt'), true);
 });
 
+test('AI provider readiness accepts Workers AI first or an explicitly modeled external fallback', () => {
+  const common = {
+    DB: {},
+    CDP_PROJECT_ID: 'project',
+    CDP_API_KEY_ID: 'key-id',
+    CDP_API_KEY_SECRET: 'key-secret',
+    ALCHEMY_API_KEY: 'alchemy-test-key',
+    SESSION_SECRET: 'creator-access-signing-secret',
+    TRACKING_HASH_SALT: 'tracking-visitor-privacy-salt',
+    PUBLIC_SITE_URL: 'https://linkary.xyz',
+    APP_BASE_URL: 'https://app.linkary.xyz',
+  };
+  assert.equal(assessBetaConfiguration({ ...common, AI: {} } as any).ready, true);
+  assert.equal(assessBetaConfiguration({ ...common, GEMINI_API_KEY: 'secret', AI_GEMINI_MODEL: 'model' } as any).ready, true);
+  const missingModel = assessBetaConfiguration({ ...common, GEMINI_API_KEY: 'secret' } as any);
+  assert.equal(missingModel.ready, false);
+  assert.equal(missingModel.missing.includes('Linkary AI provider'), true);
+});
+
 test('Superadmin readiness combines schema and runtime configuration without exposing secret values', () => {
   const admin = readFileSync(new URL('../src/routes/admin.ts', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../frontend/src/AdminReadinessExperience.tsx', import.meta.url), 'utf8');
@@ -82,5 +104,5 @@ test('Superadmin readiness combines schema and runtime configuration without exp
   assert.match(ui, /PRODUCTION CONFIG/);
   assert.match(ui, /configuration\.missing\.map/);
   assert.match(ui, /Secret values are never exposed here\./);
-  assert.doesNotMatch(ui, /CDP_API_KEY_SECRET|CDP_API_KEY_ID/);
+  assert.doesNotMatch(ui, /CDP_API_KEY_SECRET|CDP_API_KEY_ID|GEMINI_API_KEY|GROQ_API_KEY|OPENROUTER_API_KEY/);
 });

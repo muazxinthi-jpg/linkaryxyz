@@ -51,6 +51,7 @@ test('billing APIs expose one public catalog and protected Superadmin controls',
 test('Controlled Beta readiness requires a server-only Alchemy API key', () => {
   const baseEnv = {
     DB: {} as Env['DB'],
+    AI: {} as Env['AI'],
     CDP_PROJECT_ID: 'cdp-project',
     CDP_API_KEY_ID: 'cdp-key',
     CDP_API_KEY_SECRET: 'cdp-secret',
