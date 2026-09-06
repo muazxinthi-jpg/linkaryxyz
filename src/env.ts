@@ -10,6 +10,9 @@ export interface Env {
   CDP_PROJECT_ID?: string;
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
+  // Public receiving address for user-approved Base USDC subscription payments.
+  // Payment activation fails closed until this address is configured.
+  BILLING_TREASURY_EVM_ADDRESS?: string;
   // Direct Telegram profile linking; the secret is a Cloudflare secret binding.
   TELEGRAM_CLIENT_ID?: string;
   TELEGRAM_CLIENT_SECRET?: string;
