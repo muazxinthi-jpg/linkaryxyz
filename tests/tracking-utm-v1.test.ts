@@ -102,3 +102,13 @@ test('tracking route freezes UTM context when migration 0032 is present and keep
   assert.match(migration, /ALTER TABLE tracked_links ADD COLUMN linkary_creator TEXT/);
   assert.match(migration, /ALTER TABLE tracked_links ADD COLUMN tracking_context_version INTEGER/);
 });
+
+test('tracking UI exposes the optional UTM term and shows frozen attribution context', () => {
+  const ui = readFileSync(new URL('../frontend/src/TrackingExperience.tsx', import.meta.url), 'utf8');
+
+  assert.match(ui, /utmTerm/);
+  assert.match(ui, /utmTerm: utmTerm\.trim\(\) \|\| undefined/);
+  assert.match(ui, /UTM term \(optional\)/);
+  assert.match(ui, /effective_destination_url \|\| link\.destination_url/);
+  assert.match(ui, /link\.utm_source/);
+});
