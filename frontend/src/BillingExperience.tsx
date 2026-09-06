@@ -35,6 +35,22 @@ type CurrentBilling = {
   creditBalance: number;
 };
 
+type ContactRevealHistory = {
+  periodStart: string;
+  allowance: number;
+  used: number;
+  remaining: number;
+  records: Array<{
+    id: string;
+    contactType: 'x' | 'telegram' | 'email' | 'website';
+    maskedValue: string;
+    managerName: string;
+    managerType: string;
+    targetProfileName: string;
+    revealedAt: string;
+  }>;
+};
+
 class ApiError extends Error {}
 
 async function apiJson<T>(path: string): Promise<T> {
@@ -60,6 +76,10 @@ function accessSource(current: CurrentBilling): string {
   return 'Default';
 }
 
+function contactTypeLabel(value: ContactRevealHistory['records'][number]['contactType']): string {
+  return value === 'x' ? 'X' : value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export default function BillingExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
   const creatorFirst = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
   const stored = window.localStorage.getItem('linkary.active.profile');
@@ -68,6 +88,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [current, setCurrent] = useState<CurrentBilling | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PublicPlan | null>(null);
+  const [revealHistory, setRevealHistory] = useState<ContactRevealHistory | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
@@ -92,6 +113,15 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
     }).catch(() => {
       if (!cancelled) setState('error');
     });
+    return () => { cancelled = true; };
+  }, [profile?.id, refreshKey]);
+
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    void apiJson<ContactRevealHistory>(`/api/contact-reveals/history?profileId=${encodeURIComponent(profile.id)}`)
+      .then((result) => { if (!cancelled) setRevealHistory(result); })
+      .catch(() => { if (!cancelled) setRevealHistory(null); });
     return () => { cancelled = true; };
   }, [profile?.id, refreshKey]);
 
@@ -126,6 +156,18 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
               <article><small>Usage ledger balance</small><strong>{current.creditBalance.toLocaleString()}</strong></article>
               <article><small>Access source</small><strong>{accessSource(current)}</strong></article>
             </div>
+          </section>
+        )}
+
+        {revealHistory && (
+          <section className="billing-reveal-card" aria-label="Contact reveal usage">
+            <div className="billing-reveal-head">
+              <div><span className="ops-kicker">CONTACT REVEALS</span><h2>Use your network with clear limits</h2><p>Reveal a partner contact once per month, keep the audit trail, and avoid duplicate usage charges.</p></div>
+              <div className="billing-reveal-count"><strong>{revealHistory.remaining.toLocaleString()}</strong><span>remaining this month</span></div>
+            </div>
+            <div className="billing-reveal-meter" role="progressbar" aria-valuemin={0} aria-valuemax={revealHistory.allowance} aria-valuenow={revealHistory.used} aria-label={`${revealHistory.used} of ${revealHistory.allowance} contact reveals used`}><span style={{ width: `${revealHistory.allowance ? Math.min(100, (revealHistory.used / revealHistory.allowance) * 100) : 0}%` }} /></div>
+            <div className="billing-reveal-meta"><span>{revealHistory.used.toLocaleString()} used</span><span>{revealHistory.allowance.toLocaleString()} included on this plan</span><a href="/partners">Find partners →</a></div>
+            {revealHistory.records.length > 0 ? <div className="billing-reveal-history"><div className="billing-reveal-history-heading"><strong>Recent reveals</strong><span>Masked for privacy</span></div>{revealHistory.records.slice(0, 8).map((record) => <article key={record.id}><div><strong>{record.managerName}</strong><small>{record.targetProfileName} · {record.managerType.replace(/_/g, ' ')}</small></div><span>{contactTypeLabel(record.contactType)} · {record.maskedValue}</span><time dateTime={record.revealedAt}>{new Date(record.revealedAt).toLocaleDateString()}</time></article>)}</div> : <div className="billing-reveal-empty">No contacts revealed this month. Partner contact details remain masked until you choose to reveal them.</div>}
           </section>
         )}
 

@@ -34,7 +34,7 @@ import { personalProfileIdentity } from './routes/profileIdentity';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
 import { adjustUsageCredits, listAdminBillingPlans, listPublicBillingPlans, updateAdminBillingPlan } from './routes/billing';
 import { currentBillingStatus } from './routes/billingCurrent';
-import { revealPartnerContact } from './routes/contactReveals';
+import { listContactRevealHistory, revealPartnerContact } from './routes/contactReveals';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
@@ -178,6 +178,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (path === '/api/partner-manager-assets') { if (request.method === 'GET') return listPartnerManagerAssets(request, env); if (request.method === 'POST') return savePartnerManagerAsset(request, env); return methodNotAllowed(['GET', 'POST']); }
   const partnerContactReveal = path.match(/^\/api\/partner-managers\/([^/]+)\/reveal$/);
   if (partnerContactReveal) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return revealPartnerContact(request, env, decodeURIComponent(partnerContactReveal[1])); }
+  if (path === '/api/contact-reveals/history') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listContactRevealHistory(request, env); }
   if (path === '/api/community-verifications') {
     if (request.method === 'GET') return communityVerificationStatus(request, env);
     if (request.method === 'POST') return submitCommunityVerification(request, env);
