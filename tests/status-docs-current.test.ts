@@ -14,20 +14,22 @@ for (const [name, doc] of [
   test(`${name} reflects the current Beta phase`, () => {
     assert.equal(doc.includes('Collaboration Inquiry V1'), true);
     assert.equal(doc.includes('Campaign Lifecycle V1'), true);
-    assert.equal(doc.includes('0026_immutable_tracked_link_partner_snapshots.sql'), true);
+    assert.equal(doc.includes('0034_project_growth_baselines.sql'), true);
     assert.equal(doc.includes('Collaboration Inquiry V1 is not built yet'), false);
     assert.equal(doc.includes('Collaboration Inquiry V1 comes only after'), false);
     assert.equal(doc.includes('build **Collaboration Inquiry V1**'), false);
   });
 }
 
-test('status docs mark production D1 current through 0026', () => {
-  assert.equal(implementation.includes('Production schema is current through `0026_immutable_tracked_link_partner_snapshots.sql`'), true);
-  assert.equal(betaState.includes('`0026_immutable_tracked_link_partner_snapshots.sql`'), true);
-  assert.equal(codex.includes('`0026_immutable_tracked_link_partner_snapshots.sql`'), true);
+test('status docs mark production D1 current through 0034', () => {
+  assert.equal(implementation.includes('Production schema is current through `0034_project_growth_baselines.sql`'), true);
+  assert.equal(betaState.includes('Production D1 is current through `0034_project_growth_baselines.sql`'), true);
+  assert.equal(codex.includes('Production schema is current through `0034_project_growth_baselines.sql`'), true);
   for (const doc of [implementation, betaState, codex]) {
     assert.equal(doc.includes('0024_activity_measurement_evidence.sql'), true);
     assert.equal(doc.includes('0025_actual_spend_ledger.sql'), true);
+    assert.equal(doc.includes('0032_immutable_tracking_utm_context.sql'), true);
+    assert.equal(doc.includes('0033_ai0_governance_and_usage.sql'), true);
     assert.equal(doc.includes('No migrations to apply!'), true);
   }
 });
