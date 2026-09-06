@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const beta = readFileSync(new URL('../frontend/src/ProfileExperienceBeta.tsx', import.meta.url), 'utf8');
+const gallery = readFileSync(new URL('../frontend/src/NftWalletGallery.tsx', import.meta.url), 'utf8');
 const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
 const identity = readFileSync(new URL('../src/routes/publicProfileIdentity.ts', import.meta.url), 'utf8');
@@ -26,7 +27,9 @@ test('live Beta profile editor exposes NFT showcase and NFT avatar selection', (
   assert.equal(beta.includes('value="nft_item"'), true);
   assert.equal(beta.includes('+ NFT'), true);
   assert.equal(beta.includes('Choose from wallet NFTs'), true);
-  assert.equal(beta.includes('includeNfts=1'), true);
+  assert.equal(beta.includes('NftWalletGallery'), true);
+  assert.equal(gallery.includes("includeNfts: '1'"), true);
+  assert.equal(gallery.includes("nftChain: chain"), true);
   assert.equal(beta.includes('setData({ ...data, avatarUrl: nft.imageUrl })'), true);
   assert.equal(beta.includes('Or add manually'), true);
   assert.equal(beta.includes('Destination URL'), true);

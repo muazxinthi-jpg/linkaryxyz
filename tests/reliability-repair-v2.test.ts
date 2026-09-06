@@ -58,7 +58,8 @@ test('Community asset mutations and superadmin reviews both resync parent manage
   assert.equal(worker.includes('reviewCommunityVerificationIntegrity('), true);
 });
 
-test('NFT API normalization is explicitly typed for nullable map results under strict backend TypeScript', () => {
-  assert.equal((wallets.match(/map<OwnedNft \| null>/g) || []).length, 2);
-  assert.equal((wallets.match(/item !== null/g) || []).length, 2);
+test('NFT API normalization stays nullable and type-guarded under strict backend TypeScript', () => {
+  assert.match(wallets, /function mapEvmNft\([\s\S]*?\): OwnedNft \| null/);
+  assert.match(wallets, /function mapSolanaNft\([\s\S]*?\): OwnedNft \| null/);
+  assert.equal((wallets.match(/item is OwnedNft/g) || []).length >= 2, true);
 });

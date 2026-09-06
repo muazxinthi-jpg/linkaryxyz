@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import NftWalletGallery, { type WalletOwnedNft } from './NftWalletGallery';
 import './profile-beta.css';
 
 type ProfileData = {
@@ -49,26 +50,7 @@ type BlockDraft = {
   nftSource: string;
 };
 
-type OwnedNft = {
-  id: string;
-  name: string;
-  collection: string;
-  imageUrl: string;
-  externalUrl: string;
-  chain: string;
-  ownerAddress: string;
-  contractAddress: string | null;
-  tokenId: string | null;
-};
-
-type WalletNftResponse = {
-  nftDiscovery?: {
-    configured: boolean;
-    nfts: OwnedNft[];
-    message: string;
-  };
-};
-
+type OwnedNft = WalletOwnedNft;
 type SocialOption = { key: string; label: string; mark: string; placeholder: string };
 
 const SOCIAL_OPTIONS: SocialOption[] = [
@@ -154,7 +136,6 @@ function inferSocialPlatform(block: Pick<Block, 'type' | 'title' | 'url' | 'conf
 }
 
 function socialOption(key: string): SocialOption | undefined { return SOCIAL_OPTIONS.find((item) => item.key === key); }
-
 function isSocialBlock(block: Block): boolean { return block.type === 'social_link' || Boolean(inferSocialPlatform(block)); }
 
 function iconFor(block: Block): string {
@@ -185,16 +166,12 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const [showAvatarNfts, setShowAvatarNfts] = useState(false);
-  const [nftLoading, setNftLoading] = useState(false);
-  const [nftConfigured, setNftConfigured] = useState<boolean | null>(null);
-  const [nftMessage, setNftMessage] = useState('');
-  const [ownedNfts, setOwnedNfts] = useState<OwnedNft[]>([]);
   const [previewRevision, setPreviewRevision] = useState(() => Date.now());
 
   function changeProfile(id: string) {
     setProfileId(id);
     window.localStorage.setItem('linkary.active.profile', id);
-    setOwnedNfts([]); setNftConfigured(null); setShowAvatarNfts(false);
+    setShowAvatarNfts(false);
   }
 
   async function load() {
@@ -215,19 +192,6 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
   }
 
   useEffect(() => { void load(); }, [profileId]);
-
-  async function loadOwnedNfts() {
-    if (!profile || nftLoading) return;
-    setNftLoading(true); setNftMessage('');
-    try {
-      const result = await apiJson<WalletNftResponse>(`/api/profile-wallets?profileId=${encodeURIComponent(profile.id)}&includeNfts=1`);
-      const discovery = result.nftDiscovery;
-      setNftConfigured(Boolean(discovery?.configured));
-      setOwnedNfts(discovery?.nfts || []);
-      setNftMessage(discovery?.message || 'NFT discovery is unavailable.');
-    } catch { setNftMessage('NFTs could not be loaded from your profile wallets.'); }
-    finally { setNftLoading(false); }
-  }
 
   async function saveProfile() {
     if (!profile) return;
@@ -410,8 +374,8 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
                 <label>Display name<input value={data.displayName} maxLength={80} onChange={(event) => setData({ ...data, displayName: event.target.value })} /></label>
                 <label className="wide">Bio<textarea value={data.bio} maxLength={500} placeholder={isProject ? 'What is this Project building and for whom?' : 'What do you do, what are you known for, and who should contact you?'} onChange={(event) => setData({ ...data, bio: event.target.value })} /></label>
                 <label className="wide">{isProject ? 'Project logo URL' : 'Profile image URL'}<input type="url" value={data.avatarUrl || ''} placeholder="https://..." onChange={(event) => { setAvatarFailed(false); setData({ ...data, avatarUrl: event.target.value }); }} /><small>Leave the verified X image in place, paste a secure image URL, or choose an NFT below.</small></label>
-                {!isProject && <div className="wide profile-beta-avatar-actions"><button type="button" className="ops-button secondary" onClick={() => { setShowAvatarNfts((value) => !value); if (!ownedNfts.length && nftConfigured === null) void loadOwnedNfts(); }}>◇ Choose from wallet NFTs</button><a href="/wallets">Manage NFT source wallets ↗</a></div>}
-                {!isProject && showAvatarNfts && <div className="wide profile-beta-nft-panel"><div className="profile-beta-nft-panel-head"><div><strong>Wallet NFTs</strong><small>Assets come from your Linkary wallet and additional wallet addresses. Manually added addresses are not signing-verification proof.</small></div><button type="button" onClick={() => void loadOwnedNfts()} disabled={nftLoading}>{nftLoading ? 'Loading...' : 'Refresh'}</button></div>{nftMessage && <p>{nftMessage}</p>}{ownedNfts.length > 0 && <div className="profile-beta-nft-grid">{ownedNfts.map((nft) => <button type="button" key={nft.id} onClick={() => { setAvatarFailed(false); setData({ ...data, avatarUrl: nft.imageUrl }); setShowAvatarNfts(false); }}><img src={nft.imageUrl} alt="" loading="lazy" /><span>{nft.name}</span><small>{nft.chain}</small></button>)}</div>}{nftConfigured === false && <small>Add the server-side Alchemy API key to enable automatic NFT discovery. Manual NFT showcase entries still work.</small>}</div>}
+                {!isProject && <div className="wide profile-beta-avatar-actions"><button type="button" className="ops-button secondary" onClick={() => setShowAvatarNfts((value) => !value)}>◇ Choose from wallet NFTs</button><a href="/wallets">Manage NFT source wallets ↗</a></div>}
+                {!isProject && showAvatarNfts && <div className="wide profile-beta-nft-panel"><NftWalletGallery profileId={profile.id} onSelect={(nft) => { setAvatarFailed(false); setData({ ...data, avatarUrl: nft.imageUrl }); setShowAvatarNfts(false); }} /></div>}
               </div>
               <div className="profile-beta-save-row"><span>{clicks.toLocaleString()} measured public link click{clicks === 1 ? '' : 's'}</span><button className="ops-button primary" disabled={busy === 'profile'} onClick={() => void saveProfile()}>{busy === 'profile' ? 'Saving...' : 'Save identity'}</button></div>
             </section>
@@ -449,7 +413,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
 
         {featureType && <><label>Preview media URL<input type="url" value={draft.mediaUrl} placeholder="https://... image, video or YouTube URL" onChange={(event) => setDraft({ ...draft, mediaUrl: event.target.value })} /></label><label>Section title <small>(optional)</small><input value={draft.sectionTitle} placeholder="Selected work" onChange={(event) => setDraft({ ...draft, sectionTitle: event.target.value })} /></label></>}
 
-        {nftType && <div className="profile-beta-nft-editor"><div className="profile-beta-nft-panel-head"><div><strong>Choose from wallet NFTs</strong><small>Pick an NFT found in your Linkary wallet or additional EVM/Solana wallet addresses.</small></div><button type="button" onClick={() => void loadOwnedNfts()} disabled={nftLoading}>{nftLoading ? 'Loading...' : ownedNfts.length ? 'Refresh' : 'Load NFTs'}</button></div>{nftMessage && <p>{nftMessage}</p>}{ownedNfts.length > 0 && <div className="profile-beta-nft-grid compact">{ownedNfts.map((nft) => <button type="button" key={nft.id} className={draft.mediaUrl === nft.imageUrl ? 'selected' : ''} onClick={() => chooseNftForBlock(nft)}><img src={nft.imageUrl} alt="" loading="lazy" /><span>{nft.name}</span><small>{nft.chain}</small></button>)}</div>}<div className="profile-beta-nft-manual"><span>Or add manually</span><label>NFT artwork source<input required type="url" value={draft.mediaUrl} placeholder="Direct image or individual marketplace item URL" onChange={(event) => setDraft({ ...draft, mediaUrl: event.target.value, nftSource: '' })} /><small>Paste a direct HTTPS image URL or the individual NFT item URL. Linkary uses this only to resolve the artwork; it does not control where the card clicks.</small></label><label>Network<select value={draft.chain} onChange={(event) => setDraft({ ...draft, chain: event.target.value })}><option>Ethereum</option><option>Base</option><option>Arbitrum</option><option>BNB Chain</option><option>Solana</option><option>Other</option></select></label><label>Collection <small>(optional)</small><input value={draft.nftCollection} onChange={(event) => setDraft({ ...draft, nftCollection: event.target.value })} placeholder="Collection name" /></label></div></div>}
+        {nftType && <div className="profile-beta-nft-editor"><NftWalletGallery profileId={profile.id} compact selectedImage={draft.mediaUrl} onSelect={chooseNftForBlock} /><div className="profile-beta-nft-manual"><span>Or add manually</span><label>NFT artwork source<input required type="url" value={draft.mediaUrl} placeholder="Direct image or individual marketplace item URL" onChange={(event) => setDraft({ ...draft, mediaUrl: event.target.value, nftSource: '' })} /><small>Paste a direct HTTPS image URL or the individual NFT item URL. Linkary uses this only to resolve the artwork; it does not control where the card clicks.</small></label><label>Network<select value={draft.chain} onChange={(event) => setDraft({ ...draft, chain: event.target.value })}><option>Ethereum</option><option>Base</option><option>BNB Chain</option><option>Solana</option><option>Robinhood</option><option>Other</option></select></label><label>Collection <small>(optional)</small><input value={draft.nftCollection} onChange={(event) => setDraft({ ...draft, nftCollection: event.target.value })} placeholder="Collection name" /></label></div></div>}
 
         {teamType && <><label>Role<input value={draft.role} placeholder="Founder, Growth Lead, Community..." onChange={(event) => setDraft({ ...draft, role: event.target.value })} /></label><label>Photo URL<input type="url" value={draft.avatarUrl} placeholder="https://..." onChange={(event) => setDraft({ ...draft, avatarUrl: event.target.value })} /></label></>}
         <div className="ops-form-actions"><button type="button" className="ops-button ghost" onClick={closeEditor}>Cancel</button><button className="ops-button primary" disabled={busy === 'block'}>{busy === 'block' ? 'Saving...' : editing ? 'Save section' : 'Add section'}</button></div>
