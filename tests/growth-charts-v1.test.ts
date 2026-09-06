@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const route = readFileSync(new URL('../src/routes/growthIntelligence.ts', import.meta.url), 'utf8');
+const baselineRoute = readFileSync(new URL('../src/routes/growthBaseline.ts', import.meta.url), 'utf8');
+const baselineMigration = readFileSync(new URL('../migrations/0034_project_growth_baselines.sql', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../frontend/src/FounderGrowthIntelligencePanel.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/founder-growth-intelligence.css', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../frontend/src/DashboardExperience.tsx', import.meta.url), 'utf8');
@@ -47,4 +49,10 @@ test('Project Overview shows an executive growth snapshot while Growth keeps dia
   assert.match(panel, /if \(variant === 'overview'\)/);
   assert.match(css, /\.fgi-overview-grid/);
   assert.match(css, /\.fgi-overview-summary/);
+});
+
+test('Project traction baselines are dated, provenance-labelled and Project-scoped', () => {
+  for (const token of ['project_growth_baselines', 'metric_key', 'metric_value', 'observed_at', 'provenance', 'UNIQUE (organization_id, metric_key, observed_at)']) assert.match(baselineMigration, new RegExp(token.replace(/[()]/g, '\\$&')));
+  for (const token of ['organizationMembership', 'verifyCsrf', 'owner', 'admin', 'marketing_manager', 'metricValue', 'ON CONFLICT(organization_id, metric_key, observed_at)']) assert.match(baselineRoute, new RegExp(token.replace(/[()]/g, '\\$&')));
+  for (const token of ['growth-baselines', 'Save observation', 'Latest dated Project traction observations', 'founder_manual']) assert.match(panel, new RegExp(token.replace(/[()]/g, '\\$&')));
 });
