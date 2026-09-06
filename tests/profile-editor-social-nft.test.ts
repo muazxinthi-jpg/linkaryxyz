@@ -7,6 +7,7 @@ const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
 const identity = readFileSync(new URL('../src/routes/publicProfileIdentity.ts', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
+const trackingEntry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const media = readFileSync(new URL('../src/profileMedia.ts', import.meta.url), 'utf8');
 const profiles = readFileSync(new URL('../src/routes/profiles.ts', import.meta.url), 'utf8');
@@ -75,5 +76,7 @@ test('public profile enhancement supports WhatsApp and Farcaster beneath the Per
   assert.equal(identity.includes("import { renderPublicProfileEnhanced } from './publicProfileEnhancer'"), true);
   assert.equal(identity.includes('renderPublicProfileEnhanced(request, env, username)'), true);
   assert.equal(worker.includes('renderPublicProfileWithIdentity'), true);
-  assert.equal(wrangler.includes('"main": "src/worker.ts"'), true);
+  assert.equal(wrangler.includes('"main": "src/trackingEntry.ts"'), true);
+  assert.equal(trackingEntry.includes("import worker from './worker'"), true);
+  assert.equal(trackingEntry.includes('return worker.fetch(request, env, ctx)'), true);
 });

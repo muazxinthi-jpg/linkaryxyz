@@ -1,20 +1,24 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "linkary-xyz",
-  "main": "src/worker.ts",
+  "main": "src/trackingEntry.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "CDP_PROJECT_ID": "ec85aa2b-208c-4ec9-a0f2-3da31a8e2218",
     "PUBLIC_SITE_URL": "https://linkary.xyz",
     "APP_BASE_URL": "https://app.linkary.xyz",
-    "TRACKING_BASE_URL": "https://app.linkary.xyz",
+    "TRACKING_BASE_URL": "https://l.linkary.xyz",
     "APP_ENV": "production",
     "BILLING_TREASURY_EVM_ADDRESS": "0x4364C060d63B86903ADb850838aaEc338cc4890D"
   },
   "routes": [
     {
       "pattern": "app.linkary.xyz/*",
+      "zone_name": "linkary.xyz"
+    },
+    {
+      "pattern": "l.linkary.xyz/r/*",
       "zone_name": "linkary.xyz"
     }
   ],

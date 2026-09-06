@@ -7,7 +7,8 @@ import { requireAuth, verifyCsrf } from '../auth/session';
 import { hmacSha256, randomToken } from '../security/crypto';
 import { organizationMembership, requireOperationalProjectAccess } from './organizations';
 import { getLinkaryUrls } from '../urls';
-import { buildTrackedDestination, type TrackingUtmContext } from '../trackingUtm';
+import { buildTrackedDestination, type TrackingUtmContext, type TrackingUtmResult } from '../trackingUtm';
+import type { ExecutionContextLike } from '../platform';
 import {
   createActivityDeliverable,
   listActivityMeasurements,
@@ -21,11 +22,25 @@ const now = () => new Date().toISOString();
 
 type TrackingContextRow = {
   campaign_name: string | null;
+  activity_id: string | null;
   activity_title: string | null;
   activity_type: string | null;
   assignment_kind: 'creator' | 'community' | null;
   partner_handle: string | null;
   partner_name: string | null;
+  creator_profile_id: string | null;
+};
+
+type TrackingSnapshotRow = {
+  effective_destination_url: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  linkary_activity: string | null;
+  linkary_creator: string | null;
+  tracking_context_version: number | null;
 };
 
 type TrackedPartnerSnapshotInput = {
@@ -37,15 +52,75 @@ type TrackedPartnerSnapshotInput = {
   partner_verification_status: string | null;
 };
 
-function utmContext(row: TrackingContextRow): TrackingUtmContext {
+const TRACKING_CONTEXT_COLUMNS = [
+  'effective_destination_url',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_content',
+  'utm_term',
+  'linkary_activity',
+  'linkary_creator',
+  'tracking_context_version',
+] as const;
+
+function utmContext(row: TrackingContextRow, utmTerm?: string | null): TrackingUtmContext {
   return {
     campaignName: row.campaign_name || 'campaign',
+    activityId: row.activity_id || 'activity',
     activityTitle: row.activity_title || 'activity',
     activityType: row.activity_type || 'other',
     assignmentKind: row.assignment_kind,
     partnerHandle: row.partner_handle,
     partnerName: row.partner_name,
+    creatorProfileId: row.creator_profile_id,
+    utmTerm,
   };
+}
+
+async function hasImmutableTrackingContext(db: Db): Promise<boolean> {
+  const columns = await db.all<{ name: string }>('PRAGMA table_info(tracked_links)');
+  const names = new Set(columns.map((column) => column.name));
+  return TRACKING_CONTEXT_COLUMNS.every((column) => names.has(column));
+}
+
+function storedTrackingResult(row: TrackingContextRow & TrackingSnapshotRow & { destination_url: string }): TrackingUtmResult {
+  if (Number(row.tracking_context_version || 0) >= 1 && row.effective_destination_url) {
+    return {
+      effectiveDestinationUrl: row.effective_destination_url,
+      utm: {
+        source: row.utm_source || '',
+        medium: row.utm_medium || '',
+        campaign: row.utm_campaign || '',
+        content: row.utm_content || '',
+        term: row.utm_term,
+        linkaryActivity: row.linkary_activity || row.activity_id || 'activity',
+        linkaryCreator: row.linkary_creator,
+      },
+    };
+  }
+  return buildTrackedDestination(row.destination_url, utmContext(row));
+}
+
+function isHttpDestination(value: string): boolean {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+async function logTrackedClick(request: Request, env: Env, db: Db, trackedLinkId: string): Promise<void> {
+  const visitor = request.headers.get('cf-connecting-ip');
+  const visitorHash = visitor && env.TRACKING_HASH_SALT ? await hmacSha256(env.TRACKING_HASH_SALT, visitor) : null;
+  const referer = request.headers.get('referer');
+  let referrerHost: string | null = null;
+  try { if (referer) referrerHost = new URL(referer).hostname; } catch {}
+
+  await db.run(
+    'INSERT INTO tracked_link_clicks (id, tracked_link_id, visitor_id_hash, referrer_host, occurred_at) VALUES (?, ?, ?, ?, ?)',
+    [id('tlc'), trackedLinkId, visitorHash, referrerHost, now()],
+  );
 }
 
 export async function createTrackedLink(request: Request, env: Env): Promise<Response> {
@@ -65,8 +140,14 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
 
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
-  const body = await readJson<{ activityId?: string }>(request);
-  if (!body.activityId) throw new HttpError(400, 'activityId is required', 'activity_required');
+  const body = await readJson<{ activityId?: unknown; utmTerm?: unknown }>(request);
+  const activityId = typeof body.activityId === 'string' ? body.activityId.trim() : '';
+  if (!activityId) throw new HttpError(400, 'activityId is required', 'activity_required');
+  if (body.utmTerm !== undefined && body.utmTerm !== null && typeof body.utmTerm !== 'string') {
+    throw new HttpError(400, 'utmTerm must be text', 'invalid_utm_term');
+  }
+  const utmTerm = typeof body.utmTerm === 'string' ? body.utmTerm.trim() : null;
+  if (utmTerm && utmTerm.length > 120) throw new HttpError(400, 'utmTerm is too long', 'invalid_utm_term');
 
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
@@ -75,7 +156,8 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
     organization_id: string;
     destination_url: string | null;
   } & TrackingContextRow & TrackedPartnerSnapshotInput>(
-    `SELECT a.campaign_id,
+    `SELECT a.id AS activity_id,
+            a.campaign_id,
             c.organization_id,
             a.destination_url,
             c.name AS campaign_name,
@@ -103,19 +185,55 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
        LEFT JOIN partner_managers pm ON pm.id = cla.partner_manager_id
        LEFT JOIN partner_manager_assets pa ON pa.id = cla.partner_asset_id
       WHERE a.id = ?`,
-    [body.activityId],
+    [activityId],
   );
   if (!activity || !activity.destination_url) throw new HttpError(409, 'An activity destination URL is required', 'destination_required');
   await requireOperationalProjectAccess(db, auth.user.id, activity.organization_id, true);
 
+  const trackedDestination = buildTrackedDestination(activity.destination_url, utmContext(activity, utmTerm));
+  if (!trackedDestination.utm || !isHttpDestination(trackedDestination.effectiveDestinationUrl)) {
+    throw new HttpError(409, 'Use a valid http(s) destination URL before creating a tracking link', 'invalid_destination');
+  }
+
+  const immutableContextReady = await hasImmutableTrackingContext(db);
   const code = randomToken(8);
   const linkId = id('tl');
   const timestamp = now();
-  await db.batch([
-    db.statement(
+  const linkInsert = immutableContextReady
+    ? db.statement(
+      `INSERT INTO tracked_links
+        (id, organization_id, campaign_id, activity_id, code, destination_url,
+         effective_destination_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+         linkary_activity, linkary_creator, tracking_context_version,
+         status, created_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?)`,
+      [
+        linkId,
+        activity.organization_id,
+        activity.campaign_id,
+        activityId,
+        code,
+        activity.destination_url,
+        trackedDestination.effectiveDestinationUrl,
+        trackedDestination.utm.source,
+        trackedDestination.utm.medium,
+        trackedDestination.utm.campaign,
+        trackedDestination.utm.content,
+        trackedDestination.utm.term,
+        trackedDestination.utm.linkaryActivity,
+        trackedDestination.utm.linkaryCreator,
+        auth.user.id,
+        timestamp,
+        timestamp,
+      ],
+    )
+    : db.statement(
       "INSERT INTO tracked_links (id, organization_id, campaign_id, activity_id, code, destination_url, status, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)",
-      [linkId, activity.organization_id, activity.campaign_id, body.activityId, code, activity.destination_url, auth.user.id, timestamp, timestamp],
-    ),
+      [linkId, activity.organization_id, activity.campaign_id, activityId, code, activity.destination_url, auth.user.id, timestamp, timestamp],
+    );
+
+  await db.batch([
+    linkInsert,
     db.statement(
       `INSERT INTO tracked_link_partner_snapshots
         (tracked_link_id, activity_id, assignment_kind, partner_entity_id, creator_profile_id, partner_manager_id, partner_asset_id,
@@ -123,7 +241,7 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'link_creation', ?)`,
       [
         linkId,
-        body.activityId,
+        activityId,
         activity.assignment_kind,
         activity.partner_entity_id,
         activity.creator_profile_id,
@@ -139,7 +257,6 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
   ]);
 
   const trackingBase = getLinkaryUrls(request, env).tracking;
-  const trackedDestination = buildTrackedDestination(activity.destination_url, utmContext(activity));
   return json({
     id: linkId,
     code,
@@ -147,6 +264,7 @@ export async function createTrackedLink(request: Request, env: Env): Promise<Res
     destinationUrl: activity.destination_url,
     effectiveDestinationUrl: trackedDestination.effectiveDestinationUrl,
     utm: trackedDestination.utm,
+    immutableUtmContext: immutableContextReady,
     partnerSnapshot: {
       source: 'link_creation',
       capturedAt: timestamp,
@@ -188,6 +306,27 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
     params.push(status);
   }
 
+  const immutableContextReady = await hasImmutableTrackingContext(db);
+  const immutableSelect = immutableContextReady
+    ? `t.effective_destination_url,
+       t.utm_source,
+       t.utm_medium,
+       t.utm_campaign,
+       t.utm_content,
+       t.utm_term,
+       t.linkary_activity,
+       t.linkary_creator,
+       t.tracking_context_version,`
+    : `NULL AS effective_destination_url,
+       NULL AS utm_source,
+       NULL AS utm_medium,
+       NULL AS utm_campaign,
+       NULL AS utm_content,
+       NULL AS utm_term,
+       NULL AS linkary_activity,
+       NULL AS linkary_creator,
+       NULL AS tracking_context_version,`;
+
   const links = await db.all(
     `SELECT
        t.id,
@@ -196,11 +335,13 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
        a.title AS activity_title,
        a.activity_type,
        t.destination_url,
+       ${immutableSelect}
        t.status,
        t.created_at,
        t.updated_at,
        camp.name AS campaign_name,
        CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE cla.assignment_kind END AS assignment_kind,
+       CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.creator_profile_id ELSE cla.creator_profile_id END AS creator_profile_id,
        CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle ELSE pne.primary_handle END AS partner_handle,
        CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name ELSE pne.display_name END AS partner_name,
        snap.snapshot_source AS partner_snapshot_source,
@@ -225,7 +366,7 @@ export async function listTrackedLinks(request: Request, env: Env): Promise<Resp
   const trackingBase = getLinkaryUrls(request, env).tracking;
   return json({
     links: links.map((row: any) => {
-      const trackedDestination = buildTrackedDestination(String(row.destination_url || ''), utmContext(row));
+      const trackedDestination = storedTrackingResult(row);
       const clicks = Number(row.clicks || 0);
       const identifiedClicks = Number(row.identified_clicks || 0);
       const estimatedUniqueClicks = identifiedClicks > 0 ? Number(row.estimated_unique_clicks || 0) : null;
@@ -262,21 +403,50 @@ export async function updateTrackedLinkStatus(request: Request, env: Env, linkId
   return json({ ok: true, status: body.status, updatedAt: timestamp });
 }
 
-export async function redirectTrackedLink(request: Request, env: Env, code: string): Promise<Response> {
+export async function redirectTrackedLink(
+  request: Request,
+  env: Env,
+  code: string,
+  ctx?: ExecutionContextLike,
+): Promise<Response> {
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
+  const immutableContextReady = await hasImmutableTrackingContext(db);
+  const immutableSelect = immutableContextReady
+    ? `t.effective_destination_url,
+       t.utm_source,
+       t.utm_medium,
+       t.utm_campaign,
+       t.utm_content,
+       t.utm_term,
+       t.linkary_activity,
+       t.linkary_creator,
+       t.tracking_context_version,`
+    : `NULL AS effective_destination_url,
+       NULL AS utm_source,
+       NULL AS utm_medium,
+       NULL AS utm_campaign,
+       NULL AS utm_content,
+       NULL AS utm_term,
+       NULL AS linkary_activity,
+       NULL AS linkary_creator,
+       NULL AS tracking_context_version,`;
+
   const link = await db.first<{
     id: string;
     destination_url: string;
     status: string;
-  } & TrackingContextRow>(
+  } & TrackingContextRow & TrackingSnapshotRow>(
     `SELECT t.id,
+            t.activity_id,
             t.destination_url,
+            ${immutableSelect}
             t.status,
             camp.name AS campaign_name,
             a.title AS activity_title,
             a.activity_type,
             CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE cla.assignment_kind END AS assignment_kind,
+            CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.creator_profile_id ELSE cla.creator_profile_id END AS creator_profile_id,
             CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_handle ELSE pne.primary_handle END AS partner_handle,
             CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.partner_display_name ELSE pne.display_name END AS partner_name
        FROM tracked_links t
@@ -290,16 +460,14 @@ export async function redirectTrackedLink(request: Request, env: Env, code: stri
   );
   if (!link || link.status !== 'active') throw new HttpError(404, 'Tracking link not found', 'tracking_not_found');
 
-  const visitor = request.headers.get('cf-connecting-ip');
-  const visitorHash = visitor && env.TRACKING_HASH_SALT ? await hmacSha256(env.TRACKING_HASH_SALT, visitor) : null;
-  const referer = request.headers.get('referer');
-  let referrerHost: string | null = null;
-  try { if (referer) referrerHost = new URL(referer).hostname; } catch {}
+  const trackedDestination = storedTrackingResult(link);
+  if (!isHttpDestination(trackedDestination.effectiveDestinationUrl)) {
+    throw new HttpError(404, 'Tracking destination is unavailable', 'tracking_destination_unavailable');
+  }
 
-  await db.run(
-    'INSERT INTO tracked_link_clicks (id, tracked_link_id, visitor_id_hash, referrer_host, occurred_at) VALUES (?, ?, ?, ?, ?)',
-    [id('tlc'), link.id, visitorHash, referrerHost, now()],
-  );
-  const trackedDestination = buildTrackedDestination(link.destination_url, utmContext(link));
+  const clickWrite = logTrackedClick(request, env, db, link.id).catch(() => undefined);
+  if (ctx) ctx.waitUntil(clickWrite);
+  else await clickWrite;
+
   return Response.redirect(trackedDestination.effectiveDestinationUrl, 302);
 }
