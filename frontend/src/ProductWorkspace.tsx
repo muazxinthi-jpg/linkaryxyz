@@ -72,6 +72,9 @@ export function ProductWorkspace({
     ['/settings/team-invites', 'Team'],
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
+  const showSuperadmin = typeof window !== 'undefined'
+    && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz'
+    && Boolean(me.user?.superadmin);
   const navSections = profile.profile_type === 'creator'
     ? [
       ['WORKSPACE', creatorNav.slice(0, 2)],
@@ -120,7 +123,7 @@ export function ProductWorkspace({
         </nav>
         <div className="ops-sidebar-footer">
           <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active ops-plan-nav' : 'ops-plan-nav'}>Plan & billing</NavLink>
-          {me.user?.superadmin && (
+          {showSuperadmin && (
             <section className="ops-admin-nav" aria-label="Superadmin tools">
               <span>SUPERADMIN</span>
               <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>
@@ -148,7 +151,7 @@ export function ProductWorkspace({
                 </NavLink>
               ))}
               <NavLink to="/settings/plan" className={() => currentPath === '/settings/plan' ? 'active' : ''}>Plan & billing</NavLink>
-              {me.user?.superadmin && (
+              {showSuperadmin && (
                 <>
                   <span className="ops-mobile-menu-label">SUPERADMIN</span>
                   <NavLink to="/admin/readiness" className={() => currentPath === '/admin/readiness' ? 'active' : ''}>Beta readiness</NavLink>

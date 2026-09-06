@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import AppV2 from './AppV2';
 import TrackingExperience from './TrackingExperience';
 import NetworkExperience from './NetworkExperience';
@@ -179,6 +179,8 @@ function TeamInviteGate() {
 
 export default function AppV3() {
   const location = useLocation();
+  const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
+  if (location.pathname.startsWith('/admin') && !isSuperadminHost) return <Navigate to="/dashboard" replace />;
   if (location.pathname === '/team-invite') return <TeamInviteGate />;
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
