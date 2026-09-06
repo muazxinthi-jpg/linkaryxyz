@@ -47,6 +47,7 @@ export interface Env {
   PUBLIC_SITE_URL?: string;
   APP_BASE_URL?: string;
   SUPERADMIN_BASE_URL?: string;
+  SUPERADMIN_EMAIL?: string;
   TRACKING_BASE_URL?: string;
   API_BASE_URL?: string;
   MCP_BASE_URL?: string;

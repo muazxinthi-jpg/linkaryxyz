@@ -35,7 +35,7 @@ function SuperadminLogin() {
   const { signInWithEmail } = useSignInWithEmail();
   const { verifyEmailOTP } = useVerifyEmailOTP();
   const { signInWithOAuth } = useSignInWithOAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('mmxinthi@gmail.com');
   const [otp, setOtp] = useState('');
   const [flowId, setFlowId] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
@@ -97,7 +97,7 @@ function SuperadminLogin() {
         ) : (
           <>
             <form className="sadmin-auth-form" onSubmit={startEmail}>
-              <label>Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@company.com" /></label>
+              <label>Authorized email<input required type="email" autoComplete="email" value={email} readOnly /></label>
               <button disabled={busy !== ''}>{busy === 'email' ? 'Sending code…' : 'Continue with email'}</button>
             </form>
             <div className="sadmin-auth-divider"><span>or</span></div>

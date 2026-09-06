@@ -6,6 +6,7 @@ const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 
 const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
+const session = readFileSync(new URL('../src/auth/session.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 test('Superadmin host gate is mounted only on sadmin.linkary.xyz', () => {
@@ -29,6 +30,13 @@ test('Superadmin host is no-indexed and reuses host-only session cookies', () =>
   assert.match(entry, /x-robots-tag/);
   assert.match(entry, /SUPERADMIN_BASE_URL/);
   assert.match(entry, /__Host cookies/);
+});
+
+test('Superadmin access is restricted to the configured owner email server-side', () => {
+  assert.match(wrangler, /SUPERADMIN_EMAIL.*mmxinthi@gmail\.com/);
+  assert.match(session, /configuredSuperadminEmail/);
+  assert.match(session, /emailMatchesSuperadmin/);
+  assert.match(session, /Boolean\(grant\) && emailMatchesSuperadmin/);
 });
 
 test('sadmin is configured as a custom domain, not a duplicate Worker route', () => {

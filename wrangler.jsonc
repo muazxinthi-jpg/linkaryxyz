@@ -9,6 +9,7 @@
     "PUBLIC_SITE_URL": "https://linkary.xyz",
     "APP_BASE_URL": "https://app.linkary.xyz",
     "SUPERADMIN_BASE_URL": "https://sadmin.linkary.xyz",
+    "SUPERADMIN_EMAIL": "mmxinthi@gmail.com",
     "TRACKING_BASE_URL": "https://l.linkary.xyz",
     "APP_ENV": "production",
     "BILLING_TREASURY_EVM_ADDRESS": "0x4364C060d63B86903ADb850838aaEc338cc4890D",
