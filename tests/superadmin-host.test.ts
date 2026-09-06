@@ -52,9 +52,18 @@ test('Superadmin verification does not depend on onboarding status or an existin
   assert.match(gate, /setState\('ready'\)/);
 });
 
+test('Superadmin gate retries the verified CDP bridge for a stale non-Superadmin host session', () => {
+  assert.match(gate, /const needsSuperadminBridge = !current\.ok \|\| !current\.data\.authenticated \|\| !current\.data\.user\?\.superadmin/);
+  assert.match(gate, /if \(needsSuperadminBridge\)/);
+  assert.match(gate, /getAccessToken\(\)/);
+  assert.match(gate, /\/api\/auth\/cdp\/session/);
+});
+
 test('Superadmin verification exposes only non-sensitive diagnostic references', () => {
   assert.match(gate, /Reference: \{failureCode\}/);
   assert.match(gate, /session-bridge-\$\{bridge\.status\}/);
+  assert.match(gate, /superadmin_identity_conflict/);
+  assert.match(gate, /superadmin_multiple_cdp_identities/);
   assert.doesNotMatch(gate, /bridge\.data\.message/);
 });
 
@@ -114,7 +123,7 @@ test('Superadmin CDP bootstrap is host, verified-email and active-grant restrict
 
 test('Superadmin bootstrap binds the existing canonical owner without creating or consuming an invite', () => {
   const text = compact(cdp);
-  const bootstrapStart = text.indexOf('if (superadminBootstrapUser)');
+  const bootstrapStart = text.indexOf('if (superadminBootstrapUser) { const linkId');
   const normalUserStart = text.indexOf('} else { accessContext = await resolveAccessContext', bootstrapStart);
   const bootstrapBlock = text.slice(bootstrapStart, normalUserStart);
   assert.match(bootstrapBlock, /INSERT INTO cdp_user_links/);
@@ -125,11 +134,32 @@ test('Superadmin bootstrap binds the existing canonical owner without creating o
   assert.match(cdp, /if \(!superadminBootstrapUser && !\(await hasLinkaryAccess\(db, link\.user_id\)\)\)/);
 });
 
-test('Superadmin bootstrap refuses conflicting CDP identities', () => {
-  assert.match(cdp, /link && superadminBootstrapUser && link\.user_id !== superadminBootstrapUser\.id/);
+test('verified Superadmin login reconciles a stale historical CDP link atomically', () => {
+  assert.match(cdp, /async function reconcileSuperadminCdpIdentity/);
+  assert.match(cdp, /UPDATE cdp_user_links[\s\S]*SET user_id = \?/);
+  assert.match(cdp, /UPDATE auth_identities SET user_id = \?/);
+  assert.match(cdp, /UPDATE wallet_accounts SET user_id = \?/);
+  assert.match(cdp, /UPDATE sessions SET revoked_at = \?/);
+  assert.match(cdp, /superadmin\.cdp_identity\.reconciled/);
+  assert.match(cdp, /source: 'verified_superadmin_login'/);
+  assert.match(cdp, /await db\.batch\(statements\)/);
+});
+
+test('Superadmin recovery fails closed when the canonical owner has a genuinely different CDP identity', () => {
+  assert.match(cdp, /canonicalLink && canonicalLink\.cdp_user_id !== cdpUserId/);
+  assert.match(cdp, /canonicalDifferentIdentity/);
+  assert.match(cdp, /superadmin_multiple_cdp_identities/);
   assert.match(cdp, /superadmin_identity_conflict/);
-  assert.match(cdp, /SELECT id FROM cdp_user_links WHERE user_id = \? AND cdp_project_id = \? LIMIT 1/);
-  assert.match(cdp, /existingAuthIdentity && existingAuthIdentity\.user_id !== superadminBootstrapUser\.id/);
+});
+
+test('Superadmin CDP reconciliation is not a general account merge path', () => {
+  const start = cdp.indexOf('async function reconcileSuperadminCdpIdentity');
+  const end = cdp.indexOf('function validateInviteAccess', start);
+  const recovery = cdp.slice(start, end);
+  assert.doesNotMatch(recovery, /UPDATE users/);
+  assert.doesNotMatch(recovery, /DELETE FROM users/);
+  assert.doesNotMatch(recovery, /organization_memberships/);
+  assert.doesNotMatch(recovery, /profiles/);
 });
 
 test('normal users still require invite or earned access during CDP session creation', () => {
