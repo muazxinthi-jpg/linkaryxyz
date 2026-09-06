@@ -220,18 +220,58 @@ async function reconcileSuperadminCdpIdentity(
     `SELECT id, cdp_user_id FROM cdp_user_links WHERE user_id = ? AND cdp_project_id = ? LIMIT 1`,
     [canonicalUserId, projectId],
   );
-  if (canonicalLink && canonicalLink.cdp_user_id !== cdpUserId) {
-    throw new HttpError(403, 'The canonical Superadmin is already linked to a different CDP identity', 'superadmin_multiple_cdp_identities');
-  }
-
-  const canonicalDifferentIdentity = await db.first<{ id: string }>(
+  const staleCanonicalLink = canonicalLink && canonicalLink.cdp_user_id !== cdpUserId ? canonicalLink : null;
+  const staleCanonicalAuthIdentity = await db.first<{ id: string }>(
     `SELECT id FROM auth_identities
       WHERE user_id = ? AND provider = 'coinbase_cdp' AND provider_user_id <> ?
       LIMIT 1`,
     [canonicalUserId, cdpUserId],
   );
-  if (canonicalDifferentIdentity) {
-    throw new HttpError(403, 'The canonical Superadmin has more than one CDP identity candidate', 'superadmin_multiple_cdp_identities');
+
+  if (staleCanonicalLink || staleCanonicalAuthIdentity) {
+    const retirementStatements = [];
+    if (staleCanonicalLink) {
+      retirementStatements.push(
+        db.statement(
+          `UPDATE wallet_accounts
+              SET cdp_user_link_id = NULL, status = 'disabled', updated_at = ?
+            WHERE cdp_user_link_id = ?`,
+          [timestamp, staleCanonicalLink.id],
+        ),
+        db.statement(
+          `DELETE FROM cdp_user_links
+            WHERE id = ? AND user_id = ? AND cdp_project_id = ? AND cdp_user_id = ?`,
+          [staleCanonicalLink.id, canonicalUserId, projectId, staleCanonicalLink.cdp_user_id],
+        ),
+      );
+    }
+    if (staleCanonicalAuthIdentity) {
+      retirementStatements.push(
+        db.statement(
+          `DELETE FROM auth_identities
+            WHERE user_id = ? AND provider = 'coinbase_cdp' AND provider_user_id <> ?`,
+          [canonicalUserId, cdpUserId],
+        ),
+      );
+    }
+    retirementStatements.push(
+      db.statement(
+        `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+         VALUES (?, ?, 'system', 'superadmin.cdp_identity.retired', 'user', ?, NULL, ?, ?)`,
+        [
+          id('aud'),
+          canonicalUserId,
+          canonicalUserId,
+          JSON.stringify({
+            source: 'verified_superadmin_login',
+            retiredCdpUserId: staleCanonicalLink?.cdp_user_id || null,
+            replacementCdpUserId: cdpUserId,
+          }),
+          timestamp,
+        ],
+      ),
+    );
+    await db.batch(retirementStatements);
   }
 
   const matchingAuthIdentity = await db.first<{ id: string; user_id: string }>(
@@ -242,9 +282,6 @@ async function reconcileSuperadminCdpIdentity(
   if (currentLink && currentLink.user_id === canonicalUserId) return currentLink;
 
   if (currentLink) {
-    if (canonicalLink && canonicalLink.id !== currentLink.id) {
-      throw new HttpError(403, 'The canonical Superadmin is already linked to a different CDP identity', 'superadmin_multiple_cdp_identities');
-    }
     if (matchingAuthIdentity && matchingAuthIdentity.user_id !== currentLink.user_id && matchingAuthIdentity.user_id !== canonicalUserId) {
       throw new HttpError(403, 'The authenticated CDP identity has conflicting Linkary ownership', 'superadmin_identity_conflict');
     }
@@ -571,10 +608,25 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   const evmAddresses = extractEvmAddresses(endUser);
   for (let index = 0; index < evmAddresses.length; index += 1) {
     const address = evmAddresses[index];
-    await db.run(
-      `INSERT OR IGNORE INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at) VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)`,
-      [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
-    );
+    if (superadminBootstrapUser) {
+      await db.run(
+        `INSERT INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)
+         ON CONFLICT(provider, chain_family, address) DO UPDATE SET
+           user_id = excluded.user_id,
+           cdp_user_link_id = excluded.cdp_user_link_id,
+           account_type = excluded.account_type,
+           is_primary = excluded.is_primary,
+           status = 'active',
+           updated_at = excluded.updated_at`,
+        [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
+      );
+    } else {
+      await db.run(
+        `INSERT OR IGNORE INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at) VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)`,
+        [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
+      );
+    }
   }
 
   const user = await db.first<{ id: string; email: string | null; display_name: string }>(
