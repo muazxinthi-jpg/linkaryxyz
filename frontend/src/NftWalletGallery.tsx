@@ -159,8 +159,8 @@ export default function NftWalletGallery({ profileId, compact = false, selectedI
     return (
       <div className="nft-wallet-gallery nft-wallet-gallery-locked">
         <div className="nft-wallet-gallery-lock-copy">
-          <strong>NFT profile features</strong>
-          <small>Wallet NFT discovery, NFT avatar and NFT Showcase are included with Personal Pro / Collector.</small>
+          <strong>Upgrade to Personal Pro / Collector</strong>
+          <small>Unlock wallet NFT discovery, NFT avatar, NFT Showcase and NFT collection presentation on your public Linkary profile.</small>
         </div>
         <a className="nft-wallet-gallery-upgrade" href="/settings/plan">View Personal Pro</a>
         <small className="nft-wallet-gallery-note">Your normal profile image and reward wallet destinations remain available on Free.</small>
