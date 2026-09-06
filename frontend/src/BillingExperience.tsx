@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import BillingCheckoutPanel from './BillingCheckoutPanel';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import './billing.css';
 
@@ -23,8 +24,9 @@ type CurrentBilling = {
   ownerId: string;
   plan: PublicPlan;
   entitlement: {
-    source: 'default' | 'grant';
+    source: 'default' | 'grant' | 'subscription';
     grantId: string | null;
+    subscriptionPeriodId?: string | null;
     startsAt: string | null;
     endsAt: string | null;
     monthlyUsageCredits: number;
@@ -48,10 +50,14 @@ function money(cents: number | null, currency = 'USD'): string {
 }
 
 function eligiblePlans(profile: ProductProfile, plans: PublicPlan[]): PublicPlan[] {
-  if (profile.profile_type === 'creator') {
-    return plans.filter((plan) => plan.code === 'free' || plan.code === 'personal_pro');
-  }
+  if (profile.profile_type === 'creator') return plans.filter((plan) => plan.code === 'free' || plan.code === 'personal_pro');
   return plans.filter((plan) => ['project_manual', 'project_automate', 'project_growth', 'scale'].includes(plan.code));
+}
+
+function accessSource(current: CurrentBilling): string {
+  if (current.entitlement.source === 'subscription') return 'Paid subscription';
+  if (current.entitlement.source === 'grant') return 'Entitlement';
+  return 'Default';
 }
 
 export default function BillingExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
@@ -61,10 +67,13 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
   const profile = status.profiles.find((item) => item.id === profileId) || creatorFirst;
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [current, setCurrent] = useState<CurrentBilling | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PublicPlan | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   function changeProfile(id: string) {
     setProfileId(id);
+    setSelectedPlan(null);
     window.localStorage.setItem('linkary.active.profile', id);
   }
 
@@ -84,7 +93,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
       if (!cancelled) setState('error');
     });
     return () => { cancelled = true; };
-  }, [profile?.id]);
+  }, [profile?.id, refreshKey]);
 
   const visiblePlans = useMemo(() => profile ? eligiblePlans(profile as ProductProfile, plans) : [], [profile, plans]);
 
@@ -97,7 +106,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
           <div>
             <span className="ops-kicker">PLAN & BILLING</span>
             <h1>Choose the Linkary plan that fits your work</h1>
-            <p>Plans use the same live catalog shown on Linkary. Paid access activates only after an eligible payment or Superadmin entitlement is verified.</p>
+            <p>Plans use the same live catalog shown on Linkary. Paid access activates only after an eligible Base USDC payment or Superadmin entitlement is verified.</p>
           </div>
         </div>
 
@@ -109,11 +118,12 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
               <span>CURRENT PLAN</span>
               <h2>{current.plan.name}</h2>
               <p>{current.plan.description}</p>
+              {current.entitlement.endsAt && <small className="billing-period-note">Current paid/granted access runs through {new Date(current.entitlement.endsAt).toLocaleDateString()}.</small>}
             </div>
             <div className="billing-current-metrics">
               <article><small>Monthly usage credits</small><strong>{current.entitlement.monthlyUsageCredits.toLocaleString()}</strong></article>
               <article><small>Usage ledger balance</small><strong>{current.creditBalance.toLocaleString()}</strong></article>
-              <article><small>Access source</small><strong>{current.entitlement.source === 'grant' ? 'Entitlement' : 'Default'}</strong></article>
+              <article><small>Access source</small><strong>{accessSource(current)}</strong></article>
             </div>
           </section>
         )}
@@ -141,7 +151,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
                 {isCurrent ? (
                   <button type="button" className="ops-button ghost" disabled>Current plan</button>
                 ) : paid ? (
-                  <a className="ops-button primary billing-cta" href={`/wallets?upgrade=${encodeURIComponent(plan.code)}`}>Upgrade with Linkary wallet</a>
+                  <button type="button" className="ops-button primary billing-cta" onClick={() => setSelectedPlan(plan)}>Pay with Linkary wallet</button>
                 ) : plan.billingPeriod === 'custom' ? (
                   <button type="button" className="ops-button ghost" disabled>Custom access</button>
                 ) : (
@@ -152,8 +162,20 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
           })}
         </section>
 
+        {selectedPlan && (
+          <BillingCheckoutPanel
+            profile={profile as ProductProfile}
+            plan={selectedPlan}
+            onClose={() => setSelectedPlan(null)}
+            onPaid={() => {
+              setSelectedPlan(null);
+              setRefreshKey((value) => value + 1);
+            }}
+          />
+        )}
+
         <section className="billing-wallet-note">
-          <div><strong>Paid plans use your Linkary wallet.</strong><p>Fund your Linkary wallet on Base with supported USDC before checkout. Selecting a plan never grants paid access by itself.</p></div>
+          <div><strong>Paid plans use your Linkary wallet.</strong><p>Fund your Linkary wallet with USDC on Base before checkout. Every Controlled Beta renewal requires your approval, and selecting a plan never grants paid access by itself.</p></div>
           <a className="ops-button primary" href="/wallets">Open wallet</a>
         </section>
       </div>
