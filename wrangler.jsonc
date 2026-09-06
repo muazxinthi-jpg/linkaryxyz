@@ -17,10 +17,6 @@
     {
       "pattern": "app.linkary.xyz/*",
       "zone_name": "linkary.xyz"
-    },
-    {
-      "pattern": "l.linkary.xyz/r/*",
-      "zone_name": "linkary.xyz"
     }
   ],
   "assets": {
