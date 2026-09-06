@@ -168,6 +168,43 @@ async function hasLinkaryAccess(db: Db, userId: string): Promise<boolean> {
   );
 }
 
+function isSuperadminHostRequest(request: Request, env: Env): boolean {
+  const configuredBase = env.SUPERADMIN_BASE_URL?.trim();
+  if (!configuredBase) return false;
+  try {
+    const requestUrl = new URL(request.url);
+    const configuredUrl = new URL(configuredBase);
+    return requestUrl.protocol === 'https:'
+      && configuredUrl.protocol === 'https:'
+      && requestUrl.hostname.toLowerCase() === configuredUrl.hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+async function resolveSuperadminBootstrapUser(
+  db: Db,
+  request: Request,
+  env: Env,
+  verifiedEmail: string | null,
+): Promise<{ id: string } | null> {
+  const configuredEmail = env.SUPERADMIN_EMAIL?.trim().toLowerCase();
+  if (!configuredEmail || !verifiedEmail || verifiedEmail.trim().toLowerCase() !== configuredEmail) return null;
+  if (!isSuperadminHostRequest(request, env)) return null;
+
+  return db.first<{ id: string }>(
+    `SELECT u.id
+       FROM users u
+       JOIN admin_grants g ON g.user_id = u.id
+      WHERE lower(u.email) = lower(?)
+        AND u.status = 'active'
+        AND g.role = 'superadmin'
+        AND g.status = 'active'
+      LIMIT 1`,
+    [configuredEmail],
+  );
+}
+
 function validateInviteAccess(row: InviteAccessRow, verifiedEmail: string | null): void {
   if (row.status !== 'active' || row.uses >= row.max_uses || (row.expires_at && row.expires_at <= now())) {
     throw new HttpError(403, 'This Linkary invitation is invalid or no longer available', 'invalid_invite');
@@ -291,6 +328,7 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   const lastAuthMethod = extractLastAuthMethod(methods);
   const timestamp = now();
   const db = new Db(requireDb(env));
+  const superadminBootstrapUser = await resolveSuperadminBootstrapUser(db, request, env, email);
 
   let link = await db.first<{ id: string; user_id: string }>(
     `SELECT id, user_id FROM cdp_user_links WHERE cdp_project_id = ? AND cdp_user_id = ?`,
@@ -299,33 +337,73 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   let isNewUser = false;
   let accessContext: AccessContext | null = null;
 
-  if (!link) {
-    accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
-    isNewUser = true;
-    const userId = id('usr');
-    const linkId = id('cdp');
-    const authIdentityId = id('aid');
-    const existingEmail = email
-      ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [email])
-      : null;
-    const storedEmail = existingEmail ? null : email;
-    const displayName = email ? email.split('@')[0] : 'Linkary user';
+  if (link && superadminBootstrapUser && link.user_id !== superadminBootstrapUser.id) {
+    throw new HttpError(403, 'The authenticated CDP identity is linked to a different Linkary account', 'superadmin_identity_conflict');
+  }
 
-    await db.batch([
-      db.statement(
-        `INSERT INTO users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)`,
-        [userId, storedEmail, displayName, timestamp, timestamp],
-      ),
-      db.statement(
-        `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [linkId, userId, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
-      ),
-      db.statement(
-        `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
-        [authIdentityId, userId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
-      ),
-    ]);
-    link = { id: linkId, user_id: userId };
+  if (!link) {
+    if (superadminBootstrapUser) {
+      const existingOwnerLink = await db.first<{ id: string }>(
+        `SELECT id FROM cdp_user_links WHERE user_id = ? AND cdp_project_id = ? LIMIT 1`,
+        [superadminBootstrapUser.id, config.projectId],
+      );
+      if (existingOwnerLink) {
+        throw new HttpError(403, 'The Superadmin account is already linked to a different CDP identity', 'superadmin_identity_conflict');
+      }
+
+      const existingAuthIdentity = await db.first<{ user_id: string }>(
+        `SELECT user_id FROM auth_identities WHERE provider = 'coinbase_cdp' AND provider_user_id = ? LIMIT 1`,
+        [cdpUserId],
+      );
+      if (existingAuthIdentity && existingAuthIdentity.user_id !== superadminBootstrapUser.id) {
+        throw new HttpError(403, 'The authenticated CDP identity is linked to a different Linkary account', 'superadmin_identity_conflict');
+      }
+
+      const linkId = id('cdp');
+      const statements = [
+        db.statement(
+          `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [linkId, superadminBootstrapUser.id, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
+        ),
+      ];
+      if (!existingAuthIdentity) {
+        statements.push(
+          db.statement(
+            `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
+            [id('aid'), superadminBootstrapUser.id, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
+          ),
+        );
+      }
+      await db.batch(statements);
+      link = { id: linkId, user_id: superadminBootstrapUser.id };
+    } else {
+      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+      isNewUser = true;
+      const userId = id('usr');
+      const linkId = id('cdp');
+      const authIdentityId = id('aid');
+      const existingEmail = email
+        ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [email])
+        : null;
+      const storedEmail = existingEmail ? null : email;
+      const displayName = email ? email.split('@')[0] : 'Linkary user';
+
+      await db.batch([
+        db.statement(
+          `INSERT INTO users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)`,
+          [userId, storedEmail, displayName, timestamp, timestamp],
+        ),
+        db.statement(
+          `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [linkId, userId, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
+        ),
+        db.statement(
+          `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
+          [authIdentityId, userId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
+        ),
+      ]);
+      link = { id: linkId, user_id: userId };
+    }
   } else {
     await db.run(
       `UPDATE cdp_user_links SET last_auth_method = ?, last_authenticated_at = ?, updated_at = ? WHERE id = ?`,
@@ -335,11 +413,13 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       `UPDATE auth_identities SET metadata_json = ?, updated_at = ? WHERE provider = 'coinbase_cdp' AND provider_user_id = ?`,
       [JSON.stringify({ authenticationMethods: methods }), timestamp, cdpUserId],
     );
-    const alreadyHasAccess = await hasLinkaryAccess(db, link.user_id);
-    if (!alreadyHasAccess) {
-      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
-    } else if (body.inviteCode?.trim()) {
-      accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
+    if (!superadminBootstrapUser) {
+      const alreadyHasAccess = await hasLinkaryAccess(db, link.user_id);
+      if (!alreadyHasAccess) {
+        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+      } else if (body.inviteCode?.trim()) {
+        accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
+      }
     }
   }
 
@@ -358,7 +438,7 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
     }
   }
 
-  if (!(await hasLinkaryAccess(db, link.user_id))) {
+  if (!superadminBootstrapUser && !(await hasLinkaryAccess(db, link.user_id))) {
     throw new HttpError(403, 'A valid Linkary invitation or approved access path is required', 'access_required');
   }
 
