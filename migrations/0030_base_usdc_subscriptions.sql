@@ -96,3 +96,32 @@ CREATE INDEX IF NOT EXISTS idx_billing_subscription_periods_owner
   ON billing_subscription_periods(owner_type, owner_id, status, period_end DESC);
 CREATE INDEX IF NOT EXISTS idx_billing_subscription_periods_plan
   ON billing_subscription_periods(plan_id, status, period_end DESC);
+
+-- Enforce coupon redemption limits at the database boundary so concurrent
+-- verified payments cannot over-redeem the same coupon.
+CREATE TRIGGER IF NOT EXISTS trg_coupon_redemptions_total_limit
+BEFORE INSERT ON coupon_redemptions
+WHEN (SELECT max_redemptions FROM discount_coupons WHERE id = NEW.coupon_id) IS NOT NULL
+ AND (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = NEW.coupon_id) >=
+     (SELECT max_redemptions FROM discount_coupons WHERE id = NEW.coupon_id)
+BEGIN
+  SELECT RAISE(ABORT, 'coupon_redemption_limit');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_coupon_redemptions_user_limit
+BEFORE INSERT ON coupon_redemptions
+WHEN NEW.user_id IS NOT NULL
+ AND (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = NEW.coupon_id AND user_id = NEW.user_id) >=
+     (SELECT max_redemptions_per_account FROM discount_coupons WHERE id = NEW.coupon_id)
+BEGIN
+  SELECT RAISE(ABORT, 'coupon_account_redemption_limit');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_coupon_redemptions_org_limit
+BEFORE INSERT ON coupon_redemptions
+WHEN NEW.organization_id IS NOT NULL
+ AND (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = NEW.coupon_id AND organization_id = NEW.organization_id) >=
+     (SELECT max_redemptions_per_account FROM discount_coupons WHERE id = NEW.coupon_id)
+BEGIN
+  SELECT RAISE(ABORT, 'coupon_account_redemption_limit');
+END;
