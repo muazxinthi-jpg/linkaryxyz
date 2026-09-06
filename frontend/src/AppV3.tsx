@@ -15,6 +15,7 @@ import InboxExperience from './InboxExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
 import AdminCommercialExperience from './AdminCommercialExperience';
+import AdminCouponsExperience from './AdminCouponsExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import CommunityManagerSessionGate from './CommunityManagerSessionGate';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
@@ -79,7 +80,8 @@ type Experience =
   | 'team-invites'
   | 'admin-readiness'
   | 'admin-community-verifications'
-  | 'admin-commercial';
+  | 'admin-commercial'
+  | 'admin-coupons';
 
 type GateState = 'loading' | 'legacy' | 'forbidden' | 'unavailable' | 'ready';
 
@@ -136,10 +138,11 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'billing') return <BillingExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
-    if (experience === 'admin-readiness' || experience === 'admin-community-verifications' || experience === 'admin-commercial') {
+    if (experience === 'admin-readiness' || experience === 'admin-community-verifications' || experience === 'admin-commercial' || experience === 'admin-coupons') {
       if (!me.user?.superadmin) return <ForbiddenScreen />;
       if (experience === 'admin-community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
       if (experience === 'admin-commercial') return <AdminCommercialExperience me={me} status={status} />;
+      if (experience === 'admin-coupons') return <AdminCouponsExperience />;
       return <AdminReadinessExperience me={me} status={status} />;
     }
     return <TrackingExperience me={me} status={status} />;
@@ -194,5 +197,6 @@ export default function AppV3() {
   if (location.pathname === '/admin/readiness') return <ProductGate experience="admin-readiness" />;
   if (location.pathname === '/admin/community-verifications') return <ProductGate experience="admin-community-verifications" />;
   if (location.pathname === '/admin/commercial') return <ProductGate experience="admin-commercial" />;
+  if (location.pathname === '/admin/coupons') return <ProductGate experience="admin-coupons" />;
   return <AppV2 />;
 }
