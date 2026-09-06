@@ -17,6 +17,14 @@ import {
   verifyBillingCheckoutSafe,
 } from './routes/billingCheckoutSafe';
 import {
+  createAdminEntitlementGrant,
+  createAdminPriceOverride,
+  listAdminCommercialAccounts,
+  listAdminCommercialAudit,
+  revokeAdminEntitlementGrant,
+  revokeAdminPriceOverride,
+} from './routes/adminCommercial';
+import {
   addProfileBlockIntegrity,
   deleteProfileBlockIntegrity,
   getEditableProfileIntegrity,
@@ -70,6 +78,45 @@ export default {
       try {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await verifyBillingCheckoutSafe(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+
+    if (url.pathname === '/api/admin/commercial/accounts') {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await listAdminCommercialAccounts(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/admin/commercial/audit') {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await listAdminCommercialAudit(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/admin/commercial/grants') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await createAdminEntitlementGrant(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    const commercialGrantRevoke = url.pathname.match(/^\/api\/admin\/commercial\/grants\/([^/]+)\/revoke$/);
+    if (commercialGrantRevoke) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await revokeAdminEntitlementGrant(request, env, decodeURIComponent(commercialGrantRevoke[1]));
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/admin/commercial/price-overrides') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await createAdminPriceOverride(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    const commercialOverrideRevoke = url.pathname.match(/^\/api\/admin\/commercial\/price-overrides\/([^/]+)\/revoke$/);
+    if (commercialOverrideRevoke) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await revokeAdminPriceOverride(request, env, decodeURIComponent(commercialOverrideRevoke[1]));
       } catch (error) { return errorResponse(error); }
     }
 
