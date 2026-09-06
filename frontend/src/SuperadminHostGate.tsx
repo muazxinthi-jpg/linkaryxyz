@@ -8,14 +8,14 @@ import {
   useSignOut,
   useVerifyEmailOTP,
 } from '@coinbase/cdp-hooks';
-import type { ProductMe, ProductStatus } from './ProductWorkspace';
+import type { ProductMe } from './ProductWorkspace';
 import './superadmin-host.css';
 
 type GateState = 'loading' | 'signed-out' | 'ready' | 'forbidden' | 'error';
 type JsonPayload = { error?: string; message?: string };
 
 type Props = {
-  render: (me: ProductMe, status: ProductStatus) => ReactNode;
+  render: (me: ProductMe) => ReactNode;
 };
 
 function readCookie(name: string): string | null {
@@ -121,8 +121,8 @@ export default function SuperadminHostGate({ render }: Props) {
   const { signOut } = useSignOut();
   const [state, setState] = useState<GateState>('loading');
   const [me, setMe] = useState<ProductMe | null>(null);
-  const [status, setStatus] = useState<ProductStatus | null>(null);
   const [retry, setRetry] = useState(0);
+  const [failureCode, setFailureCode] = useState('');
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -130,6 +130,7 @@ export default function SuperadminHostGate({ render }: Props) {
 
     void (async () => {
       setState('loading');
+      setFailureCode('');
       try {
         let current = await jsonRequest<ProductMe & JsonPayload>('/api/auth/me');
         if (cancelled) return;
@@ -137,13 +138,15 @@ export default function SuperadminHostGate({ render }: Props) {
         if (!current.ok || !current.data.authenticated) {
           if (!isSignedIn) {
             setMe(null);
-            setStatus(null);
             setState('signed-out');
             return;
           }
 
           const accessToken = await getAccessToken();
-          if (!accessToken) throw new Error('access_token_unavailable');
+          if (!accessToken) {
+            setFailureCode('access-token');
+            throw new Error('access_token_unavailable');
+          }
           const bridge = await jsonRequest('/api/auth/cdp/session', {
             method: 'POST',
             body: JSON.stringify({ accessToken }),
@@ -153,27 +156,26 @@ export default function SuperadminHostGate({ render }: Props) {
               setState('forbidden');
               return;
             }
+            setFailureCode(`session-bridge-${bridge.status}`);
             throw new Error('session_bridge_failed');
           }
           current = await jsonRequest<ProductMe & JsonPayload>('/api/auth/me');
           if (cancelled) return;
         }
 
-        if (!current.data.authenticated || !current.data.user?.superadmin) {
+        if (!current.ok || !current.data.authenticated || !current.data.user?.superadmin) {
           setMe(current.data);
-          setStatus(null);
           setState('forbidden');
           return;
         }
 
-        const nextStatus = await jsonRequest<ProductStatus & JsonPayload>('/api/onboarding/status');
-        if (!nextStatus.ok || !nextStatus.data.profiles?.length) throw new Error('status_unavailable');
-        if (cancelled) return;
         setMe(current.data);
-        setStatus(nextStatus.data);
         setState('ready');
       } catch {
-        if (!cancelled) setState('error');
+        if (!cancelled) {
+          setFailureCode((value) => value || 'session-verification');
+          setState('error');
+        }
       }
     })();
 
@@ -187,7 +189,7 @@ export default function SuperadminHostGate({ render }: Props) {
     } catch {}
     try { await signOut(); } catch {}
     setMe(null);
-    setStatus(null);
+    setFailureCode('');
     setState('signed-out');
   }
 
@@ -212,11 +214,12 @@ export default function SuperadminHostGate({ render }: Props) {
           <span className="sadmin-eyebrow">SUPERADMIN CONSOLE</span>
           <h1>Console unavailable</h1>
           <p>The Superadmin session could not be verified. No administrative action was performed.</p>
+          {failureCode && <small>Reference: {failureCode}</small>}
           <button className="sadmin-auth-action" type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button>
         </section>
       </main>
     );
   }
-  if (state === 'ready' && me && status) return <>{render(me, status)}</>;
+  if (state === 'ready' && me) return <>{render(me)}</>;
   return <main className="sadmin-auth-page"><section className="sadmin-auth-card compact"><div className="sadmin-auth-spinner" /><p>Verifying Superadmin access…</p></section></main>;
 }
