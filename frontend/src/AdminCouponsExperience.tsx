@@ -126,6 +126,7 @@ export default function AdminCouponsExperience() {
     if (!csrf) { setMessage('Your admin session needs to be refreshed.'); return; }
     const rawValue = Number(draft.discountValue);
     if (!Number.isFinite(rawValue) || rawValue <= 0) { setMessage('Enter a valid discount value.'); return; }
+    if (draft.discountType === 'percent' && rawValue > 100) { setMessage('Percentage discount cannot exceed 100%.'); return; }
     const discountValue = draft.discountType === 'percent' ? Math.round(rawValue) : Math.round(rawValue * 100);
     setBusy('create');
     setMessage('');
@@ -147,7 +148,9 @@ export default function AdminCouponsExperience() {
         }),
       });
       setDraft({ ...emptyDraft(), eligiblePlanCodes: plans.map((plan) => plan.code) });
-      setMessage('Coupon created. It is active for eligible checkout quotes.');
+      setMessage(discountType === 'percent' && discountValue === 100
+        ? '100% coupon created. Each redemption grants one paid billing period with no USDC payment.'
+        : 'Coupon created. It is active for eligible checkout quotes.');
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Coupon could not be created.');
@@ -190,7 +193,7 @@ export default function AdminCouponsExperience() {
 
       <div className="admin-coupons-shell">
         <section className="admin-coupons-heading">
-          <div><span>COMMERCIAL CONTROL</span><h1>Discount coupons</h1><p>Create controlled checkout discounts without changing plan prices or granting hidden access. Free or 100% comped access belongs in Superadmin entitlement grants.</p></div>
+          <div><span>COMMERCIAL CONTROL</span><h1>Discount coupons</h1><p>Create controlled checkout discounts without changing plan prices. Superadmin may issue 100% coupons for a tracked free billing period. Direct comped accounts remain a separate entitlement grant.</p></div>
           <div className="admin-coupons-summary"><article><small>Coupons</small><strong>{coupons.length}</strong></article><article><small>Active</small><strong>{activeCoupons}</strong></article></div>
         </section>
 
@@ -206,7 +209,7 @@ export default function AdminCouponsExperience() {
               </div>
               <div className="admin-coupons-two">
                 <label>Discount type<select value={draft.discountType} onChange={(event) => setDraft({ ...draft, discountType: event.target.value as Coupon['discountType'], discountValue: event.target.value === 'percent' ? '20' : '1.00' })}><option value="percent">Percent off</option><option value="fixed_cents">Fixed USD amount off</option><option value="fixed_price_cents">Final monthly price</option></select></label>
-                <label>{draft.discountType === 'percent' ? 'Percent' : 'USD amount'}<input required type="number" min="0.01" step={draft.discountType === 'percent' ? '1' : '0.01'} value={draft.discountValue} onChange={(event) => setDraft({ ...draft, discountValue: event.target.value })} /></label>
+                <label>{draft.discountType === 'percent' ? 'Percent' : 'USD amount'}<input required type="number" min={draft.discountType === 'percent' ? '1' : '0.01'} max={draft.discountType === 'percent' ? '100' : undefined} step={draft.discountType === 'percent' ? '1' : '0.01'} value={draft.discountValue} onChange={(event) => setDraft({ ...draft, discountValue: event.target.value })} /></label>
               </div>
 
               <fieldset className="admin-coupons-plans"><legend>Eligible paid plans</legend>{plans.map((plan) => <label key={plan.code}><input type="checkbox" checked={draft.eligiblePlanCodes.includes(plan.code)} onChange={() => togglePlan(plan.code)} /><span><strong>{plan.name}</strong><small>{money(plan.base_price_cents)} / month</small></span></label>)}</fieldset>
@@ -220,7 +223,7 @@ export default function AdminCouponsExperience() {
                 <label>Ends <small>(blank = no expiry)</small><input type="datetime-local" value={draft.endsAt} onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })} /></label>
               </div>
               <label className="admin-coupons-check"><input type="checkbox" checked={draft.stackable} onChange={(event) => setDraft({ ...draft, stackable: event.target.checked })} /><span><strong>Allow stacking</strong><small>Coupon can combine with another eligible promotion or private account price adjustment.</small></span></label>
-              <div className="admin-coupons-warning">Coupons cannot reduce a paid checkout to $0. For free Beta access, grant the paid plan as a comped entitlement from Commercial Accounts.</div>
+              <div className="admin-coupons-warning">A 100% percent-off coupon grants one paid monthly period without an onchain payment and records a coupon redemption. For manually comped or longer-term access, use Commercial Accounts instead.</div>
               <button className="admin-coupons-primary" disabled={busy === 'create' || state !== 'ready'}>{busy === 'create' ? 'Creating…' : 'Create coupon'}</button>
             </form>
           </section>
