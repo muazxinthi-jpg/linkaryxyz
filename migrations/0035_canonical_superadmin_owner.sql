@@ -9,8 +9,8 @@ SELECT
   'xinthi@gmail.com',
   'Muaz Xinthi',
   'active',
-  datetime('now'),
-  datetime('now')
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE NOT EXISTS (
   SELECT 1 FROM users WHERE lower(email) = lower('xinthi@gmail.com')
 );
@@ -18,13 +18,13 @@ WHERE NOT EXISTS (
 UPDATE users
 SET status = 'active',
     display_name = CASE WHEN trim(display_name) = '' THEN 'Muaz Xinthi' ELSE display_name END,
-    updated_at = datetime('now')
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE lower(email) = lower('xinthi@gmail.com');
 
 -- Keep exactly one active Superadmin owner under the current single-owner model.
 UPDATE admin_grants
 SET status = 'revoked',
-    revoked_at = COALESCE(revoked_at, datetime('now'))
+    revoked_at = COALESCE(revoked_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 WHERE role = 'superadmin'
   AND status = 'active'
   AND user_id <> (
@@ -37,7 +37,7 @@ SELECT
   u.id,
   'superadmin',
   'active',
-  datetime('now'),
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
   NULL
 FROM users u
 WHERE lower(u.email) = lower('xinthi@gmail.com')
@@ -64,7 +64,7 @@ INSERT INTO audit_logs (
   created_at
 )
 SELECT
-  'audit_' || lower(hex(randomblob(16))),
+  'aud_' || lower(hex(randomblob(16))),
   u.id,
   'system',
   'superadmin.owner.canonicalized',
@@ -72,6 +72,6 @@ SELECT
   u.id,
   NULL,
   '{"email":"xinthi@gmail.com","source":"migration_0035"}',
-  datetime('now')
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 FROM users u
 WHERE lower(u.email) = lower('xinthi@gmail.com');
