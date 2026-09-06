@@ -34,17 +34,18 @@ test('NFT Showcase writes are protected server-side while legacy items can still
   assert.equal(profileIntegrity.includes('deleteProfileBlock(request, env, profileId, blockId)'), true);
 });
 
-test('Free Personal NFT picker shows a product-level upgrade state instead of querying wallets', () => {
+test('Free Personal NFT picker shows an explicit upgrade state including collection presentation', () => {
   assert.equal(gallery.includes('/api/billing/current?profileId='), true);
   assert.equal(gallery.includes("billing.plan.code === 'personal_pro'"), true);
-  assert.equal(gallery.includes('NFT profile features'), true);
-  assert.equal(gallery.includes('NFT avatar and NFT Showcase are included with Personal Pro / Collector.'), true);
+  assert.equal(gallery.includes('Upgrade to Personal Pro / Collector'), true);
+  assert.equal(gallery.includes('wallet NFT discovery, NFT avatar, NFT Showcase and NFT collection presentation'), true);
   assert.equal(gallery.includes('href="/settings/plan"'), true);
   assert.equal(gallery.includes("if (loading || access !== 'allowed') return"), true);
   assert.equal(gallery.includes('Alchemy configuration'), false);
 });
 
-test('locked NFT Showcase UI removes the manual bypass and submit action while backend stays authoritative', () => {
+test('locked NFT Showcase UI removes editable NFT controls and submit action while backend stays authoritative', () => {
+  assert.equal(galleryCss.includes('.profile-beta-modal:has(.nft-wallet-gallery-locked) > label'), true);
   assert.equal(galleryCss.includes('.profile-beta-nft-editor:has(.nft-wallet-gallery-locked) .profile-beta-nft-manual'), true);
   assert.equal(galleryCss.includes('.profile-beta-modal:has(.nft-wallet-gallery-locked) .ops-form-actions .ops-button.primary'), true);
 });
