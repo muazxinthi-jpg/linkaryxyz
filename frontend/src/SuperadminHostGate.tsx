@@ -35,7 +35,7 @@ function SuperadminLogin() {
   const { signInWithEmail } = useSignInWithEmail();
   const { verifyEmailOTP } = useVerifyEmailOTP();
   const { signInWithOAuth } = useSignInWithOAuth();
-  const [email, setEmail] = useState('mmxinthi@gmail.com');
+  const [email] = useState('xinthi@gmail.com');
   const [otp, setOtp] = useState('');
   const [flowId, setFlowId] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
@@ -86,13 +86,13 @@ function SuperadminLogin() {
         <a className="sadmin-auth-brand" href="https://linkary.xyz"><img src="/assets/brand/linkary-icon-black.png" alt="" /><span>Linkary</span></a>
         <span className="sadmin-eyebrow">SUPERADMIN CONSOLE</span>
         <h1>Restricted access</h1>
-        <p>Sign in with an account that has an active Linkary Superadmin grant. This console uses a separate host-scoped session from the normal Linkary app.</p>
+        <p>Sign in with the canonical Linkary Superadmin account. This console uses a separate host-scoped session from the normal Linkary app.</p>
 
         {flowId ? (
           <form className="sadmin-auth-form" onSubmit={verify}>
             <label>Verification code<input required inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" /></label>
             <button disabled={busy !== '' || otp.length !== 6}>{busy === 'otp' ? 'Verifying…' : 'Verify and continue'}</button>
-            <button type="button" className="secondary" onClick={() => { setFlowId(null); setOtp(''); setMessage(''); }}>Use another email</button>
+            <button type="button" className="secondary" onClick={() => { setFlowId(null); setOtp(''); setMessage(''); }}>Restart sign-in</button>
           </form>
         ) : (
           <>
@@ -201,7 +201,7 @@ export default function SuperadminHostGate({ render }: Props) {
           <span className="sadmin-eyebrow">SUPERADMIN CONSOLE</span>
           <h1>Access denied</h1>
           <p>This account does not have an active Superadmin grant. No administrative data is available.</p>
-          <button className="sadmin-auth-action" type="button" onClick={() => void clearSession()}>Use a different account</button>
+          <button className="sadmin-auth-action" type="button" onClick={() => void clearSession()}>Sign in with the Superadmin account</button>
           <a className="sadmin-auth-back" href="https://app.linkary.xyz">Return to Linkary</a>
         </section>
       </main>

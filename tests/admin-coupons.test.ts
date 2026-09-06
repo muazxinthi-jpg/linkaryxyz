@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const route = readFileSync(new URL('../src/routes/adminCoupons.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../frontend/src/AdminCouponsExperience.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
+const latestMigration = readFileSync(new URL('../migrations/0035_canonical_superadmin_owner.sql', import.meta.url), 'utf8');
 
 test('Superadmin coupon API reuses the existing commercial coupon schema', () => {
   assert.equal(route.includes('discount_coupons'), true);
@@ -52,7 +53,9 @@ test('coupon page is Superadmin gated in AppV3', () => {
   assert.equal(app.includes('if (!me.user?.superadmin) return <ForbiddenScreen />'), true);
 });
 
-test('coupon management adds no D1 migration because the existing schema is authoritative', () => {
-  const migrations = readdirSync(new URL('../migrations/', import.meta.url));
-  assert.equal(migrations.some((name) => name.startsWith('0035_')), false);
+test('later Superadmin owner migration does not change the authoritative coupon schema', () => {
+  assert.equal(latestMigration.includes('discount_coupons'), false);
+  assert.equal(latestMigration.includes('coupon_redemptions'), false);
+  assert.equal(latestMigration.includes('billing_coupon_reservations'), false);
+  assert.equal(latestMigration.includes('superadmin.owner.canonicalized'), true);
 });
