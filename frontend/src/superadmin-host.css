@@ -38,9 +38,29 @@
 .sadmin-auth-card small { color: #777d80; line-height: 1.5; }
 .sadmin-auth-back { color: #111517; font-weight: 700; text-align: center; }
 .sadmin-auth-spinner { width: 30px; height: 30px; margin: 0 auto; border: 3px solid rgba(255, 86, 8, .2); border-top-color: #ff5608; border-radius: 50%; animation: sadmin-spin .8s linear infinite; }
+
+.sadmin-workspace-identity {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 20px;
+  padding: 14px;
+  border: 1px solid rgba(17, 21, 23, .12);
+  border-radius: 12px;
+  background: rgba(255, 86, 8, .06);
+}
+.sadmin-workspace-identity span, .sadmin-topbar-badge { color: #ff5608; font-size: 10px; font-weight: 900; letter-spacing: .14em; }
+.sadmin-workspace-identity strong { font-size: 15px; }
+.sadmin-workspace-identity small { color: #777d80; }
+.sadmin-topbar { justify-content: space-between; }
+.sadmin-topbar > div { display: grid; gap: 2px; }
+.sadmin-topbar > div span { color: #777d80; font-size: 12px; }
+.sadmin-topbar-badge { padding: 7px 9px; border: 1px solid rgba(255, 86, 8, .24); border-radius: 999px; background: rgba(255, 86, 8, .08); }
+.sadmin-workspace .ops-sidebar-footer > a { color: inherit; font-size: 12px; font-weight: 700; text-decoration: none; }
+
 @keyframes sadmin-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 520px) {
   .sadmin-auth-card { padding: 26px 22px; border-radius: 16px; }
   .sadmin-auth-socials { grid-template-columns: 1fr; }
+  .sadmin-topbar-badge { display: none; }
 }

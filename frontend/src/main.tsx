@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
+import SuperadminApp from './SuperadminApp';
 import SuperadminHostGate from './SuperadminHostGate';
 import AuthSessionContinuity from './AuthSessionContinuity';
 import UiSafetyGuard from './UiSafetyGuard';
@@ -45,11 +46,21 @@ const cdpConfig: Config = {
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 function RootApp() {
-  if (!isSuperadminHost) return <App />;
+  if (isSuperadminHost) {
+    return (
+      <>
+        <UiSafetyGuard />
+        <SuperadminHostGate render={(me) => <SuperadminApp me={me} />} />
+      </>
+    );
+  }
+
   return (
-    <SuperadminHostGate
-      render={() => <App />}
-    />
+    <AuthSessionContinuity>
+      <UiSafetyGuard />
+      <OnboardingCompletionBoundary />
+      <App />
+    </AuthSessionContinuity>
   );
 }
 
@@ -57,11 +68,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <CDPReactProvider config={cdpConfig}>
       <BrowserRouter>
-        <AuthSessionContinuity>
-          <UiSafetyGuard />
-          <OnboardingCompletionBoundary />
-          <RootApp />
-        </AuthSessionContinuity>
+        <RootApp />
       </BrowserRouter>
     </CDPReactProvider>
   </StrictMode>,

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+const superadminWorkspace = readFileSync(new URL('../frontend/src/SuperadminWorkspace.tsx', import.meta.url), 'utf8');
 const responsive = readFileSync(new URL('../frontend/src/beta-responsive-acceptance.css', import.meta.url), 'utf8');
 
 function compact(value: string) {
@@ -37,10 +38,17 @@ test('phone users retain access to hidden workspace destinations, Superadmin too
   assert.equal(workspace.includes('ops-mobile-account-menu'), true);
   assert.equal(workspace.includes('ops-mobile-menu-panel'), true);
   assert.equal(workspace.includes('key={`mobile-${path}`}'), true);
-  assert.equal(workspace.includes('Beta readiness'), true);
-  assert.equal(workspace.includes('Community reviews'), true);
-  assert.equal(workspace.includes('Admin review'), true);
   assert.equal(workspace.match(/Log out/g)?.length >= 2, true);
+
+  assert.equal(superadminWorkspace.includes('ops-mobile-account-menu'), true);
+  assert.equal(superadminWorkspace.includes('ops-mobile-menu-panel'), true);
+  assert.equal(superadminWorkspace.includes('Beta readiness'), true);
+  assert.equal(superadminWorkspace.includes('Creator access'), true);
+  assert.equal(superadminWorkspace.includes('Community reviews'), true);
+  assert.equal(superadminWorkspace.includes('Commercial accounts'), true);
+  assert.equal(superadminWorkspace.includes('Coupons'), true);
+  assert.equal(superadminWorkspace.match(/Log out/g)?.length >= 2, true);
+
   assert.equal(css.includes('.ops-mobile-account-menu { display: none;'), true);
   assert.equal(css.includes('.ops-mobile-account-menu { display: block; position: relative;'), true);
   assert.equal(css.includes('.ops-topbar .ops-mobile-menu-panel a, .ops-mobile-menu-panel button { width: 100%; min-height: 44px;'), true);
