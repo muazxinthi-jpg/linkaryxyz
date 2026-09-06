@@ -10,6 +10,16 @@ type PartnerMode = 'none' | 'creator' | 'community';
 
 type Project = { id: string; name: string; status: string; verification_status: string; role: Role };
 type Campaign = { id: string; name: string; objective: string; budget_usd: number | null; status: string; created_at: string };
+type ActivityParticipant = {
+  activity_id: string;
+  entity_id: string;
+  entity_type: 'creator' | 'community';
+  display_name: string;
+  primary_handle: string | null;
+  verification_status: string;
+  participation_role: string;
+  is_exact_linkary_assignment: number;
+};
 type Activity = {
   id: string;
   title: string;
@@ -29,6 +39,7 @@ type Activity = {
   partner_username: string | null;
   partner_manager_name: string | null;
   partner_asset_url: string | null;
+  participants: ActivityParticipant[];
 };
 type CampaignMember = {
   key: string;
@@ -36,6 +47,7 @@ type CampaignMember = {
   name: string;
   handle: string | null;
   activities: number;
+  linkary: boolean;
 };
 type CreatorPartner = {
   kind: 'creator'; id: string; profile_id: string; username: string; display_name: string; bio: string; avatar_url: string | null;
@@ -334,14 +346,24 @@ export default function TrackingExperience({ me, status }: { me: ProductMe; stat
     const members = new Map<string, CampaignMember>();
     let unassigned = 0;
     for (const activity of activities) {
-      if (!activity.partner_kind || !activity.partner_display_name) { unassigned += 1; continue; }
-      const identity = activity.partner_kind === 'creator'
-        ? activity.partner_profile_id || activity.partner_entity_id || activity.partner_display_name
-        : activity.partner_asset_id || activity.partner_entity_id || activity.partner_display_name;
-      const key = `${activity.partner_kind}:${identity}`;
-      const current = members.get(key);
-      if (current) current.activities += 1;
-      else members.set(key, { key, kind: activity.partner_kind, name: activity.partner_display_name, handle: activity.partner_handle, activities: 1 });
+      if (!activity.participants.length) { unassigned += 1; continue; }
+      for (const participant of activity.participants) {
+        const key = `${participant.entity_type}:${participant.entity_id}`;
+        const current = members.get(key);
+        if (current) {
+          current.activities += 1;
+          current.linkary = current.linkary || Boolean(participant.is_exact_linkary_assignment);
+        } else {
+          members.set(key, {
+            key,
+            kind: participant.entity_type,
+            name: participant.display_name,
+            handle: participant.primary_handle,
+            activities: 1,
+            linkary: Boolean(participant.is_exact_linkary_assignment),
+          });
+        }
+      }
     }
     const list = Array.from(members.values());
     return {
@@ -373,8 +395,8 @@ export default function TrackingExperience({ me, status }: { me: ProductMe; stat
       {campaignId && <section className="campaign-team" aria-label="Campaign team summary">
         <div className="campaign-team-head"><div><span className="ops-kicker">CAMPAIGN TEAM</span><h2>{selectedCampaign?.name || 'Selected campaign'}</h2><p>All contributors below belong to this single campaign.</p></div>{writable(project) && <button className="ops-button secondary" onClick={() => setShowActivity(true)}>+ Add Creator or Community</button>}</div>
         <div className="campaign-team-stats"><article><strong>{campaignTeam.creators}</strong><span>Creators</span></article><article><strong>{campaignTeam.communities}</strong><span>Communities</span></article><article><strong>{activities.length}</strong><span>Contributions</span></article><article className={campaignTeam.unassigned ? 'needs-attention' : ''}><strong>{campaignTeam.unassigned}</strong><span>Unassigned</span></article></div>
-        {campaignTeam.members.length ? <div className="campaign-member-list">{campaignTeam.members.map((member) => <div className={`campaign-member ${member.kind}`} key={member.key}><span>{member.kind === 'creator' ? 'Creator' : 'Community'}</span><strong>{member.name}</strong>{member.handle && <small>@{member.handle.replace(/^@/, '')}</small>}<em>{member.activities} {member.activities === 1 ? 'contribution' : 'contributions'}</em></div>)}</div> : <div className="campaign-team-empty"><strong>No contributors attached yet</strong><span>Add Creator or Community work without creating another campaign.</span></div>}
-        {campaignTeam.unassigned > 0 && <p className="campaign-team-warning">{campaignTeam.unassigned} {campaignTeam.unassigned === 1 ? 'contribution has' : 'contributions have'} no exact partner. Assign them before relying on partner-level results.</p>}
+        {campaignTeam.members.length ? <div className="campaign-member-list">{campaignTeam.members.map((member) => <div className={`campaign-member ${member.kind}`} key={member.key}><span>{member.kind === 'creator' ? 'Creator' : 'Community'}</span><strong>{member.name}</strong>{member.handle && <small>@{member.handle.replace(/^@/, '')}</small>}<em>{member.activities} {member.activities === 1 ? 'contribution' : 'contributions'} · {member.linkary ? 'Exact Linkary identity' : 'Private network record'}</em></div>)}</div> : <div className="campaign-team-empty"><strong>No contributors attached yet</strong><span>Add Creator or Community work without creating another campaign.</span></div>}
+        {campaignTeam.unassigned > 0 && <p className="campaign-team-warning">{campaignTeam.unassigned} {campaignTeam.unassigned === 1 ? 'contribution has' : 'contributions have'} no participant record. Attach a private network contact or exact Linkary identity before relying on participant-level results.</p>}
       </section>}
       {message && <div className="ops-message">{message}</div>}{copied && <div className="ops-toast">Tracking URL copied</div>}
 
