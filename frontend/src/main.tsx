@@ -45,11 +45,21 @@ const cdpConfig: Config = {
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 function RootApp() {
-  if (!isSuperadminHost) return <App />;
+  if (isSuperadminHost) {
+    return (
+      <>
+        <UiSafetyGuard />
+        <SuperadminHostGate render={() => <App />} />
+      </>
+    );
+  }
+
   return (
-    <SuperadminHostGate
-      render={() => <App />}
-    />
+    <AuthSessionContinuity>
+      <UiSafetyGuard />
+      <OnboardingCompletionBoundary />
+      <App />
+    </AuthSessionContinuity>
   );
 }
 
@@ -57,11 +67,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <CDPReactProvider config={cdpConfig}>
       <BrowserRouter>
-        <AuthSessionContinuity>
-          <UiSafetyGuard />
-          <OnboardingCompletionBoundary />
-          <RootApp />
-        </AuthSessionContinuity>
+        <RootApp />
       </BrowserRouter>
     </CDPReactProvider>
   </StrictMode>,
