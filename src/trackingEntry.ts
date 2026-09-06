@@ -3,7 +3,8 @@ import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { errorResponse, methodNotAllowed } from './http';
 import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
-import { createAdminCoupon, listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
+import { listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
+import { createAdminCoupon100 } from './routes/adminCouponCreate100';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
@@ -47,7 +48,7 @@ export default {
     if (url.pathname === '/api/admin/commercial/coupons') {
       try {
         if (request.method === 'GET') return await listAdminCoupons(request, env);
-        if (request.method === 'POST') return await createAdminCoupon(request, env);
+        if (request.method === 'POST') return await createAdminCoupon100(request, env);
         return methodNotAllowed(['GET', 'POST']);
       } catch (error) {
         return errorResponse(error);
