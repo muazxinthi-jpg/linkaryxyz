@@ -22,6 +22,8 @@
     overflow:visible!important;
     padding-bottom:0!important;
   }
+  .ops-shell .ops-nav-section{display:contents!important}
+  .ops-shell .ops-nav-section-label{display:none!important}
 
   .ops-shell.workspace-creator .ops-nav a,
   .ops-shell.workspace-project .ops-nav a{

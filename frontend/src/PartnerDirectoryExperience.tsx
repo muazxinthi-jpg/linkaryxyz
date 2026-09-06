@@ -105,6 +105,7 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
   const [assetForm, setAssetForm] = useState({ name: '', platform: 'X', handle: '', url: '', audienceSize: '', notes: '' });
   const [performanceForm, setPerformanceForm] = useState({ organizationId: '', campaignId: '', spendUsd: '', clicks: '', outcomes: '', valueUsd: '', occurredAt: new Date().toISOString().slice(0, 10), notes: '' });
   const [shortlistProjectId, setShortlistProjectId] = useState('');
+  const [revealedContacts, setRevealedContacts] = useState<Record<string, string>>({});
 
   const myListing = useMemo(() => personalProfile ? managers.find((manager) => manager.profile_id === personalProfile.id && manager.manager_type === type) : undefined, [managers, personalProfile?.id, type]);
   const writableProjects = useMemo(() => projects.filter(writable), [projects]);
@@ -131,7 +132,7 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
   }
 
   async function openManager(manager: Manager) {
-    setSelected(manager); setAssets([]); setReputation(emptyReputation);
+    setSelected(manager); setAssets([]); setReputation(emptyReputation); setRevealedContacts({});
     try {
       const [assetResult] = await Promise.all([
         api<{ assets: Asset[] }>(`/api/partner-manager-assets?managerId=${encodeURIComponent(manager.id)}`),
@@ -139,6 +140,18 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
       ]);
       setAssets(assetResult.assets);
     } catch { setMessage('Portfolio details are temporarily unavailable.'); }
+  }
+  async function revealContact(contactType: 'x' | 'telegram' | 'email' | 'website') {
+    if (!selected || !profile) return;
+    const token = csrf();
+    if (!token) { setMessage('Your security session expired. Refresh and try again.'); return; }
+    try {
+      const result = await api<{ value: string; remaining: number | null }>(`/api/partner-managers/${encodeURIComponent(selected.id)}/reveal`, { method: 'POST', headers: { 'x-csrf-token': token }, body: JSON.stringify({ profileId: profile.id, contactType }) });
+      setRevealedContacts((current) => ({ ...current, [contactType]: result.value }));
+      if (result.remaining !== null) setMessage(`${result.remaining} contact reveal${result.remaining === 1 ? '' : 's'} remaining this month.`);
+    } catch (error) {
+      setMessage(error instanceof ApiError && error.code === 'contact_reveal_limit' ? 'No contact reveals remain on this plan this month. Upgrade from Plan & billing or request an introduction.' : 'This contact could not be revealed.');
+    }
   }
   async function shortlistSelected() {
     const token = csrf(); if (!token || !selected || !shortlistProjectId) return;
@@ -251,7 +264,12 @@ export default function PartnerDirectoryExperience({ me, status }: { me: Product
         <div className="partner-detail-metrics"><div><span>Portfolio</span><strong>{selected.asset_count}</strong></div><div><span>Combined audience</span><strong>{compact(selected.combined_audience)}</strong></div><div><span>Estimated unique</span><strong>{selected.estimated_unique_audience === null ? 'Not measured' : compact(selected.estimated_unique_audience)}</strong></div><div><span>Estimated overlap</span><strong>{percent(selected.overlap_rate)}</strong></div></div>
         {selected.overlap_rate === null && <div className="partner-evidence-note">Audience overlap has not been measured for this portfolio yet. Combined audience is a raw sum, not unique reach.</div>}
         {selected.overlap_rate !== null && <div className="partner-evidence-note">Unique audience estimate: {human(selected.audience_confidence || 'manual')}. {selected.audience_methodology || 'Methodology not supplied.'}</div>}
-        <div className="partner-contact-row">{selected.x_handle && <a href={`https://x.com/${selected.x_handle}`} target="_blank" rel="noreferrer">X @{selected.x_handle}</a>}{selected.telegram_contact && <a href={selected.telegram_contact.startsWith('http') ? selected.telegram_contact : `https://t.me/${selected.telegram_contact.replace(/^@/,'')}`} target="_blank" rel="noreferrer">Telegram</a>}{selected.email && <a href={`mailto:${selected.email}`}>Email</a>}{selected.website_url && <a href={selected.website_url} target="_blank" rel="noreferrer">Website</a>}</div>
+        <div className="partner-contact-row">
+          {selected.x_handle && (revealedContacts.x ? <a href={`https://x.com/${revealedContacts.x}`} target="_blank" rel="noreferrer">X @{revealedContacts.x}</a> : <button type="button" onClick={() => void revealContact('x')}>Reveal X contact</button>)}
+          {selected.telegram_contact && (revealedContacts.telegram ? <a href={revealedContacts.telegram.startsWith('http') ? revealedContacts.telegram : `https://t.me/${revealedContacts.telegram.replace(/^@/,'')}`} target="_blank" rel="noreferrer">Telegram</a> : <button type="button" onClick={() => void revealContact('telegram')}>Reveal Telegram</button>)}
+          {selected.email && (revealedContacts.email ? <a href={`mailto:${revealedContacts.email}`}>Email</a> : <button type="button" onClick={() => void revealContact('email')}>Reveal email</button>)}
+          {selected.website_url && (revealedContacts.website ? <a href={revealedContacts.website} target="_blank" rel="noreferrer">Website</a> : <button type="button" onClick={() => void revealContact('website')}>Reveal website</button>)}
+        </div>
 
         {writableProjects.length > 0 && <section className="partner-shortlist-action"><div><span className="ops-kicker">PROJECT SHORTLIST</span><strong>Save this partner for a Project</strong><small>Private notes and collaboration status stay inside the selected Project.</small></div><div><select value={shortlistProjectId} onChange={(event) => setShortlistProjectId(event.target.value)}><option value="">Select Project</option>{writableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button className="ops-button secondary" disabled={!shortlistProjectId} onClick={() => void shortlistSelected()}>Save to shortlist</button></div></section>}
         <section className="partner-performance">

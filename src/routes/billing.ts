@@ -14,6 +14,7 @@ type BillingPlanRow = {
   base_price_cents: number | null;
   currency: string;
   monthly_usage_credits: number;
+  monthly_contact_reveals?: number;
   project_seat_limit: number | null;
   features_json: string;
   is_active: number;
@@ -43,6 +44,7 @@ type PublicPlan = {
   effectivePriceCents: number | null;
   currency: string;
   monthlyUsageCredits: number;
+  monthlyContactReveals: number;
   projectSeatLimit: number | null;
   features: string[];
   promotion: { id: string; label: string; discountType: string; discountValue: number } | null;
@@ -59,6 +61,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: 0,
     currency: 'USD',
     monthlyUsageCredits: 25,
+    monthlyContactReveals: 0,
     projectSeatLimit: 0,
     features: ['Public profile', 'Manual tracking', 'Basic dashboard', '30-day campaign history'],
     promotion: null,
@@ -73,6 +76,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: 499,
     currency: 'USD',
     monthlyUsageCredits: 250,
+    monthlyContactReveals: 10,
     projectSeatLimit: 0,
     features: ['NFT wallet discovery', 'NFT showcase', 'NFT avatar', 'NFT collections', 'Profile intelligence'],
     promotion: null,
@@ -87,6 +91,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: 999,
     currency: 'USD',
     monthlyUsageCredits: 500,
+    monthlyContactReveals: 50,
     projectSeatLimit: 1,
     features: ['1 Project seat', 'Unlimited manual campaigns', '12-month campaign history', 'CSV export', 'Partner shortlists'],
     promotion: null,
@@ -101,6 +106,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: 3399,
     currency: 'USD',
     monthlyUsageCredits: 2500,
+    monthlyContactReveals: 250,
     projectSeatLimit: 3,
     features: ['Up to 3 Project seats', 'Team access', 'Higher tracking allowance', 'Provider-assisted refreshes', 'Richer reporting'],
     promotion: null,
@@ -115,6 +121,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: 9999,
     currency: 'USD',
     monthlyUsageCredits: 10000,
+    monthlyContactReveals: 1000,
     projectSeatLimit: 10,
     features: ['Up to 10 Project seats', 'Advanced reporting', 'High first-party tracking allowance', 'Provider automation credits', 'Priority growth intelligence'],
     promotion: null,
@@ -129,6 +136,7 @@ const DEFAULT_PLAN_CATALOG: PublicPlan[] = [
     effectivePriceCents: null,
     currency: 'USD',
     monthlyUsageCredits: 25000,
+    monthlyContactReveals: 0,
     projectSeatLimit: null,
     features: ['Custom Project seats', '25,000+ usage credits', 'Custom reporting', 'API and export options', 'Commercial support'],
     promotion: null,
@@ -142,6 +150,10 @@ function safeFeatures(value: string): string[] {
   } catch {
     return [];
   }
+}
+
+function contactRevealAllowance(code: string): number {
+  return ({ free: 0, personal_pro: 10, project_manual: 50, project_automate: 250, project_growth: 1000 } as Record<string, number>)[code] || 0;
 }
 
 function effectivePrice(basePriceCents: number | null, promotion: PromotionRow | undefined): number | null {
@@ -165,6 +177,7 @@ function serializePublicPlan(plan: BillingPlanRow, promotion?: PromotionRow): Pu
     effectivePriceCents: effectivePrice(plan.base_price_cents, promotion),
     currency: plan.currency,
     monthlyUsageCredits: plan.monthly_usage_credits,
+    monthlyContactReveals: plan.monthly_contact_reveals ?? contactRevealAllowance(plan.code),
     projectSeatLimit: plan.project_seat_limit,
     features: safeFeatures(plan.features_json),
     promotion: promotion ? {
@@ -241,6 +254,7 @@ type PlanPatch = {
   description?: string;
   basePriceCents?: number | null;
   monthlyUsageCredits?: number;
+  monthlyContactReveals?: number;
   projectSeatLimit?: number | null;
   features?: string[];
   active?: boolean;
@@ -295,6 +309,12 @@ export async function updateAdminBillingPlan(request: Request, env: Env, planCod
       throw new HttpError(400, 'Monthly usage credits are invalid', 'invalid_plan_credits');
     }
     add('monthly_usage_credits', body.monthlyUsageCredits);
+  }
+  if (body.monthlyContactReveals !== undefined) {
+    if (!Number.isInteger(body.monthlyContactReveals) || body.monthlyContactReveals < 0 || body.monthlyContactReveals > 100_000_000) {
+      throw new HttpError(400, 'Monthly contact reveals are invalid', 'invalid_contact_reveal_allowance');
+    }
+    add('monthly_contact_reveals', body.monthlyContactReveals);
   }
   if (body.projectSeatLimit !== undefined) {
     if (body.projectSeatLimit !== null && (!Number.isInteger(body.projectSeatLimit) || body.projectSeatLimit < 0 || body.projectSeatLimit > 100_000)) {
