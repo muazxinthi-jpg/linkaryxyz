@@ -148,6 +148,39 @@ function iconFor(block: Block): string {
   return socialOption(inferSocialPlatform(block))?.mark || '↗';
 }
 
+type ProfileCardAnalytics = {
+  linkClicks: number;
+  sections: number;
+  connectedChannels: number;
+  x: { handle: string | null; followers: number | null; source: 'provider' | 'awaiting_provider' };
+};
+
+function compactMetric(value: number | null): string {
+  if (value === null) return 'Not connected';
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+function ProfileShareCard({ profile, data, analytics, completionPercent, blocks }: { profile: ProductProfile; data: ProfileData; analytics: ProfileCardAnalytics; completionPercent: number; blocks: Block[] }) {
+  const avatar = safeHttps(data.avatarUrl);
+  const displayName = data.displayName || profile.display_name;
+  const xFollowers = analytics.x.followers === null ? 'Awaiting X data' : compactMetric(analytics.x.followers);
+  const achievements = [
+    data.visibility === 'published' ? 'Published profile' : 'Draft profile',
+    analytics.connectedChannels > 0 ? `${analytics.connectedChannels} connected channel${analytics.connectedChannels === 1 ? '' : 's'}` : 'Add social channels',
+    blocks.some((block) => block.enabled && block.type === 'nft_item') ? 'NFT showcase' : null,
+    completionPercent >= 80 ? 'Profile ready' : null,
+  ].filter((item): item is string => Boolean(item));
+  return <section className="profile-share-card" aria-label="Profile share card preview">
+    <div className="profile-share-card-cover"><span className="profile-share-card-brand"><i /><b>Linkary</b></span><small>{profile.profile_type === 'project' ? 'PROJECT IDENTITY' : 'CREATOR IDENTITY'}</small></div>
+    <div className="profile-share-card-body">
+      <div className="profile-share-card-head"><div className="profile-share-card-avatar">{avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : displayName.slice(0, 2).toUpperCase()}</div><div><strong>{displayName}</strong><span>@{profile.username}</span>{data.bio && <p>{data.bio}</p>}</div></div>
+      <div className="profile-share-card-metrics"><article><span>X FOLLOWERS</span><strong>{xFollowers}</strong><small>{analytics.x.source === 'provider' ? 'Provider reported' : 'Connect X data when available'}</small></article><article><span>PROFILE CLICKS</span><strong>{compactMetric(analytics.linkClicks)}</strong><small>Measured by Linkary</small></article><article><span>PROFILE SECTIONS</span><strong>{analytics.sections}</strong><small>Published on profile</small></article><article><span>READINESS</span><strong>{completionPercent}%</strong><small>Identity completeness</small></article></div>
+      <div className="profile-share-card-achievements"><span>ACHIEVEMENTS</span><div>{achievements.map((item) => <b key={item}>{item}</b>)}</div></div>
+      <footer><span>Metrics are labeled by source. Provider metrics appear only after a verified API refresh.</span><b>linkary.xyz/{profile.username}</b></footer>
+    </div>
+  </section>;
+}
+
 export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; status: ProductStatus }) {
   const creatorFirst = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
   const saved = window.localStorage.getItem('linkary.active.profile');
@@ -156,7 +189,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
 
   const [data, setData] = useState<ProfileData>({ displayName: '', bio: '', avatarUrl: '', seoTitle: '', seoDescription: '', visibility: 'private' });
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [clicks, setClicks] = useState(0);
+  const [analytics, setAnalytics] = useState<ProfileCardAnalytics>({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' } });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
   const [showSeo, setShowSeo] = useState(false);
@@ -181,12 +214,12 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
       const [profileResult, blockResult, analyticsResult] = await Promise.all([
         apiJson<{ profile: ProfileData }>(`/api/profiles/${encodeURIComponent(profile.id)}`),
         apiJson<{ blocks: Block[] }>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`),
-        apiJson<{ linkClicks: number }>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(() => ({ linkClicks: 0 })),
+        apiJson<ProfileCardAnalytics>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(() => ({ linkClicks: 0, sections: 0, connectedChannels: 0, x: { handle: null, followers: null, source: 'awaiting_provider' as const } })),
       ]);
       setData({ ...profileResult.profile, bio: profileResult.profile.bio || '', avatarUrl: profileResult.profile.avatarUrl || '', seoTitle: profileResult.profile.seoTitle || '', seoDescription: profileResult.profile.seoDescription || '' });
       setAvatarFailed(false);
       setBlocks(blockResult.blocks);
-      setClicks(analyticsResult.linkClicks || 0);
+      setAnalytics(analyticsResult);
       setPreviewRevision(Date.now());
     } catch { setMessage('Profile settings are temporarily unavailable. Please try again shortly.'); }
   }
@@ -377,7 +410,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
                 {!isProject && <div className="wide profile-beta-avatar-actions"><button type="button" className="ops-button secondary" onClick={() => setShowAvatarNfts((value) => !value)}>◇ Choose from wallet NFTs</button><a href="/wallets">Manage NFT source wallets ↗</a></div>}
                 {!isProject && showAvatarNfts && <div className="wide profile-beta-nft-panel"><NftWalletGallery profileId={profile.id} onSelect={(nft) => { setAvatarFailed(false); setData({ ...data, avatarUrl: nft.imageUrl }); setShowAvatarNfts(false); }} /></div>}
               </div>
-              <div className="profile-beta-save-row"><span>{clicks.toLocaleString()} measured public link click{clicks === 1 ? '' : 's'}</span><button className="ops-button primary" disabled={busy === 'profile'} onClick={() => void saveProfile()}>{busy === 'profile' ? 'Saving...' : 'Save identity'}</button></div>
+              <div className="profile-beta-save-row"><span>{analytics.linkClicks.toLocaleString()} measured public link click{analytics.linkClicks === 1 ? '' : 's'}</span><button className="ops-button primary" disabled={busy === 'profile'} onClick={() => void saveProfile()}>{busy === 'profile' ? 'Saving...' : 'Save identity'}</button></div>
             </section>
 
             <section className="ops-section">
@@ -397,7 +430,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
             <section className="profile-beta-seo"><button className="profile-beta-seo-toggle" onClick={() => setShowSeo((value) => !value)}><span><strong>Search & share preview</strong><small>Optional title and description for search engines and social sharing.</small></span><b>{showSeo ? '−' : '+'}</b></button>{showSeo && <div className="profile-beta-seo-fields"><label>SEO title<input value={data.seoTitle || ''} maxLength={70} onChange={(event) => setData({ ...data, seoTitle: event.target.value })} /></label><label>SEO description<textarea value={data.seoDescription || ''} maxLength={180} onChange={(event) => setData({ ...data, seoDescription: event.target.value })} /></label><button className="ops-button primary" onClick={() => void saveProfile()}>Save</button></div>}</section>
           </div>
 
-          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}</div></aside>
+          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}<ProfileShareCard profile={profile} data={data} analytics={analytics} completionPercent={completionPercent} blocks={blocks} /></div></aside>
         </div>
       </div>
 

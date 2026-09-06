@@ -266,9 +266,31 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
 export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
-  await requireEditableProfile(db, auth.user.id, profileId);
-  const row = await db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]);
-  return json({ linkClicks: row?.link_clicks || 0 });
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
+  const [row, sections, channels, identity] = await Promise.all([
+    db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]),
+    db.first<{ total: number }>('SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1', [profileId]),
+    db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1 AND block_type IN ('social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin')`, [profileId]),
+    profile.primary_platform_identity_id
+      ? db.first<{ current_handle: string | null; metadata_json: string }>('SELECT current_handle, metadata_json FROM platform_identities WHERE id = ? AND platform = \'x\' LIMIT 1', [profile.primary_platform_identity_id])
+      : Promise.resolve(null),
+  ]);
+  let xFollowers: number | null = null;
+  if (identity?.metadata_json) {
+    try {
+      const metadata = JSON.parse(identity.metadata_json) as Record<string, unknown>;
+      const candidate = metadata.followers_count ?? metadata.follower_count ?? metadata.followers;
+      if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0) xFollowers = Math.floor(candidate);
+    } catch {
+      // Provider metadata is optional enrichment and never blocks the profile editor.
+    }
+  }
+  return json({
+    linkClicks: Number(row?.link_clicks || 0),
+    sections: Number(sections?.total || 0),
+    connectedChannels: Number(channels?.total || 0),
+    x: { handle: identity?.current_handle || null, followers: xFollowers, source: xFollowers === null ? 'awaiting_provider' : 'provider' },
+  });
 }
 
 export async function redirectPublicProfileBlock(_request: Request, env: Env, username: string, blockId: string): Promise<Response> {
