@@ -3,6 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { HttpError } from '../http';
 import { requireAuth } from '../auth/session';
+import { requirePersonalNftEntitlement } from '../nftProfileEntitlement';
 import { organizationMembership } from './organizations';
 import {
   addProfileBlock,
@@ -44,6 +45,21 @@ async function requireProfileEditBoundary(request: Request, env: Env, profileId:
   }
 }
 
+async function clonedJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const value = await request.clone().json();
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function isDisableOnly(body: Record<string, unknown> | null): boolean {
+  if (!body || body.enabled !== false) return false;
+  const keys = Object.keys(body);
+  return keys.length === 1 && keys[0] === 'enabled';
+}
+
 export async function getEditableProfileIntegrity(request: Request, env: Env, profileId: string): Promise<Response> {
   await requireProfileEditBoundary(request, env, profileId);
   return getEditableProfile(request, env, profileId);
@@ -61,11 +77,25 @@ export async function listProfileBlocksIntegrity(request: Request, env: Env, pro
 
 export async function addProfileBlockIntegrity(request: Request, env: Env, profileId: string): Promise<Response> {
   await requireProfileEditBoundary(request, env, profileId);
+  const body = await clonedJsonObject(request);
+  if (body?.type === 'nft_item') await requirePersonalNftEntitlement(request, env, profileId);
   return addProfileBlock(request, env, profileId);
 }
 
 export async function updateProfileBlockIntegrity(request: Request, env: Env, profileId: string, blockId: string): Promise<Response> {
   await requireProfileEditBoundary(request, env, profileId);
+  const db = new Db(requireDb(env));
+  const existing = await db.first<{ block_type: string }>(
+    `SELECT block_type FROM profile_blocks WHERE id = ? AND profile_id = ? LIMIT 1`,
+    [blockId, profileId],
+  );
+  if (existing?.block_type === 'nft_item') {
+    const body = await clonedJsonObject(request);
+    // Free users may hide an NFT item created before this Beta repair so they
+    // are never trapped by the new paywall. Editing or re-enabling it requires
+    // the paid Personal NFT entitlement.
+    if (!isDisableOnly(body)) await requirePersonalNftEntitlement(request, env, profileId);
+  }
   return updateProfileBlock(request, env, profileId, blockId);
 }
 

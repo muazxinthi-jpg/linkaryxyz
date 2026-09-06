@@ -33,6 +33,10 @@ type WalletNftResponse = {
     message: string;
   };
 };
+type CurrentBilling = {
+  ownerType: 'user' | 'organization';
+  plan: { code: string; name: string };
+};
 
 type Props = {
   profileId: string;
@@ -77,11 +81,12 @@ export default function NftWalletGallery({ profileId, compact = false, selectedI
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'locked' | 'error'>('checking');
 
   const counts = useMemo(() => new Map(chainStates.map((state) => [state.key, state.loadedCount])), [chainStates]);
 
   async function load(nextChain = chain, append = false) {
-    if (loading) return;
+    if (loading || access !== 'allowed') return;
     setLoading(true);
     if (!append) setMessage('');
     try {
@@ -97,17 +102,18 @@ export default function NftWalletGallery({ profileId, compact = false, selectedI
         const combined = append ? [...current, ...incoming] : incoming;
         return Array.from(new Map(combined.map((nft) => [nft.id, nft])).values());
       });
-    } catch {
+    } catch (error) {
       if (!append) setNfts([]);
       setCursor(null);
       setHasMore(false);
-      setMessage('NFTs could not be loaded from your profile wallets.');
+      setMessage(error instanceof Error ? error.message : 'NFTs could not be loaded from your profile wallets.');
     } finally {
       setLoading(false);
     }
   }
 
   function selectChain(nextChain: ChainKey) {
+    if (access !== 'allowed') return;
     if (nextChain === chain && nfts.length) return;
     setChain(nextChain);
     window.localStorage.setItem(preferenceKey(profileId), nextChain);
@@ -124,7 +130,47 @@ export default function NftWalletGallery({ profileId, compact = false, selectedI
     setHasMore(false);
     setConfigured(null);
     setMessage('');
+    setAccess('checking');
+
+    let cancelled = false;
+    void fetch(`/api/billing/current?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('billing_unavailable');
+        return response.json() as Promise<CurrentBilling>;
+      })
+      .then((billing) => {
+        if (cancelled) return;
+        // This Beta repair gates Personal NFT features only. Project billing and
+        // NFT behavior remain unchanged until a separate product decision says otherwise.
+        setAccess(billing.ownerType === 'organization' || billing.plan.code === 'personal_pro' ? 'allowed' : 'locked');
+      })
+      .catch(() => {
+        if (!cancelled) setAccess('error');
+      });
+
+    return () => { cancelled = true; };
   }, [profileId]);
+
+  if (access === 'checking') {
+    return <div className="nft-wallet-gallery nft-wallet-gallery-access"><strong>Checking NFT access…</strong><small>Your wallet is not queried until access is confirmed.</small></div>;
+  }
+
+  if (access === 'locked') {
+    return (
+      <div className="nft-wallet-gallery nft-wallet-gallery-locked">
+        <div className="nft-wallet-gallery-lock-copy">
+          <strong>NFT profile features</strong>
+          <small>Wallet NFT discovery, NFT avatar and NFT Showcase are included with Personal Pro / Collector.</small>
+        </div>
+        <a className="nft-wallet-gallery-upgrade" href="/settings/plan">View Personal Pro</a>
+        <small className="nft-wallet-gallery-note">Your normal profile image and reward wallet destinations remain available on Free.</small>
+      </div>
+    );
+  }
+
+  if (access === 'error') {
+    return <div className="nft-wallet-gallery nft-wallet-gallery-access"><strong>NFT access could not be checked.</strong><small>Refresh this page before trying NFT profile features.</small></div>;
+  }
 
   return (
     <div className={`nft-wallet-gallery${compact ? ' compact' : ''}`}>
@@ -141,7 +187,7 @@ export default function NftWalletGallery({ profileId, compact = false, selectedI
       </div>
 
       {message && <p className="nft-wallet-gallery-message">{message}</p>}
-      {configured === false && <small className="nft-wallet-gallery-note">Automatic discovery needs the production Alchemy configuration. Manual NFT showcase entries still work.</small>}
+      {configured === false && <small className="nft-wallet-gallery-note">Automatic NFT discovery is temporarily unavailable. Please try again shortly.</small>}
 
       {nfts.length > 0 && <div className={`profile-beta-nft-grid${compact ? ' compact' : ''}`}>{nfts.map((nft) => <button type="button" key={nft.id} className={selectedImage === nft.imageUrl ? 'selected' : ''} onClick={() => onSelect(nft)}><img src={nft.imageUrl} alt="" loading="lazy" /><span>{nft.name}</span><small>{nft.collection && nft.collection !== nft.chain ? `${nft.collection} · ${nft.chain}` : nft.chain}</small></button>)}</div>}
 
