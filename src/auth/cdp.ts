@@ -28,6 +28,7 @@ type InviteAccessRow = {
 type AccessContext =
   | { kind: 'invite'; inviteId: string; inviteType: string; organizationId: string | null }
   | { kind: 'earned'; submissionId: string };
+type CdpLink = { id: string; user_id: string };
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -205,6 +206,132 @@ async function resolveSuperadminBootstrapUser(
   );
 }
 
+async function reconcileSuperadminCdpIdentity(
+  db: Db,
+  projectId: string,
+  cdpUserId: string,
+  canonicalUserId: string,
+  currentLink: CdpLink | null,
+  lastAuthMethod: string | null,
+  methods: UnknownRecord[],
+  timestamp: string,
+): Promise<CdpLink | null> {
+  const canonicalLink = await db.first<{ id: string; cdp_user_id: string }>(
+    `SELECT id, cdp_user_id FROM cdp_user_links WHERE user_id = ? AND cdp_project_id = ? LIMIT 1`,
+    [canonicalUserId, projectId],
+  );
+  if (canonicalLink && canonicalLink.cdp_user_id !== cdpUserId) {
+    throw new HttpError(403, 'The canonical Superadmin is already linked to a different CDP identity', 'superadmin_multiple_cdp_identities');
+  }
+
+  const canonicalDifferentIdentity = await db.first<{ id: string }>(
+    `SELECT id FROM auth_identities
+      WHERE user_id = ? AND provider = 'coinbase_cdp' AND provider_user_id <> ?
+      LIMIT 1`,
+    [canonicalUserId, cdpUserId],
+  );
+  if (canonicalDifferentIdentity) {
+    throw new HttpError(403, 'The canonical Superadmin has more than one CDP identity candidate', 'superadmin_multiple_cdp_identities');
+  }
+
+  const matchingAuthIdentity = await db.first<{ id: string; user_id: string }>(
+    `SELECT id, user_id FROM auth_identities WHERE provider = 'coinbase_cdp' AND provider_user_id = ? LIMIT 1`,
+    [cdpUserId],
+  );
+
+  if (currentLink && currentLink.user_id === canonicalUserId) return currentLink;
+
+  if (currentLink) {
+    if (canonicalLink && canonicalLink.id !== currentLink.id) {
+      throw new HttpError(403, 'The canonical Superadmin is already linked to a different CDP identity', 'superadmin_multiple_cdp_identities');
+    }
+    if (matchingAuthIdentity && matchingAuthIdentity.user_id !== currentLink.user_id && matchingAuthIdentity.user_id !== canonicalUserId) {
+      throw new HttpError(403, 'The authenticated CDP identity has conflicting Linkary ownership', 'superadmin_identity_conflict');
+    }
+
+    const displacedUserId = currentLink.user_id;
+    const statements = [
+      db.statement(
+        `UPDATE cdp_user_links
+            SET user_id = ?, last_auth_method = ?, last_authenticated_at = ?, updated_at = ?
+          WHERE id = ? AND cdp_project_id = ? AND cdp_user_id = ?`,
+        [canonicalUserId, lastAuthMethod, timestamp, timestamp, currentLink.id, projectId, cdpUserId],
+      ),
+      db.statement(
+        `UPDATE wallet_accounts SET user_id = ?, updated_at = ? WHERE cdp_user_link_id = ?`,
+        [canonicalUserId, timestamp, currentLink.id],
+      ),
+      db.statement(
+        `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
+        [timestamp, displacedUserId],
+      ),
+      db.statement(
+        `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+         VALUES (?, ?, 'system', 'superadmin.cdp_identity.reconciled', 'cdp_user_link', ?, NULL, ?, ?)`,
+        [
+          id('aud'),
+          canonicalUserId,
+          currentLink.id,
+          JSON.stringify({ source: 'verified_superadmin_login', displacedUserId }),
+          timestamp,
+        ],
+      ),
+    ];
+
+    if (matchingAuthIdentity) {
+      statements.splice(
+        1,
+        0,
+        db.statement(
+          `UPDATE auth_identities SET user_id = ?, metadata_json = ?, updated_at = ? WHERE id = ?`,
+          [canonicalUserId, JSON.stringify({ authenticationMethods: methods }), timestamp, matchingAuthIdentity.id],
+        ),
+      );
+    } else {
+      statements.splice(
+        1,
+        0,
+        db.statement(
+          `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at)
+           VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
+          [id('aid'), canonicalUserId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
+        ),
+      );
+    }
+
+    await db.batch(statements);
+    return { id: currentLink.id, user_id: canonicalUserId };
+  }
+
+  if (matchingAuthIdentity && matchingAuthIdentity.user_id !== canonicalUserId) {
+    const displacedUserId = matchingAuthIdentity.user_id;
+    const linkId = id('cdp');
+    await db.batch([
+      db.statement(
+        `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [linkId, canonicalUserId, projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
+      ),
+      db.statement(
+        `UPDATE auth_identities SET user_id = ?, metadata_json = ?, updated_at = ? WHERE id = ?`,
+        [canonicalUserId, JSON.stringify({ authenticationMethods: methods }), timestamp, matchingAuthIdentity.id],
+      ),
+      db.statement(
+        `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
+        [timestamp, displacedUserId],
+      ),
+      db.statement(
+        `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+         VALUES (?, ?, 'system', 'superadmin.cdp_identity.reconciled', 'cdp_user_link', ?, NULL, ?, ?)`,
+        [id('aud'), canonicalUserId, linkId, JSON.stringify({ source: 'verified_superadmin_login', displacedUserId }), timestamp],
+      ),
+    ]);
+    return { id: linkId, user_id: canonicalUserId };
+  }
+
+  return null;
+}
+
 function validateInviteAccess(row: InviteAccessRow, verifiedEmail: string | null): void {
   if (row.status !== 'active' || row.uses >= row.max_uses || (row.expires_at && row.expires_at <= now())) {
     throw new HttpError(403, 'This Linkary invitation is invalid or no longer available', 'invalid_invite');
@@ -330,36 +457,33 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   const db = new Db(requireDb(env));
   const superadminBootstrapUser = await resolveSuperadminBootstrapUser(db, request, env, email);
 
-  let link = await db.first<{ id: string; user_id: string }>(
+  let link = await db.first<CdpLink>(
     `SELECT id, user_id FROM cdp_user_links WHERE cdp_project_id = ? AND cdp_user_id = ?`,
     [config.projectId, cdpUserId],
   );
   let isNewUser = false;
   let accessContext: AccessContext | null = null;
 
-  if (link && superadminBootstrapUser && link.user_id !== superadminBootstrapUser.id) {
-    throw new HttpError(403, 'The authenticated CDP identity is linked to a different Linkary account', 'superadmin_identity_conflict');
+  if (superadminBootstrapUser) {
+    link = await reconcileSuperadminCdpIdentity(
+      db,
+      config.projectId,
+      cdpUserId,
+      superadminBootstrapUser.id,
+      link,
+      lastAuthMethod,
+      methods,
+      timestamp,
+    );
   }
 
   if (!link) {
     if (superadminBootstrapUser) {
-      const existingOwnerLink = await db.first<{ id: string }>(
-        `SELECT id FROM cdp_user_links WHERE user_id = ? AND cdp_project_id = ? LIMIT 1`,
-        [superadminBootstrapUser.id, config.projectId],
-      );
-      if (existingOwnerLink) {
-        throw new HttpError(403, 'The Superadmin account is already linked to a different CDP identity', 'superadmin_identity_conflict');
-      }
-
-      const existingAuthIdentity = await db.first<{ user_id: string }>(
-        `SELECT user_id FROM auth_identities WHERE provider = 'coinbase_cdp' AND provider_user_id = ? LIMIT 1`,
+      const linkId = id('cdp');
+      const existingAuthIdentity = await db.first<{ id: string; user_id: string }>(
+        `SELECT id, user_id FROM auth_identities WHERE provider = 'coinbase_cdp' AND provider_user_id = ? LIMIT 1`,
         [cdpUserId],
       );
-      if (existingAuthIdentity && existingAuthIdentity.user_id !== superadminBootstrapUser.id) {
-        throw new HttpError(403, 'The authenticated CDP identity is linked to a different Linkary account', 'superadmin_identity_conflict');
-      }
-
-      const linkId = id('cdp');
       const statements = [
         db.statement(
           `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

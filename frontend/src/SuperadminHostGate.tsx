@@ -135,10 +135,11 @@ export default function SuperadminHostGate({ render }: Props) {
         let current = await jsonRequest<ProductMe & JsonPayload>('/api/auth/me');
         if (cancelled) return;
 
-        if (!current.ok || !current.data.authenticated) {
+        const needsSuperadminBridge = !current.ok || !current.data.authenticated || !current.data.user?.superadmin;
+        if (needsSuperadminBridge) {
           if (!isSignedIn) {
-            setMe(null);
-            setState('signed-out');
+            setMe(current.data);
+            setState(current.data.authenticated ? 'forbidden' : 'signed-out');
             return;
           }
 
@@ -152,6 +153,11 @@ export default function SuperadminHostGate({ render }: Props) {
             body: JSON.stringify({ accessToken }),
           });
           if (!bridge.ok) {
+            if (bridge.data.error === 'superadmin_identity_conflict' || bridge.data.error === 'superadmin_multiple_cdp_identities') {
+              setFailureCode(bridge.data.error);
+              setState('error');
+              return;
+            }
             if (bridge.status === 401 || bridge.status === 403 || bridge.data.error === 'access_required') {
               setState('forbidden');
               return;
