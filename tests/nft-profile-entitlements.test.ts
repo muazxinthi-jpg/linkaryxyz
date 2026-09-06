@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const entitlement = readFileSync(new URL('../src/nftProfileEntitlement.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
 const profileIntegrity = readFileSync(new URL('../src/routes/profileRoleIntegrity.ts', import.meta.url), 'utf8');
 const gallery = readFileSync(new URL('../frontend/src/NftWalletGallery.tsx', import.meta.url), 'utf8');
 const galleryCss = readFileSync(new URL('../frontend/src/nft-wallet-gallery.css', import.meta.url), 'utf8');
+const latestMigration = readFileSync(new URL('../migrations/0035_canonical_superadmin_owner.sql', import.meta.url), 'utf8');
 
 test('Personal NFT features resolve from the existing billing architecture and fail closed to Free', () => {
   assert.equal(entitlement.includes("const PERSONAL_NFT_PLAN_CODE = 'personal_pro'"), true);
@@ -50,7 +51,9 @@ test('locked NFT Showcase UI removes editable NFT controls and submit action whi
   assert.equal(galleryCss.includes('.profile-beta-modal:has(.nft-wallet-gallery-locked) .ops-form-actions .ops-button.primary'), true);
 });
 
-test('NFT entitlement repair adds no D1 migration', () => {
-  const migrations = readdirSync(new URL('../migrations/', import.meta.url));
-  assert.equal(migrations.some((name) => name.startsWith('0035_')), false);
+test('later Superadmin owner migration does not alter NFT entitlement schema', () => {
+  assert.equal(latestMigration.includes('billing_entitlement_grants'), false);
+  assert.equal(latestMigration.includes('billing_subscription_periods'), false);
+  assert.equal(latestMigration.includes('nft_item'), false);
+  assert.equal(latestMigration.includes('superadmin.owner.canonicalized'), true);
 });
