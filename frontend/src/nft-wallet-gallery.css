@@ -13,14 +13,17 @@
 .nft-wallet-gallery-more button { min-width: 180px; }
 .nft-wallet-gallery .profile-beta-nft-grid button small { white-space: normal; overflow-wrap: anywhere; }
 .nft-wallet-gallery-access, .nft-wallet-gallery-locked { border: 1px solid var(--ops-border, #ddd8d0); border-radius: 12px; background: #fff; padding: 14px; }
+.nft-wallet-gallery-locked { border-color: #ffc4b5; background: #fff9f6; }
 .nft-wallet-gallery-access { gap: 5px; }
 .nft-wallet-gallery-access small, .nft-wallet-gallery-lock-copy small { color: var(--ops-muted, #6b7280); font-size: 11px; line-height: 1.5; }
 .nft-wallet-gallery-lock-copy { display: grid; gap: 5px; }
+.nft-wallet-gallery-lock-copy strong { font-size: 14px; }
 .nft-wallet-gallery-upgrade { width: fit-content; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: #111517; color: #fff; padding: 0 14px; font-size: 12px; font-weight: 800; text-decoration: none; }
 .nft-wallet-gallery-upgrade:hover { text-decoration: none; opacity: .92; }
-/* When a Free Personal user opens the NFT Showcase editor, keep the existing
-   modal usable for changing type/closing it, but hide the manual NFT bypass and
-   submit action. The backend remains authoritative even if CSS is bypassed. */
+/* Free Personal NFT flows should read as a paid-feature gate, not as an editable
+   form. Hide every NFT-specific form control while the locked state is present.
+   The backend entitlement remains authoritative if client-side CSS is bypassed. */
+.profile-beta-modal:has(.nft-wallet-gallery-locked) > label { display: none; }
 .profile-beta-nft-editor:has(.nft-wallet-gallery-locked) .profile-beta-nft-manual { display: none; }
 .profile-beta-modal:has(.nft-wallet-gallery-locked) .ops-form-actions .ops-button.primary { display: none; }
 @media (max-width: 520px) {
