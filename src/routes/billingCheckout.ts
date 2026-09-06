@@ -59,6 +59,7 @@ type CheckoutIntentRow = {
   coupon_id: string | null;
   account_price_override_id: string | null;
   discount_cents: number;
+  coupon_discount_cents: number;
   final_price_cents: number;
   usdc_amount_atomic: number;
   status: string;
@@ -67,7 +68,6 @@ type CheckoutIntentRow = {
 };
 
 type PaymentRow = { id: string; tx_hash: string; verified_at: string };
-
 type ReceiptLog = { address?: string; topics?: string[]; data?: string };
 type Receipt = { status?: string; blockNumber?: string; logs?: ReceiptLog[] };
 
@@ -175,7 +175,7 @@ function eligiblePlanCodes(value: string): string[] {
   } catch { return []; }
 }
 
-async function couponForCheckout(db: Db, code: string | undefined, planCode: string, ownerType: OwnerType, ownerId: string, timestamp: string): Promise<CouponRow | null> {
+async function couponForCheckout(db: Db, code: string | undefined, planCode: string, timestamp: string): Promise<CouponRow | null> {
   const normalized = code?.trim().toUpperCase();
   if (!normalized) return null;
   const coupon = await db.first<CouponRow>(
@@ -191,19 +191,6 @@ async function couponForCheckout(db: Db, code: string | undefined, planCode: str
   if (!coupon) throw new HttpError(400, 'Coupon is invalid or expired', 'coupon_invalid');
   const eligible = eligiblePlanCodes(coupon.eligible_plan_codes_json);
   if (eligible.length && !eligible.includes(planCode)) throw new HttpError(400, 'Coupon does not apply to this plan', 'coupon_plan_ineligible');
-
-  if (coupon.max_redemptions !== null) {
-    const total = await db.first<{ count: number }>(`SELECT COUNT(*) AS count FROM coupon_redemptions WHERE coupon_id = ?`, [coupon.id]);
-    if (Number(total?.count || 0) >= coupon.max_redemptions) throw new HttpError(409, 'Coupon redemption limit has been reached', 'coupon_exhausted');
-  }
-  const accountColumn = ownerType === 'user' ? 'user_id' : 'organization_id';
-  const account = await db.first<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM coupon_redemptions WHERE coupon_id = ? AND ${accountColumn} = ?`,
-    [coupon.id, ownerId],
-  );
-  if (Number(account?.count || 0) >= coupon.max_redemptions_per_account) {
-    throw new HttpError(409, 'Coupon has already been used for this account', 'coupon_account_exhausted');
-  }
   return coupon;
 }
 
@@ -245,7 +232,7 @@ export async function createBillingCheckout(request: Request, env: Env): Promise
   const timestamp = now();
   const promotion = await currentPromotion(db, plan.id, timestamp);
   const accountOverride = await currentPriceOverride(db, owner.ownerType, owner.ownerId, plan.id, timestamp);
-  const coupon = await couponForCheckout(db, body.couponCode, plan.code, owner.ownerType, owner.ownerId, timestamp);
+  const coupon = await couponForCheckout(db, body.couponCode, plan.code, timestamp);
 
   let bestPrice = plan.base_price_cents;
   let selectedPromotionId: string | null = null;
@@ -260,16 +247,22 @@ export async function createBillingCheckout(request: Request, env: Env): Promise
   }
 
   let selectedCouponId: string | null = null;
+  let couponDiscountCents = 0;
   if (coupon) {
-    const couponBase = coupon.stackable ? bestPrice : plan.base_price_cents;
+    const preCouponPrice = bestPrice;
+    const couponBase = coupon.stackable ? preCouponPrice : plan.base_price_cents;
     const couponPrice = priceAfterDiscount(couponBase, coupon.discount_type, coupon.discount_value);
     if (coupon.stackable || couponPrice < bestPrice) {
       bestPrice = couponPrice;
       selectedCouponId = coupon.id;
+      couponDiscountCents = Math.max(0, couponBase - couponPrice);
       if (!coupon.stackable) { selectedPromotionId = null; selectedOverrideId = null; }
     }
   }
 
+  if (coupon && !selectedCouponId) {
+    throw new HttpError(409, 'This coupon does not improve the current price for this account', 'coupon_not_applicable');
+  }
   if (bestPrice <= 0) {
     throw new HttpError(409, 'Free plan access must be granted through an entitlement instead of a zero-value wallet payment', 'billing_zero_value_checkout');
   }
@@ -278,17 +271,50 @@ export async function createBillingCheckout(request: Request, env: Env): Promise
   const expiresAt = new Date(Date.now() + CHECKOUT_TTL_MS).toISOString();
   const discountCents = plan.base_price_cents - bestPrice;
   const usdcAtomic = bestPrice * 10000;
-  await db.run(
+  const insertIntent = db.statement(
     `INSERT INTO billing_checkout_intents
       (id, requested_by_user_id, owner_type, owner_id, profile_id, plan_id, payer_wallet_address,
        treasury_address, network, asset, base_price_cents, promotion_id, coupon_id,
-       account_price_override_id, discount_cents, final_price_cents, currency, usdc_amount_atomic,
+       account_price_override_id, discount_cents, coupon_discount_cents, final_price_cents, currency, usdc_amount_atomic,
        status, tx_hash, expires_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'base', 'USDC', ?, ?, ?, ?, ?, ?, 'USD', ?, 'pending', NULL, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'base', 'USDC', ?, ?, ?, ?, ?, ?, ?, 'USD', ?, 'pending', NULL, ?, ?, ?)`,
     [intentId, auth.user.id, owner.ownerType, owner.ownerId, profileId, plan.id, payer, treasury,
       plan.base_price_cents, selectedPromotionId, selectedCouponId, selectedOverrideId,
-      discountCents, bestPrice, usdcAtomic, expiresAt, timestamp, timestamp],
+      discountCents, couponDiscountCents, bestPrice, usdcAtomic, expiresAt, timestamp, timestamp],
   );
+
+  try {
+    if (selectedCouponId) {
+      await db.batch([
+        insertIntent,
+        db.statement(
+          `INSERT INTO billing_coupon_reservations
+            (id, coupon_id, checkout_intent_id, user_id, organization_id, status, expires_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, ?)`,
+          [id('bcr'), selectedCouponId, intentId,
+            owner.ownerType === 'user' ? owner.ownerId : null,
+            owner.ownerType === 'organization' ? owner.ownerId : null,
+            expiresAt, timestamp, timestamp],
+        ),
+      ]);
+    } else {
+      await db.run(
+        `INSERT INTO billing_checkout_intents
+          (id, requested_by_user_id, owner_type, owner_id, profile_id, plan_id, payer_wallet_address,
+           treasury_address, network, asset, base_price_cents, promotion_id, coupon_id,
+           account_price_override_id, discount_cents, coupon_discount_cents, final_price_cents, currency, usdc_amount_atomic,
+           status, tx_hash, expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'base', 'USDC', ?, ?, NULL, ?, ?, 0, ?, 'USD', ?, 'pending', NULL, ?, ?, ?)`,
+        [intentId, auth.user.id, owner.ownerType, owner.ownerId, profileId, plan.id, payer, treasury,
+          plan.base_price_cents, selectedPromotionId, selectedOverrideId, discountCents, bestPrice, usdcAtomic, expiresAt, timestamp, timestamp],
+      );
+    }
+  } catch (error) {
+    const text = error instanceof Error ? error.message : '';
+    if (text.includes('coupon_reservation_limit')) throw new HttpError(409, 'Coupon redemption limit has been reached', 'coupon_exhausted');
+    if (text.includes('coupon_account_reservation_limit')) throw new HttpError(409, 'Coupon is already reserved or used for this account', 'coupon_account_exhausted');
+    throw error;
+  }
 
   return json({
     intentId,
@@ -345,7 +371,7 @@ export async function verifyBillingCheckout(request: Request, env: Env): Promise
   const intent = await db.first<CheckoutIntentRow>(
     `SELECT id, requested_by_user_id, owner_type, owner_id, profile_id, plan_id, payer_wallet_address,
             treasury_address, base_price_cents, promotion_id, coupon_id, account_price_override_id,
-            discount_cents, final_price_cents, usdc_amount_atomic, status, tx_hash, expires_at
+            discount_cents, coupon_discount_cents, final_price_cents, usdc_amount_atomic, status, tx_hash, expires_at
        FROM billing_checkout_intents WHERE id = ?`,
     [intentId],
   );
@@ -389,7 +415,6 @@ export async function verifyBillingCheckout(request: Request, env: Env): Promise
   const timestamp = now();
   const paymentId = id('pay');
   const periodId = id('subp');
-  const couponRedemptionId = id('cpr');
   const currentPeriod = await db.first<{ period_end: string; plan_id: string }>(
     `SELECT period_end, plan_id
        FROM billing_subscription_periods
@@ -434,29 +459,29 @@ export async function verifyBillingCheckout(request: Request, env: Env): Promise
   ];
 
   if (intent.coupon_id) {
-    statements.push(db.statement(
-      `INSERT INTO coupon_redemptions
-        (id, coupon_id, user_id, organization_id, plan_id, discount_cents, related_payment_id, redeemed_at)
-       SELECT ?, ?, ?, ?, ?, ?, p.id, ?
-         FROM billing_payments p
-        WHERE p.checkout_intent_id = ? AND p.tx_hash = ?
-          AND NOT EXISTS (SELECT 1 FROM coupon_redemptions cr WHERE cr.related_payment_id = p.id)`,
-      [couponRedemptionId, intent.coupon_id,
-        intent.owner_type === 'user' ? intent.owner_id : null,
-        intent.owner_type === 'organization' ? intent.owner_id : null,
-        intent.plan_id, intent.discount_cents, timestamp, intent.id, txHash],
-    ));
+    statements.push(
+      db.statement(
+        `INSERT INTO coupon_redemptions
+          (id, coupon_id, user_id, organization_id, plan_id, discount_cents, related_payment_id, redeemed_at)
+         SELECT ?, ?, ?, ?, ?, ?, p.id, ?
+           FROM billing_payments p
+          WHERE p.checkout_intent_id = ? AND p.tx_hash = ?
+            AND NOT EXISTS (SELECT 1 FROM coupon_redemptions cr WHERE cr.related_payment_id = p.id)`,
+        [id('cpr'), intent.coupon_id,
+          intent.owner_type === 'user' ? intent.owner_id : null,
+          intent.owner_type === 'organization' ? intent.owner_id : null,
+          intent.plan_id, intent.coupon_discount_cents, timestamp, intent.id, txHash],
+      ),
+      db.statement(
+        `UPDATE billing_coupon_reservations
+            SET status = 'consumed', updated_at = ?
+          WHERE checkout_intent_id = ? AND coupon_id = ? AND status = 'reserved'`,
+        [timestamp, intent.id, intent.coupon_id],
+      ),
+    );
   }
 
-  try {
-    await db.batch(statements);
-  } catch (error) {
-    const text = error instanceof Error ? error.message : '';
-    if (text.includes('coupon_redemption_limit') || text.includes('coupon_account_redemption_limit')) {
-      throw new HttpError(409, 'Coupon redemption limit was reached before payment activation completed. Contact Linkary support.', 'coupon_exhausted_during_payment');
-    }
-    throw error;
-  }
+  await db.batch(statements);
 
   const verified = await db.first<PaymentRow>(`SELECT id, tx_hash, verified_at FROM billing_payments WHERE checkout_intent_id = ?`, [intent.id]);
   if (!verified) throw new HttpError(409, 'Payment confirmation could not be finalized', 'billing_payment_conflict');
@@ -477,11 +502,16 @@ export async function verifyBillingCheckout(request: Request, env: Env): Promise
 export async function billingPaymentConfiguration(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   const treasury = normalizeAddress(env.BILLING_TREASURY_EVM_ADDRESS);
+  const db = new Db(requireDb(env));
+  const schema = await db.first<{ present: number }>(
+    `SELECT COUNT(*) AS present FROM sqlite_master
+      WHERE type = 'table' AND name IN ('billing_checkout_intents', 'billing_payments', 'billing_subscription_periods', 'billing_coupon_reservations')`,
+  );
   const requestWithCf = request as Request & { cf?: { country?: string; regionCode?: string } };
   const country = requestWithCf.cf?.country?.toUpperCase() || null;
   const subdivision = country === 'US' ? requestWithCf.cf?.regionCode?.toUpperCase() || null : null;
   return json({
-    configured: Boolean(treasury && env.ALCHEMY_API_KEY && env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET),
+    configured: Boolean(Number(schema?.present || 0) === 4 && treasury && env.ALCHEMY_API_KEY && env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET),
     treasuryAddress: treasury,
     network: 'base',
     asset: 'USDC',
