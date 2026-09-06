@@ -274,7 +274,7 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     profile.primary_platform_identity_id
       ? db.first<{ current_handle: string | null; metadata_json: string }>('SELECT current_handle, metadata_json FROM platform_identities WHERE id = ? AND platform = \'x\' LIMIT 1', [profile.primary_platform_identity_id])
       : Promise.resolve(null),
-    db.all<{ month: string; count: number }>(`SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count FROM profile_engagement_events WHERE profile_id = ? AND created_at >= datetime('now', '-11 months') GROUP BY month ORDER BY month ASC`, [profileId]),
+    db.all<{ month: string; count: number }>(`SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count FROM profile_engagement_events WHERE profile_id = ? AND created_at >= date('now', 'start of month', '-11 months') GROUP BY month ORDER BY month ASC`, [profileId]),
   ]);
   let xFollowers: number | null = null;
   if (identity?.metadata_json) {
@@ -287,6 +287,40 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     }
   }
   const monthlyMap = new Map(monthlyRows.map((item) => [item.month, Number(item.count || 0)]));
+  const [proof, destinations, acceptedCampaigns] = await Promise.all([
+    loadPublicProof(db, profile),
+    db.all<{ url: string | null; count: number }>(
+      `SELECT b.url, COUNT(*) AS count FROM profile_engagement_events e
+       LEFT JOIN profile_blocks b ON b.id = e.block_id AND b.profile_id = e.profile_id
+       WHERE e.profile_id = ? AND e.event_type = 'link_click' GROUP BY b.url`, [profileId]),
+    profile.profile_type === 'creator'
+      ? db.first<{ total: number }>(`SELECT COUNT(DISTINCT o.campaign_id) AS total
+          FROM campaign_opportunity_applications a JOIN campaign_opportunities o ON o.id = a.opportunity_id
+          WHERE a.applicant_profile_id = ? AND a.status = 'accepted'`, [profileId]).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const proofMetrics = proof?.metrics.filter(metric => !acceptedCampaigns || metric.label !== 'Accepted campaigns') || [];
+  if (acceptedCampaigns) proofMetrics.push({ label: 'Accepted campaigns', value: compactNumber(Number(acceptedCampaigns.total)) });
+  const platformTotals = new Map<string, number>();
+  for (const destination of destinations) {
+    let platform = 'Other';
+    try {
+      const host = new URL(destination.url || '').hostname.toLowerCase().replace(/^www\./, '');
+      const matches = (domain: string) => host === domain || host.endsWith('.' + domain);
+      if (matches('x.com') || matches('twitter.com')) platform = 'X';
+      else if (matches('t.me') || matches('telegram.me')) platform = 'Telegram';
+      else if (matches('youtube.com') || matches('youtu.be')) platform = 'YouTube';
+      else if (matches('reddit.com')) platform = 'Reddit';
+      else if (matches('linkedin.com')) platform = 'LinkedIn';
+      else if (matches('instagram.com')) platform = 'Instagram';
+      else if (matches('farcaster.xyz') || matches('warpcast.com')) platform = 'Farcaster';
+    } catch { /* Deleted or unclassified destinations stay in Other. */ }
+    platformTotals.set(platform, (platformTotals.get(platform) || 0) + Number(destination.count));
+  }
+  const rankedPlatforms = [...platformTotals].filter(([name]) => name !== 'Other').sort((a, b) => b[1] - a[1]);
+  const platformClicks = rankedPlatforms.slice(0, 4).map(([platform, count]) => ({ platform, count }));
+  const otherClicks = (platformTotals.get('Other') || 0) + rankedPlatforms.slice(4).reduce((sum, [, count]) => sum + count, 0);
+  if (otherClicks) platformClicks.push({ platform: 'Other', count: otherClicks });
   const monthlyClicks: Array<{ month: string; count: number }> = [];
   const cursor = new Date();
   cursor.setUTCDate(1);
@@ -302,6 +336,8 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     connectedChannels: Number(channels?.total || 0),
     x: { handle: identity?.current_handle || null, followers: xFollowers, source: xFollowers === null ? 'awaiting_provider' : 'provider' },
     monthlyClicks,
+    platformClicks,
+    proof: proofMetrics.length ? { metrics: proofMetrics } : null,
   });
 }
 

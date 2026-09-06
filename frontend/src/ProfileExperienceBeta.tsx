@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import NftWalletGallery, { type WalletOwnedNft } from './NftWalletGallery';
 import './profile-beta.css';
+import ProfileSocialCard from './ProfileSocialCard';
 
 type ProfileData = {
   displayName: string;
@@ -161,25 +162,6 @@ function compactMetric(value: number | null): string {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
 
-function ProfileShareCard({ profile, data, analytics, completionPercent, blocks }: { profile: ProductProfile; data: ProfileData; analytics: ProfileCardAnalytics; completionPercent: number; blocks: Block[] }) {
-  const avatar = safeHttps(data.avatarUrl);
-  const displayName = data.displayName || profile.display_name;
-  const xFollowers = analytics.x.followers === null ? 'Awaiting X data' : compactMetric(analytics.x.followers);
-  const maxClicks = Math.max(1, ...analytics.monthlyClicks.map((item) => item.count));
-  const achievements = [
-    data.visibility === 'published' ? 'Published profile' : 'Draft profile',
-    analytics.connectedChannels > 0 ? `${analytics.connectedChannels} connected channel${analytics.connectedChannels === 1 ? '' : 's'}` : 'Add social channels',
-    blocks.some((block) => block.enabled && block.type === 'nft_item') ? 'NFT showcase' : null,
-    completionPercent >= 80 ? 'Profile ready' : null,
-  ].filter((item): item is string => Boolean(item));
-  return <section className="profile-share-card" aria-label="Your social card preview">
-    <header className="profile-share-card-title"><div><span>YOUR SOCIAL CARD</span><strong>Shareable identity and activity summary</strong></div><small>Based on available Linkary data</small></header>
-    <div className="profile-share-card-grid">
-      <aside className="profile-share-card-identity"><div className="profile-share-card-avatar">{avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : displayName.slice(0, 2).toUpperCase()}</div><strong>{displayName}</strong><span>@{profile.username}</span><b>{profile.profile_type === 'project' ? 'PROJECT IDENTITY' : 'CREATOR IDENTITY'}</b>{data.bio && <p>{data.bio}</p>}<div className="profile-share-card-achievements">{achievements.map((item) => <em key={item}>{item}</em>)}</div></aside>
-      <main className="profile-share-card-data"><div className="profile-share-card-metrics"><article><span>X FOLLOWERS</span><strong>{xFollowers}</strong><small>{analytics.x.source === 'provider' ? 'Provider reported' : 'Awaiting verified X provider'}</small></article><article><span>PROFILE CLICKS</span><strong>{compactMetric(analytics.linkClicks)}</strong><small>Measured by Linkary</small></article><article><span>SECTIONS</span><strong>{analytics.sections}</strong><small>Published profile content</small></article><article><span>READINESS</span><strong>{completionPercent}%</strong><small>Identity completeness</small></article></div><section className="profile-share-card-activity"><div><span>LINKARY PROFILE ACTIVITY</span><small>Monthly public-link clicks</small></div><div className="profile-share-card-heatmap" aria-label="Monthly profile click activity">{analytics.monthlyClicks.map((item) => <i key={item.month} title={`${item.month}: ${item.count} clicks`} style={{ opacity: item.count ? .28 + item.count / maxClicks * .72 : .12 }} />)}</div><div className="profile-share-card-activity-labels">{analytics.monthlyClicks.map((item) => <small key={item.month}>{item.month.slice(5)}</small>)}</div></section><div className="profile-share-card-footer"><span>Provider metrics appear only after a verified API refresh. Linkary metrics are measured directly.</span><b>linkary.xyz/{profile.username}</b></div></main>
-    </div>
-  </section>;
-}
 
 export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; status: ProductStatus }) {
   const creatorFirst = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
@@ -430,7 +412,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
             <section className="profile-beta-seo"><button className="profile-beta-seo-toggle" onClick={() => setShowSeo((value) => !value)}><span><strong>Search & share preview</strong><small>Optional title and description for search engines and social sharing.</small></span><b>{showSeo ? '−' : '+'}</b></button>{showSeo && <div className="profile-beta-seo-fields"><label>SEO title<input value={data.seoTitle || ''} maxLength={70} onChange={(event) => setData({ ...data, seoTitle: event.target.value })} /></label><label>SEO description<textarea value={data.seoDescription || ''} maxLength={180} onChange={(event) => setData({ ...data, seoDescription: event.target.value })} /></label><button className="ops-button primary" onClick={() => void saveProfile()}>Save</button></div>}</section>
           </div>
 
-          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}<ProfileShareCard profile={profile} data={data} analytics={analytics} completionPercent={completionPercent} blocks={blocks} /></div></aside>
+          <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}<ProfileSocialCard key={profile.id} profile={profile} data={data} analytics={analytics} completionPercent={completionPercent} /></div></aside>
         </div>
       </div>
 
