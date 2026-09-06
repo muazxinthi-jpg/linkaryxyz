@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
+const gate = readFileSync(new URL('../frontend/src/SuperadminHostGate.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
@@ -26,6 +27,20 @@ test('Superadmin host bypasses normal invite recovery and onboarding wrappers', 
   assert.doesNotMatch(superadminBranch, /AuthSessionContinuity/);
   assert.doesNotMatch(superadminBranch, /OnboardingCompletionBoundary/);
   assert.match(text, /return \( <AuthSessionContinuity>.*<OnboardingCompletionBoundary \/>.*<App \/>.*<\/AuthSessionContinuity> \);/);
+});
+
+test('Superadmin verification does not depend on onboarding status or an existing profile', () => {
+  assert.doesNotMatch(gate, /\/api\/onboarding\/status/);
+  assert.doesNotMatch(gate, /ProductStatus/);
+  assert.doesNotMatch(gate, /profiles\?\.length/);
+  assert.match(gate, /current\.data\.user\?\.superadmin/);
+  assert.match(gate, /setState\('ready'\)/);
+});
+
+test('Superadmin verification exposes only non-sensitive diagnostic references', () => {
+  assert.match(gate, /Reference: \{failureCode\}/);
+  assert.match(gate, /session-bridge-\$\{bridge\.status\}/);
+  assert.doesNotMatch(gate, /bridge\.data\.message/);
 });
 
 test('Superadmin navigation exposes readiness, reviews, commercial controls and coupons', () => {
