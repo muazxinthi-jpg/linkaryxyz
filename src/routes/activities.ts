@@ -306,7 +306,7 @@ export async function listActivities(request: Request, env: Env): Promise<Respon
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
   const db = new Db(requireDb(env));
   await authorize(db, auth.user.id, campaignId);
-  const activities = await db.all(
+  const activities = await db.all<Record<string, unknown> & { id: string }>(
     `SELECT a.id,
             a.title,
             a.activity_type,
@@ -340,7 +340,39 @@ export async function listActivities(request: Request, env: Env): Promise<Respon
       ORDER BY a.created_at DESC`,
     [campaignId],
   );
-  return json({ activities });
+  const participants = await db.all<{
+    activity_id: string;
+    entity_id: string;
+    entity_type: 'creator' | 'community';
+    display_name: string;
+    primary_handle: string | null;
+    verification_status: string;
+    participation_role: string;
+    is_exact_linkary_assignment: number;
+  }>(
+    `SELECT p.activity_id,
+            p.entity_id,
+            n.entity_type,
+            n.display_name,
+            n.primary_handle,
+            n.verification_status,
+            p.participation_role,
+            CASE WHEN la.participant_id = p.id THEN 1 ELSE 0 END AS is_exact_linkary_assignment
+       FROM campaign_activity_participants p
+       JOIN campaign_activities a ON a.id = p.activity_id
+       JOIN project_network_entities n ON n.id = p.entity_id
+       LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = p.activity_id
+      WHERE a.campaign_id = ?
+      ORDER BY n.display_name ASC, p.created_at ASC`,
+    [campaignId],
+  );
+  const participantsByActivity = new Map<string, typeof participants>();
+  for (const participant of participants) {
+    const current = participantsByActivity.get(participant.activity_id) || [];
+    current.push(participant);
+    participantsByActivity.set(participant.activity_id, current);
+  }
+  return json({ activities: activities.map((activity) => ({ ...activity, participants: participantsByActivity.get(activity.id) || [] })) });
 }
 
 export async function createActivity(request: Request, env: Env): Promise<Response> {
