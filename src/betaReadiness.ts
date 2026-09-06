@@ -35,6 +35,9 @@ export const REQUIRED_BETA_TABLES = [
   'campaign_opportunity_applications',
   'partner_manager_collaborations',
   'project_partner_shortlists',
+  'ai_prompt_versions',
+  'ai_budget_policies',
+  'ai_usage_events',
 ] as const;
 
 export const REQUIRED_BETA_TRIGGERS = [
@@ -42,6 +45,7 @@ export const REQUIRED_BETA_TRIGGERS = [
   'trg_profiles_verified_x_avatar_after_identity_update',
   'trg_team_invite_redemption_guard_before_insert',
   'trg_team_invite_membership_after_redemption',
+  'trg_usage_credit_no_negative_ai_usage_before_insert',
 ] as const;
 
 export const REQUIRED_BETA_CONFIGURATION = [
@@ -53,6 +57,7 @@ export const REQUIRED_BETA_CONFIGURATION = [
   'Tracking visitor privacy salt',
   'Public profile URL',
   'Authenticated app URL',
+  'Linkary AI provider',
 ] as const;
 
 export type BetaSchemaReadiness = {
@@ -91,6 +96,14 @@ export function assessBetaSchema(objects: SchemaObject[]): BetaSchemaReadiness {
   };
 }
 
+function aiProviderConfigured(env: Env): boolean {
+  if (env.AI) return true;
+  if (env.GEMINI_API_KEY?.trim() && env.AI_GEMINI_MODEL?.trim()) return true;
+  if (env.GROQ_API_KEY?.trim() && env.AI_GROQ_MODEL?.trim()) return true;
+  if (env.OPENROUTER_API_KEY?.trim() && env.AI_OPENROUTER_MODEL?.trim()) return true;
+  return false;
+}
+
 export function assessBetaConfiguration(env: Env): BetaConfigurationReadiness {
   const checks = [
     Boolean(env.DB),
@@ -101,6 +114,7 @@ export function assessBetaConfiguration(env: Env): BetaConfigurationReadiness {
     Boolean(env.TRACKING_HASH_SALT?.trim()),
     Boolean(env.PUBLIC_SITE_URL?.trim()),
     Boolean(env.APP_BASE_URL?.trim()),
+    aiProviderConfigured(env),
   ];
   const missing = REQUIRED_BETA_CONFIGURATION.filter((_, index) => !checks[index]);
   return {
