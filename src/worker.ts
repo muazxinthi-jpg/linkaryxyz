@@ -5,6 +5,7 @@ import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/c
 import { errorResponse, methodNotAllowed } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
+import { enhancePublicHomepage } from './homepagePricing';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 import { founderGrowthIntelligence } from './routes/growthIntelligence';
@@ -252,6 +253,10 @@ export default {
         }
       }
     }
-    return baseWorker.fetch(request, env, ctx);
+
+    const response = await baseWorker.fetch(request, env, ctx);
+    const appHost = host(getLinkaryUrls(request, env).app);
+    if (!appHost || url.hostname.toLowerCase() !== appHost) return enhancePublicHomepage(request, response);
+    return response;
   },
 };
