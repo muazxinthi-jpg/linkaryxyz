@@ -58,7 +58,8 @@ test('network picker remains horizontally usable on narrow phones', () => {
 
 test('unsupported and failed provider states are not silently presented as empty wallets', () => {
   assert.equal(wallets.includes("status: 'unavailable'"), true);
-  assert.equal(wallets.includes("status: 'error'"), true);
+  assert.equal(wallets.includes("NftChainState['status']"), true);
+  assert.equal(wallets.includes("status === 'error'"), true);
   assert.equal(wallets.includes('NFT discovery is not currently available for this network.'), true);
   assert.equal(wallets.includes('could not be loaded right now'), true);
 });
