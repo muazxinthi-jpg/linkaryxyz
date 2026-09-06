@@ -5,6 +5,7 @@ import TrackingExperience from './TrackingExperience';
 import NetworkExperience from './NetworkExperience';
 import InviteExperience from './InviteExperience';
 import WalletExperience from './WalletExperience';
+import BillingExperience from './BillingExperience';
 import DashboardExperience from './DashboardExperience';
 import GrowthExperience from './GrowthExperience';
 import PartnerDiscoveryExperience from './PartnerDiscoveryExperience';
@@ -72,6 +73,7 @@ type Experience =
   | 'profile'
   | 'invites'
   | 'wallets'
+  | 'billing'
   | 'projects'
   | 'team-invites'
   | 'admin-readiness'
@@ -129,6 +131,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'profile') return <ProfileAccessExperience me={me} status={status} />;
     if (experience === 'invites') return <InviteExperience me={me} status={status} />;
     if (experience === 'wallets') return <WalletExperience me={me} status={status} />;
+    if (experience === 'billing') return <BillingExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
     if (experience === 'admin-readiness' || experience === 'admin-community-verifications') {
@@ -182,6 +185,7 @@ export default function AppV3() {
   if (location.pathname === '/profile') return <ProductGate experience="profile" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
+  if (location.pathname === '/settings/plan') return <ProductGate experience="billing" />;
   if (location.pathname === '/settings/team-invites') return <ProductGate experience="team-invites" />;
   if (location.pathname === '/settings') return <ProductGate experience="projects" />;
   if (location.pathname === '/admin/readiness') return <ProductGate experience="admin-readiness" />;

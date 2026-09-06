@@ -42,6 +42,7 @@ jobs:
             "/profile"
             "/invites"
             "/wallets"
+            "/settings/plan"
             "/settings/team-invites"
             "/settings"
             "/admin/readiness"

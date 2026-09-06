@@ -33,6 +33,7 @@ import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity'
 import { personalProfileIdentity } from './routes/profileIdentity';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
 import { adjustUsageCredits, listAdminBillingPlans, listPublicBillingPlans, updateAdminBillingPlan } from './routes/billing';
+import { currentBillingStatus } from './routes/billingCurrent';
 import { archiveOrganization, createOrganization, listOrganizations, restoreOrganization } from './routes/organizations';
 import { createNetworkInvite, inviteBalances, listNetworkInvites, renderInviteLanding } from './routes/invites';
 import { createCampaign, listCampaigns } from './routes/campaigns';
@@ -91,6 +92,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     });
   }
   if (path === '/api/billing/plans') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listPublicBillingPlans(request, env); }
+  if (path === '/api/billing/current') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return currentBillingStatus(request, env); }
   if (path === '/api/auth/cdp/session') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return createCdpSession(request, env); }
   if (path === '/api/auth/me') {
     if (request.method !== 'GET') return methodNotAllowed(['GET']);
