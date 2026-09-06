@@ -35,7 +35,10 @@ export async function getAuthContext(request: Request, env: Env): Promise<AuthCo
   const user = await db.first<UserRow>(`SELECT * FROM users WHERE id = ? AND status = 'active'`, [session.user_id]);
   if (!user) return null;
   const grant = await db.first<{ id: string }>(`SELECT id FROM admin_grants WHERE user_id = ? AND role = 'superadmin' AND status = 'active'`, [user.id]);
-  return { user, session, isSuperadmin: Boolean(grant) };
+  const configuredSuperadminEmail = env.SUPERADMIN_EMAIL?.trim().toLowerCase();
+  const emailMatchesSuperadmin = !configuredSuperadminEmail
+    || (user.email?.trim().toLowerCase() === configuredSuperadminEmail);
+  return { user, session, isSuperadmin: Boolean(grant) && emailMatchesSuperadmin };
 }
 
 export async function requireAuth(request: Request, env: Env): Promise<AuthContext> {
