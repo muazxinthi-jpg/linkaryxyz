@@ -254,9 +254,11 @@ export default {
       }
     }
 
-    const response = await baseWorker.fetch(request, env, ctx);
     const appHost = host(getLinkaryUrls(request, env).app);
-    if (!appHost || url.hostname.toLowerCase() !== appHost) return enhancePublicHomepage(request, response);
-    return response;
+    const publicHomepage = request.method === 'GET'
+      && (url.pathname === '/' || url.pathname === '/index.html')
+      && (!appHost || url.hostname.toLowerCase() !== appHost);
+    if (publicHomepage) return enhancePublicHomepage(request, await baseWorker.fetch(request, env, ctx));
+    return baseWorker.fetch(request, env, ctx);
   },
 };
