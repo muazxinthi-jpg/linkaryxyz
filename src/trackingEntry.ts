@@ -3,6 +3,7 @@ import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { errorResponse, methodNotAllowed } from './http';
 import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
+import { createAdminCoupon, listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
 import { redirectTrackedLink } from './routes/tracking';
 
 export default {
@@ -14,6 +15,26 @@ export default {
       if (request.method !== 'GET') return methodNotAllowed(['GET']);
       try {
         return await redirectTrackedLink(request, env, decodeURIComponent(trackedRedirect[1]), ctx);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/commercial/coupons') {
+      try {
+        if (request.method === 'GET') return await listAdminCoupons(request, env);
+        if (request.method === 'POST') return await createAdminCoupon(request, env);
+        return methodNotAllowed(['GET', 'POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const adminCoupon = url.pathname.match(/^\/api\/admin\/commercial\/coupons\/([^/]+)$/);
+    if (adminCoupon) {
+      try {
+        if (request.method === 'PATCH') return await updateAdminCouponStatus(request, env, decodeURIComponent(adminCoupon[1]));
+        return methodNotAllowed(['PATCH']);
       } catch (error) {
         return errorResponse(error);
       }
