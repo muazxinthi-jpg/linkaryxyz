@@ -45,6 +45,16 @@ test('legacy inline pricing renderer is removed before the browser parses public
   assert.doesNotMatch(client, /<script/i);
 });
 
+test('production head injection cannot expand dollar replacement tokens and restores the favicon', async () => {
+  const staticSource = await read('src/static.ts');
+  assert.match(staticSource, /const headInjection =/);
+  assert.match(staticSource, /\.replace\('\<\/head\>', \(\) => headInjection\)/);
+  assert.match(staticSource, /rel="icon"/);
+  assert.match(staticSource, /rel="apple-touch-icon"/);
+  assert.match(staticSource, /linkary-icon-black\.png/);
+  assert.doesNotMatch(staticSource, /\.replace\('\<\/head\>', `\$\{/);
+});
+
 test('public pricing renderer never hardcodes commercial plan prices', async () => {
   const client = await read('pricing-catalog.js');
   assert.doesNotMatch(client, /personal_pro.*499/s);
