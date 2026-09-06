@@ -4,7 +4,7 @@ import type { ExecutionContextLike } from './platform';
 import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
 import { errorResponse, methodNotAllowed } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
-import { renderPublicProfileCard } from './routes/profiles';
+import { profileAvatarImage, renderPublicProfileCard } from './routes/profiles';
 import { getLinkaryUrls } from './urls';
 import { enhancePublicHomepage } from './homepagePricing';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
@@ -166,6 +166,13 @@ export default {
         if (request.method === 'PATCH') return await updateProfileBlockIntegrity(request, env, profileId, blockId);
         if (request.method === 'DELETE') return await deleteProfileBlockIntegrity(request, env, profileId, blockId);
         return methodNotAllowed(['PATCH', 'DELETE']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const profileAvatar = url.pathname.match(/^\/api\/profiles\/([^/]+)\/avatar$/);
+    if (profileAvatar) {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await profileAvatarImage(request, env, decodeURIComponent(profileAvatar[1]));
       } catch (error) { return errorResponse(error); }
     }
     const profileSubroute = url.pathname.match(/^\/api\/profiles\/([^/]+)\/(blocks|blocks-reorder|publish|unpublish|analytics)$/);

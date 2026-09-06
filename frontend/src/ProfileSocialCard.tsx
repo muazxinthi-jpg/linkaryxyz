@@ -10,7 +10,7 @@ export type SocialCardAnalytics = {
   proof?: { metrics: Array<{ label: string; value: string }> } | null;
 };
 type Props = {
-  profile: { username: string; display_name: string; profile_type: string };
+  profile: { id: string; username: string; display_name: string; profile_type: string };
   data: { displayName: string; bio: string; avatarUrl: string | null; visibility: string };
   analytics: SocialCardAnalytics; completionPercent: number;
 };
@@ -106,7 +106,7 @@ function ScaledCard(props: Props & { preview?: boolean }) {
   </div>;
 }
 
-async function cardPng(): Promise<Blob> {
+async function cardPng(profileId: string): Promise<Blob> {
   const source = document.querySelector<HTMLDivElement>('.lsc-dialog .lsc-canvas') || document.querySelector<HTMLDivElement>('.lsc-canvas');
   if (!source) throw new Error('Card is not ready');
   const clone = source.cloneNode(true) as HTMLDivElement;
@@ -117,7 +117,7 @@ async function cardPng(): Promise<Blob> {
   // the exported PNG contains the same profile image instead of a blank circle.
   await Promise.all([...clone.querySelectorAll<HTMLImageElement>('.lsc-avatar img')].map(async image => {
     try {
-      const response = await fetch(image.currentSrc || image.src, { mode: 'cors' });
+      const response = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/avatar`, { credentials: 'same-origin' });
       if (!response.ok) throw new Error('Avatar unavailable');
       const blob = await response.blob();
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -128,7 +128,9 @@ async function cardPng(): Promise<Blob> {
       });
       image.src = dataUrl;
     } catch {
-      image.remove();
+      const fallback = document.createElement('span');
+      fallback.textContent = image.alt.slice(0, 2).toUpperCase();
+      image.replaceWith(fallback);
     }
   }));
   const rules = [...document.styleSheets].flatMap(sheet => {
@@ -168,13 +170,13 @@ export default function ProfileSocialCard(props: Props) {
   }
   async function copyImage() {
     try {
-      const blob = await cardPng();
+      const blob = await cardPng(props.profile.id);
       if (!('ClipboardItem' in window) || !navigator.clipboard?.write) throw new Error('Image clipboard unavailable');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       setCopied('Card image copied');
     } catch {
       try {
-        const blob = await cardPng();
+        const blob = await cardPng(props.profile.id);
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;

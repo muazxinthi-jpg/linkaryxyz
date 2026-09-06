@@ -341,6 +341,20 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   });
 }
 
+export async function profileAvatarImage(request: Request, env: Env, profileId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
+  const avatarUrl = safePublicImageUrl(profile.avatar_url);
+  if (!avatarUrl) return new Response(null, { status: 404 });
+  const upstream = await fetch(avatarUrl, { headers: { accept: 'image/*' } });
+  if (!upstream.ok || !upstream.body) return new Response(null, { status: 404 });
+  const headers = new Headers();
+  headers.set('content-type', upstream.headers.get('content-type')?.startsWith('image/') ? upstream.headers.get('content-type')! : 'image/jpeg');
+  headers.set('cache-control', 'private, max-age=300');
+  return new Response(upstream.body, { headers });
+}
+
 export async function redirectPublicProfileBlock(_request: Request, env: Env, username: string, blockId: string): Promise<Response> {
   const { profile } = await getPublishedProfile(username, env);
   const db = new Db(requireDb(env));
