@@ -32,6 +32,13 @@ type GrantRow = PlanRow & {
   monthly_credit_override: number | null;
 };
 
+type SubscriptionRow = PlanRow & {
+  subscription_period_id: string;
+  period_start: string;
+  period_end: string;
+  price_cents: number;
+};
+
 function safeFeatures(value: string): string[] {
   try {
     const parsed = JSON.parse(value);
@@ -56,6 +63,32 @@ function publicPlan(plan: PlanRow) {
     features: safeFeatures(plan.features_json),
     promotion: null,
   };
+}
+
+async function paymentSchemaReady(db: Db): Promise<boolean> {
+  const row = await db.first<{ present: number }>(
+    `SELECT COUNT(*) AS present
+       FROM sqlite_master
+      WHERE type = 'table' AND name = 'billing_subscription_periods'`,
+  );
+  return Number(row?.present || 0) === 1;
+}
+
+async function activeSubscription(db: Db, ownerType: 'user' | 'organization', ownerId: string, timestamp: string): Promise<SubscriptionRow | null> {
+  if (!(await paymentSchemaReady(db))) return null;
+  return db.first<SubscriptionRow>(
+    `SELECT bp.id, bp.code, bp.name, bp.audience, bp.description, bp.billing_period,
+            bp.base_price_cents, bp.currency, bp.monthly_usage_credits, bp.project_seat_limit,
+            bp.features_json, bsp.id AS subscription_period_id, bsp.period_start, bsp.period_end,
+            bsp.price_cents
+       FROM billing_subscription_periods bsp
+       JOIN billing_plans bp ON bp.id = bsp.plan_id
+      WHERE bsp.owner_type = ? AND bsp.owner_id = ? AND bsp.status = 'active'
+        AND bsp.period_start <= ? AND bsp.period_end > ?
+      ORDER BY bsp.period_end DESC
+      LIMIT 1`,
+    [ownerType, ownerId, timestamp, timestamp],
+  );
 }
 
 export async function currentBillingStatus(request: Request, env: Env): Promise<Response> {
@@ -102,7 +135,6 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
          JOIN billing_plans bp ON bp.id = beg.plan_id
         WHERE beg.user_id = ?
           AND beg.status = 'active'
-          AND bp.is_active = 1
           AND beg.starts_at <= ?
           AND (beg.ends_at IS NULL OR beg.ends_at > ?)
         ORDER BY beg.created_at DESC
@@ -118,7 +150,6 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
          JOIN billing_plans bp ON bp.id = beg.plan_id
         WHERE beg.organization_id = ?
           AND beg.status = 'active'
-          AND bp.is_active = 1
           AND beg.starts_at <= ?
           AND (beg.ends_at IS NULL OR beg.ends_at > ?)
         ORDER BY beg.created_at DESC
@@ -126,13 +157,15 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
       [ownerId, timestamp, timestamp],
     );
 
-  const plan = grant || await db.first<PlanRow>(
+  const subscription = grant ? null : await activeSubscription(db, ownerType, ownerId, timestamp);
+  const fallback = !grant && !subscription ? await db.first<PlanRow>(
     `SELECT id, code, name, audience, description, billing_period, base_price_cents, currency,
             monthly_usage_credits, project_seat_limit, features_json
        FROM billing_plans
       WHERE code = 'free' AND is_active = 1
       LIMIT 1`,
-  );
+  ) : null;
+  const plan = grant || subscription || fallback;
   if (!plan) throw new HttpError(503, 'Billing catalog is unavailable', 'billing_catalog_unavailable');
 
   const ledger = await db.first<{ balance: number }>(
@@ -148,10 +181,11 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
     ownerId,
     plan: publicPlan(plan),
     entitlement: {
-      source: grant ? 'grant' : 'default',
+      source: grant ? 'grant' : subscription ? 'subscription' : 'default',
       grantId: grant?.grant_id || null,
-      startsAt: grant?.grant_starts_at || null,
-      endsAt: grant?.grant_ends_at || null,
+      subscriptionPeriodId: subscription?.subscription_period_id || null,
+      startsAt: grant?.grant_starts_at || subscription?.period_start || null,
+      endsAt: grant?.grant_ends_at || subscription?.period_end || null,
       monthlyUsageCredits: grant?.monthly_credit_override ?? plan.monthly_usage_credits,
     },
     creditBalance: Number(ledger?.balance || 0),
