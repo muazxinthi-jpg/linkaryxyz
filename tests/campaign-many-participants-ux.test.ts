@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(new URL('../migrations/0013_project_network_entities.sql', import.meta.url), 'utf8');
+const route = readFileSync(new URL('../src/routes/activities.ts', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../frontend/src/TrackingExperience.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/tracking-assignment.css', import.meta.url), 'utf8');
 
@@ -15,11 +16,16 @@ test('one campaign supports many contributor activities without another campaign
 });
 
 test('campaign Evidence shows an aggregated contributor roster', () => {
+  assert.match(route, /FROM campaign_activity_participants p/);
+  assert.match(route, /participantsByActivity/);
+  assert.match(route, /is_exact_linkary_assignment/);
   assert.match(ui, /const campaignTeam = useMemo/);
   assert.match(ui, /CAMPAIGN TEAM/);
   assert.match(ui, /campaignTeam\.creators/);
   assert.match(ui, /campaignTeam\.communities/);
   assert.match(ui, /campaignTeam\.unassigned/);
+  assert.match(ui, /Private network record/);
+  assert.match(ui, /Exact Linkary identity/);
   assert.match(ui, /member\.activities === 1 \? 'contribution' : 'contributions'/);
 });
 
