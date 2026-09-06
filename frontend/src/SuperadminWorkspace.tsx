@@ -7,18 +7,18 @@ function readCookie(name: string): string | null {
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 
+const adminLinks = [
+  ['/admin/creator-access', 'Creator access'],
+  ['/admin/community-verifications', 'Community reviews'],
+  ['/admin/readiness', 'Beta readiness'],
+  ['/admin/commercial', 'Commercial accounts'],
+  ['/admin/coupons', 'Coupons'],
+] as const;
+
 const adminSections = [
-  ['ACCESS', [
-    ['/admin/creator-access', 'Creator access'],
-    ['/admin/community-verifications', 'Community reviews'],
-  ]],
-  ['OPERATIONS', [
-    ['/admin/readiness', 'Beta readiness'],
-  ]],
-  ['COMMERCIAL', [
-    ['/admin/commercial', 'Commercial accounts'],
-    ['/admin/coupons', 'Coupons'],
-  ]],
+  ['ACCESS', adminLinks.slice(0, 2)],
+  ['OPERATIONS', adminLinks.slice(2, 3)],
+  ['COMMERCIAL', adminLinks.slice(3)],
 ] as const;
 
 export default function SuperadminWorkspace({ me, children }: { me: ProductMe; children: React.ReactNode }) {
@@ -77,7 +77,7 @@ export default function SuperadminWorkspace({ me, children }: { me: ProductMe; c
             <summary aria-label="Open Superadmin menu">Menu</summary>
             <div className="ops-mobile-menu-panel">
               <span className="ops-mobile-menu-label">SUPERADMIN</span>
-              {adminSections.flatMap(([, items]) => items).map(([path, label]) => (
+              {adminLinks.map(([path, label]) => (
                 <NavLink key={`mobile-${path}`} to={path} className={() => currentPath === path ? 'active' : ''}>{label}</NavLink>
               ))}
               <a href="https://app.linkary.xyz">Open Linkary app ↗</a>
