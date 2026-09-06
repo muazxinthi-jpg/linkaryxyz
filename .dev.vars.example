@@ -9,6 +9,11 @@ CDP_PROJECT_ID=
 CDP_API_KEY_ID=
 CDP_API_KEY_SECRET=
 
+# Linkary paid-plan settlement receives USDC on Base.
+# Public EVM address only, never a private key, seed phrase, or recovery phrase.
+# Checkout remains fail-closed until production D1 migrations 0030 and 0031 are applied.
+BILLING_TREASURY_EVM_ADDRESS=
+
 # @LinkaryAuthBot > BotFather > Login Widget (RS256 signing)
 TELEGRAM_CLIENT_ID=
 TELEGRAM_CLIENT_SECRET=

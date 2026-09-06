@@ -12,6 +12,11 @@ import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 import { renderInviteLanding } from './routes/invites';
 import { redirectTrackedLink } from './routes/tracking';
 import {
+  billingPaymentConfigurationSafe,
+  createBillingCheckoutSafe,
+  verifyBillingCheckoutSafe,
+} from './routes/billingCheckoutSafe';
+import {
   addProfileBlockIntegrity,
   deleteProfileBlockIntegrity,
   getEditableProfileIntegrity,
@@ -48,6 +53,25 @@ function profileCandidate(pathname: string): string | null {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/billing/payment-config') {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await billingPaymentConfigurationSafe(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/billing/checkout') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await createBillingCheckoutSafe(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/billing/checkout/verify') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await verifyBillingCheckoutSafe(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
 
     const inviteLanding = url.pathname.match(/^\/i\/([^/]+)$/);
     if (inviteLanding && request.method === 'GET') {
