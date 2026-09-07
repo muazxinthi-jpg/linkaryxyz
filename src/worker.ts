@@ -4,6 +4,7 @@ import type { ExecutionContextLike } from './platform';
 import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
 import { errorResponse, methodNotAllowed } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
+import { profileAvatarImage, renderPublicProfileCard } from './routes/profiles';
 import { getLinkaryUrls } from './urls';
 import { enhancePublicHomepage } from './homepagePricing';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
@@ -122,6 +123,11 @@ export default {
       } catch (error) { return errorResponse(error); }
     }
 
+    const profileCard = url.pathname.match(/^\/_social\/profile\/([^/]+)\.svg$/);
+    if (profileCard && request.method === 'GET' && env.DB) {
+      try { return await renderPublicProfileCard(request, env, decodeURIComponent(profileCard[1])); }
+      catch (error) { return errorResponse(error); }
+    }
     const inviteLanding = url.pathname.match(/^\/i\/([^/]+)$/);
     if (inviteLanding && request.method === 'GET') {
       try { return await renderInviteLanding(request, env, decodeURIComponent(inviteLanding[1])); }
@@ -160,6 +166,13 @@ export default {
         if (request.method === 'PATCH') return await updateProfileBlockIntegrity(request, env, profileId, blockId);
         if (request.method === 'DELETE') return await deleteProfileBlockIntegrity(request, env, profileId, blockId);
         return methodNotAllowed(['PATCH', 'DELETE']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const profileAvatar = url.pathname.match(/^\/api\/profiles\/([^/]+)\/avatar$/);
+    if (profileAvatar) {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await profileAvatarImage(request, env, decodeURIComponent(profileAvatar[1]));
       } catch (error) { return errorResponse(error); }
     }
     const profileSubroute = url.pathname.match(/^\/api\/profiles\/([^/]+)\/(blocks|blocks-reorder|publish|unpublish|analytics)$/);

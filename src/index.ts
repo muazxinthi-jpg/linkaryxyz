@@ -28,6 +28,7 @@ import {
   profileAnalytics,
   redirectPublicProfileBlock,
   updateProfileBlock,
+  renderPublicProfileCard,
 } from './routes/profiles';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { personalProfileIdentity } from './routes/profileIdentity';
@@ -273,6 +274,14 @@ async function handle(request: Request, env: Env, _ctx: ExecutionContextLike): P
     });
   }
   if (url.pathname === '/sitemap.xml') return renderSitemap(request, env);
+
+  const profileCard = url.pathname.match(/^\/_social\/profile\/([^/]+)\.svg$/);
+  if (profileCard && env.DB) {
+    try { return await renderPublicProfileCard(request, env, decodeURIComponent(profileCard[1])); }
+    catch (error) {
+      if (!(error instanceof Error && 'status' in error && (error as { status?: number }).status === 404)) throw error;
+    }
+  }
 
   const inviteLanding = url.pathname.match(/^\/i\/([^/]+)$/);
   if (inviteLanding) return renderInviteLanding(request, env, decodeURIComponent(inviteLanding[1]));

@@ -3,7 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import type { ProfileBlockRow, ProfileRow } from '../db/models';
 import { HttpError, html, json, readJson } from '../http';
-import { getLinkaryUrls, publicProfileUrl } from '../urls';
+import { getLinkaryUrls, publicProfileCardUrl, publicProfileUrl } from '../urls';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { resolveFeaturedMedia, resolveFeaturedPreview, resolveNftArtworkPreview, safeHttpsUrl } from '../profileMedia';
 import { organizationMembership } from './organizations';
@@ -22,6 +22,86 @@ function safePublicImageUrl(value: string | null): string | null {
 
 function safeScriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function publicShareText(value: string | null | undefined, fallback: string): string {
+  const text = (value || fallback)
+    .replace(/[—–]/g, ',')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+,/g, ',')
+    .trim();
+  return text.slice(0, 220);
+}
+
+function publicProfileShareCopy(profile: ProfileRow): { title: string; description: string; typeLabel: string; detail: string } {
+  const typeLabel = profile.profile_type === 'project' ? 'Project' : 'Creator';
+  const detail = publicShareText(profile.professional_headline, publicShareText(profile.bio, `${typeLabel} profile on Linkary`));
+  return {
+    title: publicShareText(profile.seo_title, `${profile.display_name} | Linkary`),
+    description: publicShareText(profile.seo_description, `${detail}. Discover ${profile.display_name}'s profile, work, and verified activity on Linkary.`),
+    typeLabel,
+    detail,
+  };
+}
+
+function svgText(value: string, max = 220): string {
+  return escapeHtml(value.replace(/\r?\n/g, ' ').slice(0, max));
+}
+
+async function svgImageData(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  try {
+    // Share cards render the avatar at roughly 100px. Ask Cloudflare's image
+    // pipeline for a small WebP so the generated SVG stays lightweight while
+    // preserving the profile image and its cover crop.
+    const optimizedRequest = {
+      headers: { accept: 'image/avif,image/webp,image/*' },
+      cf: { image: { width: 256, height: 256, fit: 'cover', format: 'webp' } },
+    } as RequestInit;
+    let response = await fetch(url, optimizedRequest);
+    if (!response.ok) response = await fetch(url, { headers: { accept: 'image/*' } });
+    if (!response.ok) return null;
+    const mime = response.headers.get('content-type')?.split(';')[0] || 'image/png';
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return `data:${mime};base64,${btoa(binary)}`;
+  } catch { return null; }
+}
+
+export async function renderPublicProfileCard(request: Request, env: Env, username: string): Promise<Response> {
+  const { profile, blocks } = await getPublishedProfile(username, env);
+  const db = new Db(requireDb(env));
+  const copy = publicProfileShareCopy(profile);
+  const initials = (profile.display_name || profile.username).trim().slice(0, 2).toUpperCase();
+  const avatar = await svgImageData(safePublicImageUrl(profile.avatar_url));
+  const [clickRow, monthlyRows, destinations, proof] = await Promise.all([
+    db.first<{ total: number }>(`SELECT COUNT(*) AS total FROM profile_engagement_events WHERE profile_id = ? AND event_type = 'link_click'`, [profile.id]),
+    db.all<{ month: string; count: number }>(`SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count FROM profile_engagement_events WHERE profile_id = ? AND event_type = 'link_click' AND created_at >= date('now', 'start of month', '-11 months') GROUP BY month ORDER BY month ASC`, [profile.id]),
+    db.all<{ title: string | null; count: number }>(`SELECT b.title, COUNT(*) AS count FROM profile_engagement_events e LEFT JOIN profile_blocks b ON b.id = e.block_id AND b.profile_id = e.profile_id WHERE e.profile_id = ? AND e.event_type = 'link_click' GROUP BY b.title ORDER BY count DESC LIMIT 4`, [profile.id]),
+    loadPublicProof(db, profile),
+  ]);
+  const clicks = Number(clickRow?.total || 0);
+  const channels = blocks.filter((block) => isSocialBlock(block) && !['featured_video', 'featured_article', 'featured_image', 'team_member'].includes(block.block_type)).length;
+  const campaignMetric = proof?.metrics.find((metric) => ['Accepted campaigns', 'Tracked campaigns'].includes(metric.label))?.value || 'Unavailable';
+  const outcomeMetric = proof?.metrics.find((metric) => metric.label === 'Verified outcomes')?.value || 'Unavailable';
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(); date.setUTCDate(1); date.setUTCMonth(date.getUTCMonth() - 11 + index);
+    const month = date.toISOString().slice(0, 7);
+    return { month, count: monthlyRows.find((row) => row.month === month)?.count || 0 };
+  });
+  const max = Math.max(1, ...months.map((month) => Number(month.count)));
+  const chartBottom = 420;
+  const chartTop = 320;
+  const linePoints = months.map((month, index) => `${70 + index * 360 / 11},${chartBottom - Number(month.count) / max * 82}`).join(' ');
+  const bars = destinations.length ? destinations.map((row, index) => {
+    const y = 312 + index * 34;
+    const percent = Math.round(Number(row.count) / Math.max(clicks, 1) * 100);
+    return `<text x="620" y="${y + 5}" fill="#d8d5ce" font-size="15" font-family="Arial">${svgText(row.title || 'Other', 20)}</text><rect x="735" y="${y - 8}" width="300" height="14" rx="7" fill="#262a27"/><rect x="735" y="${y - 8}" width="${Math.max(8, 300 * Number(row.count) / Math.max(clicks, 1))}" height="14" rx="7" fill="#ff6500"/><text x="1055" y="${y + 5}" fill="#f8f4ed" font-size="15" font-family="Arial">${percent}%</text>`;
+  }).join('') : '<text x="620" y="325" fill="#aaa9a2" font-size="15" font-family="Arial">Measured destinations will appear here</text>';
+  const avatarSvg = avatar ? `<image href="${avatar}" x="54" y="42" width="104" height="104" preserveAspectRatio="xMidYMid slice" clip-path="url(#avatarClip)"/>` : `<text x="106" y="110" text-anchor="middle" fill="#ff8b40" font-size="38" font-family="Arial" font-weight="700">${svgText(initials, 2)}</text>`;
+  const card = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc"><title id="title">${svgText(copy.title)}</title><desc id="desc">${svgText(copy.description)}</desc><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#131615"/><stop offset="1" stop-color="#080a0a"/></linearGradient><clipPath id="avatarClip"><circle cx="106" cy="94" r="52"/></clipPath></defs><rect width="1200" height="630" rx="22" fill="url(#bg)"/><rect x="1.5" y="1.5" width="1197" height="627" rx="22" fill="none" stroke="#ff6500" stroke-width="3"/><circle cx="106" cy="94" r="55" fill="#252827" stroke="#ff6500" stroke-width="3"/>${avatarSvg}<text x="180" y="72" fill="#f8f4ed" font-size="31" font-family="Arial" font-weight="700">${svgText(profile.display_name, 30)}</text><text x="180" y="101" fill="#ff710e" font-size="17" font-family="Arial">@${svgText(profile.username, 34)}</text><text x="180" y="128" fill="#cbc8c1" font-size="14" font-family="Arial">${svgText(copy.detail, 76)}</text><text x="930" y="68" fill="#d8d5ce" font-size="14" font-family="Arial">Public link</text><text x="930" y="94" fill="#ff710e" font-size="17" font-family="Arial" font-weight="700">linkary.xyz/${svgText(profile.username, 28)}</text><line x1="36" y1="170" x2="1164" y2="170" stroke="#ffffff29"/><g font-family="Arial"><text x="42" y="198" fill="#a9aaa3" font-size="11">PROFILE CLICKS</text><text x="42" y="232" fill="#f8f4ed" font-size="27" font-weight="700">${clicks}</text><text x="235" y="198" fill="#a9aaa3" font-size="11">CAMPAIGNS</text><text x="235" y="232" fill="#f8f4ed" font-size="27" font-weight="700">${svgText(campaignMetric, 15)}</text><text x="430" y="198" fill="#a9aaa3" font-size="11">VERIFIED OUTCOMES</text><text x="430" y="232" fill="#f8f4ed" font-size="27" font-weight="700">${svgText(outcomeMetric, 15)}</text><text x="625" y="198" fill="#a9aaa3" font-size="11">SOCIAL CHANNELS</text><text x="625" y="232" fill="#f8f4ed" font-size="27" font-weight="700">${channels}</text><text x="820" y="198" fill="#a9aaa3" font-size="11">PROFILE SECTIONS</text><text x="820" y="232" fill="#f8f4ed" font-size="27" font-weight="700">${blocks.length}</text><text x="1015" y="198" fill="#a9aaa3" font-size="11">STATUS</text><text x="1015" y="232" fill="#ff8b40" font-size="18" font-weight="700">PUBLISHED</text></g><line x1="36" y1="258" x2="1164" y2="258" stroke="#ffffff29"/><text x="42" y="286" fill="#f8f4ed" font-size="15" font-family="Arial" font-weight="700">GROWTH PULSE</text><text x="170" y="286" fill="#aaa9a2" font-size="12" font-family="Arial">Monthly profile clicks</text><line x1="62" y1="${chartTop}" x2="450" y2="${chartTop}" stroke="#ffffff12" stroke-dasharray="2 4"/><line x1="62" y1="${chartBottom}" x2="450" y2="${chartBottom}" stroke="#ff65002b" stroke-dasharray="2 4"/><polyline points="${linePoints}" fill="none" stroke="#ff6500" stroke-width="3"/><text x="62" y="442" fill="#8f918b" font-size="10" font-family="Arial">${svgText(months[0]?.month || '', 10)}</text><text x="450" y="442" text-anchor="end" fill="#8f918b" font-size="10" font-family="Arial">${svgText(months[months.length - 1]?.month || '', 10)}</text><text x="620" y="286" fill="#f8f4ed" font-size="15" font-family="Arial" font-weight="700">PLATFORM CONTRIBUTION</text>${bars}<rect x="36" y="470" width="1128" height="112" rx="12" fill="#f0eae1"/><text x="58" y="500" fill="#101611" font-size="15" font-family="Arial" font-weight="700">EVIDENCE SUMMARY</text><text x="58" y="540" fill="#101611" font-size="22" font-family="Arial" font-weight="700">${clicks}</text><text x="58" y="560" fill="#575e54" font-size="11" font-family="Arial">Measured clicks</text><text x="280" y="540" fill="#101611" font-size="22" font-family="Arial" font-weight="700">${channels}</text><text x="280" y="560" fill="#575e54" font-size="11" font-family="Arial">Social channels</text><text x="500" y="540" fill="#101611" font-size="22" font-family="Arial" font-weight="700">${blocks.length}</text><text x="500" y="560" fill="#575e54" font-size="11" font-family="Arial">Profile sections</text><text x="780" y="540" fill="#101611" font-size="22" font-family="Arial" font-weight="700">${svgText(outcomeMetric, 14)}</text><text x="780" y="560" fill="#575e54" font-size="11" font-family="Arial">Verified outcomes</text><text x="1030" y="550" fill="#101611" font-size="17" font-family="Arial" font-weight="700">Linkary</text></svg>`;
+  return new Response(card, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=300, s-maxage=900' } });
 }
 
 function compactNumber(value: number): string {
@@ -234,9 +314,93 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
 export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
-  await requireEditableProfile(db, auth.user.id, profileId);
-  const row = await db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]);
-  return json({ linkClicks: row?.link_clicks || 0 });
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
+  const [row, sections, channels, identity, monthlyRows] = await Promise.all([
+    db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]),
+    db.first<{ total: number }>('SELECT COUNT(*) AS total FROM profile_blocks WHERE profile_id = ? AND enabled = 1', [profileId]),
+    db.all<ProfileBlockRow>(`SELECT * FROM profile_blocks WHERE profile_id = ? AND enabled = 1 AND block_type IN ('link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin')`, [profileId]),
+    profile.primary_platform_identity_id
+      ? db.first<{ current_handle: string | null; metadata_json: string }>('SELECT current_handle, metadata_json FROM platform_identities WHERE id = ? AND platform = \'x\' LIMIT 1', [profile.primary_platform_identity_id])
+      : Promise.resolve(null),
+    db.all<{ month: string; count: number }>(`SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count FROM profile_engagement_events WHERE profile_id = ? AND created_at >= date('now', 'start of month', '-11 months') GROUP BY month ORDER BY month ASC`, [profileId]),
+  ]);
+  let xFollowers: number | null = null;
+  if (identity?.metadata_json) {
+    try {
+      const metadata = JSON.parse(identity.metadata_json) as Record<string, unknown>;
+      const candidate = metadata.followers_count ?? metadata.follower_count ?? metadata.followers;
+      if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0) xFollowers = Math.floor(candidate);
+    } catch {
+      // Provider metadata is optional enrichment and never blocks the profile editor.
+    }
+  }
+  const monthlyMap = new Map(monthlyRows.map((item) => [item.month, Number(item.count || 0)]));
+  const [proof, destinations, acceptedCampaigns] = await Promise.all([
+    loadPublicProof(db, profile),
+    db.all<{ url: string | null; count: number }>(
+      `SELECT b.url, COUNT(*) AS count FROM profile_engagement_events e
+       LEFT JOIN profile_blocks b ON b.id = e.block_id AND b.profile_id = e.profile_id
+       WHERE e.profile_id = ? AND e.event_type = 'link_click' GROUP BY b.url`, [profileId]),
+    profile.profile_type === 'creator'
+      ? db.first<{ total: number }>(`SELECT COUNT(DISTINCT o.campaign_id) AS total
+          FROM campaign_opportunity_applications a JOIN campaign_opportunities o ON o.id = a.opportunity_id
+          WHERE a.applicant_profile_id = ? AND a.status = 'accepted'`, [profileId]).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const proofMetrics = proof?.metrics.filter(metric => !acceptedCampaigns || metric.label !== 'Accepted campaigns') || [];
+  if (acceptedCampaigns) proofMetrics.push({ label: 'Accepted campaigns', value: compactNumber(Number(acceptedCampaigns.total)) });
+  const platformTotals = new Map<string, number>();
+  for (const destination of destinations) {
+    let platform = 'Other';
+    try {
+      const host = new URL(destination.url || '').hostname.toLowerCase().replace(/^www\./, '');
+      const matches = (domain: string) => host === domain || host.endsWith('.' + domain);
+      if (matches('x.com') || matches('twitter.com')) platform = 'X';
+      else if (matches('t.me') || matches('telegram.me')) platform = 'Telegram';
+      else if (matches('youtube.com') || matches('youtu.be')) platform = 'YouTube';
+      else if (matches('reddit.com')) platform = 'Reddit';
+      else if (matches('linkedin.com')) platform = 'LinkedIn';
+      else if (matches('instagram.com')) platform = 'Instagram';
+      else if (matches('farcaster.xyz') || matches('warpcast.com')) platform = 'Farcaster';
+    } catch { /* Deleted or unclassified destinations stay in Other. */ }
+    platformTotals.set(platform, (platformTotals.get(platform) || 0) + Number(destination.count));
+  }
+  const rankedPlatforms = [...platformTotals].filter(([name]) => name !== 'Other').sort((a, b) => b[1] - a[1]);
+  const platformClicks = rankedPlatforms.slice(0, 4).map(([platform, count]) => ({ platform, count }));
+  const otherClicks = (platformTotals.get('Other') || 0) + rankedPlatforms.slice(4).reduce((sum, [, count]) => sum + count, 0);
+  if (otherClicks) platformClicks.push({ platform: 'Other', count: otherClicks });
+  const monthlyClicks: Array<{ month: string; count: number }> = [];
+  const cursor = new Date();
+  cursor.setUTCDate(1);
+  cursor.setUTCMonth(cursor.getUTCMonth() - 11);
+  for (let index = 0; index < 12; index += 1) {
+    const month = cursor.toISOString().slice(0, 7);
+    monthlyClicks.push({ month, count: monthlyMap.get(month) || 0 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return json({
+    linkClicks: Number(row?.link_clicks || 0),
+    sections: Number(sections?.total || 0),
+    connectedChannels: channels.filter(block => Boolean(block.url) && isSocialBlock(block)).length,
+    x: { handle: identity?.current_handle || null, followers: xFollowers, source: xFollowers === null ? 'awaiting_provider' : 'provider' },
+    monthlyClicks,
+    platformClicks,
+    proof: proofMetrics.length ? { metrics: proofMetrics } : null,
+  });
+}
+
+export async function profileAvatarImage(request: Request, env: Env, profileId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
+  const avatarUrl = safePublicImageUrl(profile.avatar_url);
+  if (!avatarUrl) return new Response(null, { status: 404 });
+  const upstream = await fetch(avatarUrl, { headers: { accept: 'image/*' } });
+  if (!upstream.ok || !upstream.body) return new Response(null, { status: 404 });
+  const headers = new Headers();
+  headers.set('content-type', upstream.headers.get('content-type')?.startsWith('image/') ? upstream.headers.get('content-type')! : 'image/jpeg');
+  headers.set('cache-control', 'private, max-age=300');
+  return new Response(upstream.body, { headers });
 }
 
 export async function redirectPublicProfileBlock(_request: Request, env: Env, username: string, blockId: string): Promise<Response> {
@@ -322,8 +486,9 @@ async function renderPublicProfileV2(request: Request, env: Env, username: strin
   const [proof, opportunities] = await Promise.all([loadPublicProof(db, profile), loadPublicOpportunities(db, profile)]);
   const canonical = publicProfileUrl(request, env, profile.username);
   const urls = getLinkaryUrls(request, env);
-  const title = profile.seo_title || `${profile.display_name} | Linkary`;
-  const description = profile.seo_description || profile.bio || `Verified ${profile.profile_type} profile on Linkary.`;
+  const shareCopy = publicProfileShareCopy(profile);
+  const title = shareCopy.title;
+  const description = shareCopy.description;
   const avatarUrl = safePublicImageUrl(profile.avatar_url);
   const go = (block: ProfileBlockRow) => `${canonical}/go/${encodeURIComponent(block.id)}`;
   const socials = blocks.filter((block) => isSocialBlock(block) && block.url);
@@ -387,8 +552,9 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
   const [proof, opportunities] = await Promise.all([loadPublicProof(db, profile), loadPublicOpportunities(db, profile)]);
   const canonical = publicProfileUrl(request, env, profile.username);
   const urls = getLinkaryUrls(request, env);
-  const title = profile.seo_title || `${profile.display_name} | Linkary`;
-  const description = profile.seo_description || profile.bio || `Verified ${profile.profile_type} profile on Linkary.`;
+  const shareCopy = publicProfileShareCopy(profile);
+  const title = shareCopy.title;
+  const description = shareCopy.description;
   const avatarUrl = safePublicImageUrl(profile.avatar_url);
   const blockUrl = (block: ProfileBlockRow) => `${canonical}/go/${encodeURIComponent(block.id)}`;
 
@@ -420,12 +586,7 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
     return headingTitleBefore(items[0], fallback);
   };
 
-  const firstFeatureImage = features.map((block) => {
-    const config = safeJson(block.config_json) as { mediaUrl?: string };
-    const media = resolveFeaturedMedia(config.mediaUrl, block.url, block.block_type);
-    return media?.kind === 'image' ? media.src : null;
-  }).find((value): value is string => Boolean(value));
-  const previewImage = firstFeatureImage || avatarUrl || new URL('/assets/brand/linkary-banner.jpeg', canonical).toString();
+  const previewImage = publicProfileCardUrl(request, env, profile.username);
 
   const avatar = avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">` : escapeHtml((profile.display_name || profile.username).slice(0, 1).toUpperCase());
   const socialHtml = socials.map((block) => `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || 'Social link')}">${publicIcon(block)}</a>`).join('');
@@ -539,7 +700,7 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
   let css = `:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f6f2ec;background:#100d0b}*{box-sizing:border-box}body{min-height:100vh;margin:0;background:radial-gradient(900px 560px at 50% -12%,#ff633f 0,transparent 58%),radial-gradient(700px 550px at 0 75%,#3e1712 0,transparent 62%),#100d0b}.matrix{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:.65}.matrix span{position:absolute;top:-58vh;left:calc(var(--x)*1%);white-space:pre;color:#ff6847;font:700 10px/1.24 ui-monospace,SFMono-Regular,monospace;letter-spacing:.1em;text-shadow:0 0 18px #ff593788;animation:rain var(--duration) linear var(--delay) infinite;opacity:.68}@keyframes rain{to{transform:translateY(210vh)}}.page{position:relative;z-index:1;width:min(780px,100%);margin:auto;padding:24px 20px 54px}.top{display:flex;justify-content:space-between;align-items:center}.brand{color:#fff;text-decoration:none;font-size:15px;font-weight:850;letter-spacing:-.04em}.brand:before{content:'≡';display:inline-grid;place-items:center;width:27px;height:27px;margin-right:7px;border-radius:7px;background:#ff5a36;color:#111;font-size:20px;vertical-align:middle}.share{border:1px solid #ffffff2c;border-radius:999px;padding:10px 14px;background:#ffffff12;color:#fff;font:700 12px/1 inherit;cursor:pointer}.hero{margin:56px 0 26px;text-align:center}.avatar{width:96px;height:96px;margin:auto;border:3px solid #ffffff66;border-radius:32px;display:grid;place-items:center;overflow:hidden;background:linear-gradient(145deg,#ff5a36,#26100d);box-shadow:0 18px 50px #0008;color:#fff;font-size:34px;font-weight:900}.avatar img,.team-card b img{width:100%;height:100%;object-fit:cover}.eyebrow{margin-top:17px;color:#ffc4b4;font:700 10px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.15em}.hero h1{margin:9px 0 5px;font-size:clamp(38px,9vw,60px);letter-spacing:-.075em;line-height:.94}.handle{color:#d6c8c0;font-size:14px}.bio{max-width:610px;margin:18px auto 0;color:#efe4dc;font-size:16px;line-height:1.58}.socials{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:23px 0 30px}.social{width:44px;height:44px;display:grid;place-items:center;border:1px solid #ffffff2e;border-radius:14px;background:#ffffff10;color:#fff;text-decoration:none;font-weight:850;transition:transform .18s ease,background .18s ease}.social:hover{transform:translateY(-3px);background:#ff5a36;color:#15100e}.cta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 18px}.cta-card{display:grid;grid-template-columns:42px 1fr 20px;align-items:center;gap:11px;min-height:78px;padding:12px 14px;border-radius:19px;background:#ff6543;color:#17110e;text-decoration:none;box-shadow:0 12px 30px #0004}.cta-card.media_kit{background:#f5eee9}.cta-card>span{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#ffffff90;font-weight:900}.cta-card>div{display:grid;gap:4px}.cta-card small{font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.1em}.cta-card strong{font-size:15px}.cta-card i{font-style:normal}.features{display:grid;gap:14px}.feature{position:relative;min-height:220px;overflow:hidden;border:1px solid #ffffff24;border-radius:24px;background:linear-gradient(130deg,#2c1510,#c74327);color:#fff;text-decoration:none;box-shadow:0 18px 44px #0005}.feature img,.feature video{position:absolute;width:100%;height:100%;object-fit:cover;opacity:.78}.feature-art{position:absolute;right:8%;top:13%;font-size:120px;color:#ffffff18}.feature-play{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:58px;height:58px;border-radius:999px;background:#0009;border:1px solid #ffffff55}.feature-shade{position:absolute;inset:0;background:linear-gradient(0deg,#100b09 0%,#100b0970 48%,transparent 100%)}.feature-copy{position:absolute;inset:auto 22px 20px;display:grid;gap:7px}.feature-copy small,.section-title span{font:700 10px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.13em;color:#ffc4b4}.feature-copy strong{font-size:clamp(22px,4vw,31px);letter-spacing:-.05em}.feature-copy i{font-size:13px;font-style:normal;color:#ffe0d6}.section{margin-top:32px}.section-title{display:flex;align-items:baseline;justify-content:space-between;margin:0 4px 12px}.section-title h2{margin:0;font-size:18px;letter-spacing:-.04em}.proof-card{border:1px solid #ff795a55;border-radius:22px;background:linear-gradient(145deg,#321a15,#160f0d);padding:16px;box-shadow:0 18px 40px #0004}.proof-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.proof-metric{min-width:0;border:1px solid #ffffff17;border-radius:15px;background:#ffffff0b;padding:12px 10px}.proof-metric strong{display:block;font-size:20px;letter-spacing:-.05em}.proof-metric span{display:block;margin-top:5px;color:#cabbb4;font-size:10px;line-height:1.25}.proof-card>p{margin:12px 2px 0;color:#a99a93;font-size:11px;line-height:1.5}.proof-relationships{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.proof-relationships span{display:grid;gap:2px;border-radius:12px;background:#ffffff0b;padding:8px 10px}.proof-relationships b{font-size:11px}.proof-relationships small{color:#b9aaa3;font-size:10px}.opportunity-grid{display:grid;gap:9px}.opportunity-card{border:1px solid #ffffff1f;border-radius:18px;background:#fff;color:#17110e;padding:14px 15px}.opportunity-card>div:first-child{display:grid;gap:4px}.opportunity-card>div:first-child small{color:#a4513e;font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.1em}.opportunity-card strong{font-size:17px;letter-spacing:-.03em}.opportunity-card>p{margin:9px 0;color:#655853;font-size:12px;line-height:1.5}.opportunity-meta{display:flex;flex-wrap:wrap;gap:8px}.opportunity-meta span{display:flex;gap:5px;border-radius:9px;background:#f6efeb;padding:7px 8px;color:#6e5a52;font-size:10px}.opportunity-meta b{color:#a4503d}.opportunity-cta{display:block;margin-top:9px;border-radius:15px;background:#ff6543;padding:12px 14px;text-align:center;color:#17110e;text-decoration:none;font-size:12px;font-weight:850}.relationship-grid,.team-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.relationship-card,.team-card,.link-card{min-height:68px;display:grid;grid-template-columns:42px 1fr 20px;align-items:center;gap:12px;padding:10px 15px;border:1px solid #ffffff1f;border-radius:18px;background:#fff;color:#17110e;text-decoration:none;box-shadow:0 9px 25px #0003}.relationship-card b,.team-card b,.link-card b{width:38px;height:38px;display:grid;place-items:center;overflow:hidden;border-radius:12px;background:#f8e7e1;color:#ec4e2c;font-size:15px}.relationship-card span,.team-card span{display:grid;gap:3px}.relationship-card small,.team-card small{font-size:10px;color:#816e65}.relationship-card i,.team-card i,.link-card i{font-style:normal;color:#9b8177}.links{display:grid;gap:9px}.link-card span{font-size:14px;font-weight:780}.section-break{padding:15px 4px 2px;color:#ffc4b4;font:700 10px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em}footer{margin-top:40px;color:#bcaea6;text-align:center;font-size:12px}footer strong{color:#ff6a49}@media(max-width:650px){.page{padding:18px 14px 38px}.hero{margin:44px 0 23px}.avatar{width:82px;height:82px;border-radius:27px}.bio{font-size:15px}.cta-grid,.relationship-grid,.team-grid{grid-template-columns:1fr}.feature{min-height:185px;border-radius:20px}.proof-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.proof-metric:last-child{grid-column:1/3}.matrix span:nth-child(3n){display:none}.matrix{opacity:.46}.matrix span{font-size:9px}}@media(prefers-reduced-motion:reduce){.matrix{display:none}}`;
   css += `@media(min-width:820px){.page{min-height:unset;margin:38px auto;border:1px solid #ff704855;border-radius:30px;overflow:hidden;background:linear-gradient(180deg,#2a130fe6 0%,#100d0be8 32%,#100d0bf0 100%);box-shadow:0 24px 90px #000b}}@media(max-width:819px){.page{background:#160d0be8;border-color:#ff704855}}.matrix{display:block!important;z-index:10!important;opacity:.78!important;mix-blend-mode:screen}.matrix-fallback{position:fixed!important;inset:0!important;overflow:hidden!important;pointer-events:none!important}.matrix-fallback span{display:block!important;z-index:1!important;top:-20vh!important;color:#ff7048!important;opacity:.82!important;text-shadow:0 0 14px #ff4b1f!important}`;
 
-  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="profile"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:image" content="${escapeHtml(previewImage)}"><meta property="og:image:secure_url" content="${escapeHtml(previewImage)}"><meta property="og:image:alt" content="${escapeHtml(`${profile.display_name} on Linkary`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(previewImage)}"><meta name="twitter:image:alt" content="${escapeHtml(`${profile.display_name} on Linkary`)}"><script type="application/ld+json">${structuredData}</script><style>${css}</style></head><body><canvas class="matrix" aria-hidden="true"></canvas><main class="page"><header class="top"><a class="brand" href="${escapeHtml(urls.publicSite)}">Linkary</a><button class="share" type="button" data-share>Share</button></header><section class="hero"><div class="avatar">${avatar}</div><div class="eyebrow">${typeLabel}</div><h1>${escapeHtml(profile.display_name)}</h1><div class="handle">@${escapeHtml(profile.username)}</div>${profile.bio ? `<p class="bio">${escapeHtml(profile.bio)}</p>` : ''}</section>${socialHtml ? `<nav class="socials" aria-label="Social links">${socialHtml}</nav>` : ''}${ctaHtml}${featureHtml ? `<section class="features">${featureHtml}</section>` : ''}${proofHtml(proof)}${opportunitiesHtml(opportunities, urls.app)}${relationshipHtml}${regularSection}${teamSection}<footer>Built on <strong>Linkary</strong> · Identity that compounds</footer></main><script>(function(){var c=document.querySelector('.matrix');if(!c)return;var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;var ctx=c.getContext('2d'),tokens=${rainConfig},glyphs='ｱｲｳｴｵｶｷｸｹｺ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',size=15,columns=[],width=0,height=0;function resize(){var dpr=Math.min(window.devicePixelRatio||1,2);width=window.innerWidth;height=window.innerHeight;c.width=width*dpr;c.height=height*dpr;c.style.width=width+'px';c.style.height=height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);var count=Math.ceil(width/size);columns=Array.from({length:count},function(_,i){return{y:(i*17)%Math.ceil(height/size),length:8+(i%13),speed:reduced?0:.22+(i%7)*.065,seed:i,token:i%9===0?String(tokens[i%tokens.length]||'LINKARY').toUpperCase():''};});}function draw(){ctx.clearRect(0,0,width,height);ctx.font='700 '+size+'px ui-monospace,SFMono-Regular,monospace';ctx.textAlign='center';columns.forEach(function(col,i){for(var trail=0;trail<col.length;trail++){var y=(col.y-trail)*size;if(y< -size||y>height+size)continue;var alpha=trail===0?1:Math.max(.05,.62-trail*.065);ctx.fillStyle=trail===0?'#ff7048':'rgba(184,58,34,'+alpha+')';var ch=col.token&&trail<col.token.length?col.token[(Math.floor(col.y)+trail)%col.token.length]:glyphs[(col.seed*31+Math.floor(col.y)+trail*17)%glyphs.length];ctx.shadowBlur=trail===0?12:5;ctx.shadowColor=trail===0?'#ff7048':'#b83a22';ctx.fillText(ch,i*size+size/2,y);}col.y+=col.speed;if(col.y-col.length>height/size){col.y=-(i%23)*7-10;col.length=8+((i*7+Math.floor(col.y))%14);}});if(!reduced)requestAnimationFrame(draw);}resize();window.addEventListener('resize',resize,{passive:true});draw();})();</script><script>(function(){var b=document.querySelector('[data-share]');if(!b)return;var d=${shareData};b.addEventListener('click',async function(){try{if(navigator.share){await navigator.share(d);return;}if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(d.url);b.textContent='Copied';setTimeout(function(){b.textContent='Share';},1800);return;}window.prompt('Copy this Linkary profile URL',d.url);}catch(e){if(e&&e.name==='AbortError')return;window.prompt('Copy this Linkary profile URL',d.url);}});})();</script></body></html>`, { headers: { 'cache-control': 'public, max-age=60, s-maxage=300' } });
+  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="profile"><meta property="og:site_name" content="Linkary"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:image" content="${escapeHtml(previewImage)}"><meta property="og:image:secure_url" content="${escapeHtml(previewImage)}"><meta property="og:image:type" content="image/svg+xml"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="${escapeHtml(`${profile.display_name} on Linkary`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(previewImage)}"><meta name="twitter:image:alt" content="${escapeHtml(`${profile.display_name} on Linkary`)}"><script type="application/ld+json">${structuredData}</script><style>${css}</style></head><body><canvas class="matrix" aria-hidden="true"></canvas><main class="page"><header class="top"><a class="brand" href="${escapeHtml(urls.publicSite)}">Linkary</a><button class="share" type="button" data-share>Share</button></header><section class="hero"><div class="avatar">${avatar}</div><div class="eyebrow">${typeLabel}</div><h1>${escapeHtml(profile.display_name)}</h1><div class="handle">@${escapeHtml(profile.username)}</div>${profile.bio ? `<p class="bio">${escapeHtml(profile.bio)}</p>` : ''}</section>${socialHtml ? `<nav class="socials" aria-label="Social links">${socialHtml}</nav>` : ''}${ctaHtml}${featureHtml ? `<section class="features">${featureHtml}</section>` : ''}${proofHtml(proof)}${opportunitiesHtml(opportunities, urls.app)}${relationshipHtml}${regularSection}${teamSection}<footer>Built on <strong>Linkary</strong> · Identity that compounds</footer></main><script>(function(){var c=document.querySelector('.matrix');if(!c)return;var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;var ctx=c.getContext('2d'),tokens=${rainConfig},glyphs='ｱｲｳｴｵｶｷｸｹｺ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',size=15,columns=[],width=0,height=0;function resize(){var dpr=Math.min(window.devicePixelRatio||1,2);width=window.innerWidth;height=window.innerHeight;c.width=width*dpr;c.height=height*dpr;c.style.width=width+'px';c.style.height=height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);var count=Math.ceil(width/size);columns=Array.from({length:count},function(_,i){return{y:(i*17)%Math.ceil(height/size),length:8+(i%13),speed:reduced?0:.22+(i%7)*.065,seed:i,token:i%9===0?String(tokens[i%tokens.length]||'LINKARY').toUpperCase():''};});}function draw(){ctx.clearRect(0,0,width,height);ctx.font='700 '+size+'px ui-monospace,SFMono-Regular,monospace';ctx.textAlign='center';columns.forEach(function(col,i){for(var trail=0;trail<col.length;trail++){var y=(col.y-trail)*size;if(y< -size||y>height+size)continue;var alpha=trail===0?1:Math.max(.05,.62-trail*.065);ctx.fillStyle=trail===0?'#ff7048':'rgba(184,58,34,'+alpha+')';var ch=col.token&&trail<col.token.length?col.token[(Math.floor(col.y)+trail)%col.token.length]:glyphs[(col.seed*31+Math.floor(col.y)+trail*17)%glyphs.length];ctx.shadowBlur=trail===0?12:5;ctx.shadowColor=trail===0?'#ff7048':'#b83a22';ctx.fillText(ch,i*size+size/2,y);}col.y+=col.speed;if(col.y-col.length>height/size){col.y=-(i%23)*7-10;col.length=8+((i*7+Math.floor(col.y))%14);}});if(!reduced)requestAnimationFrame(draw);}resize();window.addEventListener('resize',resize,{passive:true});draw();})();</script><script>(function(){var b=document.querySelector('[data-share]');if(!b)return;var d=${shareData};b.addEventListener('click',async function(){try{if(navigator.share){await navigator.share(d);return;}if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(d.url);b.textContent='Copied';setTimeout(function(){b.textContent='Share';},1800);return;}window.prompt('Copy this Linkary profile URL',d.url);}}catch(e){if(e&&e.name==='AbortError')return;window.prompt('Copy this Linkary profile URL',d.url);}})();</script></body></html>`, { headers: { 'cache-control': 'public, max-age=60, s-maxage=300' } });
 }
 export async function renderSitemap(request: Request, env: Env): Promise<Response> {
   const db = new Db(requireDb(env));
