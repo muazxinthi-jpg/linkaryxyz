@@ -107,15 +107,17 @@ test('self referrals, second inviters and known cycles do not rewrite permanent 
   assert.equal(db.prepare(`SELECT COUNT(*) AS total FROM network_referral_edges WHERE invitee_user_id = 'a'`).get()?.total, 0);
 });
 
-test('personal network reads stay bounded, private-safe and seven-generation scoped', () => {
+test('personal network reads stay bounded, identity-safe and seven-generation scoped', () => {
   assert.match(profileRoute, /network_referral_paths p/);
   assert.match(profileRoute, /p\.ancestor_user_id = \?/);
   assert.match(profileRoute, /p\.depth = \?/);
   assert.match(profileRoute, /LIMIT \? OFFSET \?/);
   assert.match(profileRoute, /networkDepth/);
   assert.match(profileRoute, /boundedInteger\([^\n]+1, 1, 7\)/);
-  assert.match(profileRoute, /cp\.visibility = 'published'/);
-  assert.match(profileRoute, /pp\.visibility = 'published'/);
+  assert.doesNotMatch(profileRoute, /cp\.visibility = 'published'/);
+  assert.doesNotMatch(profileRoute, /pp\.visibility = 'published'/);
+  assert.match(profileRoute, /SELECT display_name, username, avatar_url, verification_status/);
+  assert.match(profileRoute, /displayName: rootProfile\?\.display_name \|\| 'You'/);
   assert.match(profileRoute, /networkGraph/);
   assert.match(profileRoute, /networkGraphLimit/);
   assert.match(profileRoute, /boundedInteger\([^\n]+120, 20, 160\)/);
@@ -142,7 +144,7 @@ test('Invite workspace keeps My Network and Map V2 available across active Proje
   assert.match(profileIdentityUi, /<PersonalTelegramConnection \/>/);
 });
 
-test('Private Network Map V2 is searchable, draggable, filterable, expandable and lineage-aware', () => {
+test('Private Network Map V3 keeps V2 controls while adding bounded fluid graph physics and profile avatars', () => {
   assert.match(mapV2Panel, /networkGraphLimit: '160'/);
   assert.match(mapV2Panel, /data-private-network-map-v2/);
   assert.match(mapV2Panel, /InteractiveNetworkMapV2/);
@@ -160,7 +162,14 @@ test('Private Network Map V2 is searchable, draggable, filterable, expandable an
   assert.match(mapV2, />Fit</);
   assert.match(mapV2, /network-map-expand/);
   assert.match(mapV2, /setExpanded/);
+  assert.match(mapV2, /requestAnimationFrame/);
+  assert.match(mapV2, /radialForce/);
+  assert.match(mapV2, /collisionDistance/);
+  assert.match(mapV2, /Fluid network view/);
+  assert.match(mapV2, /<image/);
+  assert.match(mapV2, /network-map-v2-avatar/);
   assert.match(mapV2Css, /\.network-map-v2-shell\.is-expanded/);
+  assert.match(mapV2Css, /\.network-map-fluid/);
   assert.match(mapV2Css, /min-height:650px/);
   assert.match(mapV2Css, /@media\(max-width:640px\)/);
 });

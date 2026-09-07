@@ -33,7 +33,9 @@ test('identity settings are personal-profile owned, CSRF protected and presentat
   assert.equal(route.includes("profile.profile_type !== 'creator'"), true);
   assert.equal(route.includes('verifyCsrf(request, env, auth)'), true);
   assert.equal(route.includes('organization_memberships'), false);
-  assert.equal(route.includes('verification_status ='), false);
+  // Guard against mutating verification state while allowing read-only equality checks such as
+  // verification_status === 'verified_x' in authenticated network presentation code.
+  assert.equal(/UPDATE\s+profiles\s+SET[\s\S]{0,1000}?verification_status\s*=/i.test(route), false);
   assert.equal(route.includes('campaign_activity'), false);
   assert.equal(route.includes('invite_credit'), false);
   assert.equal(migration.includes('never grant Project permissions'), true);
