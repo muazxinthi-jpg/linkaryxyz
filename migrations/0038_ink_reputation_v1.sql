@@ -1,8 +1,8 @@
 -- INK V1 reputation evidence infrastructure.
 --
 -- This migration creates versioned, auditable storage for future INK scoring.
--- It deliberately does NOT activate a numeric scoring formula and does NOT
--- activate downstream referral cash rewards. Until the methodology is locked,
+-- It deliberately does NOT activate a numeric scoring formula.
+-- It does NOT activate downstream referral cash rewards. Until the methodology is locked,
 -- score fields may remain NULL while evidence is collected.
 
 CREATE TABLE IF NOT EXISTS ink_score_snapshots (
