@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import PersonalNetworkPanel from './PersonalNetworkPanel';
+import PrivateNetworkMapV2Panel from './PrivateNetworkMapV2Panel';
 import './private-network-tabs.css';
 
 type InviteBalance = { owner_type: 'profile' | 'organization'; owner_id: string; available_credits: number; lifetime_granted: number; lifetime_used: number; quality_score: number; privileges_status: string };
@@ -119,7 +120,7 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
       )}
 
       {isPersonal && privateView === 'network' && <PersonalNetworkPanel profileId={profile.id} view="network" />}
-      {isPersonal && privateView === 'map' && <PersonalNetworkPanel profileId={profile.id} view="map" />}
+      {isPersonal && privateView === 'map' && <PrivateNetworkMapV2Panel profileId={profile.id} />}
     </div>
   </ProductWorkspace>;
 }
