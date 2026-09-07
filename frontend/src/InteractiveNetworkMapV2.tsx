@@ -180,7 +180,7 @@ export default function InteractiveNetworkMapV2({ graph }: { graph: NetworkGraph
 
   const lineageIds = useMemo(() => {
     const ids = new Set<string>();
-    let current = selected;
+    let current: NetworkGraphNode | undefined = selected;
     while (current) {
       ids.add(current.id);
       current = current.parentId ? byId.get(current.parentId) : undefined;
