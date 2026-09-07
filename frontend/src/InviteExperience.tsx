@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import PersonalNetworkPanel from './PersonalNetworkPanel';
+import PrivateNetworkMapV2Panel from './PrivateNetworkMapV2Panel';
 import './private-network-tabs.css';
 
 type InviteBalance = { owner_type: 'profile' | 'organization'; owner_id: string; available_credits: number; lifetime_granted: number; lifetime_used: number; quality_score: number; privileges_status: string };
@@ -48,7 +49,8 @@ function safeMessage(error: unknown, fallback: string) {
 function recipient(invite: Invite) { if (invite.recipient_x_handle) return { label: `@${invite.recipient_x_handle}`, telegram: false }; if (invite.recipient_telegram) return { label: invite.recipient_name || 'Telegram member', telegram: true }; return { label: invite.recipient_email || invite.recipient_name || 'Linkary member', telegram: false }; }
 
 export default function InviteExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
-  const creatorFirst = status.profiles.find((p) => p.profile_type === 'creator') || status.profiles[0];
+  const personalProfile = status.profiles.find((p) => p.profile_type === 'creator');
+  const creatorFirst = personalProfile || status.profiles[0];
   const stored = window.localStorage.getItem('linkary.active.profile');
   const [profileId, setProfileId] = useState(stored && status.profiles.some((p) => p.id === stored) ? stored : creatorFirst?.id || '');
   const profile = status.profiles.find((p) => p.id === profileId) || creatorFirst;
@@ -64,8 +66,10 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
   const balance = owner ? balances.find((b) => b.owner_type === owner.type && b.owner_id === owner.id) : undefined;
   const visibleInvites = owner ? invites.filter((invite) => invite.owner_type === owner.type && invite.owner_id === owner.id) : [];
   const isPersonal = profile?.profile_type === 'creator';
+  const hasPersonalProfile = Boolean(personalProfile?.id);
+  const networkProfileId = personalProfile?.id || '';
 
-  function changeProfile(id: string) { setProfileId(id); setPrivateView('invites'); window.localStorage.setItem('linkary.active.profile', id); }
+  function changeProfile(id: string) { setProfileId(id); window.localStorage.setItem('linkary.active.profile', id); }
   async function load() {
     try {
       const [balanceResult, inviteResult] = await Promise.all([apiJson<{ balances: InviteBalance[] }>('/api/invites/balances'), apiJson<{ invites: Invite[] }>('/api/invites/list')]);
@@ -97,11 +101,12 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
   }
 
   if (!profile) return null;
+  const showingPersonalNetwork = privateView !== 'invites' && hasPersonalProfile;
   return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
     <div className="ops-stack invite-workspace private-network-workspace">
-      <div className="ops-heading-row"><div><span className="ops-kicker">PRIVATE NETWORK</span><h1>{isPersonal ? 'Private Network' : 'Invites'}</h1><p>{isPersonal ? 'Invite people to Linkary and understand how your network grows across seven generations.' : 'Bring the right people into Linkary and keep every invitation attributable.'}</p></div></div>
+      <div className="ops-heading-row"><div><span className="ops-kicker">PRIVATE NETWORK</span><h1>{showingPersonalNetwork || isPersonal ? 'Private Network' : 'Invites'}</h1><p>{showingPersonalNetwork || isPersonal ? 'Invite people to Linkary and understand how your network grows across seven generations.' : 'Bring the right people into Linkary and keep every invitation attributable.'}</p></div></div>
 
-      {isPersonal && (
+      {hasPersonalProfile && (
         <nav className="private-network-tabs" aria-label="Private Network views">
           <button type="button" className={privateView === 'invites' ? 'active' : ''} aria-pressed={privateView === 'invites'} onClick={() => setPrivateView('invites')}>Invitations</button>
           <button type="button" className={privateView === 'network' ? 'active' : ''} aria-pressed={privateView === 'network'} onClick={() => setPrivateView('network')}>My network</button>
@@ -118,8 +123,8 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
         </>
       )}
 
-      {isPersonal && privateView === 'network' && <PersonalNetworkPanel profileId={profile.id} view="network" />}
-      {isPersonal && privateView === 'map' && <PersonalNetworkPanel profileId={profile.id} view="map" />}
+      {hasPersonalProfile && privateView === 'network' && <PersonalNetworkPanel profileId={networkProfileId} view="network" />}
+      {hasPersonalProfile && privateView === 'map' && <PrivateNetworkMapV2Panel profileId={networkProfileId} />}
     </div>
   </ProductWorkspace>;
 }
