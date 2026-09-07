@@ -457,15 +457,15 @@ export default function InteractiveNetworkMapV2({ graph }: { graph: NetworkGraph
         <div className="network-map-v2-detail-main">
           <span>{selected?.id === 'self' ? 'Your network origin' : `Generation ${selected?.depth || 1}`}</span>
           <strong>{selected?.displayName || 'You'}{selected?.verified ? ' · Verified' : ''}</strong>
-          <small>{selected?.id === 'self' ? 'Every visible branch below starts from a Linkary invitation lineage.' : `${memberType(selected)}${selected?.username ? ` · @${selected.username}` : ''}${formatJoined(selected?.joinedAt || '') ? ` · Joined ${formatJoined(selected?.joinedAt || '')}` : ''}`}</small>
-          {selected?.id !== 'self' && <small>Connected through {selectedParent?.displayName || 'your network'}.</small>}
+          <small>{selected?.id === 'self' ? 'Every visible branch below starts from a Linkary invitation lineage.' : `${selected ? memberType(selected) : 'Member'}${selected?.username ? ` · @${selected.username}` : ''}${formatJoined(selected?.joinedAt || '') ? ` · Joined ${formatJoined(selected?.joinedAt || '')}` : ''}`}</small>
+          {selected && selected.id !== 'self' && <small>Connected through {selectedParent?.displayName || 'your network'}.</small>}
         </div>
         <div className="network-map-v2-detail-metrics">
           <div><span>Visible children</span><strong>{selectedDirectChildren}</strong></div>
           <div><span>Visible downstream</span><strong>{selectedVisibleDownstream}</strong></div>
         </div>
         <div className="network-map-v2-detail-actions">
-          {selected?.id !== 'self' && (childrenById.get(selected.id)?.length || 0) > 0 && (
+          {selected && selected.id !== 'self' && (childrenById.get(selected.id)?.length || 0) > 0 && (
             <button type="button" onClick={() => toggleBranch(selected.id)}>{collapsed.has(selected.id) ? 'Expand branch' : 'Collapse branch'}</button>
           )}
           {selected?.username && <a href={`https://linkary.xyz/${encodeURIComponent(selected.username)}`} target="_blank" rel="noreferrer">Open profile ↗</a>}
