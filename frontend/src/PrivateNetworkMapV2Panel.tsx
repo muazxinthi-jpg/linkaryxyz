@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InteractiveNetworkMapV2 from './InteractiveNetworkMapV3';
 import './personal-network.css';
 
@@ -41,6 +41,8 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const mapHostRef = useRef<HTMLDivElement | null>(null);
+  const rootAvatarRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!profileId) return;
@@ -74,6 +76,65 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
   }, [profileId]);
 
   const summary = network?.summary || { directInvites: 0, totalNetwork: 0, creators: 0, projects: 0 };
+  const rootAvatarUrl = network?.graph?.nodes.find((node) => node.id === 'self')?.avatarUrl || null;
+
+  useEffect(() => {
+    const host = mapHostRef.current;
+    const avatar = rootAvatarRef.current;
+    if (!host || !avatar || !rootAvatarUrl) return;
+
+    let animationFrame = 0;
+    const syncAvatar = () => {
+      animationFrame = 0;
+      const rootCircle = host.querySelector<SVGGraphicsElement>('.network-map-v2-node.root .network-map-v2-node-bg');
+      if (!rootCircle) {
+        avatar.style.opacity = '0';
+        return;
+      }
+      const targetRect = rootCircle.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      if (!targetRect.width || !targetRect.height) {
+        avatar.style.opacity = '0';
+        return;
+      }
+      avatar.style.left = `${targetRect.left - hostRect.left}px`;
+      avatar.style.top = `${targetRect.top - hostRect.top}px`;
+      avatar.style.width = `${targetRect.width}px`;
+      avatar.style.height = `${targetRect.height}px`;
+      avatar.style.opacity = '1';
+    };
+    const scheduleSync = () => {
+      if (animationFrame) return;
+      animationFrame = requestAnimationFrame(syncAvatar);
+    };
+
+    scheduleSync();
+
+    const mutationObserver = new MutationObserver(scheduleSync);
+    mutationObserver.observe(host, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['transform', 'class', 'style'],
+    });
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleSync) : null;
+    resizeObserver?.observe(host);
+    const svg = host.querySelector('svg');
+    if (svg) resizeObserver?.observe(svg);
+
+    host.addEventListener('pointermove', scheduleSync, { passive: true });
+    host.addEventListener('wheel', scheduleSync, { passive: true });
+    window.addEventListener('resize', scheduleSync);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+      host.removeEventListener('pointermove', scheduleSync);
+      host.removeEventListener('wheel', scheduleSync);
+      window.removeEventListener('resize', scheduleSync);
+    };
+  }, [rootAvatarUrl]);
 
   return (
     <section className="wide personal-network network-map-view" data-private-network-map-v2 aria-labelledby="network-map-v2-title">
@@ -99,7 +160,37 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
 
       {message && <div className="personal-network-message" role="status">{message}</div>}
       {loading && <div className="personal-network-message" role="status">Building your interactive network map...</div>}
-      {!loading && network?.available && network.graph && <InteractiveNetworkMapV2 graph={network.graph} />}
+      {!loading && network?.available && network.graph && (
+        <div ref={mapHostRef} style={{ position: 'relative' }} data-network-root-avatar-host>
+          <InteractiveNetworkMapV2 graph={network.graph} />
+          {rootAvatarUrl && (
+            <img
+              ref={rootAvatarRef}
+              src={rootAvatarUrl}
+              alt=""
+              aria-hidden="true"
+              referrerPolicy="no-referrer"
+              data-network-root-avatar-overlay
+              onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: 0,
+                height: 0,
+                opacity: 0,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                pointerEvents: 'none',
+                zIndex: 8,
+                boxSizing: 'border-box',
+                border: '2px solid #f26419',
+                boxShadow: '0 2px 6px rgba(31,24,18,.16)',
+              }}
+            />
+          )}
+        </div>
+      )}
     </section>
   );
 }
