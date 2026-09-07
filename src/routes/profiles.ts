@@ -74,7 +74,7 @@ export async function renderPublicProfileCard(request: Request, env: Env, userna
     loadPublicProof(db, profile),
   ]);
   const clicks = Number(clickRow?.total || 0);
-  const channels = blocks.filter((block) => isSocialBlock(block)).length;
+  const channels = blocks.filter((block) => isSocialBlock(block) && !['featured_video', 'featured_article', 'featured_image', 'team_member'].includes(block.block_type)).length;
   const campaignMetric = proof?.metrics.find((metric) => ['Accepted campaigns', 'Tracked campaigns'].includes(metric.label))?.value || 'Unavailable';
   const outcomeMetric = proof?.metrics.find((metric) => metric.label === 'Verified outcomes')?.value || 'Unavailable';
   const months = Array.from({ length: 12 }, (_, index) => {
