@@ -51,7 +51,15 @@ function svgText(value: string, max = 220): string {
 async function svgImageData(url: string | null): Promise<string | null> {
   if (!url) return null;
   try {
-    const response = await fetch(url, { headers: { accept: 'image/*' } });
+    // Share cards render the avatar at roughly 100px. Ask Cloudflare's image
+    // pipeline for a small WebP so the generated SVG stays lightweight while
+    // preserving the profile image and its cover crop.
+    const optimizedRequest = {
+      headers: { accept: 'image/avif,image/webp,image/*' },
+      cf: { image: { width: 256, height: 256, fit: 'cover', format: 'webp' } },
+    } as RequestInit;
+    let response = await fetch(url, optimizedRequest);
+    if (!response.ok) response = await fetch(url, { headers: { accept: 'image/*' } });
     if (!response.ok) return null;
     const mime = response.headers.get('content-type')?.split(';')[0] || 'image/png';
     const bytes = new Uint8Array(await response.arrayBuffer());
