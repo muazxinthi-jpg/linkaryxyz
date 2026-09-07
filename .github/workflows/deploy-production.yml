@@ -101,7 +101,7 @@ jobs:
             fi
           done
 
-      - name: Verify Superadmin serves current production bundle
+      - name: Verify Superadmin serves current production bundle (100-percent coupon)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         shell: bash
         run: |
@@ -111,24 +111,33 @@ jobs:
             app_body="/tmp/linkary-app-bundle-${attempt}.html"
             sadmin_body="/tmp/linkary-sadmin-bundle-${attempt}.html"
             sadmin_headers="/tmp/linkary-sadmin-headers-${attempt}.txt"
+            bundle_body="/tmp/linkary-sadmin-js-${attempt}.js"
             app_status=$(curl -sS -o "$app_body" -w '%{http_code}' "https://app.linkary.xyz/?bundlecheck=${GITHUB_SHA}-${attempt}") || app_status=000
             sadmin_status=$(curl -sS -D "$sadmin_headers" -o "$sadmin_body" -w '%{http_code}' "https://sadmin.linkary.xyz/?bundlecheck=${GITHUB_SHA}-${attempt}") || sadmin_status=000
             app_bundle=$(grep -oE '/assets/linkary-app/assets/index-[A-Za-z0-9_-]+\.js' "$app_body" | head -n 1 || true)
             sadmin_bundle=$(grep -oE '/assets/linkary-app/assets/index-[A-Za-z0-9_-]+\.js' "$sadmin_body" | head -n 1 || true)
-            if [[ "$app_status" == "200" && "$sadmin_status" == "200" ]] \
+            bundle_status=000
+            if [[ -n "$sadmin_bundle" ]]; then
+              bundle_status=$(curl -sS -o "$bundle_body" -w '%{http_code}' "https://sadmin.linkary.xyz${sadmin_bundle}?bundlecontent=${GITHUB_SHA}-${attempt}") || bundle_status=000
+            fi
+            if [[ "$app_status" == "200" && "$sadmin_status" == "200" && "$bundle_status" == "200" ]] \
               && grep -q 'id="root"' "$app_body" \
               && grep -q 'id="root"' "$sadmin_body" \
               && [[ -n "$app_bundle" && "$app_bundle" == "$sadmin_bundle" ]] \
-              && grep -qi '^x-robots-tag: noindex' "$sadmin_headers"; then
-              echo "Superadmin is serving current bundle: ${sadmin_bundle}"
+              && grep -qi '^x-robots-tag: noindex' "$sadmin_headers" \
+              && grep -qi '^cache-control: .*no-store' "$sadmin_headers" \
+              && grep -Fq '100% coupon created.' "$bundle_body" \
+              && grep -Fq 'A 100% percent-off coupon grants one paid monthly period' "$bundle_body" \
+              && ! grep -Fq 'Coupons cannot reduce a paid checkout to $0' "$bundle_body"; then
+              echo "Superadmin is serving the current 100% coupon bundle: ${sadmin_bundle}"
               healthy=true
               break
             fi
-            echo "Waiting for Superadmin bundle parity, attempt ${attempt}, app=${app_status}:${app_bundle:-none}, sadmin=${sadmin_status}:${sadmin_bundle:-none}"
+            echo "Waiting for current Superadmin coupon bundle, attempt ${attempt}, app=${app_status}:${app_bundle:-none}, sadmin=${sadmin_status}:${sadmin_bundle:-none}, js=${bundle_status}"
             sleep 5
           done
           if [[ "$healthy" != "true" ]]; then
-            echo "::error::sadmin.linkary.xyz is not serving the current production frontend bundle"
+            echo "::error::sadmin.linkary.xyz is not serving the current 100% coupon frontend bundle"
             exit 1
           fi
 
