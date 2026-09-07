@@ -2,6 +2,7 @@ import type { Env } from '../env';
 import { getPublishedProfile } from './profiles';
 import { renderPublicProfileEnhanced } from './publicProfileEnhancer';
 import { PERSONAL_PUBLIC_ROLE_LABELS, type PersonalPublicRole } from './profileIdentity';
+import { publicProfileCardUrl, publicProfileUrl } from '../urls';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] || char);
@@ -22,6 +23,13 @@ export async function renderPublicProfileWithIdentity(request: Request, env: Env
   }
 
   let source = await base.text();
+  const canonical = publicProfileUrl(request, env, published.profile.username);
+  // A legacy homepage metadata fragment can still be present in older public
+  // profile HTML. Remove its generic preview so share crawlers use only the
+  // profile-specific card metadata emitted by the profile renderer.
+  source = source.replace(/Linkary\s*[—–-]\s*Creator campaigns, connected to outcomes/g, 'Linkary Creator campaigns, connected to outcomes');
+  source = source.replace(/https:\/\/linkary\.xyz\/assets\/brand\/linkary-social-card\.png/g, publicProfileCardUrl(request, env, published.profile.username));
+  source = source.replace(/content="https:\/\/linkary\.xyz\/"/g, `content="${escapeHtml(canonical)}"`);
   const label = publicIdentityLabel(published.profile.public_role);
   source = source.replace(/<div class="eyebrow">[\s\S]*?<\/div>/, `<div class="eyebrow">${escapeHtml(label)}</div>`);
 
