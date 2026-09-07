@@ -25,12 +25,13 @@ type CurrentBilling = {
   ownerId: string;
   plan: PublicPlan;
   entitlement: {
-    source: 'default' | 'grant' | 'subscription';
+    source: 'default' | 'grant' | 'subscription' | 'superadmin';
     grantId: string | null;
     subscriptionPeriodId?: string | null;
     startsAt: string | null;
     endsAt: string | null;
     monthlyUsageCredits: number;
+    usageCreditsExempt?: boolean;
   };
   creditBalance: number;
 };
@@ -71,6 +72,7 @@ function planGroup(plan: PublicPlan): 'Personal plans' | 'Project plans' {
 }
 
 function accessSource(current: CurrentBilling): string {
+  if (current.entitlement.source === 'superadmin') return 'Superadmin platform access';
   if (current.entitlement.source === 'subscription') return 'Paid subscription';
   if (current.entitlement.source === 'grant') return 'Entitlement';
   return 'Default';
@@ -127,8 +129,10 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
 
   const visiblePlans = useMemo(() => plans, [plans]);
   const planGroups = useMemo(() => ['Personal plans', 'Project plans'] as const, []);
+  const isSuperadminAccess = current?.entitlement.source === 'superadmin';
 
   if (!profile) return null;
+  const activeGroup = profile.profile_type === 'creator' ? 'Personal plans' : 'Project plans';
 
   return (
     <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
@@ -136,8 +140,10 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
         <div className="ops-heading-row">
           <div>
             <span className="ops-kicker">PLAN & BILLING</span>
-            <h1>Choose the Linkary plan that fits your work</h1>
-            <p>Plans use the same live catalog shown on Linkary. Paid access activates only after an eligible Base USDC payment or Superadmin entitlement is verified.</p>
+            <h1>{isSuperadminAccess ? 'Superadmin platform access is active' : 'Choose the Linkary plan that fits your work'}</h1>
+            <p>{isSuperadminAccess
+              ? 'The canonical Superadmin receives all Linkary feature access without a subscription or coupon. Workspace ownership and Project membership boundaries still apply, while AI and provider usage remain inside Controlled Beta safety budgets.'
+              : 'Plans use the same live catalog shown on Linkary. Paid access activates only after an eligible Base USDC payment or Superadmin entitlement is verified.'}</p>
           </div>
         </div>
 
@@ -146,14 +152,14 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
         {state === 'ready' && current && (
           <section className="billing-status-card" aria-label="Current Linkary plan">
             <div>
-              <span>CURRENT PLAN</span>
-              <h2>{current.plan.name}</h2>
-              <p>{current.plan.description}</p>
+              <span>{isSuperadminAccess ? 'PLATFORM ACCESS' : 'CURRENT PLAN'}</span>
+              <h2>{current.plan.name}{isSuperadminAccess ? ' feature set' : ''}</h2>
+              <p>{isSuperadminAccess ? 'Full platform-owner feature access is applied virtually. No billing entitlement, coupon redemption or payment record is created.' : current.plan.description}</p>
               {current.entitlement.endsAt && <small className="billing-period-note">Current paid/granted access runs through {new Date(current.entitlement.endsAt).toLocaleDateString()}.</small>}
             </div>
             <div className="billing-current-metrics">
-              <article><small>Monthly usage credits</small><strong>{current.entitlement.monthlyUsageCredits.toLocaleString()}</strong></article>
-              <article><small>Usage ledger balance</small><strong>{current.creditBalance.toLocaleString()}</strong></article>
+              <article><small>AI / provider usage</small><strong>{current.entitlement.usageCreditsExempt ? 'Governed' : current.entitlement.monthlyUsageCredits.toLocaleString()}</strong></article>
+              <article><small>Usage ledger</small><strong>{current.entitlement.usageCreditsExempt ? 'Not charged' : current.creditBalance.toLocaleString()}</strong></article>
               <article><small>Access source</small><strong>{accessSource(current)}</strong></article>
             </div>
           </section>
@@ -166,7 +172,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
               <div className="billing-reveal-count"><strong>{revealHistory.remaining.toLocaleString()}</strong><span>remaining this month</span></div>
             </div>
             <div className="billing-reveal-meter" role="progressbar" aria-valuemin={0} aria-valuemax={revealHistory.allowance} aria-valuenow={revealHistory.used} aria-label={`${revealHistory.used} of ${revealHistory.allowance} contact reveals used`}><span style={{ width: `${revealHistory.allowance ? Math.min(100, (revealHistory.used / revealHistory.allowance) * 100) : 0}%` }} /></div>
-            <div className="billing-reveal-meta"><span>{revealHistory.used.toLocaleString()} used</span><span>{revealHistory.allowance.toLocaleString()} included on this plan</span><a href="/partners">Find partners →</a></div>
+            <div className="billing-reveal-meta"><span>{revealHistory.used.toLocaleString()} used</span><span>{revealHistory.allowance.toLocaleString()} included in this workspace access</span><a href="/partners">Find partners →</a></div>
             {revealHistory.records.length > 0 ? <div className="billing-reveal-history"><div className="billing-reveal-history-heading"><strong>Recent reveals</strong><span>Masked for privacy</span></div>{revealHistory.records.slice(0, 8).map((record) => <article key={record.id}><div><strong>{record.managerName}</strong><small>{record.targetProfileName} · {record.managerType.replace(/_/g, ' ')}</small></div><span>{contactTypeLabel(record.contactType)} · {record.maskedValue}</span><time dateTime={record.revealedAt}>{new Date(record.revealedAt).toLocaleDateString()}</time></article>)}</div> : <div className="billing-reveal-empty">No contacts revealed this month. Partner contact details remain masked until you choose to reveal them.</div>}
           </section>
         )}
@@ -182,8 +188,8 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
               <article key={plan.code} className={`billing-plan-card ${isCurrent ? 'current' : ''}`}>
                 <div className="billing-plan-top">
                   <div><span>{plan.audience}</span><h2>{plan.name}</h2></div>
-                  {isCurrent && <b className="billing-current-badge">Current</b>}
-                  {!isCurrent && plan.promotion && <b className="billing-promo-badge">{plan.promotion.label}</b>}
+                  {isCurrent && <b className="billing-current-badge">{isSuperadminAccess ? 'Platform access' : 'Current'}</b>}
+                  {!isCurrent && !isSuperadminAccess && plan.promotion && <b className="billing-promo-badge">{plan.promotion.label}</b>}
                 </div>
                 <div className="billing-price">
                   {discounted && <del>{money(plan.basePriceCents, plan.currency)}</del>}
@@ -194,7 +200,9 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
                 <div className="billing-allowance"><strong>{plan.monthlyUsageCredits.toLocaleString()}</strong><span>monthly usage credits</span></div>
                 <div className="billing-allowance"><strong>{plan.monthlyContactReveals ? plan.monthlyContactReveals.toLocaleString() : '—'}</strong><span>monthly contact reveals</span></div>
                 <ul>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
-                {isCurrent ? (
+                {isSuperadminAccess ? (
+                  <button type="button" className="ops-button ghost" disabled>{group === activeGroup ? 'Available with Superadmin' : `Use ${group === 'Personal plans' ? 'Personal' : 'Project'} workspace`}</button>
+                ) : isCurrent ? (
                   <button type="button" className="ops-button ghost" disabled>Current plan</button>
                 ) : paid ? (
                   <button type="button" className="ops-button primary billing-cta" onClick={() => setSelectedPlan(plan)}>Pay with Linkary wallet</button>
@@ -209,7 +217,7 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
           </div>
         </section>)}
 
-        {selectedPlan && (
+        {selectedPlan && !isSuperadminAccess && (
           <BillingCheckoutPanel
             profile={profile as ProductProfile}
             plan={selectedPlan}
@@ -221,10 +229,17 @@ export default function BillingExperience({ me, status }: { me: ProductMe; statu
           />
         )}
 
-        <section className="billing-wallet-note">
-          <div><strong>Paid plans use your Linkary wallet.</strong><p>Fund your Linkary wallet with USDC on Base before checkout. Every Controlled Beta renewal requires your approval, and selecting a plan never grants paid access by itself.</p></div>
-          <a className="ops-button primary" href="/wallets">Open wallet</a>
-        </section>
+        {isSuperadminAccess ? (
+          <section className="billing-wallet-note">
+            <div><strong>No subscription is required for the canonical Superadmin.</strong><p>Paid feature gates are unlocked for your Personal workspace and for Projects where you already have an active membership. AI, Alchemy and other provider-backed actions remain metered, audited and protected by Controlled Beta circuit breakers.</p></div>
+            <a className="ops-button primary" href="/dashboard">Back to dashboard</a>
+          </section>
+        ) : (
+          <section className="billing-wallet-note">
+            <div><strong>Paid plans use your Linkary wallet.</strong><p>Fund your Linkary wallet with USDC on Base before checkout. Every Controlled Beta renewal requires your approval, and selecting a plan never grants paid access by itself.</p></div>
+            <a className="ops-button primary" href="/wallets">Open wallet</a>
+          </section>
+        )}
       </div>
     </ProductWorkspace>
   );

@@ -3,6 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { requireAuth } from '../auth/session';
 import { HttpError, json } from '../http';
+import { superadminPlatformPlan } from '../superadminPlatformAccess';
 
 type ProfileRow = {
   id: string;
@@ -130,8 +131,24 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
     ownerId = profile.organization_id;
   }
 
+  // The canonical Superadmin receives the highest relevant public feature set
+  // for workspaces they are already authorized to use. This is a virtual access
+  // source, not a subscription, coupon redemption or entitlement row.
+  const platformPlanCode = superadminPlatformPlan(auth.isSuperadmin, profile.profile_type);
+  const platformPlan = platformPlanCode ? await db.first<PlanRow>(
+    `SELECT id, code, name, audience, description, billing_period, base_price_cents, currency,
+            monthly_usage_credits, monthly_contact_reveals, project_seat_limit, features_json
+       FROM billing_plans
+      WHERE code = ? AND is_active = 1
+      LIMIT 1`,
+    [platformPlanCode],
+  ) : null;
+  if (platformPlanCode && !platformPlan) {
+    throw new HttpError(503, 'Superadmin platform access plan is unavailable', 'billing_catalog_unavailable');
+  }
+
   const timestamp = new Date().toISOString();
-  const grant = ownerType === 'user'
+  const grant = platformPlan ? null : ownerType === 'user'
     ? await db.first<GrantRow>(
       `SELECT bp.id, bp.code, bp.name, bp.audience, bp.description, bp.billing_period,
               bp.base_price_cents, bp.currency, bp.monthly_usage_credits, bp.project_seat_limit,
@@ -163,15 +180,15 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
       [ownerId, timestamp, timestamp],
     );
 
-  const subscription = grant ? null : await activeSubscription(db, ownerType, ownerId, timestamp);
-  const fallback = !grant && !subscription ? await db.first<PlanRow>(
+  const subscription = platformPlan || grant ? null : await activeSubscription(db, ownerType, ownerId, timestamp);
+  const fallback = !platformPlan && !grant && !subscription ? await db.first<PlanRow>(
     `SELECT id, code, name, audience, description, billing_period, base_price_cents, currency,
             monthly_usage_credits, project_seat_limit, features_json
        FROM billing_plans
       WHERE code = 'free' AND is_active = 1
       LIMIT 1`,
   ) : null;
-  const plan = grant || subscription || fallback;
+  const plan = platformPlan || grant || subscription || fallback;
   if (!plan) throw new HttpError(503, 'Billing catalog is unavailable', 'billing_catalog_unavailable');
 
   const ledger = await db.first<{ balance: number }>(
@@ -187,12 +204,13 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
     ownerId,
     plan: publicPlan(plan),
     entitlement: {
-      source: grant ? 'grant' : subscription ? 'subscription' : 'default',
+      source: platformPlan ? 'superadmin' : grant ? 'grant' : subscription ? 'subscription' : 'default',
       grantId: grant?.grant_id || null,
       subscriptionPeriodId: subscription?.subscription_period_id || null,
       startsAt: grant?.grant_starts_at || subscription?.period_start || null,
       endsAt: grant?.grant_ends_at || subscription?.period_end || null,
       monthlyUsageCredits: grant?.monthly_credit_override ?? plan.monthly_usage_credits,
+      usageCreditsExempt: Boolean(platformPlan),
     },
     creditBalance: Number(ledger?.balance || 0),
   }, { headers: { 'cache-control': 'private, no-store', 'x-robots-tag': 'noindex, nofollow' } });

@@ -3,6 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { HttpError, json, readJson } from '../http';
+import { superadminPlatformPlan } from '../superadminPlatformAccess';
 
 type ContactType = 'x' | 'telegram' | 'email' | 'website';
 const CONTACT_COLUMNS: Record<ContactType, string> = { x: 'x_handle', telegram: 'telegram_contact', email: 'email', website: 'website_url' };
@@ -19,7 +20,13 @@ function mask(value: string): string {
   return value.length > 4 ? `${value.slice(0, 2)}•••${value.slice(-2)}` : '••••';
 }
 
-type Owner = { ownerType: 'user' | 'organization'; ownerId: string; profileId: string };
+type Owner = {
+  ownerType: 'user' | 'organization';
+  ownerId: string;
+  profileId: string;
+  profileType: 'creator' | 'project';
+  isSuperadmin: boolean;
+};
 
 async function resolveOwner(request: Request, env: Env, profileId: string): Promise<{ db: Db; owner: Owner }> {
   const auth = await requireAuth(request, env);
@@ -32,23 +39,38 @@ async function resolveOwner(request: Request, env: Env, profileId: string): Prom
 
   if (profile.profile_type === 'creator') {
     if (profile.owner_user_id !== auth.user.id) throw new HttpError(403, 'Profile access unavailable', 'forbidden');
-    return { db, owner: { ownerType: 'user', ownerId: auth.user.id, profileId: profile.id } };
+    return {
+      db,
+      owner: {
+        ownerType: 'user', ownerId: auth.user.id, profileId: profile.id,
+        profileType: profile.profile_type, isSuperadmin: auth.isSuperadmin,
+      },
+    };
   }
   if (!profile.organization_id) throw new HttpError(409, 'Project profile is missing its organization', 'billing_project_invalid');
   const membership = await db.first<{ id: string }>(`SELECT id FROM organization_memberships WHERE organization_id = ? AND user_id = ? AND status = 'active'`, [profile.organization_id, auth.user.id]);
   if (!membership) throw new HttpError(403, 'Project access unavailable', 'forbidden');
-  return { db, owner: { ownerType: 'organization', ownerId: profile.organization_id, profileId: profile.id } };
+  return {
+    db,
+    owner: {
+      ownerType: 'organization', ownerId: profile.organization_id, profileId: profile.id,
+      profileType: profile.profile_type, isSuperadmin: auth.isSuperadmin,
+    },
+  };
 }
 
-async function activePlanCode(db: Db, ownerType: Owner['ownerType'], ownerId: string): Promise<string> {
+async function activePlanCode(db: Db, owner: Owner): Promise<string> {
+  const platformPlan = superadminPlatformPlan(owner.isSuperadmin, owner.profileType);
+  if (platformPlan) return platformPlan;
+
   let planCode = 'free';
   const now = new Date().toISOString();
   try {
-    const active = ownerType === 'user'
-      ? await db.first<{ code: string }>(`SELECT bp.code FROM billing_entitlement_grants beg JOIN billing_plans bp ON bp.id = beg.plan_id WHERE beg.user_id = ? AND beg.status = 'active' AND beg.starts_at <= ? AND (beg.ends_at IS NULL OR beg.ends_at > ?) ORDER BY beg.created_at DESC LIMIT 1`, [ownerId, now, now])
-      : await db.first<{ code: string }>(`SELECT bp.code FROM billing_entitlement_grants beg JOIN billing_plans bp ON bp.id = beg.plan_id WHERE beg.organization_id = ? AND beg.status = 'active' AND beg.starts_at <= ? AND (beg.ends_at IS NULL OR beg.ends_at > ?) ORDER BY beg.created_at DESC LIMIT 1`, [ownerId, now, now]);
+    const active = owner.ownerType === 'user'
+      ? await db.first<{ code: string }>(`SELECT bp.code FROM billing_entitlement_grants beg JOIN billing_plans bp ON bp.id = beg.plan_id WHERE beg.user_id = ? AND beg.status = 'active' AND beg.starts_at <= ? AND (beg.ends_at IS NULL OR beg.ends_at > ?) ORDER BY beg.created_at DESC LIMIT 1`, [owner.ownerId, now, now])
+      : await db.first<{ code: string }>(`SELECT bp.code FROM billing_entitlement_grants beg JOIN billing_plans bp ON bp.id = beg.plan_id WHERE beg.organization_id = ? AND beg.status = 'active' AND beg.starts_at <= ? AND (beg.ends_at IS NULL OR beg.ends_at > ?) ORDER BY beg.created_at DESC LIMIT 1`, [owner.ownerId, now, now]);
     if (active?.code) return active.code;
-    const subscription = await db.first<{ code: string }>(`SELECT bp.code FROM billing_subscription_periods bsp JOIN billing_plans bp ON bp.id = bsp.plan_id WHERE bsp.owner_type = ? AND bsp.owner_id = ? AND bsp.status = 'active' AND bsp.period_start <= ? AND bsp.period_end > ? ORDER BY bsp.period_end DESC LIMIT 1`, [ownerType, ownerId, now, now]);
+    const subscription = await db.first<{ code: string }>(`SELECT bp.code FROM billing_subscription_periods bsp JOIN billing_plans bp ON bp.id = bsp.plan_id WHERE bsp.owner_type = ? AND bsp.owner_id = ? AND bsp.status = 'active' AND bsp.period_start <= ? AND bsp.period_end > ? ORDER BY bsp.period_end DESC LIMIT 1`, [owner.ownerType, owner.ownerId, now, now]);
     if (subscription?.code) planCode = subscription.code;
   } catch { /* The free fallback remains safe when payment tables are unavailable. */ }
   return planCode;
@@ -62,7 +84,7 @@ export async function listContactRevealHistory(request: Request, env: Env): Prom
   const period = periodStart();
   let plan: { monthly_contact_reveals: number } | null = null;
   try {
-    const planCode = await activePlanCode(db, owner.ownerType, owner.ownerId);
+    const planCode = await activePlanCode(db, owner);
     plan = await db.first<{ monthly_contact_reveals: number }>('SELECT monthly_contact_reveals FROM billing_plans WHERE code = ? AND is_active = 1', [planCode]);
   } catch {
     throw new HttpError(503, 'Contact reveals are being prepared. Please try again after the billing update is complete.', 'contact_reveal_not_ready');
@@ -121,7 +143,7 @@ export async function revealPartnerContact(request: Request, env: Env, managerId
   );
   if (existing) return json({ contactType: body.contactType, value: existing.revealed_value, alreadyRevealed: true, remaining: null });
 
-  const planCode = await activePlanCode(db, ownerType, ownerId);
+  const planCode = await activePlanCode(db, owner);
 
   let plan: { monthly_contact_reveals: number } | null = null;
   try {

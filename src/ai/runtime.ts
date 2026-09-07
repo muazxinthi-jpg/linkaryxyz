@@ -2,6 +2,7 @@ import type { Env } from '../env';
 import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { HttpError } from '../http';
+import { isCanonicalSuperadminUser } from '../superadminPlatformAccess';
 import { LinkaryAI, LinkaryAiProviderError } from './LinkaryAI';
 import { AI_TASKS, type AiTaskKey } from './tasks';
 
@@ -112,6 +113,7 @@ async function reserveUsage(
   credits: number,
   evidenceRefs: string[],
   idempotencyKey: string,
+  usageCreditBalanceExempt: boolean,
 ): Promise<string> {
   const eventId = id('aiu');
   const nowMs = Date.now();
@@ -144,14 +146,16 @@ async function reserveUsage(
             AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
             AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) + ? <= ?
         AND
-        (SELECT COALESCE(SUM(amount), 0)
-           FROM usage_credit_ledger
-          WHERE owner_type = ? AND owner_id = ?)
-        -
-        (SELECT COALESCE(SUM(usage_credits), 0)
-           FROM ai_usage_events
-          WHERE owner_type = ? AND owner_id = ?
-            AND status = 'reserved' AND created_at >= ?) >= ?`,
+        (? = 1 OR
+          (SELECT COALESCE(SUM(amount), 0)
+             FROM usage_credit_ledger
+            WHERE owner_type = ? AND owner_id = ?)
+          -
+          (SELECT COALESCE(SUM(usage_credits), 0)
+             FROM ai_usage_events
+            WHERE owner_type = ? AND owner_id = ?
+              AND status = 'reserved' AND created_at >= ?) >= ?
+        )`,
     [
       eventId, input.actorUserId, input.ownerType, input.ownerId, input.profileId || null,
       input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
@@ -159,6 +163,7 @@ async function reserveUsage(
       JSON.stringify(evidenceRefs), idempotencyKey, createdAt,
       periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, budget.max_calls,
       periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, credits, budget.max_usage_credits,
+      usageCreditBalanceExempt ? 1 : 0,
       input.ownerType, input.ownerId,
       input.ownerType, input.ownerId, reservationFreshAfter, credits,
     ],
@@ -170,11 +175,13 @@ async function reserveUsage(
   const duplicate = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = ?`, [idempotencyKey]);
   if (duplicate) throw new HttpError(409, 'This AI request has already been submitted', 'ai_duplicate_request');
 
-  const balance = await db.first<{ balance: number }>(
-    `SELECT COALESCE(SUM(amount), 0) AS balance FROM usage_credit_ledger WHERE owner_type = ? AND owner_id = ?`,
-    [input.ownerType, input.ownerId],
-  );
-  if (Number(balance?.balance || 0) < credits) throw new HttpError(409, 'Not enough Usage Credits for this AI action', 'usage_credits_insufficient');
+  if (!usageCreditBalanceExempt) {
+    const balance = await db.first<{ balance: number }>(
+      `SELECT COALESCE(SUM(amount), 0) AS balance FROM usage_credit_ledger WHERE owner_type = ? AND owner_id = ?`,
+      [input.ownerType, input.ownerId],
+    );
+    if (Number(balance?.balance || 0) < credits) throw new HttpError(409, 'Not enough Usage Credits for this AI action', 'usage_credits_insufficient');
+  }
   throw new HttpError(429, 'Linkary AI usage budget has been reached. Try again later.', 'ai_budget_exhausted');
 }
 
@@ -206,25 +213,16 @@ async function markSuccess(
   credits: number,
   evidenceRefCount: number,
   result: { inputUnits: number | null; outputUnits: number | null; latencyMs: number },
+  usageCreditBalanceExempt: boolean,
 ): Promise<void> {
   const completedAt = new Date().toISOString();
   const organizationId = input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null);
-  await db.batch([
+  const statements = [
     db.statement(
       `UPDATE ai_usage_events
           SET status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
         WHERE id = ? AND status = 'reserved'`,
       [result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
-    ),
-    db.statement(
-      `INSERT INTO usage_credit_ledger
-        (id, owner_type, owner_id, transaction_type, amount, reason, feature_key, provider,
-         related_id, idempotency_key, created_by_user_id, created_at)
-       VALUES (?, ?, ?, 'usage', ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id('ucl'), input.ownerType, input.ownerId, -credits, `Linkary AI: ${input.taskKey}`,
-        input.taskKey, provider, eventId, `ai-usage:${eventId}`, input.actorUserId, completedAt,
-      ],
     ),
     db.statement(
       `INSERT INTO audit_logs
@@ -239,6 +237,7 @@ async function markSuccess(
           provider,
           model,
           usageCredits: credits,
+          usageCreditBalanceExempt,
           evidenceRefCount,
           inputUnits: result.inputUnits,
           outputUnits: result.outputUnits,
@@ -247,7 +246,25 @@ async function markSuccess(
         completedAt,
       ],
     ),
-  ]);
+  ];
+
+  // Platform-owner AI remains inside the same global/provider circuit breakers
+  // and telemetry, but does not consume a customer workspace's Usage Credit
+  // balance. This avoids manufacturing credits or allowing negative ledgers.
+  if (!usageCreditBalanceExempt) {
+    statements.splice(1, 0, db.statement(
+      `INSERT INTO usage_credit_ledger
+        (id, owner_type, owner_id, transaction_type, amount, reason, feature_key, provider,
+         related_id, idempotency_key, created_by_user_id, created_at)
+       VALUES (?, ?, ?, 'usage', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id('ucl'), input.ownerType, input.ownerId, -credits, `Linkary AI: ${input.taskKey}`,
+        input.taskKey, provider, eventId, `ai-usage:${eventId}`, input.actorUserId, completedAt,
+      ],
+    ));
+  }
+
+  await db.batch(statements);
 }
 
 export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise<ExecuteAiResult> {
@@ -256,11 +273,13 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
   const task = AI_TASKS[input.taskKey];
   const prompt = await activePrompt(db, task.promptKey);
   const budget = await activeBudget(db, input.ownerType, input.ownerId, input.taskKey);
+  const usageCreditBalanceExempt = await isCanonicalSuperadminUser(db, env, input.actorUserId);
   const ai = new LinkaryAI(env);
   const provider = ai.provider();
   const eventId = await reserveUsage(
     db, input, prompt, budget, provider.provider, provider.model,
     task.usageCredits, normalized.evidenceRefs, normalized.idempotencyKey,
+    usageCreditBalanceExempt,
   );
 
   const evidenceSuffix = normalized.evidenceRefs.length
@@ -270,7 +289,10 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
 
   try {
     const result = await ai.generate({ system: prompt.system_prompt, user: userPrompt, maxOutputTokens: task.maxOutputTokens });
-    await markSuccess(db, input, eventId, result.provider, result.model, prompt, task.usageCredits, normalized.evidenceRefs.length, result);
+    await markSuccess(
+      db, input, eventId, result.provider, result.model, prompt, task.usageCredits,
+      normalized.evidenceRefs.length, result, usageCreditBalanceExempt,
+    );
     return {
       eventId,
       taskKey: input.taskKey,
