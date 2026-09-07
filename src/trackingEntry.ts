@@ -23,6 +23,17 @@ function superadminShellResponse(response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+function superadminCacheRecoveryResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  // Older Superadmin HTML was cached before the shell became no-store. The old
+  // React bundle still calls this endpoint, so this response gives Chrome a
+  // same-origin signal to discard that stale HTTP cache without touching the
+  // Superadmin session cookie or local storage.
+  headers.set('clear-site-data', '"cache"');
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
@@ -51,7 +62,10 @@ export default {
 
     if (url.pathname === '/api/admin/commercial/coupons') {
       try {
-        if (request.method === 'GET') return await listAdminCoupons(request, env);
+        if (request.method === 'GET') {
+          const response = await listAdminCoupons(request, env);
+          return isSuperadminHost ? superadminCacheRecoveryResponse(response) : response;
+        }
         if (request.method === 'POST') return await createAdminCoupon100(request, env);
         return methodNotAllowed(['GET', 'POST']);
       } catch (error) {
