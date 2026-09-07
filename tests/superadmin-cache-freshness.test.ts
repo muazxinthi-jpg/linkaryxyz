@@ -16,8 +16,8 @@ test('Superadmin HTML shell is non-cacheable so old admin bundles cannot stay pi
 test('Superadmin coupon API clears pre-existing stale browser HTTP cache without clearing session data', () => {
   assert.match(entry, /headers\.set\('clear-site-data', '\"cache\"'\)/);
   assert.match(entry, /isSuperadminHost \? superadminCacheRecoveryResponse\(response\) : response/);
-  assert.equal(entry.includes('clear-site-data\', \'"cookies"'), false);
-  assert.equal(entry.includes('clear-site-data\', \'"storage"'), false);
+  assert.equal(entry.includes(`headers.set('clear-site-data', '"cookies"')`), false);
+  assert.equal(entry.includes(`headers.set('clear-site-data', '"storage"')`), false);
 });
 
 test('production deployment proves the live Superadmin JS contains the 100 percent coupon UI', () => {
