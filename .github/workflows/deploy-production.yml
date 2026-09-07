@@ -101,7 +101,7 @@ jobs:
             fi
           done
 
-      - name: Verify Superadmin serves current 100-percent-coupon bundle
+      - name: Verify Superadmin serves current production bundle (100-percent coupon)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         shell: bash
         run: |
