@@ -31,8 +31,29 @@ type NetworkPayload = {
   };
 };
 
+type InkComponent = {
+  key: 'network_strength' | 'verified_contribution' | 'trust_votes' | 'network_economic_footprint' | 'integrity_reliability';
+  label: string;
+  score: number | null;
+  maxScore: number;
+  status: 'building' | 'active';
+  evidenceSummary: string[];
+};
+
+type InkPayload = {
+  version: string;
+  status: 'building' | 'active';
+  totalScore: number | null;
+  maxScore: number;
+  methodology: 'evidence_first';
+  scoringActivated: boolean;
+  explanation: string;
+  components: InkComponent[];
+};
+
 type IdentityNetworkResponse = {
   network?: NetworkPayload;
+  ink?: InkPayload;
 };
 
 function initials(name: string): string {
@@ -60,6 +81,7 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
   const [generation, setGeneration] = useState(1);
   const [offset, setOffset] = useState(0);
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
+  const [ink, setInk] = useState<InkPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
@@ -86,6 +108,7 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
       .then((result) => {
         if (cancelled) return;
         setNetwork(result.network || null);
+        setInk(result.ink || null);
         if (!result.network?.available) setMessage('Your Linkary network is being activated.');
       })
       .catch(() => {
@@ -116,8 +139,8 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
         </div>
         <div className="ink-building" aria-label="INK Points status Building">
           <span>INK Points</span>
-          <strong>Building</strong>
-          <small>Reputation activates as verified network and contribution evidence grows.</small>
+          <strong>{ink?.totalScore === null || ink?.totalScore === undefined ? 'Building' : ink.totalScore.toLocaleString()}</strong>
+          <small>{ink?.scoringActivated ? `${ink.maxScore.toLocaleString()} point scale` : 'Evidence is being collected before numeric scoring activates.'}</small>
         </div>
       </div>
 
@@ -127,6 +150,43 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
         <div><span>People / Creators</span><strong>{summary.creators.toLocaleString()}</strong></div>
         <div><span>Projects</span><strong>{summary.projects.toLocaleString()}</strong></div>
       </div>
+
+      {ink && (
+        <div className="ink-breakdown" aria-label="INK V1 reputation breakdown">
+          <div className="ink-breakdown-head">
+            <div>
+              <span>INK V1</span>
+              <h3>Reputation breakdown</h3>
+            </div>
+            <strong>{ink.totalScore === null ? 'Building' : `${ink.totalScore.toLocaleString()} / ${ink.maxScore.toLocaleString()}`}</strong>
+          </div>
+
+          <div className="ink-components">
+            {ink.components.map((component) => (
+              <div className="ink-component" key={component.key}>
+                <div>
+                  <strong>{component.label}</strong>
+                  <span>{component.maxScore.toLocaleString()} max</span>
+                </div>
+                <b>{component.score === null ? 'Building' : component.score.toLocaleString()}</b>
+              </div>
+            ))}
+          </div>
+
+          <details className="ink-why">
+            <summary>Why this score?</summary>
+            <p>{ink.explanation}</p>
+            {ink.components.map((component) => (
+              <div className="ink-evidence" key={`${component.key}-evidence`}>
+                <strong>{component.label}</strong>
+                <ul>
+                  {component.evidenceSummary.map((item, index) => <li key={`${component.key}-${index}`}>{item}</li>)}
+                </ul>
+              </div>
+            ))}
+          </details>
+        </div>
+      )}
 
       <div className="personal-network-generation-head">
         <div>
