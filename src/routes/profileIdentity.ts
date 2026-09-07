@@ -118,7 +118,7 @@ type NetworkMemberRow = {
   public_username: string | null;
   public_avatar_url: string | null;
   public_profile_type: 'creator' | 'project' | null;
-  public_verification_status: string | null;
+  public_verification_state: string | null;
   joined_at: string;
 };
 
@@ -173,7 +173,7 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
        COALESCE(cp.username, pp.username) AS public_username,
        COALESCE(cp.avatar_url, pp.avatar_url) AS public_avatar_url,
        CASE WHEN cp.id IS NOT NULL THEN 'creator' WHEN pp.id IS NOT NULL THEN 'project' ELSE NULL END AS public_profile_type,
-       COALESCE(cp.verification_status, pp.verification_status) AS public_verification_status,
+       COALESCE(cp.verification_status, pp.verification_status) AS public_verification_state,
        e.created_at AS joined_at
      FROM network_referral_paths p
      JOIN network_referral_edges e
@@ -214,7 +214,7 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
       username: member.public_username,
       avatarUrl: member.public_avatar_url,
       profileType: member.public_profile_type,
-      verified: member.public_verification_status === 'verified_x',
+      verified: member.public_verification_state === 'verified_x',
       joinedAt: member.joined_at,
     })),
     pagination: {
