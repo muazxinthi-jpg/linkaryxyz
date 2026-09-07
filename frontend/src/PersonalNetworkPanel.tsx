@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import './personal-network.css';
 
 type NetworkMember = {
@@ -10,6 +10,17 @@ type NetworkMember = {
   profileType: 'creator' | 'project' | null;
   verified: boolean;
   joinedAt: string;
+};
+
+type NetworkGraphNode = NetworkMember & {
+  id: string;
+  parentId: string | null;
+};
+
+type NetworkGraph = {
+  nodes: NetworkGraphNode[];
+  truncated: boolean;
+  maxNodes: number;
 };
 
 type NetworkPayload = {
@@ -29,6 +40,7 @@ type NetworkPayload = {
     total: number;
     hasMore: boolean;
   };
+  graph?: NetworkGraph | null;
 };
 
 type InkComponent = {
@@ -56,6 +68,10 @@ type IdentityNetworkResponse = {
   ink?: InkPayload;
 };
 
+type NetworkView = 'network' | 'map';
+
+type GraphPosition = { x: number; y: number };
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -72,12 +88,185 @@ function memberType(member: NetworkMember): string {
 }
 
 function formatJoined(value: string): string {
+  if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date);
 }
 
-export default function PersonalNetworkPanel({ profileId }: { profileId: string }) {
+function layoutNetworkGraph(nodes: NetworkGraphNode[], maxDepth: number): Map<string, GraphPosition> {
+  const visible = nodes.filter((node) => node.depth <= maxDepth);
+  const byId = new Map(visible.map((node) => [node.id, node]));
+  const children = new Map<string, string[]>();
+  visible.forEach((node) => {
+    if (!node.parentId || !byId.has(node.parentId)) return;
+    const existing = children.get(node.parentId) || [];
+    existing.push(node.id);
+    children.set(node.parentId, existing);
+  });
+
+  const weightCache = new Map<string, number>();
+  function subtreeWeight(id: string): number {
+    const cached = weightCache.get(id);
+    if (cached !== undefined) return cached;
+    const childIds = children.get(id) || [];
+    const value = childIds.length === 0 ? 1 : childIds.reduce((sum, childId) => sum + subtreeWeight(childId), 0);
+    weightCache.set(id, value);
+    return value;
+  }
+
+  const positions = new Map<string, GraphPosition>();
+  const center = { x: 500, y: 400 };
+  positions.set('self', center);
+
+  function placeChildren(parentId: string, startAngle: number, endAngle: number) {
+    const childIds = children.get(parentId) || [];
+    if (childIds.length === 0) return;
+    const totalWeight = childIds.reduce((sum, childId) => sum + subtreeWeight(childId), 0) || 1;
+    let cursor = startAngle;
+    childIds.forEach((childId) => {
+      const childWeight = subtreeWeight(childId);
+      const span = (endAngle - startAngle) * (childWeight / totalWeight);
+      const childStart = cursor;
+      const childEnd = cursor + span;
+      const angle = childStart + span / 2;
+      const child = byId.get(childId);
+      if (child) {
+        const radius = 72 + child.depth * 43;
+        positions.set(childId, {
+          x: center.x + Math.cos(angle) * radius,
+          y: center.y + Math.sin(angle) * radius,
+        });
+      }
+      placeChildren(childId, childStart, childEnd);
+      cursor = childEnd;
+    });
+  }
+
+  placeChildren('self', -Math.PI / 2, Math.PI * 1.5);
+  return positions;
+}
+
+function RelationshipMap({ graph }: { graph: NetworkGraph }) {
+  const [maxDepth, setMaxDepth] = useState(7);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [drag, setDrag] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const [selectedId, setSelectedId] = useState('self');
+
+  const visibleNodes = useMemo(() => graph.nodes.filter((node) => node.depth <= maxDepth), [graph.nodes, maxDepth]);
+  const positions = useMemo(() => layoutNetworkGraph(graph.nodes, maxDepth), [graph.nodes, maxDepth]);
+  const selected = visibleNodes.find((node) => node.id === selectedId) || visibleNodes[0] || graph.nodes[0];
+
+  function resetView() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function handleWheel(event: ReactWheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    setZoom((value) => Math.max(.65, Math.min(1.8, value + (event.deltaY < 0 ? .08 : -.08))));
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDrag({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!drag) return;
+    setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y });
+  }
+
+  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDrag(null);
+  }
+
+  return (
+    <div className="relationship-map-shell">
+      <div className="relationship-map-toolbar">
+        <label>
+          Show through
+          <select value={maxDepth} onChange={(event) => { setMaxDepth(Number(event.target.value)); setSelectedId('self'); }}>
+            {Array.from({ length: 7 }, (_, index) => <option key={index + 1} value={index + 1}>Generation {index + 1}</option>)}
+          </select>
+        </label>
+        <div className="relationship-map-controls" aria-label="Network map controls">
+          <button type="button" onClick={() => setZoom((value) => Math.min(1.8, value + .12))} aria-label="Zoom in">+</button>
+          <button type="button" onClick={() => setZoom((value) => Math.max(.65, value - .12))} aria-label="Zoom out">−</button>
+          <button type="button" onClick={resetView}>Reset</button>
+        </div>
+      </div>
+
+      <div className="relationship-map-canvas" data-network-map>
+        <svg
+          viewBox="0 0 1000 800"
+          role="img"
+          aria-label="Interactive map of your Linkary network across seven generations"
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        >
+          <g transform={`translate(${pan.x} ${pan.y}) translate(500 400) scale(${zoom}) translate(-500 -400)`}>
+            {visibleNodes.filter((node) => node.id !== 'self' && node.parentId).map((node) => {
+              const from = positions.get(node.parentId || '');
+              const to = positions.get(node.id);
+              if (!from || !to) return null;
+              const selectedEdge = selectedId === node.id || selectedId === node.parentId;
+              return <line key={`edge-${node.id}`} className={selectedEdge ? 'network-map-edge selected' : 'network-map-edge'} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />;
+            })}
+
+            {visibleNodes.map((node) => {
+              const position = positions.get(node.id);
+              if (!position) return null;
+              const root = node.id === 'self';
+              const project = memberType(node) === 'Project';
+              return (
+                <g
+                  key={node.id}
+                  className={`network-map-node${root ? ' root' : ''}${project ? ' project' : ''}${selectedId === node.id ? ' selected' : ''}`}
+                  transform={`translate(${position.x} ${position.y})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${node.displayName}, ${root ? 'you' : `Generation ${node.depth}`}`}
+                  onClick={(event) => { event.stopPropagation(); setSelectedId(node.id); }}
+                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedId(node.id); } }}
+                >
+                  <circle r={root ? 25 : 18} />
+                  <text textAnchor="middle" dominantBaseline="central">{root ? 'YOU' : initials(node.displayName)}</text>
+                  {(root || node.depth === 1 || selectedId === node.id) && <text className="network-map-label" textAnchor="middle" y={root ? 42 : 34}>{node.displayName}</text>}
+                  {!root && <text className="network-map-generation" textAnchor="middle" y={root ? 55 : 48}>G{node.depth}</text>}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      <div className="relationship-map-detail" aria-live="polite">
+        {selected?.avatarUrl ? <img src={selected.avatarUrl} alt="" /> : <div className="member-initials" aria-hidden="true">{initials(selected?.displayName || 'You')}</div>}
+        <div>
+          <span>{selected?.id === 'self' ? 'Your network origin' : `Generation ${selected?.depth || 1}`}</span>
+          <strong>{selected?.displayName || 'You'}{selected?.verified ? ' · Verified' : ''}</strong>
+          <small>{selected?.id === 'self' ? 'Every visible branch below starts from a Linkary invitation lineage.' : `${memberType(selected)}${selected?.username ? ` · @${selected.username}` : ''}${formatJoined(selected?.joinedAt || '') ? ` · Joined ${formatJoined(selected?.joinedAt || '')}` : ''}`}</small>
+        </div>
+        {selected?.username && <a href={`https://linkary.xyz/${encodeURIComponent(selected.username)}`} target="_blank" rel="noreferrer">Open profile ↗</a>}
+      </div>
+
+      {graph.truncated && (
+        <div className="personal-network-message" role="status">
+          This visual map shows the first {graph.maxNodes.toLocaleString()} members for performance. Generation counts and member lists remain complete and paginated.
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PersonalNetworkPanel({ profileId, view = 'network' }: { profileId: string; view?: NetworkView }) {
   const [generation, setGeneration] = useState(1);
   const [offset, setOffset] = useState(0);
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
@@ -100,6 +289,10 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
       networkOffset: String(offset),
       networkLimit: '20',
     });
+    if (view === 'map') {
+      params.set('networkGraph', '1');
+      params.set('networkGraphLimit', '120');
+    }
     void fetch(`/api/profiles/${encodeURIComponent(profileId)}/identity?${params.toString()}`, { credentials: 'same-origin' })
       .then(async (response) => {
         if (!response.ok) throw new Error('Your network could not be loaded.');
@@ -118,7 +311,7 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [profileId, generation, offset]);
+  }, [profileId, generation, offset, view]);
 
   function selectGeneration(depth: number) {
     setGeneration(depth);
@@ -128,6 +321,30 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
   const summary = network?.summary || { directInvites: 0, totalNetwork: 0, creators: 0, projects: 0 };
   const members = network?.members || [];
   const pagination = network?.pagination || { offset: 0, limit: 20, total: 0, hasMore: false };
+
+  if (view === 'map') {
+    return (
+      <section className="wide personal-network network-map-view" data-personal-network aria-labelledby="network-map-title">
+        <div className="personal-network-heading">
+          <div>
+            <span className="personal-network-kicker">RELATIONSHIP MAP</span>
+            <h2 id="network-map-title">How your network connects</h2>
+            <p>Explore the invitation lineage that connects you to people and Projects across up to seven generations.</p>
+          </div>
+          <div className="network-map-count"><span>Visible network</span><strong>{summary.totalNetwork.toLocaleString()}</strong><small>members across seven generations</small></div>
+        </div>
+        <div className="personal-network-stats" aria-label="Network summary">
+          <div><span>Direct invites</span><strong>{summary.directInvites.toLocaleString()}</strong></div>
+          <div><span>Total network</span><strong>{summary.totalNetwork.toLocaleString()}</strong></div>
+          <div><span>People / Creators</span><strong>{summary.creators.toLocaleString()}</strong></div>
+          <div><span>Projects</span><strong>{summary.projects.toLocaleString()}</strong></div>
+        </div>
+        {message && <div className="personal-network-message" role="status">{message}</div>}
+        {loading && <div className="personal-network-message" role="status">Building your network map...</div>}
+        {!loading && network?.available && network.graph && <RelationshipMap graph={network.graph} />}
+      </section>
+    );
+  }
 
   return (
     <section className="wide personal-network" data-personal-network aria-labelledby="personal-network-title">
@@ -218,8 +435,7 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
       {!loading && network?.available && members.length === 0 && (
         <div className="personal-network-empty">
           <strong>{generation === 1 ? 'Your direct network starts with your invitations.' : `No Generation ${generation} members yet.`}</strong>
-          <p>{generation === 1 ? 'Share a Linkary network invitation. When it is redeemed, the member will appear here automatically.' : 'As your network invites more people and Projects, Linkary will build this generation automatically.'}</p>
-          {generation === 1 && <a href="/invites" className="ops-button secondary">Open invitations</a>}
+          <p>{generation === 1 ? 'Create and share a Linkary invitation. When it is redeemed, the member will appear here automatically.' : 'As your network invites more people and Projects, Linkary will build this generation automatically.'}</p>
         </div>
       )}
 
@@ -258,8 +474,8 @@ export default function PersonalNetworkPanel({ profileId }: { profileId: string 
       )}
 
       <div className="personal-network-footnote">
-        <strong>Referral rewards are separate from network reputation.</strong>
-        <span>The existing direct referral reward remains the active economic rule. Downstream network rewards are not active in this build.</span>
+        <strong>Private network intelligence.</strong>
+        <span>Your network view is available only inside your authenticated Linkary account and contributes evidence to Linkary reputation.</span>
       </div>
     </section>
   );

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
 import PersonalTelegramConnection from './PersonalTelegramConnection';
-import PersonalNetworkPanel from './PersonalNetworkPanel';
 import type { ProductMe, ProductProfile, ProductStatus } from './ProductWorkspace';
 import './profile-identity-v1.css';
 
@@ -137,7 +136,6 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
         <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
       </div>
       <PersonalTelegramConnection />
-      <PersonalNetworkPanel profileId={profile.id} />
     </>,
     target,
   );
