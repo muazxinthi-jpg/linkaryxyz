@@ -32,13 +32,16 @@ test('current billing status is authenticated and exact-profile scoped', () => {
   assert.match(billingCurrent, /cache-control': 'private, no-store'/);
 });
 
-test('current billing honors paid periods and Superadmin entitlements without manufacturing access', () => {
+test('current billing honors paid periods and virtual Superadmin access without manufacturing access rows', () => {
   assert.match(billingCurrent, /billing_subscription_periods/);
   assert.match(billingCurrent, /billing_entitlement_grants/);
   assert.match(billingCurrent, /usage_credit_ledger/);
-  assert.match(billingCurrent, /source: grant \? 'grant' : subscription \? 'subscription' : 'default'/);
+  assert.match(billingCurrent, /superadminPlatformPlan\(auth\.isSuperadmin, profile\.profile_type\)/);
+  assert.match(billingCurrent, /source: platformPlan \? 'superadmin' : grant \? 'grant' : subscription \? 'subscription' : 'default'/);
+  assert.match(billingCurrent, /usageCreditsExempt: Boolean\(platformPlan\)/);
   assert.match(billingCurrent, /monthly_credit_override \?\? plan\.monthly_usage_credits/);
   assert.doesNotMatch(billingCurrent, /INSERT INTO billing_entitlement_grants/);
+  assert.doesNotMatch(billingCurrent, /INSERT INTO billing_subscription_periods/);
 });
 
 test('billing UI uses the same live public plan catalog and groups personal and Project packages', () => {
@@ -49,6 +52,14 @@ test('billing UI uses the same live public plan catalog and groups personal and 
   assert.match(billingUi, /Project plans/);
   assert.match(billingUi, /monthlyContactReveals/);
   assert.match(billingUi, /Project plans/);
+});
+
+test('Superadmin billing UI shows platform access and never opens paid checkout', () => {
+  assert.match(billingUi, /source: 'default' \| 'grant' \| 'subscription' \| 'superadmin'/);
+  assert.match(billingUi, /Superadmin platform access/);
+  assert.match(billingUi, /Available with Superadmin/);
+  assert.match(billingUi, /selectedPlan && !isSuperadminAccess/);
+  assert.match(billingUi, /AI, Alchemy and other provider-backed actions remain metered, audited and protected/);
 });
 
 test('paid plan selection opens verified Linkary wallet checkout instead of self-granting access', () => {
