@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import PersonalNetworkPanel from './PersonalNetworkPanel';
+import './private-network-tabs.css';
 
 type InviteBalance = { owner_type: 'profile' | 'organization'; owner_id: string; available_credits: number; lifetime_granted: number; lifetime_used: number; quality_score: number; privileges_status: string };
 type Invite = {
