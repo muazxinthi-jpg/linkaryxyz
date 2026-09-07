@@ -128,7 +128,7 @@ type NetworkGraphRow = NetworkMemberRow & {
   invitee_user_id: string;
 };
 
-async function personalNetworkPayload(db: Db, userId: string, request: Request) {
+async function personalNetworkPayload(db: Db, userId: string, profileId: string, request: Request) {
   if (!(await personalNetworkTablesReady(db))) {
     return {
       available: false,
@@ -191,14 +191,12 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
      LEFT JOIN profiles cp
        ON cp.owner_user_id = e.invitee_user_id
       AND cp.profile_type = 'creator'
-      AND cp.visibility = 'published'
      LEFT JOIN invite_redemptions r
        ON r.invite_id = e.source_invite_id
       AND r.user_id = e.invitee_user_id
      LEFT JOIN profiles pp
        ON pp.organization_id = r.organization_id
       AND pp.profile_type = 'project'
-      AND pp.visibility = 'published'
      WHERE p.ancestor_user_id = ?
        AND p.depth = ?
      ORDER BY e.created_at ASC, e.invitee_user_id ASC
@@ -224,6 +222,19 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
   } = null;
 
   if (includeGraph) {
+    const rootProfile = await db.first<{
+      display_name: string | null;
+      username: string | null;
+      avatar_url: string | null;
+      verification_status: string | null;
+    }>(
+      `SELECT display_name, username, avatar_url, verification_status
+         FROM profiles
+        WHERE id = ? AND owner_user_id = ? AND profile_type = 'creator'
+        LIMIT 1`,
+      [profileId, userId],
+    );
+
     const graphRows = await db.all<NetworkGraphRow>(
       `SELECT
          p.depth,
@@ -243,14 +254,12 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
        LEFT JOIN profiles cp
          ON cp.owner_user_id = e.invitee_user_id
         AND cp.profile_type = 'creator'
-        AND cp.visibility = 'published'
        LEFT JOIN invite_redemptions r
          ON r.invite_id = e.source_invite_id
         AND r.user_id = e.invitee_user_id
        LEFT JOIN profiles pp
          ON pp.organization_id = r.organization_id
         AND pp.profile_type = 'project'
-        AND pp.visibility = 'published'
        WHERE p.ancestor_user_id = ?
          AND p.depth BETWEEN 1 AND 7
        ORDER BY p.depth ASC, e.created_at ASC, e.invitee_user_id ASC
@@ -267,11 +276,11 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
           parentId: null,
           depth: 0,
           accountType: 'creator',
-          displayName: 'You',
-          username: null,
-          avatarUrl: null,
+          displayName: rootProfile?.display_name || 'You',
+          username: rootProfile?.username || null,
+          avatarUrl: rootProfile?.avatar_url || null,
           profileType: 'creator',
-          verified: false,
+          verified: rootProfile?.verification_status === 'verified_x',
           joinedAt: '',
         },
         ...graphRows.map((row) => ({
@@ -328,7 +337,7 @@ export async function personalProfileIdentity(request: Request, env: Env, profil
   await requireOwnedPersonalProfile(db, auth.user.id, profileId);
 
   if (!(await profileIdentityColumnsReady(db))) {
-    const network = await personalNetworkPayload(db, auth.user.id, request);
+    const network = await personalNetworkPayload(db, auth.user.id, profileId, request);
     return json({
       available: false,
       publicRole: null,
@@ -346,7 +355,7 @@ export async function personalProfileIdentity(request: Request, env: Env, profil
       [profileId],
     );
     const role = row?.public_role && ROLE_SET.has(row.public_role) ? row.public_role as PersonalPublicRole : null;
-    const network = await personalNetworkPayload(db, auth.user.id, request);
+    const network = await personalNetworkPayload(db, auth.user.id, profileId, request);
     return json({
       available: true,
       publicRole: role,
