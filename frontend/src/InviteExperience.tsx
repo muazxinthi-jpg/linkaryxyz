@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import PersonalNetworkPanel from './PersonalNetworkPanel';
 
 type InviteBalance = { owner_type: 'profile' | 'organization'; owner_id: string; available_credits: number; lifetime_granted: number; lifetime_used: number; quality_score: number; privileges_status: string };
 type Invite = {
@@ -22,6 +23,8 @@ type Invite = {
   owner_type: 'profile' | 'organization' | null;
   owner_id: string | null;
 };
+
+type PrivateNetworkView = 'invites' | 'network' | 'map';
 
 class ApiError extends Error { constructor(readonly code: string, message: string) { super(message); } }
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -54,12 +57,14 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState('');
+  const [privateView, setPrivateView] = useState<PrivateNetworkView>('invites');
 
   const owner = useMemo(() => profile ? { type: profile.profile_type === 'creator' ? 'profile' as const : 'organization' as const, id: profile.profile_type === 'creator' ? profile.id : profile.organization_id || '' } : null, [profile?.id, profile?.organization_id, profile?.profile_type]);
   const balance = owner ? balances.find((b) => b.owner_type === owner.type && b.owner_id === owner.id) : undefined;
   const visibleInvites = owner ? invites.filter((invite) => invite.owner_type === owner.type && invite.owner_id === owner.id) : [];
+  const isPersonal = profile?.profile_type === 'creator';
 
-  function changeProfile(id: string) { setProfileId(id); window.localStorage.setItem('linkary.active.profile', id); }
+  function changeProfile(id: string) { setProfileId(id); setPrivateView('invites'); window.localStorage.setItem('linkary.active.profile', id); }
   async function load() {
     try {
       const [balanceResult, inviteResult] = await Promise.all([apiJson<{ balances: InviteBalance[] }>('/api/invites/balances'), apiJson<{ invites: Invite[] }>('/api/invites/list')]);
@@ -92,12 +97,28 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
 
   if (!profile) return null;
   return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
-    <div className="ops-stack invite-workspace">
-      <div className="ops-heading-row"><div><span className="ops-kicker">PRIVATE NETWORK</span><h1>Invites</h1><p>Bring the right people into Linkary and keep every invitation attributable.</p></div></div>
-      <section className="invite-summary-card"><div><span>AVAILABLE</span><strong>{balance?.available_credits ?? '—'}</strong><small>{balance ? `${balance.lifetime_used} used of ${balance.lifetime_granted} granted` : 'Invite balance'}</small></div><div><span>REFERRAL QUALITY</span><strong>{balance ? Math.round(balance.quality_score || 0) : '—'}</strong><small>{balance?.privileges_status === 'active' ? 'Invites active' : human(balance?.privileges_status)}</small></div><div className="invite-create-controls"><label>Expires in<select value={expiryDays} onChange={(e) => setExpiryDays(e.target.value)}><option value="7">7 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label><button className="ops-button primary" onClick={() => void createInvite()} disabled={!balance || balance.available_credits < 1 || busy === 'create'}>{busy === 'create' ? 'Creating...' : '+ Create invite'}</button></div></section>
-      {message && <div className="ops-message">{message}</div>}
-      <section className="ops-section"><div className="ops-section-title"><div><h2>Invitation activity</h2><p>Clicks, registrations and recipient status from Linkary's own invite infrastructure.</p></div></div>{!visibleInvites.length ? <div className="ops-empty"><div className="ops-empty-icon">＋</div><h3>No invitations yet</h3><p>Create your first invitation to bring a creator, operator or Project team member into Linkary.</p>{balance && balance.available_credits > 0 && <button className="ops-button secondary" onClick={() => void createInvite()}>Create first invite</button>}</div> : <div className="invite-list">{visibleInvites.map((invite) => { const joined = invite.registrations > 0; const status = joined ? 'joined' : invite.status; const person = recipient(invite); return <article className="invite-row" key={invite.id}><div className="invite-row-main"><div className="invite-row-head"><span className={`invite-status ${status}`}>{human(status)}</span>{joined && person.telegram && <span className="invite-telegram">T</span>}<strong>{joined ? person.label : 'Private invitation'}</strong></div><div className="invite-meta"><span>{invite.clicks} click{invite.clicks === 1 ? '' : 's'}</span><span>{invite.registrations} registration{invite.registrations === 1 ? '' : 's'}</span><span>Expires {date(invite.expires_at)}</span>{joined && <span>Quality: {human(invite.quality_state)}</span>}</div>{invite.invite_url && !joined && <div className="invite-url"><input readOnly value={invite.invite_url} onFocus={(e) => e.currentTarget.select()} /><button onClick={() => void copyInvite(invite)}>{copied === invite.id ? 'Copied' : 'Copy'}</button></div>}</div><div className="invite-row-actions">{invite.invite_url && invite.status === 'active' && !joined && <button onClick={() => void shareInvite(invite)}>Share</button>}{invite.status === 'active' && !joined && <button className="danger" disabled={busy === invite.id} onClick={() => void revoke(invite)}>Revoke</button>}</div></article>; })}</div>}</section>
-      {copied && copied.startsWith('http') && <div className="ops-toast">Invitation copied</div>}
+    <div className="ops-stack invite-workspace private-network-workspace">
+      <div className="ops-heading-row"><div><span className="ops-kicker">PRIVATE NETWORK</span><h1>{isPersonal ? 'Private Network' : 'Invites'}</h1><p>{isPersonal ? 'Invite people to Linkary and understand how your network grows across seven generations.' : 'Bring the right people into Linkary and keep every invitation attributable.'}</p></div></div>
+
+      {isPersonal && (
+        <nav className="private-network-tabs" aria-label="Private Network views">
+          <button type="button" className={privateView === 'invites' ? 'active' : ''} aria-pressed={privateView === 'invites'} onClick={() => setPrivateView('invites')}>Invitations</button>
+          <button type="button" className={privateView === 'network' ? 'active' : ''} aria-pressed={privateView === 'network'} onClick={() => setPrivateView('network')}>My network</button>
+          <button type="button" className={privateView === 'map' ? 'active' : ''} aria-pressed={privateView === 'map'} onClick={() => setPrivateView('map')}>Network map</button>
+        </nav>
+      )}
+
+      {privateView === 'invites' && (
+        <>
+          <section className="invite-summary-card"><div><span>AVAILABLE</span><strong>{balance?.available_credits ?? '—'}</strong><small>{balance ? `${balance.lifetime_used} used of ${balance.lifetime_granted} granted` : 'Invite balance'}</small></div><div><span>REFERRAL QUALITY</span><strong>{balance ? Math.round(balance.quality_score || 0) : '—'}</strong><small>{balance?.privileges_status === 'active' ? 'Invites active' : human(balance?.privileges_status)}</small></div><div className="invite-create-controls"><label>Expires in<select value={expiryDays} onChange={(e) => setExpiryDays(e.target.value)}><option value="7">7 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label><button className="ops-button primary" onClick={() => void createInvite()} disabled={!balance || balance.available_credits < 1 || busy === 'create'}>{busy === 'create' ? 'Creating...' : '+ Create invite'}</button></div></section>
+          {message && <div className="ops-message">{message}</div>}
+          <section className="ops-section"><div className="ops-section-title"><div><h2>Invitation activity</h2><p>Clicks, registrations and recipient status from Linkary's own invite infrastructure.</p></div></div>{!visibleInvites.length ? <div className="ops-empty"><div className="ops-empty-icon">＋</div><h3>No invitations yet</h3><p>Create your first invitation to bring a creator, operator or Project team member into Linkary.</p>{balance && balance.available_credits > 0 && <button className="ops-button secondary" onClick={() => void createInvite()}>Create first invite</button>}</div> : <div className="invite-list">{visibleInvites.map((invite) => { const joined = invite.registrations > 0; const status = joined ? 'joined' : invite.status; const person = recipient(invite); return <article className="invite-row" key={invite.id}><div className="invite-row-main"><div className="invite-row-head"><span className={`invite-status ${status}`}>{human(status)}</span>{joined && person.telegram && <span className="invite-telegram">T</span>}<strong>{joined ? person.label : 'Private invitation'}</strong></div><div className="invite-meta"><span>{invite.clicks} click{invite.clicks === 1 ? '' : 's'}</span><span>{invite.registrations} registration{invite.registrations === 1 ? '' : 's'}</span><span>Expires {date(invite.expires_at)}</span>{joined && <span>Quality: {human(invite.quality_state)}</span>}</div>{invite.invite_url && !joined && <div className="invite-url"><input readOnly value={invite.invite_url} onFocus={(e) => e.currentTarget.select()} /><button onClick={() => void copyInvite(invite)}>{copied === invite.id ? 'Copied' : 'Copy'}</button></div>}</div><div className="invite-row-actions">{invite.invite_url && invite.status === 'active' && !joined && <button onClick={() => void shareInvite(invite)}>Share</button>}{invite.status === 'active' && !joined && <button className="danger" disabled={busy === invite.id} onClick={() => void revoke(invite)}>Revoke</button>}</div></article>; })}</div>}</section>
+          {copied && copied.startsWith('http') && <div className="ops-toast">Invitation copied</div>}
+        </>
+      )}
+
+      {isPersonal && privateView === 'network' && <PersonalNetworkPanel profileId={profile.id} view="network" />}
+      {isPersonal && privateView === 'map' && <PersonalNetworkPanel profileId={profile.id} view="map" />}
     </div>
   </ProductWorkspace>;
 }
