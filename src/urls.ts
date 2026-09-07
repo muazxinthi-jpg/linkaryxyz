@@ -26,5 +26,5 @@ export function publicProfileUrl(request: Request, env: Env, username: string): 
 }
 
 export function publicProfileCardUrl(request: Request, env: Env, username: string): string {
-  return `${getLinkaryUrls(request, env).publicSite}/_social/profile/${encodeURIComponent(username)}.svg`;
+  return `${getLinkaryUrls(request, env).publicSite}/_social/profile/${encodeURIComponent(username)}.svg?v=2`;
 }
