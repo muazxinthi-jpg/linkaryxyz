@@ -5,8 +5,11 @@ import { DatabaseSync } from 'node:sqlite';
 
 const migration = readFileSync(new URL('../migrations/0037_seven_generation_network.sql', import.meta.url), 'utf8');
 const profileRoute = readFileSync(new URL('../src/routes/profileIdentity.ts', import.meta.url), 'utf8');
-const profileUi = readFileSync(new URL('../frontend/src/PersonalNetworkPanel.tsx', import.meta.url), 'utf8');
+const networkUi = readFileSync(new URL('../frontend/src/PersonalNetworkPanel.tsx', import.meta.url), 'utf8');
+const inviteUi = readFileSync(new URL('../frontend/src/InviteExperience.tsx', import.meta.url), 'utf8');
 const profileIdentityUi = readFileSync(new URL('../frontend/src/ProfileExperienceIdentityV1.tsx', import.meta.url), 'utf8');
+const networkCss = readFileSync(new URL('../frontend/src/personal-network.css', import.meta.url), 'utf8');
+const tabsCss = readFileSync(new URL('../frontend/src/private-network-tabs.css', import.meta.url), 'utf8');
 
 function database() {
   const db = new DatabaseSync(':memory:');
@@ -110,19 +113,51 @@ test('personal network reads stay bounded, private-safe and seven-generation sco
   assert.match(profileRoute, /boundedInteger\([^\n]+1, 1, 7\)/);
   assert.match(profileRoute, /cp\.visibility = 'published'/);
   assert.match(profileRoute, /pp\.visibility = 'published'/);
+  assert.match(profileRoute, /networkGraph/);
+  assert.match(profileRoute, /networkGraphLimit/);
+  assert.match(profileRoute, /boundedInteger\([^\n]+120, 20, 160\)/);
+  assert.match(profileRoute, /p\.depth BETWEEN 1 AND 7/);
+  assert.match(profileRoute, /opaqueIds/);
   assert.doesNotMatch(profileRoute, /SELECT[^\n]*email/i);
   assert.doesNotMatch(profileRoute, /wallet_address/i);
 });
 
-test('logged-in Personal Profile renders My Network and keeps Project profiles out of the panel', () => {
-  assert.match(profileUi, /MY NETWORK/);
-  assert.match(profileUi, /Your Linkary network/);
-  assert.match(profileUi, /INK Points/);
-  assert.match(profileUi, /Building/);
-  assert.match(profileUi, /Gen \{item\.depth\}/);
-  assert.match(profileUi, /Open invitations/);
-  assert.match(profileUi, /Downstream network rewards are not active in this build/);
-  assert.match(profileIdentityUi, /const isPersonal = profile\?\.profile_type === 'creator'/);
-  assert.match(profileIdentityUi, /if \(!target \|\| !isPersonal \|\| !profile\) return null/);
-  assert.match(profileIdentityUi, /<PersonalNetworkPanel profileId=\{profile\.id\} \/>/);
+test('Invite workspace owns My Network while Profile stays identity-focused', () => {
+  assert.match(inviteUi, /PRIVATE NETWORK/);
+  assert.match(inviteUi, /Private Network views/);
+  assert.match(inviteUi, />Invitations</);
+  assert.match(inviteUi, />My network</);
+  assert.match(inviteUi, />Network map</);
+  assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{profile\.id\} view="network" \/>/);
+  assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{profile\.id\} view="map" \/>/);
+  assert.match(inviteUi, /const isPersonal = profile\?\.profile_type === 'creator'/);
+  assert.doesNotMatch(profileIdentityUi, /PersonalNetworkPanel/);
+  assert.match(profileIdentityUi, /<PersonalTelegramConnection \/>/);
+});
+
+test('private network map is interactive, depth-filtered and has a mobile-safe visual fallback', () => {
+  assert.match(networkUi, /RELATIONSHIP MAP/);
+  assert.match(networkUi, /How your network connects/);
+  assert.match(networkUi, /data-network-map/);
+  assert.match(networkUi, /<svg/);
+  assert.match(networkUi, /Show through/);
+  assert.match(networkUi, /Generation \{index \+ 1\}/);
+  assert.match(networkUi, /Zoom in/);
+  assert.match(networkUi, /Zoom out/);
+  assert.match(networkUi, />Reset</);
+  assert.match(networkUi, /onPointerDown/);
+  assert.match(networkUi, /onPointerMove/);
+  assert.match(networkUi, /onWheel/);
+  assert.match(networkCss, /\.relationship-map-canvas/);
+  assert.match(networkCss, /min-width:720px/);
+  assert.match(networkCss, /@media\(max-width:640px\)/);
+  assert.match(tabsCss, /min-height:44px/);
+});
+
+test('normal member UI does not advertise hidden downstream reward economics', () => {
+  const userFacingSource = `${networkUi}\n${inviteUi}\n${profileIdentityUi}`;
+  assert.doesNotMatch(userFacingSource, /Downstream network rewards/i);
+  assert.doesNotMatch(userFacingSource, /Network Reward Pool/i);
+  assert.doesNotMatch(userFacingSource, /Gen\s*[2-7].*(?:%|percent)/i);
+  assert.doesNotMatch(userFacingSource, /earn(?:ing|s)?\s+(?:from|through)\s+(?:your\s+)?network/i);
 });
