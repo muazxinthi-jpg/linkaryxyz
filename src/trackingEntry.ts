@@ -13,9 +13,13 @@ function configuredHost(value: string | undefined, fallback: string): string {
   catch { return new URL(fallback).hostname.toLowerCase(); }
 }
 
-function noIndex(response: Response): Response {
+function superadminShellResponse(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('pragma', 'no-cache');
+  headers.set('expires', '0');
+  headers.set('vary', 'Cookie');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -92,13 +96,18 @@ export default {
     // presenting the request to the Worker as app.linkary.xyz. The browser stays
     // on the Superadmin hostname, so its session never becomes a cross-subdomain
     // cookie and the existing security boundary remains intact.
+    //
+    // Administrative HTML is intentionally non-cacheable. This prevents an older
+    // hashed frontend bundle from remaining pinned in a Superadmin browser after
+    // a production deploy while still allowing hashed JS/CSS assets themselves to
+    // use their normal immutable caching behavior.
     if (isSuperadminHost && !url.pathname.startsWith('/api/')) {
       const appBase = new URL(env.APP_BASE_URL || 'https://app.linkary.xyz');
       const shellUrl = new URL(request.url);
       shellUrl.protocol = appBase.protocol;
       shellUrl.host = appBase.host;
       const shellRequest = new Request(shellUrl.toString(), request);
-      return noIndex(await worker.fetch(shellRequest, env, ctx));
+      return superadminShellResponse(await worker.fetch(shellRequest, env, ctx));
     }
 
     return worker.fetch(request, env, ctx);
