@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import InteractiveNetworkMapV2 from './InteractiveNetworkMapV2';
+import InteractiveNetworkMapV2 from './InteractiveNetworkMapV3';
 import './personal-network.css';
 
 type NetworkMember = {
