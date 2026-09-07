@@ -123,6 +123,11 @@ type NetworkMemberRow = {
   joined_at: string;
 };
 
+type NetworkGraphRow = NetworkMemberRow & {
+  inviter_user_id: string;
+  invitee_user_id: string;
+};
+
 async function personalNetworkPayload(db: Db, userId: string, request: Request) {
   if (!(await personalNetworkTablesReady(db))) {
     return {
@@ -132,6 +137,7 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
       selectedGeneration: 1,
       members: [],
       pagination: { offset: 0, limit: 20, total: 0, hasMore: false },
+      graph: null,
     };
   }
 
@@ -139,6 +145,8 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
   const selectedGeneration = boundedInteger(url.searchParams.get('networkDepth'), 1, 1, 7);
   const limit = boundedInteger(url.searchParams.get('networkLimit'), 20, 1, 50);
   const offset = boundedInteger(url.searchParams.get('networkOffset'), 0, 0, 1000000);
+  const includeGraph = url.searchParams.get('networkGraph') === '1';
+  const graphLimit = boundedInteger(url.searchParams.get('networkGraphLimit'), 120, 20, 160);
 
   const summary = await db.first<NetworkSummaryRow>(
     `SELECT
@@ -198,6 +206,92 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
     [userId, selectedGeneration, limit, offset],
   );
 
+  let graph: null | {
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      depth: number;
+      accountType: 'creator' | 'project' | null;
+      displayName: string;
+      username: string | null;
+      avatarUrl: string | null;
+      profileType: 'creator' | 'project' | null;
+      verified: boolean;
+      joinedAt: string;
+    }>;
+    truncated: boolean;
+    maxNodes: number;
+  } = null;
+
+  if (includeGraph) {
+    const graphRows = await db.all<NetworkGraphRow>(
+      `SELECT
+         p.depth,
+         e.inviter_user_id,
+         e.invitee_user_id,
+         e.chosen_account_type,
+         COALESCE(cp.display_name, pp.display_name) AS public_display_name,
+         COALESCE(cp.username, pp.username) AS public_username,
+         COALESCE(cp.avatar_url, pp.avatar_url) AS public_avatar_url,
+         CASE WHEN cp.id IS NOT NULL THEN 'creator' WHEN pp.id IS NOT NULL THEN 'project' ELSE NULL END AS public_profile_type,
+         COALESCE(cp.verification_status, pp.verification_status) AS public_verification_state,
+         e.created_at AS joined_at
+       FROM network_referral_paths p
+       JOIN network_referral_edges e
+         ON e.invitee_user_id = p.descendant_user_id
+        AND e.status = 'active'
+       LEFT JOIN profiles cp
+         ON cp.owner_user_id = e.invitee_user_id
+        AND cp.profile_type = 'creator'
+        AND cp.visibility = 'published'
+       LEFT JOIN invite_redemptions r
+         ON r.invite_id = e.source_invite_id
+        AND r.user_id = e.invitee_user_id
+       LEFT JOIN profiles pp
+         ON pp.organization_id = r.organization_id
+        AND pp.profile_type = 'project'
+        AND pp.visibility = 'published'
+       WHERE p.ancestor_user_id = ?
+         AND p.depth BETWEEN 1 AND 7
+       ORDER BY p.depth ASC, e.created_at ASC, e.invitee_user_id ASC
+       LIMIT ?`,
+      [userId, graphLimit],
+    );
+
+    const opaqueIds = new Map<string, string>();
+    graphRows.forEach((row, index) => opaqueIds.set(row.invitee_user_id, `member-${index + 1}`));
+    graph = {
+      nodes: [
+        {
+          id: 'self',
+          parentId: null,
+          depth: 0,
+          accountType: 'creator',
+          displayName: 'You',
+          username: null,
+          avatarUrl: null,
+          profileType: 'creator',
+          verified: false,
+          joinedAt: '',
+        },
+        ...graphRows.map((row) => ({
+          id: opaqueIds.get(row.invitee_user_id) || 'member',
+          parentId: row.inviter_user_id === userId ? 'self' : opaqueIds.get(row.inviter_user_id) || null,
+          depth: Number(row.depth),
+          accountType: row.chosen_account_type,
+          displayName: row.public_display_name || 'Linkary member',
+          username: row.public_username,
+          avatarUrl: row.public_avatar_url,
+          profileType: row.public_profile_type,
+          verified: row.public_verification_state === 'verified_x',
+          joinedAt: row.joined_at,
+        })),
+      ],
+      truncated: Number(summary?.total_network || 0) > graphRows.length,
+      maxNodes: graphLimit,
+    };
+  }
+
   return {
     available: true,
     summary: {
@@ -224,6 +318,7 @@ async function personalNetworkPayload(db: Db, userId: string, request: Request) 
       total: selectedTotal,
       hasMore: offset + members.length < selectedTotal,
     },
+    graph,
   };
 }
 
