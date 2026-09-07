@@ -81,6 +81,10 @@ export async function requirePersonalNftEntitlement(request: Request, env: Env, 
   // information for a profile the current user does not own.
   if (profile.owner_user_id !== auth.user.id) return;
 
+  // Canonical Superadmin platform access unlocks paid Personal feature gates but
+  // does not change wallet/provider controls or any other user's profile access.
+  if (auth.isSuperadmin) return;
+
   const planCode = await activePersonalPlanCode(db, auth.user.id);
   if (planCode !== PERSONAL_NFT_PLAN_CODE) {
     throw new HttpError(
