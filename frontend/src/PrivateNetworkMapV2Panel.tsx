@@ -114,7 +114,7 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
     mutationObserver.observe(host, {
       subtree: true,
       attributes: true,
-      attributeFilter: ['transform', 'class', 'style'],
+      attributeFilter: ['transform', 'class'],
     });
 
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleSync) : null;
@@ -169,7 +169,6 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
               src={rootAvatarUrl}
               alt=""
               aria-hidden="true"
-              referrerPolicy="no-referrer"
               data-network-root-avatar-overlay
               onError={(event) => { event.currentTarget.style.display = 'none'; }}
               style={{
