@@ -6,6 +6,9 @@ import { DatabaseSync } from 'node:sqlite';
 const migration = readFileSync(new URL('../migrations/0037_seven_generation_network.sql', import.meta.url), 'utf8');
 const profileRoute = readFileSync(new URL('../src/routes/profileIdentity.ts', import.meta.url), 'utf8');
 const networkUi = readFileSync(new URL('../frontend/src/PersonalNetworkPanel.tsx', import.meta.url), 'utf8');
+const mapV2 = readFileSync(new URL('../frontend/src/InteractiveNetworkMapV2.tsx', import.meta.url), 'utf8');
+const mapV2Panel = readFileSync(new URL('../frontend/src/PrivateNetworkMapV2Panel.tsx', import.meta.url), 'utf8');
+const mapV2Css = readFileSync(new URL('../frontend/src/network-map-v2.css', import.meta.url), 'utf8');
 const inviteUi = readFileSync(new URL('../frontend/src/InviteExperience.tsx', import.meta.url), 'utf8');
 const profileIdentityUi = readFileSync(new URL('../frontend/src/ProfileExperienceIdentityV1.tsx', import.meta.url), 'utf8');
 const networkCss = readFileSync(new URL('../frontend/src/personal-network.css', import.meta.url), 'utf8');
@@ -122,40 +125,53 @@ test('personal network reads stay bounded, private-safe and seven-generation sco
   assert.doesNotMatch(profileRoute, /wallet_address/i);
 });
 
-test('Invite workspace owns My Network while Profile stays identity-focused', () => {
+test('Invite workspace owns My Network and Map V2 while Profile stays identity-focused', () => {
   assert.match(inviteUi, /PRIVATE NETWORK/);
   assert.match(inviteUi, /Private Network views/);
   assert.match(inviteUi, />Invitations</);
   assert.match(inviteUi, />My network</);
   assert.match(inviteUi, />Network map</);
   assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{profile\.id\} view="network" \/>/);
-  assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{profile\.id\} view="map" \/>/);
+  assert.match(inviteUi, /<PrivateNetworkMapV2Panel profileId=\{profile\.id\} \/>/);
   assert.match(inviteUi, /const isPersonal = profile\?\.profile_type === 'creator'/);
   assert.doesNotMatch(profileIdentityUi, /PersonalNetworkPanel/);
   assert.match(profileIdentityUi, /<PersonalTelegramConnection \/>/);
 });
 
-test('private network map is interactive, depth-filtered and has a mobile-safe visual fallback', () => {
+test('Private Network Map V2 is searchable, draggable, filterable, expandable and lineage-aware', () => {
+  assert.match(mapV2Panel, /networkGraphLimit: '160'/);
+  assert.match(mapV2Panel, /data-private-network-map-v2/);
+  assert.match(mapV2Panel, /InteractiveNetworkMapV2/);
+  assert.match(mapV2, /Find in network/);
+  assert.match(mapV2, /Search name or @handle/);
+  assert.match(mapV2, /typeFilter/);
+  assert.match(mapV2, /Verified only/);
+  assert.match(mapV2, /handleNodePointerDown/);
+  assert.match(mapV2, /setNodeOffsets/);
+  assert.match(mapV2, /Drag individual nodes/);
+  assert.match(mapV2, /lineageIds/);
+  assert.match(mapV2, /network-map-edge lineage/);
+  assert.match(mapV2, /Collapse branch/);
+  assert.match(mapV2, /Expand branch/);
+  assert.match(mapV2, />Fit</);
+  assert.match(mapV2, /network-map-expand/);
+  assert.match(mapV2, /setExpanded/);
+  assert.match(mapV2Css, /\.network-map-v2-shell\.is-expanded/);
+  assert.match(mapV2Css, /min-height:650px/);
+  assert.match(mapV2Css, /@media\(max-width:640px\)/);
+});
+
+test('legacy private network map fallback remains interactive and mobile-safe', () => {
   assert.match(networkUi, /RELATIONSHIP MAP/);
-  assert.match(networkUi, /How your network connects/);
   assert.match(networkUi, /data-network-map/);
-  assert.match(networkUi, /<svg/);
-  assert.match(networkUi, /Show through/);
-  assert.match(networkUi, /Generation \{index \+ 1\}/);
-  assert.match(networkUi, /Zoom in/);
-  assert.match(networkUi, /Zoom out/);
-  assert.match(networkUi, />Reset</);
   assert.match(networkUi, /onPointerDown/);
-  assert.match(networkUi, /onPointerMove/);
   assert.match(networkUi, /onWheel/);
   assert.match(networkCss, /\.relationship-map-canvas/);
-  assert.match(networkCss, /min-width:720px/);
-  assert.match(networkCss, /@media\(max-width:640px\)/);
   assert.match(tabsCss, /min-height:44px/);
 });
 
 test('normal member UI does not advertise hidden downstream reward economics', () => {
-  const userFacingSource = `${networkUi}\n${inviteUi}\n${profileIdentityUi}`;
+  const userFacingSource = `${networkUi}\n${mapV2}\n${mapV2Panel}\n${inviteUi}\n${profileIdentityUi}`;
   assert.doesNotMatch(userFacingSource, /Downstream network rewards/i);
   assert.doesNotMatch(userFacingSource, /Network Reward Pool/i);
   assert.doesNotMatch(userFacingSource, /Gen\s*[2-7].*(?:%|percent)/i);
