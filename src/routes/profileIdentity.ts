@@ -3,6 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
+import { buildInkV1Evidence } from '../ink';
 
 export const PERSONAL_PUBLIC_ROLES = [
   'founder',
@@ -232,13 +233,15 @@ export async function personalProfileIdentity(request: Request, env: Env, profil
   await requireOwnedPersonalProfile(db, auth.user.id, profileId);
 
   if (!(await profileIdentityColumnsReady(db))) {
+    const network = await personalNetworkPayload(db, auth.user.id, request);
     return json({
       available: false,
       publicRole: null,
       publicRoleLabel: null,
       professionalHeadline: null,
       roles: PERSONAL_PUBLIC_ROLES.map((value) => ({ value, label: PERSONAL_PUBLIC_ROLE_LABELS[value] })),
-      network: await personalNetworkPayload(db, auth.user.id, request),
+      network,
+      ink: buildInkV1Evidence(network),
     });
   }
 
@@ -248,13 +251,15 @@ export async function personalProfileIdentity(request: Request, env: Env, profil
       [profileId],
     );
     const role = row?.public_role && ROLE_SET.has(row.public_role) ? row.public_role as PersonalPublicRole : null;
+    const network = await personalNetworkPayload(db, auth.user.id, request);
     return json({
       available: true,
       publicRole: role,
       publicRoleLabel: role ? PERSONAL_PUBLIC_ROLE_LABELS[role] : null,
       professionalHeadline: row?.professional_headline || null,
       roles: PERSONAL_PUBLIC_ROLES.map((value) => ({ value, label: PERSONAL_PUBLIC_ROLE_LABELS[value] })),
-      network: await personalNetworkPayload(db, auth.user.id, request),
+      network,
+      ink: buildInkV1Evidence(network),
     });
   }
 
