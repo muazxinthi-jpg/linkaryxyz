@@ -125,15 +125,19 @@ test('personal network reads stay bounded, private-safe and seven-generation sco
   assert.doesNotMatch(profileRoute, /wallet_address/i);
 });
 
-test('Invite workspace owns My Network and Map V2 while Profile stays identity-focused', () => {
+test('Invite workspace keeps My Network and Map V2 available across active Project workspaces', () => {
   assert.match(inviteUi, /PRIVATE NETWORK/);
   assert.match(inviteUi, /Private Network views/);
   assert.match(inviteUi, />Invitations</);
   assert.match(inviteUi, />My network</);
   assert.match(inviteUi, />Network map</);
-  assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{profile\.id\} view="network" \/>/);
-  assert.match(inviteUi, /<PrivateNetworkMapV2Panel profileId=\{profile\.id\} \/>/);
-  assert.match(inviteUi, /const isPersonal = profile\?\.profile_type === 'creator'/);
+  assert.match(inviteUi, /const personalProfile = status\.profiles\.find\(\(p\) => p\.profile_type === 'creator'\)/);
+  assert.match(inviteUi, /const hasPersonalProfile = Boolean\(personalProfile\?\.id\)/);
+  assert.match(inviteUi, /const networkProfileId = personalProfile\?\.id \|\| ''/);
+  assert.match(inviteUi, /\{hasPersonalProfile && \(/);
+  assert.match(inviteUi, /<PersonalNetworkPanel profileId=\{networkProfileId\} view="network" \/>/);
+  assert.match(inviteUi, /<PrivateNetworkMapV2Panel profileId=\{networkProfileId\} \/>/);
+  assert.doesNotMatch(inviteUi, /function changeProfile\(id: string\) \{ setProfileId\(id\); setPrivateView\('invites'\)/);
   assert.doesNotMatch(profileIdentityUi, /PersonalNetworkPanel/);
   assert.match(profileIdentityUi, /<PersonalTelegramConnection \/>/);
 });
