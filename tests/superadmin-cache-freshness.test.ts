@@ -17,7 +17,7 @@ test('production deployment proves the live Superadmin JS contains the 100 perce
   assert.match(workflow, /100% coupon created\./);
   assert.match(workflow, /A 100% percent-off coupon grants one paid monthly period/);
   assert.match(workflow, /Coupons cannot reduce a paid checkout to \$0/);
-  assert.match(workflow, /cache-control: \.*no-store/);
+  assert.equal(workflow.includes('cache-control: .*no-store'), true);
 });
 
 test('current coupon form itself permits exactly 100 percent', () => {
