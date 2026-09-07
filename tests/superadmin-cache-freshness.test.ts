@@ -13,6 +13,13 @@ test('Superadmin HTML shell is non-cacheable so old admin bundles cannot stay pi
   assert.match(entry, /headers\.set\('vary', 'Cookie'\)/);
 });
 
+test('Superadmin coupon API clears pre-existing stale browser HTTP cache without clearing session data', () => {
+  assert.match(entry, /headers\.set\('clear-site-data', '\"cache\"'\)/);
+  assert.match(entry, /isSuperadminHost \? superadminCacheRecoveryResponse\(response\) : response/);
+  assert.equal(entry.includes('clear-site-data\', \'"cookies"'), false);
+  assert.equal(entry.includes('clear-site-data\', \'"storage"'), false);
+});
+
 test('production deployment proves the live Superadmin JS contains the 100 percent coupon UI', () => {
   assert.match(workflow, /100% coupon created\./);
   assert.match(workflow, /A 100% percent-off coupon grants one paid monthly period/);
