@@ -190,7 +190,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
       const [profileResult, blockResult, analyticsResult] = await Promise.all([
         apiJson<{ profile: ProfileData }>(`/api/profiles/${encodeURIComponent(profile.id)}`),
         apiJson<{ blocks: Block[] }>(`/api/profiles/${encodeURIComponent(profile.id)}/blocks`),
-        apiJson<Partial<ProfileCardAnalytics> & { linkClicks: number }>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch(() => ({ linkClicks: 0 })),
+        apiJson<Partial<ProfileCardAnalytics> & { linkClicks: number }>(`/api/profiles/${encodeURIComponent(profile.id)}/analytics`).catch((): Partial<ProfileCardAnalytics> & { linkClicks: number } => ({ linkClicks: 0 })),
       ]);
       setData({ ...profileResult.profile, bio: profileResult.profile.bio || '', avatarUrl: profileResult.profile.avatarUrl || '', seoTitle: profileResult.profile.seoTitle || '', seoDescription: profileResult.profile.seoDescription || '' });
       setAvatarFailed(false);
