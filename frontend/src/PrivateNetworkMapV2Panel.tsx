@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import InteractiveNetworkMapV3 from './InteractiveNetworkMapV3';
+import InteractiveNetworkMapV2 from './InteractiveNetworkMapV3';
 import './personal-network.css';
 
 type NetworkMember = {
@@ -99,7 +99,7 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
 
       {message && <div className="personal-network-message" role="status">{message}</div>}
       {loading && <div className="personal-network-message" role="status">Building your interactive network map...</div>}
-      {!loading && network?.available && network.graph && <InteractiveNetworkMapV3 graph={network.graph} />}
+      {!loading && network?.available && network.graph && <InteractiveNetworkMapV2 graph={network.graph} />}
     </section>
   );
 }
