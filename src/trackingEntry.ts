@@ -8,9 +8,39 @@ import { createAdminCoupon100 } from './routes/adminCouponCreate100';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
+const APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v4';
+
 function configuredHost(value: string | undefined, fallback: string): string {
   try { return new URL(value || fallback).hostname.toLowerCase(); }
   catch { return new URL(fallback).hostname.toLowerCase(); }
+}
+
+function hasCookie(request: Request, name: string): boolean {
+  const source = request.headers.get('cookie') || '';
+  return source.split(';').some((part) => part.trim().startsWith(`${name}=`));
+}
+
+function appShellResponse(request: Request, response: Response): Response {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html')) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set('x-robots-tag', 'noindex, nofollow');
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('pragma', 'no-cache');
+  headers.set('expires', '0');
+  headers.set('vary', 'Cookie');
+  headers.set('x-linkary-shell-release', '2026-09-08-private-network-v4');
+
+  // Some Controlled Beta browsers still hold an older authenticated app shell
+  // that points at a previous hashed frontend bundle. Clear HTTP cache once per
+  // browser for this recovery release, without touching sessions or local data.
+  if (!hasCookie(request, APP_SHELL_RECOVERY_COOKIE)) {
+    headers.set('clear-site-data', '"cache"');
+    headers.append('set-cookie', `${APP_SHELL_RECOVERY_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=31536000`);
+  }
+
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 function superadminShellResponse(response: Response): Response {
@@ -37,8 +67,11 @@ function superadminCacheRecoveryResponse(response: Response): Response {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
+    const appHost = configuredHost(env.APP_BASE_URL, 'https://app.linkary.xyz');
     const superadminHost = configuredHost(env.SUPERADMIN_BASE_URL, 'https://sadmin.linkary.xyz');
-    const isSuperadminHost = url.hostname.toLowerCase() === superadminHost;
+    const requestHost = url.hostname.toLowerCase();
+    const isAppHost = requestHost === appHost;
+    const isSuperadminHost = requestHost === superadminHost;
     const trackedRedirect = url.pathname.match(/^\/r\/([^/]+)$/);
 
     if (isSuperadminHost && url.pathname === '/robots.txt') {
@@ -124,6 +157,12 @@ export default {
       return superadminShellResponse(await worker.fetch(shellRequest, env, ctx));
     }
 
+    // Only HTML navigation on the authenticated app host gets recovery headers.
+    // API routes and all non-app hosts preserve the direct Worker fallback used
+    // by tracking, NFT entitlement, and public-profile integrity contracts.
+    if (isAppHost && !url.pathname.startsWith('/api/')) {
+      return appShellResponse(request, await worker.fetch(request, env, ctx));
+    }
     return worker.fetch(request, env, ctx);
   },
 };

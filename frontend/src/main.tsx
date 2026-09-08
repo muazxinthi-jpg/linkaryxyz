@@ -44,7 +44,10 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
+const APP_RELEASE = '2026-09-08-private-network-v4';
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
+
+if (typeof document !== 'undefined') document.documentElement.dataset.linkaryRelease = APP_RELEASE;
 
 function RootApp() {
   if (isSuperadminHost) {
