@@ -30,6 +30,15 @@ type AiResponse = {
   ai?: { provider: string; model: string; usageCredits: number; latencyMs: number };
 };
 
+type EditableProfileSnapshot = {
+  displayName: string;
+  bio: string;
+  avatarUrl: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  visibility: string;
+};
+
 function cookie(name: string): string | null {
   const match = document.cookie.split('; ').find((part) => part.startsWith(`${name}=`));
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
@@ -75,6 +84,7 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiApplyBusy, setAiApplyBusy] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestions | null>(null);
   const [aiMessage, setAiMessage] = useState('');
   const [aiMeta, setAiMeta] = useState<AiResponse['ai'] | null>(null);
@@ -145,7 +155,7 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
   }
 
   async function improveWithAi() {
-    if (!profile?.id || !isPersonal || aiBusy || !available) return;
+    if (!profile?.id || !isPersonal || aiBusy || aiApplyBusy || !available) return;
     const csrf = cookie('__Host-linkary_csrf');
     if (!csrf) { setAiMessage('Refresh your session before using LinkaryAI.'); return; }
     setAiBusy(true); setAiMessage(''); setAiSuggestions(null); setAiMeta(null);
@@ -175,9 +185,64 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      setAiMessage(`${label} copied. Paste it into the matching profile field, review it, then Save.`);
+      setAiMessage(`${label} copied. Review it before using it anywhere.`);
     } catch {
       setAiMessage(`Copy was unavailable. Select the ${label.toLowerCase()} text manually.`);
+    }
+  }
+
+  async function applyAllAiText() {
+    if (!profile?.id || !isPersonal || !aiSuggestions || aiApplyBusy || aiBusy || !available) return;
+    const hasSuggestion = Boolean(aiSuggestions.professionalHeadline || aiSuggestions.bio || aiSuggestions.seoTitle || aiSuggestions.seoDescription);
+    if (!hasSuggestion) { setAiMessage('LinkaryAI did not return any grounded profile text to apply.'); return; }
+    const confirmed = window.confirm('Apply the reviewed LinkaryAI headline, bio and SEO suggestions to this profile? If the profile is already published, these approved changes can become visible immediately.');
+    if (!confirmed) return;
+    const csrf = cookie('__Host-linkary_csrf');
+    if (!csrf) { setAiMessage('Refresh your session before applying LinkaryAI suggestions.'); return; }
+    setAiApplyBusy(true); setAiMessage('Applying your approved profile draft...');
+    try {
+      const currentResponse = await fetch(`/api/profiles/${encodeURIComponent(profile.id)}`, { credentials: 'same-origin' });
+      const currentResult = await currentResponse.json().catch(() => ({})) as { profile?: EditableProfileSnapshot; message?: string };
+      if (!currentResponse.ok || !currentResult.profile) throw new Error(currentResult.message || 'Current profile details could not be loaded.');
+
+      const identityResponse = await fetch(`/api/profiles/${encodeURIComponent(profile.id)}/identity`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+        body: JSON.stringify({
+          publicRole,
+          professionalHeadline: aiSuggestions.professionalHeadline || headline,
+        }),
+      });
+      const identityResult = await identityResponse.json().catch(() => ({})) as { message?: string };
+      if (!identityResponse.ok) throw new Error(identityResult.message || 'The AI headline could not be applied.');
+
+      const existing = currentResult.profile;
+      const profileResponse = await fetch(`/api/profiles/${encodeURIComponent(profile.id)}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+        body: JSON.stringify({
+          displayName: existing.displayName,
+          bio: aiSuggestions.bio ?? existing.bio ?? '',
+          avatarUrl: existing.avatarUrl || '',
+          seoTitle: aiSuggestions.seoTitle ?? existing.seoTitle ?? '',
+          seoDescription: aiSuggestions.seoDescription ?? existing.seoDescription ?? '',
+        }),
+      });
+      const profileResult = await profileResponse.json().catch(() => ({})) as { message?: string };
+      if (!profileResponse.ok) throw new Error(profileResult.message || 'The AI profile draft could not be applied.');
+
+      setHeadline(aiSuggestions.professionalHeadline || headline);
+      refreshPublicPreview();
+      setAiMessage(existing.visibility === 'published'
+        ? 'Approved LinkaryAI profile text saved. This profile is published, so the changes are now live.'
+        : 'Approved LinkaryAI profile text saved to your profile draft.');
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      setAiMessage(error instanceof Error ? error.message : 'The approved LinkaryAI profile draft could not be applied.');
+    } finally {
+      setAiApplyBusy(false);
     }
   }
 
@@ -192,28 +257,32 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
         </div>
         <div className="profile-identity-v1-fields">
           <label>Primary public role
-            <select value={publicRole} disabled={!available || busy} onChange={(event) => setPublicRole(event.target.value)}>
+            <select value={publicRole} disabled={!available || busy || aiApplyBusy} onChange={(event) => setPublicRole(event.target.value)}>
               <option value="">Select your identity</option>
               {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
             </select>
           </label>
           <label>Professional headline
-            <input value={headline} disabled={!available || busy} maxLength={140} placeholder="Example: Founder at KlineO · Web3 growth and partnerships" onChange={(event) => setHeadline(event.target.value)} />
+            <input value={headline} disabled={!available || busy || aiApplyBusy} maxLength={140} placeholder="Example: Founder at KlineO · Web3 growth and partnerships" onChange={(event) => setHeadline(event.target.value)} />
           </label>
         </div>
         <p>Changing this label never changes Project roles, permissions, verification, manager status or campaign evidence.</p>
 
         <div className="profile-ai-v1" data-linkary-ai-profile-improvement>
           <div className="profile-ai-v1-head">
-            <div><span>LINKARYAI</span><strong>Improve your profile</strong><small>Uses only your current Linkary profile evidence. It cannot invent metrics, credentials or verification.</small></div>
-            <button type="button" className="ops-button secondary" disabled={!available || aiBusy} onClick={() => void improveWithAi()}>{aiBusy ? 'Improving...' : '✦ Improve with LinkaryAI'}</button>
+            <div><span>LINKARYAI</span><strong>Profile Copilot</strong><small>Uses only your current Linkary profile evidence. It cannot invent metrics, credentials or verification.</small></div>
+            <button type="button" className="ops-button secondary" disabled={!available || aiBusy || aiApplyBusy} onClick={() => void improveWithAi()}>{aiBusy ? 'Improving...' : '✦ Improve with LinkaryAI'}</button>
           </div>
           {aiMessage && <div className="profile-ai-v1-message" role="status">{aiMessage}</div>}
           {aiSuggestions && <div className="profile-ai-v1-results">
+            <div className="profile-ai-v1-apply">
+              <div><strong>Ready to use these suggestions?</strong><small>Review the text below first. Applying is an explicit profile update and never changes permissions, verification or campaign evidence.</small></div>
+              <button type="button" className="ops-button primary" disabled={aiApplyBusy || aiBusy} onClick={() => void applyAllAiText()}>{aiApplyBusy ? 'Applying...' : 'Apply all profile text'}</button>
+            </div>
             <article>
               <div><strong>Professional headline</strong><span>140 characters max</span></div>
               <p>{aiSuggestions.professionalHeadline || 'No grounded improvement suggested.'}</p>
-              {aiSuggestions.professionalHeadline && <button type="button" onClick={() => { setHeadline(aiSuggestions.professionalHeadline || ''); setAiMessage('Headline applied to the editor. Review it, then Save public identity.'); }}>Use headline</button>}
+              {aiSuggestions.professionalHeadline && <button type="button" onClick={() => { setHeadline(aiSuggestions.professionalHeadline || ''); setAiMessage('Headline placed in the identity editor. Review it, then Save public identity.'); }}>Use headline only</button>}
             </article>
             <article>
               <div><strong>Bio</strong><span>500 characters max</span></div>
@@ -231,11 +300,11 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
               {aiSuggestions.seoDescription && <button type="button" onClick={() => void copySuggestion(aiSuggestions.seoDescription, 'SEO description')}>Copy SEO description</button>}
             </article>
             {aiSuggestions.profileTips.length > 0 && <div className="profile-ai-v1-tips"><strong>Profile improvements</strong><ul>{aiSuggestions.profileTips.map((tip, index) => <li key={`${index}-${tip}`}>{tip}</li>)}</ul></div>}
-            <div className="profile-ai-v1-foot"><span>AI suggestions are drafts only. Nothing is saved or published automatically.</span>{aiMeta && <small>{aiMeta.usageCredits} Usage Credits · {aiMeta.provider}</small>}</div>
+            <div className="profile-ai-v1-foot"><span>AI suggestions are drafts until you explicitly apply or save them.</span>{aiMeta && <small>{aiMeta.usageCredits} Usage Credits · {aiMeta.provider}</small>}</div>
           </div>}
         </div>
 
-        <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
+        <div className="profile-identity-v1-actions"><span>{message}</span><button type="button" className="ops-button secondary" disabled={!available || busy || aiApplyBusy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save public identity'}</button></div>
       </div>
       <PersonalTelegramConnection />
     </>,
