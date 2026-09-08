@@ -48,14 +48,22 @@ test('approved production guards for Profile Optimization and Private Network st
   assert.match(workflow, /2026-09-08-v3/);
 });
 
-test('tracking-first public positioning is part of the approved product contract', async () => {
+test('tracking-first public positioning is routed and checked in production', async () => {
   const homepage = await read('src/homepagePricing.ts');
+  const wrangler = await read('wrangler.jsonc');
+  const workflow = await read('.github/workflows/deploy-production.yml');
   const contract = await read('docs/APPROVED_PRODUCT_PRESERVATION.md');
 
   assert.match(homepage, /Run growth anywhere\./);
   assert.match(homepage, /Track it in Linkary\./);
   assert.match(homepage, /External campaigns/);
   assert.match(homepage, /OPTIONAL \/ LINKARY CAMPAIGN WORKSPACE/);
+  assert.match(wrangler, /"pattern": "linkary\.xyz\/\*"/);
+  assert.match(workflow, /Verify production public site positioning/);
+  assert.match(workflow, /https:\/\/linkary\.xyz\/\?deploycheck=/);
+  assert.match(workflow, /grep -Fq 'Run growth anywhere\.'/);
+  assert.match(workflow, /grep -Fq 'Track it in Linkary\.'/);
+  assert.match(workflow, /grep -Fq 'External campaigns'/);
 
   assert.match(contract, /approved-product-change/);
   assert.match(contract, /Gen 1 through Gen 7/);
@@ -63,6 +71,16 @@ test('tracking-first public positioning is part of the approved product contract
   assert.match(contract, /Network map remains available/);
   assert.match(contract, /Manual evidence must not be presented as verified evidence/);
   assert.match(contract, /Profile Copilot keeps explicit review before applying suggestions/);
+});
+
+test('preservation contract cannot be quietly rewritten after bootstrap', async () => {
+  const workflow = await read('.github/workflows/deploy-production.yml');
+
+  assert.match(workflow, /Enforce approved product change approval/);
+  assert.match(workflow, /docs\/APPROVED_PRODUCT_PRESERVATION\\\.md/);
+  assert.match(workflow, /tests\/approved-product-preservation\\\.test\\\.ts/);
+  assert.match(workflow, /approved-product-change/);
+  assert.match(workflow, /Explicit product-owner approval is required/);
 });
 
 test('protected migrations and production verification remain release controls', async () => {
