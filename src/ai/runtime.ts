@@ -4,6 +4,11 @@ import { Db } from '../db/client';
 import { HttpError } from '../http';
 import { isCanonicalSuperadminUser } from '../superadminPlatformAccess';
 import { LinkaryAI, LinkaryAiProviderError } from './LinkaryAI';
+import {
+  completeProviderAttempt,
+  reserveProviderAttempt,
+  resolveAiProviderRoute,
+} from './providerRouting';
 import { AI_TASKS, type AiTaskKey } from './tasks';
 
 type OwnerType = 'user' | 'organization';
@@ -220,9 +225,9 @@ async function markSuccess(
   const statements = [
     db.statement(
       `UPDATE ai_usage_events
-          SET status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
+          SET provider = ?, model = ?, status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
         WHERE id = ? AND status = 'reserved'`,
-      [result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
+      [provider, model, result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
     ),
     db.statement(
       `INSERT INTO audit_logs
@@ -267,6 +272,10 @@ async function markSuccess(
   await db.batch(statements);
 }
 
+function providerFailureCode(error: LinkaryAiProviderError): string {
+  return error.status ? `${error.code}_${error.status}` : error.code;
+}
+
 export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise<ExecuteAiResult> {
   const normalized = requireExecutionInput(input);
   const db = new Db(requireDb(env));
@@ -274,10 +283,12 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
   const prompt = await activePrompt(db, task.promptKey);
   const budget = await activeBudget(db, input.ownerType, input.ownerId, input.taskKey);
   const usageCreditBalanceExempt = await isCanonicalSuperadminUser(db, env, input.actorUserId);
-  const ai = new LinkaryAI(env);
-  const provider = ai.provider();
+  const route = await resolveAiProviderRoute(db, env, input.taskKey);
+  const primary = route[0];
+  if (!primary) throw new ServiceConfigurationError('No enabled Linkary AI provider route is available');
+
   const eventId = await reserveUsage(
-    db, input, prompt, budget, provider.provider, provider.model,
+    db, input, prompt, budget, primary.provider, primary.model,
     task.usageCredits, normalized.evidenceRefs, normalized.idempotencyKey,
     usageCreditBalanceExempt,
   );
@@ -286,33 +297,67 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
     ? `\n\nLinkary evidence references: ${normalized.evidenceRefs.join(', ')}`
     : '\n\nLinkary evidence references: none supplied';
   const userPrompt = `${prompt.user_template.replace('{{input}}', normalized.text)}${evidenceSuffix}`;
+  const ai = new LinkaryAI(env);
+  let lastError: unknown = null;
+  let attempted = false;
 
-  try {
-    const result = await ai.generate({ system: prompt.system_prompt, user: userPrompt, maxOutputTokens: task.maxOutputTokens });
-    await markSuccess(
-      db, input, eventId, result.provider, result.model, prompt, task.usageCredits,
-      normalized.evidenceRefs.length, result, usageCreditBalanceExempt,
-    );
-    return {
-      eventId,
-      taskKey: input.taskKey,
-      promptKey: prompt.prompt_key,
-      promptVersion: prompt.version,
-      provider: result.provider,
-      model: result.model,
-      text: result.text,
-      usageCredits: task.usageCredits,
-      inputUnits: result.inputUnits,
-      outputUnits: result.outputUnits,
-      latencyMs: result.latencyMs,
-    };
-  } catch (error) {
-    const errorCode = error instanceof LinkaryAiProviderError ? error.code : 'ai_execution_failed';
-    try {
-      await markFailure(db, eventId, input.actorUserId, input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null), errorCode);
-    } catch {
-      // Preserve the original provider/runtime failure. AI failure auditing must never expose request content or secrets.
+  for (let index = 0; index < route.length; index += 1) {
+    const choice = route[index];
+    const attempt = await reserveProviderAttempt(db, eventId, input.taskKey, choice, index + 1);
+    if (!attempt) {
+      lastError = new HttpError(429, `${choice.provider} AI provider limit has been reached`, 'ai_provider_limit_reached');
+      continue;
     }
-    throw error;
+    attempted = true;
+    try {
+      const result = await ai.generateWithProvider(
+        { provider: choice.provider, model: choice.model },
+        { system: prompt.system_prompt, user: userPrompt, maxOutputTokens: task.maxOutputTokens },
+      );
+      await completeProviderAttempt(db, attempt, 'success', result.latencyMs);
+      await markSuccess(
+        db, input, eventId, result.provider, result.model, prompt, task.usageCredits,
+        normalized.evidenceRefs.length, result, usageCreditBalanceExempt,
+      );
+      return {
+        eventId,
+        taskKey: input.taskKey,
+        promptKey: prompt.prompt_key,
+        promptVersion: prompt.version,
+        provider: result.provider,
+        model: result.model,
+        text: result.text,
+        usageCredits: task.usageCredits,
+        inputUnits: result.inputUnits,
+        outputUnits: result.outputUnits,
+        latencyMs: result.latencyMs,
+      };
+    } catch (error) {
+      lastError = error;
+      const code = error instanceof LinkaryAiProviderError ? providerFailureCode(error) : 'ai_execution_failed';
+      try { await completeProviderAttempt(db, attempt, 'failed', 0, code); } catch {}
+      // Only provider availability failures may fall through to the next approved
+      // route. Validation, parsing and application errors must fail closed.
+      if (!(error instanceof LinkaryAiProviderError)) break;
+    }
   }
+
+  const errorCode = lastError instanceof LinkaryAiProviderError
+    ? providerFailureCode(lastError)
+    : lastError instanceof HttpError && lastError.code
+      ? lastError.code
+      : attempted ? 'ai_execution_failed' : 'ai_provider_limit_reached';
+  try {
+    await markFailure(
+      db,
+      eventId,
+      input.actorUserId,
+      input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
+      errorCode,
+    );
+  } catch {
+    // Preserve the original provider/runtime failure. AI failure auditing must never expose request content or secrets.
+  }
+  if (lastError) throw lastError;
+  throw new HttpError(503, 'Linkary AI is temporarily unavailable', 'ai_provider_unavailable');
 }
