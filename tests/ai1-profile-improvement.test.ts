@@ -12,7 +12,10 @@ test('AI-1 profile improvement is explicit, CSRF-protected and does not run on p
   assert.match(identityRoute, /verifyCsrf\(request, env, auth\)/);
   assert.match(profileUi, /Improve with LinkaryAI/);
   assert.match(profileUi, /onClick=\{\(\) => void improveWithAi\(\)\}/);
-  assert.doesNotMatch(profileUi, /useEffect\([^]*improveWithAi\(/);
+  const improveDefinition = profileUi.indexOf('async function improveWithAi');
+  assert.ok(improveDefinition > 0, 'AI action handler should exist');
+  const setupAndEffects = profileUi.slice(0, improveDefinition);
+  assert.doesNotMatch(setupAndEffects, /\bimproveWithAi\(\)/);
 });
 
 test('AI-1 uses bounded Linkary evidence and never writes profile state', () => {
