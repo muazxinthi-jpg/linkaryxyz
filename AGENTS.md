@@ -54,6 +54,7 @@ Feature branches are not production releases.
 
 - Never run `wrangler deploy` or `npm run deploy` from a non-`main` branch.
 - For branch validation, use `npm run check`, dry runs, or `npm run deploy:preview`.
+- Cloudflare non-production branch builds must use `wrangler versions upload`, never a command that promotes the branch to the live Worker.
 - Production deployment belongs to the protected `main` workflow only.
 
 Before opening a PR, run the full regression/type/dry-run checks and confirm the Private Network tests still pass.
