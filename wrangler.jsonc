@@ -17,6 +17,10 @@
   },
   "routes": [
     {
+      "pattern": "linkary.xyz/*",
+      "zone_name": "linkary.xyz"
+    },
+    {
       "pattern": "app.linkary.xyz/*",
       "zone_name": "linkary.xyz"
     },
