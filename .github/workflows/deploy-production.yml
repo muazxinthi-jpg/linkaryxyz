@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in / /profile; do
+          for path in / /profile /invites; do
             ok=false
             for attempt in {1..12}; do
               body="/tmp/linkary-health-${attempt}.html"
@@ -101,7 +101,7 @@ jobs:
             fi
           done
 
-      - name: Verify Superadmin serves current production bundle (100-percent coupon)
+      - name: Verify production serves current protected frontend bundle
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         shell: bash
         run: |
@@ -128,16 +128,20 @@ jobs:
               && grep -qi '^cache-control: .*no-store' "$sadmin_headers" \
               && grep -Fq '100% coupon created.' "$bundle_body" \
               && grep -Fq 'A 100% percent-off coupon grants one paid monthly period' "$bundle_body" \
-              && ! grep -Fq 'Coupons cannot reduce a paid checkout to $0' "$bundle_body"; then
-              echo "Superadmin is serving the current 100% coupon bundle: ${sadmin_bundle}"
+              && ! grep -Fq 'Coupons cannot reduce a paid checkout to $0' "$bundle_body" \
+              && grep -Fq 'My network' "$bundle_body" \
+              && grep -Fq 'Network map' "$bundle_body" \
+              && grep -Fq 'Private Network views' "$bundle_body" \
+              && grep -Fq '2026-09-08-v3' "$bundle_body"; then
+              echo "Production is serving the current protected frontend bundle: ${sadmin_bundle}"
               healthy=true
               break
             fi
-            echo "Waiting for current Superadmin coupon bundle, attempt ${attempt}, app=${app_status}:${app_bundle:-none}, sadmin=${sadmin_status}:${sadmin_bundle:-none}, js=${bundle_status}"
+            echo "Waiting for current protected frontend bundle, attempt ${attempt}, app=${app_status}:${app_bundle:-none}, sadmin=${sadmin_status}:${sadmin_bundle:-none}, js=${bundle_status}"
             sleep 5
           done
           if [[ "$healthy" != "true" ]]; then
-            echo "::error::sadmin.linkary.xyz is not serving the current 100% coupon frontend bundle"
+            echo "::error::Production is not serving the current frontend bundle with Private Network tabs"
             exit 1
           fi
 
