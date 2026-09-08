@@ -18,6 +18,7 @@ import './wallets.css';
 import './dashboard-next.css';
 import './profile-next.css';
 import './growth.css';
+import './campaign-ai.css';
 import './partners.css';
 import './ux-system.css';
 import './partner-discovery-stabilization.css';
