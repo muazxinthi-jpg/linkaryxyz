@@ -1,6 +1,6 @@
 # Linkary UI release gate
 
-Updated: 2026-09-03
+Updated: 2026-09-08
 
 This gate is mandatory for any user-facing Linkary deployment. Read it together with `LINKARY_TECHNICAL_PRODUCT_PAPER.md`, `DELIVERY_TEAM.md`, `IMPLEMENTATION_STATUS.md` and `CODEX_NEXT_BUILD.md`.
 
@@ -9,6 +9,22 @@ This gate is mandatory for any user-facing Linkary deployment. Read it together 
 A feature is not complete when the backend works or when CI passes. It is complete only when the live user interface is readable, responsive, stable and consistent with the Linkary product system.
 
 Readability and responsive behavior are product requirements, not post-release polish.
+
+## Accepted UI preservation rule
+
+Once a user-facing capability has been reviewed, accepted and confirmed in production, unrelated work must not remove, hide, rename or disconnect it unless an explicit product decision approves that change.
+
+Every accepted UI contract that has previously regressed must have an automated source-level regression test. Critical accepted surfaces should also have a production-bundle health assertion so a stale or incomplete deployment is detected after release.
+
+The Private Network contract under `/invites` is locked as:
+
+- `Invitations`
+- `My network`
+- `Network map`
+- Personal-profile network lineage across up to seven generations
+- the approved interactive relationship map implementation, including current-user identity rendering
+
+Project Network remains a separate Project workspace capability and must not replace or hide the Personal Private Network contract.
 
 ## Required review before merge
 
@@ -22,6 +38,7 @@ For every changed user-facing surface:
 6. Verify keyboard focus states and practical pointer/tap targets.
 7. Verify customer UI does not expose infrastructure/provider terminology or internal errors.
 8. Verify no manual, estimated or uncertain metric is visually presented as verified evidence.
+9. Verify accepted neighboring capabilities on the same workspace still exist and remain reachable after the change.
 
 ## Responsive acceptance widths
 
@@ -57,7 +74,8 @@ The release sequence is:
 5. Fix P0/P1 functional or visual blockers before merge.
 6. Merge to `main` and allow the normal production deployment.
 7. Verify the live production surface after deployment.
-8. If the live surface differs materially from review or has clipping, overflow, unusable controls or misleading evidence presentation, treat the deployment as incomplete and repair it before beginning the next feature.
+8. Verify locked accepted UI contracts remain present in the deployed bundle.
+9. If the live surface differs materially from review or has clipping, overflow, unusable controls, missing accepted capabilities or misleading evidence presentation, treat the deployment as incomplete and repair it before beginning the next feature.
 
 ## Partner Discovery regression rule
 
