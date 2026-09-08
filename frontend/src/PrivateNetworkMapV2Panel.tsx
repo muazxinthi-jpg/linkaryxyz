@@ -137,7 +137,7 @@ export default function PrivateNetworkMapV2Panel({ profileId }: { profileId: str
   }, [rootAvatarUrl]);
 
   return (
-    <section className="wide personal-network network-map-view" data-private-network-map-v2 aria-labelledby="network-map-v2-title">
+    <section className="wide personal-network network-map-view" data-private-network-map-v2 data-private-network-release="2026-09-08-v3" aria-labelledby="network-map-v2-title">
       <div className="personal-network-heading">
         <div>
           <span className="personal-network-kicker">RELATIONSHIP MAP</span>
