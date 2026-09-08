@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "linkary-public-overlay",
+  "main": "src/trackingEntry.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CDP_PROJECT_ID": "ec85aa2b-208c-4ec9-a0f2-3da31a8e2218",
+    "PUBLIC_SITE_URL": "https://linkary.xyz",
+    "APP_BASE_URL": "https://app.linkary.xyz",
+    "SUPERADMIN_BASE_URL": "https://sadmin.linkary.xyz",
+    "SUPERADMIN_EMAIL": "xinthi@gmail.com",
+    "TRACKING_BASE_URL": "https://l.linkary.xyz",
+    "APP_ENV": "production",
+    "BILLING_TREASURY_EVM_ADDRESS": "0x4364C060d63B86903ADb850838aaEc338cc4890D",
+    "AI_WORKERS_MODEL": "@cf/google/gemma-4-26b-a4b-it"
+  },
+  "routes": [
+    {
+      "pattern": "linkary.xyz/*",
+      "zone_name": "linkary.xyz"
+    }
+  ],
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "run_worker_first": true
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "linkary-db",
+      "database_id": "cc44263b-f179-4c2b-be75-343cb9967d77"
+    }
+  ]
+}
