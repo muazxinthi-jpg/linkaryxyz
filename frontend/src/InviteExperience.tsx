@@ -60,7 +60,7 @@ export default function InviteExperience({ me, status }: { me: ProductMe; status
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState('');
-  const [privateView, setPrivateView] = useState<PrivateNetworkView>('invites');
+  const [privateView, setPrivateView] = useState<PrivateNetworkView>(personalProfile ? 'network' : 'invites');
 
   const owner = useMemo(() => profile ? { type: profile.profile_type === 'creator' ? 'profile' as const : 'organization' as const, id: profile.profile_type === 'creator' ? profile.id : profile.organization_id || '' } : null, [profile?.id, profile?.organization_id, profile?.profile_type]);
   const balance = owner ? balances.find((b) => b.owner_type === owner.type && b.owner_id === owner.id) : undefined;
