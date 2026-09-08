@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
+import AdminAiExperience from './AdminAiExperience';
 import AdminCommercialExperience from './AdminCommercialExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
 import AdminCouponsExperience from './AdminCouponsExperience';
@@ -34,6 +35,7 @@ export default function SuperadminApp({ me }: { me: ProductMe }) {
   if (location.pathname === '/admin/community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
   if (location.pathname === '/admin/commercial') return <AdminCommercialExperience me={me} status={status} />;
   if (location.pathname === '/admin/coupons') return <SuperadminWorkspace me={me}><AdminCouponsExperience /></SuperadminWorkspace>;
+  if (location.pathname === '/admin/ai') return <SuperadminWorkspace me={me}><AdminAiExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/readiness') return <AdminReadinessExperience me={me} status={status} />;
 
   return <Navigate to="/admin/readiness" replace />;
