@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  // Dedicated owner of linkary.xyz/*. Keep this separate from the app Worker.
   "name": "linkary-public-overlay",
   "main": "src/trackingEntry.ts",
   "compatibility_date": "2026-08-31",
