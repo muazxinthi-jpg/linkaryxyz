@@ -8,7 +8,8 @@ import { createAdminCoupon100 } from './routes/adminCouponCreate100';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
-const APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v4';
+const APP_SHELL_RELEASE = '2026-09-09-private-network-v5';
+const APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v5';
 
 function configuredHost(value: string | undefined, fallback: string): string {
   try { return new URL(value || fallback).hostname.toLowerCase(); }
@@ -18,6 +19,12 @@ function configuredHost(value: string | undefined, fallback: string): string {
 function hasCookie(request: Request, name: string): boolean {
   const source = request.headers.get('cookie') || '';
   return source.split(';').some((part) => part.trim().startsWith(`${name}=`));
+}
+
+function applyAppCacheRecovery(request: Request, headers: Headers) {
+  if (hasCookie(request, APP_SHELL_RECOVERY_COOKIE)) return;
+  headers.set('clear-site-data', '"cache"');
+  headers.append('set-cookie', `${APP_SHELL_RECOVERY_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=31536000`);
 }
 
 function appShellResponse(request: Request, response: Response): Response {
@@ -30,16 +37,22 @@ function appShellResponse(request: Request, response: Response): Response {
   headers.set('pragma', 'no-cache');
   headers.set('expires', '0');
   headers.set('vary', 'Cookie');
-  headers.set('x-linkary-shell-release', '2026-09-08-private-network-v4');
+  headers.set('x-linkary-shell-release', APP_SHELL_RELEASE);
 
-  // Some Controlled Beta browsers still hold an older authenticated app shell
-  // that points at a previous hashed frontend bundle. Clear HTTP cache once per
-  // browser for this recovery release, without touching sessions or local data.
-  if (!hasCookie(request, APP_SHELL_RECOVERY_COOKIE)) {
-    headers.set('clear-site-data', '"cache"');
-    headers.append('set-cookie', `${APP_SHELL_RECOVERY_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=31536000`);
-  }
+  // Rotate the recovery cookie for this release so browsers that were already
+  // running a pre-Private-Network app can discard their old HTTP cache once.
+  // Sessions, local storage and wallet state are deliberately untouched.
+  applyAppCacheRecovery(request, headers);
 
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function appApiCacheRecoveryResponse(request: Request, response: Response): Response {
+  if (hasCookie(request, APP_SHELL_RECOVERY_COOKIE)) return response;
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('x-linkary-shell-release', APP_SHELL_RELEASE);
+  applyAppCacheRecovery(request, headers);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -136,6 +149,14 @@ export default {
           return errorResponse(error);
         }
       }
+    }
+
+    // An already-running pre-v5 app still calls /api/auth/me whenever a Product
+    // workspace opens. Use that guaranteed request to clear only the HTTP cache
+    // once, so one ordinary reload can recover even when no new HTML navigation
+    // occurred before the stale bundle rendered.
+    if (isAppHost && url.pathname === '/api/auth/me') {
+      return appApiCacheRecoveryResponse(request, await worker.fetch(request, env, ctx));
     }
 
     // sadmin.linkary.xyz deliberately gets its own host-scoped __Host cookies.
