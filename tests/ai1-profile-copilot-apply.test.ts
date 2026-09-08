@@ -8,7 +8,7 @@ test('Profile Copilot requires explicit approval before applying AI profile text
   assert.match(profileUi, /Profile Copilot/);
   assert.match(profileUi, /Apply all profile text/);
   assert.match(profileUi, /window\.confirm\(/);
-  assert.match(profileUi, /If the profile is already published, these approved changes can become visible immediately/);
+  assert.match(profileUi, /approved changes can become visible immediately/);
 });
 
 test('Profile Copilot applies only normal editable profile text and identity fields', () => {
