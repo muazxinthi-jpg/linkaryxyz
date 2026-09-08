@@ -8,6 +8,7 @@ import WalletExperience from './WalletExperience';
 import BillingExperience from './BillingExperience';
 import DashboardExperience from './DashboardExperience';
 import GrowthExperience from './GrowthExperience';
+import CampaignBriefAssistant from './CampaignBriefAssistant';
 import PartnerDiscoveryExperience from './PartnerDiscoveryExperience';
 import ProfileAccessExperience from './ProfileAccessExperience';
 import ProjectExperienceBeta from './ProjectExperienceBeta';
@@ -129,7 +130,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
     if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
     if (experience === 'communities') return <CommunityManagerSessionGate me={me} status={status} />;
-    if (experience === 'growth') return <GrowthExperience me={me} status={status} />;
+    if (experience === 'growth') return <><GrowthExperience me={me} status={status} /><CampaignBriefAssistant status={status} /></>;
     if (experience === 'network') return <NetworkExperience me={me} status={status} />;
     if (experience === 'partners') return <PartnerDiscoveryExperience me={me} status={status} />;
     if (experience === 'profile') return <ProfileAccessExperience me={me} status={status} />;
