@@ -18,7 +18,7 @@ export type LinkaryAiResult = {
   latencyMs: number;
 };
 
-type ProviderChoice = { provider: AiProvider; model: string };
+export type ProviderChoice = { provider: AiProvider; model: string };
 
 type OpenAiLikePayload = {
   choices?: Array<{ message?: { content?: string | null } }>;
@@ -195,8 +195,7 @@ export class LinkaryAI {
     return selectedAiProvider(this.env);
   }
 
-  async generate(prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
-    const selected = this.provider();
+  async generateWithProvider(selected: ProviderChoice, prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
     const started = Date.now();
     let result: { text: string; inputUnits: number | null; outputUnits: number | null };
     if (selected.provider === 'workers_ai') {
@@ -216,5 +215,9 @@ export class LinkaryAI {
       outputUnits: result.outputUnits,
       latencyMs: Math.max(0, Date.now() - started),
     };
+  }
+
+  async generate(prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
+    return this.generateWithProvider(this.provider(), prompt);
   }
 }
