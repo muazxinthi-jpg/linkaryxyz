@@ -38,6 +38,8 @@ export const REQUIRED_BETA_TABLES = [
   'ai_prompt_versions',
   'ai_budget_policies',
   'ai_usage_events',
+  'ai_provider_policies',
+  'ai_provider_attempts',
 ] as const;
 
 export const REQUIRED_BETA_TRIGGERS = [
@@ -97,9 +99,10 @@ export function assessBetaSchema(objects: SchemaObject[]): BetaSchemaReadiness {
 }
 
 function aiProviderConfigured(env: Env): boolean {
+  // Technical Paper 60.8 initial rollout: Workers AI is primary and OpenRouter
+  // is the only approved external secondary provider. Gemini/Groq are not
+  // readiness candidates in this phase.
   if (env.AI) return true;
-  if (env.GEMINI_API_KEY?.trim() && env.AI_GEMINI_MODEL?.trim()) return true;
-  if (env.GROQ_API_KEY?.trim() && env.AI_GROQ_MODEL?.trim()) return true;
   if (env.OPENROUTER_API_KEY?.trim() && env.AI_OPENROUTER_MODEL?.trim()) return true;
   return false;
 }
