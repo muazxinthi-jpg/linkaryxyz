@@ -33,7 +33,7 @@ test('AI-1 structured output is length-bounded and human reviewed', () => {
   assert.match(profileAi, /bio: cleanText\(row\.bio, 500\)/);
   assert.match(profileAi, /seoTitle: cleanText\(row\.seoTitle, 70\)/);
   assert.match(profileAi, /seoDescription: cleanText\(row\.seoDescription, 180\)/);
-  assert.match(profileUi, /Nothing is saved or published automatically/);
+  assert.match(profileUi, /AI suggestions are drafts until you explicitly apply or save them/);
   assert.match(profileUi, /Use headline/);
   assert.match(profileUi, /Copy bio/);
 });
