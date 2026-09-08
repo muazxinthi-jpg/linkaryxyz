@@ -157,8 +157,12 @@ export default {
       return superadminShellResponse(await worker.fetch(shellRequest, env, ctx));
     }
 
-    const response = await worker.fetch(request, env, ctx);
-    if (isAppHost && !url.pathname.startsWith('/api/')) return appShellResponse(request, response);
-    return response;
+    // Only HTML navigation on the authenticated app host gets recovery headers.
+    // API routes and all non-app hosts preserve the direct Worker fallback used
+    // by tracking, NFT entitlement, and public-profile integrity contracts.
+    if (isAppHost && !url.pathname.startsWith('/api/')) {
+      return appShellResponse(request, await worker.fetch(request, env, ctx));
+    }
+    return worker.fetch(request, env, ctx);
   },
 };
