@@ -27,6 +27,33 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Enforce approved product change approval
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PRODUCT_CHANGE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'approved-product-change') }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF" --depth=50
+
+          # Bootstrap: the first PR that introduces the preservation contract is
+          # allowed to establish the guard. Once the base branch contains it,
+          # changing or deleting the contract/test requires explicit approval.
+          if ! git cat-file -e "origin/${BASE_REF}:docs/APPROVED_PRODUCT_PRESERVATION.md" 2>/dev/null; then
+            echo "Establishing approved product preservation contract."
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "origin/${BASE_REF}" HEAD)
+          if printf '%s\n' "$changed" | grep -Eq '^(docs/APPROVED_PRODUCT_PRESERVATION\.md|tests/approved-product-preservation\.test\.ts)$'; then
+            if [[ "$PRODUCT_CHANGE_APPROVED" != "true" ]]; then
+              echo "::error::Approved product preservation contract changed. Explicit product-owner approval is required before this PR can merge. Add the approved-product-change label only after that approval."
+              exit 1
+            fi
+            echo "Approved product preservation change acknowledged by PR label."
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -76,6 +103,31 @@ jobs:
       - name: Deploy Worker to production
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         run: npm run deploy
+
+      - name: Verify production public site positioning
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in {1..12}; do
+            body="/tmp/linkary-public-${attempt}.html"
+            status=$(curl -sS -o "$body" -w '%{http_code}' "https://linkary.xyz/?deploycheck=${GITHUB_SHA}-${attempt}") || status=000
+            if [[ "$status" == "200" ]] \
+              && grep -Fq 'Run growth anywhere.' "$body" \
+              && grep -Fq 'Track it in Linkary.' "$body" \
+              && grep -Fq 'External campaigns' "$body"; then
+              echo "Healthy: https://linkary.xyz is serving tracking-first positioning"
+              ok=true
+              break
+            fi
+            echo "Waiting for current public positioning, attempt ${attempt}, status ${status}"
+            sleep 5
+          done
+          if [[ "$ok" != "true" ]]; then
+            echo "::error::Public site is not serving the current tracking-first Linkary positioning"
+            exit 1
+          fi
 
       - name: Verify production app health
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
