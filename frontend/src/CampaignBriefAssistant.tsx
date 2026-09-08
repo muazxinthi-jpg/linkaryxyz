@@ -142,6 +142,7 @@ export default function CampaignBriefAssistant({ status }: { status: ProductStat
 
     const budgetValue = fields.budget?.value.trim() || '';
     const budgetUsd = budgetValue === '' ? undefined : Number(budgetValue);
+    const safeBudgetUsd = typeof budgetUsd === 'number' && Number.isFinite(budgetUsd) ? budgetUsd : undefined;
     const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     setBusy(true);
     setMessage('');
@@ -156,7 +157,7 @@ export default function CampaignBriefAssistant({ status }: { status: ProductStat
           organizationId,
           name,
           objective,
-          budgetUsd: Number.isFinite(budgetUsd) ? budgetUsd : undefined,
+          budgetUsd: safeBudgetUsd,
           sourceType: fields.source?.value || 'external',
           executionMode: fields.execution?.value || 'tracked_elsewhere',
           idempotencyKey: `campaign-brief:${organizationId}:${requestId}`,
