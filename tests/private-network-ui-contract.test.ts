@@ -18,8 +18,9 @@ test('Private Network keeps the approved seven-generation panels wired to the Pe
   assert.match(inviteView, /const networkProfileId = personalProfile\?\.id \|\| ''/);
   assert.match(inviteView, /<PersonalNetworkPanel profileId=\{networkProfileId\} view="network" \/>/);
   assert.match(inviteView, /<PrivateNetworkMapV2Panel profileId=\{networkProfileId\} \/>/);
-  assert.match(mapPanel, /InteractiveNetworkMapV2/);
-  assert.match(mapPanel, /networkGraphLimit=160/);
+  assert.match(mapPanel, /InteractiveNetworkMapV2 from '\.\/InteractiveNetworkMapV3'/);
+  assert.match(mapPanel, /networkGraphLimit:\s*'160'/);
+  assert.match(mapPanel, /up to seven generations/);
 });
 
 test('Private Network tabs cannot collapse accepted views out of the visible control strip', () => {
