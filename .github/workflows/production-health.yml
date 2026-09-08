@@ -101,6 +101,38 @@ jobs:
             exit 1
           fi
 
+      - name: Check Personal Profile optimization production UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            app_body="/tmp/linkary-profile-optimization-app-${attempt}.html"
+            bundle_body="/tmp/linkary-profile-optimization-bundle-${attempt}.js"
+            app_status="$(curl --max-time 20 -sS -o "$app_body" -w '%{http_code}' "https://app.linkary.xyz/profile?profilecontract=${GITHUB_RUN_ID}-${attempt}")" || app_status=000
+            app_bundle=$(grep -oE '/assets/linkary-app/assets/index-[A-Za-z0-9_-]+\.js' "$app_body" | head -n 1 || true)
+            bundle_status=000
+            if [[ -n "$app_bundle" ]]; then
+              bundle_status="$(curl --max-time 20 -sS -o "$bundle_body" -w '%{http_code}' "https://app.linkary.xyz${app_bundle}?profilecontract=${GITHUB_RUN_ID}-${attempt}")" || bundle_status=000
+            fi
+            if [[ "$app_status" == "200" && "$bundle_status" == "200" ]] \
+              && grep -Fq 'PROFILE OPTIMIZATION' "$bundle_body" \
+              && grep -Fq 'Next best improvements' "$bundle_body" \
+              && grep -Fq 'Profile Copilot' "$bundle_body" \
+              && grep -Fq 'Improve with LinkaryAI' "$bundle_body" \
+              && grep -Fq 'Apply all profile text' "$bundle_body"; then
+              echo "Healthy Personal Profile optimization UI contract in production bundle: ${app_bundle}"
+              healthy=true
+              break
+            fi
+            echo "Personal Profile contract check failed: attempt ${attempt}, app=${app_status}, js=${bundle_status}, bundle=${app_bundle:-none}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::Personal Profile production bundle is missing the accepted optimization score or Profile Copilot contract"
+            exit 1
+          fi
+
       - name: Check Superadmin bundle parity and noindex
         shell: bash
         run: |
