@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
 import PersonalTelegramConnection from './PersonalTelegramConnection';
+import PersonalProfileOptimizationPanel from './PersonalProfileOptimizationPanel';
 import type { ProductMe, ProductProfile, ProductStatus } from './ProductWorkspace';
 import './profile-identity-v1.css';
 
@@ -267,6 +268,8 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
           </label>
         </div>
         <p>Changing this label never changes Project roles, permissions, verification, manager status or campaign evidence.</p>
+
+        <PersonalProfileOptimizationPanel profileId={profile.id} publicRole={publicRole} professionalHeadline={headline} />
 
         <div className="profile-ai-v1" data-linkary-ai-profile-improvement>
           <div className="profile-ai-v1-head">
