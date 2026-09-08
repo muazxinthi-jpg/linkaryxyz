@@ -14,7 +14,9 @@ test('authenticated app HTML is non-cacheable and performs one-time stale-shell 
   assert.match(entry, /cache-control', 'no-store, no-cache, must-revalidate, max-age=0'/);
   assert.match(entry, /clear-site-data', '\"cache\"'/);
   assert.match(entry, /x-linkary-shell-release', '2026-09-08-private-network-v4'/);
-  assert.match(entry, /if \(isAppHost && !url\.pathname\.startsWith\('\/api\/'\)\) return appShellResponse\(request, response\)/);
+  assert.match(entry, /if \(isAppHost && !url\.pathname\.startsWith\('\/api\/'\)\)/);
+  assert.match(entry, /return appShellResponse\(request, await worker\.fetch\(request, env, ctx\)\)/);
+  assert.match(entry, /return worker\.fetch\(request, env, ctx\)/);
 });
 
 test('private network UI remains in the authenticated release bundle', async () => {
