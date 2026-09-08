@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { buildInkV1Evidence } from '../ink';
+import { improvePersonalProfileWithAI } from '../ai/profileImprove';
 
 export const PERSONAL_PUBLIC_ROLES = [
   'founder',
@@ -92,6 +93,13 @@ function cleanHeadline(value: unknown): string | null {
   if (typeof value !== 'string') throw new HttpError(400, 'Invalid professional headline', 'invalid_profile_field');
   const headline = value.trim().slice(0, 140);
   return headline || null;
+}
+
+function cleanIdempotencyKey(value: unknown): string {
+  if (typeof value !== 'string') throw new HttpError(400, 'AI request identifier is required', 'ai_idempotency_required');
+  const key = value.trim();
+  if (!key || key.length > 200) throw new HttpError(400, 'AI request identifier is required', 'ai_idempotency_required');
+  return key;
 }
 
 function boundedInteger(value: string | null, fallback: number, minimum: number, maximum: number): number {
@@ -369,7 +377,14 @@ export async function personalProfileIdentity(request: Request, env: Env, profil
 
   if (request.method !== 'PATCH') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
   await verifyCsrf(request, env, auth);
-  const body = await readJson<{ publicRole?: unknown; professionalHeadline?: unknown }>(request);
+  const body = await readJson<{ action?: unknown; idempotencyKey?: unknown; publicRole?: unknown; professionalHeadline?: unknown }>(request);
+
+  if (body.action === 'ai_improve') {
+    const result = await improvePersonalProfileWithAI(env, db, auth.user.id, profileId, cleanIdempotencyKey(body.idempotencyKey));
+    return json({ ok: true, profileId, ...result });
+  }
+  if (body.action !== undefined) throw new HttpError(400, 'Unsupported profile action', 'invalid_profile_action');
+
   const publicRole = cleanRole(body.publicRole);
   const professionalHeadline = cleanHeadline(body.professionalHeadline);
   const timestamp = new Date().toISOString();
