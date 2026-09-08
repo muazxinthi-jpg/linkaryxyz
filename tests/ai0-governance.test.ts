@@ -39,25 +39,24 @@ test('AI-0 uses the locked Usage Credit weights and bounds input and output', ()
   }
 });
 
-test('LinkaryAI provider selection follows Workers AI, Gemini, Groq, OpenRouter priority', () => {
+test('initial LinkaryAI provider surface is Workers AI plus OpenRouter only', () => {
   const providers = configuredAiProviders({
     AI: { run: async () => ({ response: 'ok' }) },
-    GEMINI_API_KEY: 'gemini-secret',
-    AI_GEMINI_MODEL: 'gemini-model',
-    GROQ_API_KEY: 'groq-secret',
-    AI_GROQ_MODEL: 'groq-model',
+    GEMINI_API_KEY: 'ignored-gemini-secret',
+    AI_GEMINI_MODEL: 'ignored-gemini-model',
+    GROQ_API_KEY: 'ignored-groq-secret',
+    AI_GROQ_MODEL: 'ignored-groq-model',
     OPENROUTER_API_KEY: 'openrouter-secret',
-    AI_OPENROUTER_MODEL: 'openrouter-model',
+    AI_OPENROUTER_MODEL: 'openrouter/free',
   } as any);
-  assert.deepEqual(providers.map((item) => item.provider), ['workers_ai', 'gemini', 'groq', 'openrouter']);
+  assert.deepEqual(providers.map((item) => item.provider), ['workers_ai', 'openrouter']);
   assert.equal(selectedAiProvider({ AI: { run: async () => ({ response: 'ok' }) } } as any).provider, 'workers_ai');
+  assert.doesNotMatch(adapter, /generativelanguage\.googleapis\.com|api\.groq\.com/);
 });
 
-test('external fallback providers require both a secret and explicit model', () => {
-  assert.deepEqual(configuredAiProviders({ GEMINI_API_KEY: 'secret' } as any), []);
-  assert.deepEqual(configuredAiProviders({ GROQ_API_KEY: 'secret' } as any), []);
+test('OpenRouter compatibility path requires both secret and explicit model', () => {
   assert.deepEqual(configuredAiProviders({ OPENROUTER_API_KEY: 'secret' } as any), []);
-  assert.equal(configuredAiProviders({ GEMINI_API_KEY: 'secret', AI_GEMINI_MODEL: 'model' } as any)[0]?.provider, 'gemini');
+  assert.equal(configuredAiProviders({ OPENROUTER_API_KEY: 'secret', AI_OPENROUTER_MODEL: 'openrouter/free' } as any)[0]?.provider, 'openrouter');
 });
 
 test('Cloudflare Workers AI is bound server-side with a current explicit model', () => {
@@ -117,4 +116,6 @@ test('AI-0 becomes a Controlled Beta readiness requirement without exposing prov
   assert.equal(missing.missing.includes('Linkary AI provider'), true);
   const ready = assessBetaConfiguration({ ...common, AI: { run: async () => ({ response: 'ok' }) } } as any);
   assert.equal(ready.ready, true);
+  const ignored = assessBetaConfiguration({ ...common, GEMINI_API_KEY: 'secret', AI_GEMINI_MODEL: 'model' } as any);
+  assert.equal(ignored.ready, false);
 });
