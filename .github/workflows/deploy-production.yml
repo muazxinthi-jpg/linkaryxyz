@@ -129,6 +129,7 @@ jobs:
               && grep -Fq '100% coupon created.' "$bundle_body" \
               && grep -Fq 'A 100% percent-off coupon grants one paid monthly period' "$bundle_body" \
               && ! grep -Fq 'Coupons cannot reduce a paid checkout to $0' "$bundle_body" \
+              && grep -Fq 'Profile optimization' "$bundle_body" \
               && grep -Fq 'My network' "$bundle_body" \
               && grep -Fq 'Network map' "$bundle_body" \
               && grep -Fq 'Private Network views' "$bundle_body" \
@@ -141,7 +142,7 @@ jobs:
             sleep 5
           done
           if [[ "$healthy" != "true" ]]; then
-            echo "::error::Production is not serving the current frontend bundle with Private Network tabs"
+            echo "::error::Production is not serving the current protected frontend bundle with Profile Optimization and Private Network tabs"
             exit 1
           fi
 
