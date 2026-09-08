@@ -1,7 +1,7 @@
 import type { Env } from '../env';
 import { ServiceConfigurationError } from '../env';
 
-export type AiProvider = 'workers_ai' | 'gemini' | 'groq' | 'openrouter';
+export type AiProvider = 'workers_ai' | 'openrouter';
 
 export type LinkaryAiPrompt = {
   system: string;
@@ -27,14 +27,6 @@ type OpenAiLikePayload = {
     completion_tokens?: number;
     input_tokens?: number;
     output_tokens?: number;
-  };
-};
-
-type GeminiPayload = {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  usageMetadata?: {
-    promptTokenCount?: number;
-    candidatesTokenCount?: number;
   };
 };
 
@@ -81,13 +73,11 @@ function modelValue(value: string | undefined): string | null {
   return normalized ? normalized.slice(0, 200) : null;
 }
 
+// Compatibility helper for the migration-safe pre-0042 path. The governed
+// runtime uses providerRouting.ts after migration 0042 is present.
 export function configuredAiProviders(env: Env): ProviderChoice[] {
   const providers: ProviderChoice[] = [];
   if (env.AI) providers.push({ provider: 'workers_ai', model: modelValue(env.AI_WORKERS_MODEL) || WORKERS_DEFAULT_MODEL });
-  const geminiModel = modelValue(env.AI_GEMINI_MODEL);
-  if (env.GEMINI_API_KEY?.trim() && geminiModel) providers.push({ provider: 'gemini', model: geminiModel });
-  const groqModel = modelValue(env.AI_GROQ_MODEL);
-  if (env.GROQ_API_KEY?.trim() && groqModel) providers.push({ provider: 'groq', model: groqModel });
   const openRouterModel = modelValue(env.AI_OPENROUTER_MODEL);
   if (env.OPENROUTER_API_KEY?.trim() && openRouterModel) providers.push({ provider: 'openrouter', model: openRouterModel });
   return providers;
@@ -119,51 +109,21 @@ async function runWorkers(env: Env, model: string, prompt: LinkaryAiPrompt): Pro
   return { text, ...workersUsage(payload) };
 }
 
-async function runGemini(env: Env, model: string, prompt: LinkaryAiPrompt): Promise<{ text: string; inputUnits: number | null; outputUnits: number | null }> {
-  const key = env.GEMINI_API_KEY?.trim();
-  if (!key) throw new LinkaryAiProviderError('gemini');
-  let response: Response;
-  try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: prompt.system }] },
-        contents: [{ role: 'user', parts: [{ text: prompt.user }] }],
-        generationConfig: { maxOutputTokens: prompt.maxOutputTokens },
-      }),
-    });
-  } catch {
-    throw new LinkaryAiProviderError('gemini');
-  }
-  if (!response.ok) throw new LinkaryAiProviderError('gemini', response.status);
-  const payload = await response.json() as GeminiPayload;
-  const text = cleanText(payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join(''));
-  if (!text) throw new LinkaryAiProviderError('gemini', response.status);
-  return {
-    text,
-    inputUnits: positiveInt(payload.usageMetadata?.promptTokenCount),
-    outputUnits: positiveInt(payload.usageMetadata?.candidatesTokenCount),
-  };
-}
-
-async function runOpenAiCompatible(
-  provider: 'groq' | 'openrouter',
-  endpoint: string,
-  apiKey: string | undefined,
+async function runOpenRouter(
+  env: Env,
   model: string,
   prompt: LinkaryAiPrompt,
 ): Promise<{ text: string; inputUnits: number | null; outputUnits: number | null }> {
-  const key = apiKey?.trim();
-  if (!key) throw new LinkaryAiProviderError(provider);
+  const key = env.OPENROUTER_API_KEY?.trim();
+  if (!key) throw new LinkaryAiProviderError('openrouter');
   let response: Response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${key}`,
-        ...(provider === 'openrouter' ? { 'x-title': 'Linkary' } : {}),
+        'x-title': 'Linkary',
       },
       body: JSON.stringify({
         model,
@@ -175,12 +135,12 @@ async function runOpenAiCompatible(
       }),
     });
   } catch {
-    throw new LinkaryAiProviderError(provider);
+    throw new LinkaryAiProviderError('openrouter');
   }
-  if (!response.ok) throw new LinkaryAiProviderError(provider, response.status);
+  if (!response.ok) throw new LinkaryAiProviderError('openrouter', response.status);
   const payload = await response.json() as OpenAiLikePayload;
   const text = cleanText(payload.choices?.[0]?.message?.content);
-  if (!text) throw new LinkaryAiProviderError(provider, response.status);
+  if (!text) throw new LinkaryAiProviderError('openrouter', response.status);
   return {
     text,
     inputUnits: positiveInt(payload.usage?.prompt_tokens) ?? positiveInt(payload.usage?.input_tokens),
@@ -197,16 +157,9 @@ export class LinkaryAI {
 
   async generateWithProvider(selected: ProviderChoice, prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
     const started = Date.now();
-    let result: { text: string; inputUnits: number | null; outputUnits: number | null };
-    if (selected.provider === 'workers_ai') {
-      result = await runWorkers(this.env, selected.model, prompt);
-    } else if (selected.provider === 'gemini') {
-      result = await runGemini(this.env, selected.model, prompt);
-    } else if (selected.provider === 'groq') {
-      result = await runOpenAiCompatible('groq', 'https://api.groq.com/openai/v1/chat/completions', this.env.GROQ_API_KEY, selected.model, prompt);
-    } else {
-      result = await runOpenAiCompatible('openrouter', 'https://openrouter.ai/api/v1/chat/completions', this.env.OPENROUTER_API_KEY, selected.model, prompt);
-    }
+    const result = selected.provider === 'workers_ai'
+      ? await runWorkers(this.env, selected.model, prompt)
+      : await runOpenRouter(this.env, selected.model, prompt);
     return {
       provider: selected.provider,
       model: selected.model,
