@@ -69,6 +69,38 @@ jobs:
             fi
           done
 
+      - name: Check Private Network production UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            app_body="/tmp/linkary-private-network-app-${attempt}.html"
+            bundle_body="/tmp/linkary-private-network-bundle-${attempt}.js"
+            app_status="$(curl --max-time 20 -sS -o "$app_body" -w '%{http_code}' "https://app.linkary.xyz/invites?networkcontract=${GITHUB_RUN_ID}-${attempt}")" || app_status=000
+            app_bundle=$(grep -oE '/assets/linkary-app/assets/index-[A-Za-z0-9_-]+\.js' "$app_body" | head -n 1 || true)
+            bundle_status=000
+            if [[ -n "$app_bundle" ]]; then
+              bundle_status="$(curl --max-time 20 -sS -o "$bundle_body" -w '%{http_code}' "https://app.linkary.xyz${app_bundle}?networkcontract=${GITHUB_RUN_ID}-${attempt}")" || bundle_status=000
+            fi
+            if [[ "$app_status" == "200" && "$bundle_status" == "200" ]] \
+              && grep -Fq 'Invitations' "$bundle_body" \
+              && grep -Fq 'My network' "$bundle_body" \
+              && grep -Fq 'Network map' "$bundle_body" \
+              && grep -Fq 'How your network connects' "$bundle_body" \
+              && grep -Fq 'up to seven generations' "$bundle_body"; then
+              echo "Healthy Private Network UI contract in production bundle: ${app_bundle}"
+              healthy=true
+              break
+            fi
+            echo "Private Network contract check failed: attempt ${attempt}, app=${app_status}, js=${bundle_status}, bundle=${app_bundle:-none}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::Private Network production bundle is missing an accepted Invitations / My network / Network map contract"
+            exit 1
+          fi
+
       - name: Check Superadmin bundle parity and noindex
         shell: bash
         run: |
