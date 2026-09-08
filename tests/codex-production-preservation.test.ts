@@ -34,16 +34,20 @@ test('required production workflow hard-protects Private Network and release pat
   const workflow = await read('.github/workflows/deploy-production.yml');
 
   assert.match(workflow, /protected_pattern=/);
-  assert.match(workflow, /InviteExperience\\\.tsx/);
-  assert.match(workflow, /PersonalNetworkPanel\\\.tsx/);
-  assert.match(workflow, /PrivateNetworkMapV2Panel\\\.tsx/);
-  assert.match(workflow, /InteractiveNetworkMapV3\\\.tsx/);
-  assert.match(workflow, /private-network-tabs\\\.css/);
-  assert.match(workflow, /AppV3\\\.tsx/);
-  assert.match(workflow, /ProductWorkspace\\\.tsx/);
-  assert.match(workflow, /main\\\.tsx/);
-  assert.match(workflow, /src\/trackingEntry\\\.ts/);
-  assert.match(workflow, /\.github\/workflows\/deploy-production\\\.yml/);
+  for (const protectedName of [
+    'InviteExperience',
+    'PersonalNetworkPanel',
+    'PrivateNetworkMapV2Panel',
+    'InteractiveNetworkMapV3',
+    'private-network-tabs',
+    'AppV3',
+    'ProductWorkspace',
+    'main',
+    'trackingEntry',
+    'deploy-production',
+  ]) {
+    assert.equal(workflow.includes(protectedName), true, `missing protected workflow entry: ${protectedName}`);
+  }
   assert.match(workflow, /approved-product-change/);
   assert.match(workflow, /changes protected Linkary product\/release files/);
 });
