@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
@@ -44,15 +44,75 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
-const APP_RELEASE = '2026-09-08-private-network-v4';
+const APP_RELEASE = '2026-09-09-private-network-v5';
+const APP_SHELL_PATH = '/assets/linkary-app/index.html';
+const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 if (typeof document !== 'undefined') document.documentElement.dataset.linkaryRelease = APP_RELEASE;
+
+function moduleBundlePath(root: Document): string | null {
+  const script = root.querySelector<HTMLScriptElement>('script[type="module"][src]');
+  if (!script) return null;
+  try {
+    return new URL(script.getAttribute('src') || '', window.location.origin).pathname;
+  } catch {
+    return null;
+  }
+}
+
+function ReleaseFreshnessGuard() {
+  useEffect(() => {
+    let stopped = false;
+    let reloading = false;
+
+    async function verifyCurrentBundle() {
+      if (stopped || reloading) return;
+      try {
+        const response = await fetch(`${APP_SHELL_PATH}?release-check=${encodeURIComponent(APP_RELEASE)}-${Date.now()}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'cache-control': 'no-cache' },
+        });
+        if (!response.ok) return;
+
+        const html = await response.text();
+        const latestDocument = new DOMParser().parseFromString(html, 'text/html');
+        const latestBundle = moduleBundlePath(latestDocument);
+        const runningBundle = moduleBundlePath(document);
+        if (!latestBundle || !runningBundle || latestBundle === runningBundle) return;
+
+        reloading = true;
+        const next = new URL(window.location.href);
+        next.searchParams.set('_linkary_release', APP_RELEASE);
+        window.location.replace(next.toString());
+      } catch {
+        // Freshness checks must never block the active workspace during a transient network failure.
+      }
+    }
+
+    void verifyCurrentBundle();
+    const interval = window.setInterval(() => void verifyCurrentBundle(), RELEASE_CHECK_INTERVAL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void verifyCurrentBundle();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  return null;
+}
 
 function RootApp() {
   if (isSuperadminHost) {
     return (
       <>
+        <ReleaseFreshnessGuard />
         <UiSafetyGuard />
         <SuperadminHostGate render={(me) => <SuperadminApp me={me} />} />
       </>
@@ -61,6 +121,7 @@ function RootApp() {
 
   return (
     <AuthSessionContinuity>
+      <ReleaseFreshnessGuard />
       <UiSafetyGuard />
       <OnboardingCompletionBoundary />
       <App />
