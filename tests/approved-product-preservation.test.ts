@@ -48,17 +48,31 @@ test('approved production guards for Profile Optimization and Private Network st
   assert.match(workflow, /2026-09-08-v3/);
 });
 
-test('tracking-first public positioning is routed and checked in production', async () => {
+test('tracking-first public positioning uses the dedicated source-controlled overlay and is checked in production', async () => {
   const homepage = await read('src/homepagePricing.ts');
-  const wrangler = await read('wrangler.jsonc');
+  const appWrangler = await read('wrangler.jsonc');
+  const publicWrangler = await read('wrangler.public.jsonc');
   const workflow = await read('.github/workflows/deploy-production.yml');
+  const packageJson = await read('package.json');
   const contract = await read('docs/APPROVED_PRODUCT_PRESERVATION.md');
 
   assert.match(homepage, /Run growth anywhere\./);
   assert.match(homepage, /Track it in Linkary\./);
   assert.match(homepage, /External campaigns/);
   assert.match(homepage, /OPTIONAL \/ LINKARY CAMPAIGN WORKSPACE/);
-  assert.match(wrangler, /"pattern": "linkary\.xyz\/\*"/);
+
+  assert.doesNotMatch(appWrangler, /"pattern": "linkary\.xyz\/\*"/);
+  assert.match(appWrangler, /"pattern": "app\.linkary\.xyz\/\*"/);
+  assert.match(publicWrangler, /"name": "linkary-public-overlay"/);
+  assert.match(publicWrangler, /"main": "src\/trackingEntry\.ts"/);
+  assert.match(publicWrangler, /"pattern": "linkary\.xyz\/\*"/);
+
+  assert.match(packageJson, /"deploy:public": "npm run app:build && wrangler deploy --config wrangler\.public\.jsonc"/);
+  assert.match(packageJson, /"deploy:public:dry": "npm run app:build && wrangler deploy --config wrangler\.public\.jsonc --dry-run"/);
+  assert.match(workflow, /Public overlay Wrangler dry run/);
+  assert.match(workflow, /npm run deploy:public:dry/);
+  assert.match(workflow, /Deploy public overlay to production/);
+  assert.match(workflow, /npm run deploy:public/);
   assert.match(workflow, /Verify production public site positioning/);
   assert.match(workflow, /https:\/\/linkary\.xyz\/\?deploycheck=/);
   assert.match(workflow, /grep -Fq 'Run growth anywhere\.'/);
@@ -66,6 +80,7 @@ test('tracking-first public positioning is routed and checked in production', as
   assert.match(workflow, /grep -Fq 'External campaigns'/);
 
   assert.match(contract, /approved-product-change/);
+  assert.match(contract, /linkary-public-overlay/);
   assert.match(contract, /Gen 1 through Gen 7/);
   assert.match(contract, /My network remains available/);
   assert.match(contract, /Network map remains available/);
@@ -91,8 +106,10 @@ test('protected migrations and production verification remain release controls',
   assert.match(workflow, /Type-check Worker backend/);
   assert.match(workflow, /Type-check authenticated app/);
   assert.match(workflow, /Wrangler dry run/);
+  assert.match(workflow, /Public overlay Wrangler dry run/);
   assert.match(workflow, /Report production D1 migration state/);
   assert.match(workflow, /Deploy Worker to production/);
+  assert.match(workflow, /Deploy public overlay to production/);
   assert.doesNotMatch(workflow, /d1 migrations apply/);
   assert.match(packageJson, /"test": "tsx --test tests\/\*\.test\.ts"/);
 });

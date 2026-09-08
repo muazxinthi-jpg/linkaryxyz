@@ -74,6 +74,9 @@ jobs:
       - name: Wrangler dry run
         run: npm run deploy:dry
 
+      - name: Public overlay Wrangler dry run
+        run: npm run deploy:public:dry
+
       - name: Check Cloudflare deployment credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: cloudflare
@@ -103,6 +106,10 @@ jobs:
       - name: Deploy Worker to production
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         run: npm run deploy
+
+      - name: Deploy public overlay to production
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
+        run: npm run deploy:public
 
       - name: Verify production public site positioning
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'

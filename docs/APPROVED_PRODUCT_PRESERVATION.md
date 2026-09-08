@@ -72,13 +72,22 @@ The `approved-product-change` label is an acknowledgement of explicit approval. 
 - Profile Copilot keeps explicit review before applying suggestions.
 - AI must not invent verification, campaign performance, partnerships, customers, funding, revenue, wallet facts or other unsupported claims.
 
+### Public-site deployment topology
+
+- `linkary.xyz/*` remains owned by the dedicated source-controlled `linkary-public-overlay` Worker.
+- `linkary-xyz` remains the application Worker for `app.linkary.xyz/*` plus the dedicated Superadmin custom domain.
+- Do not add `linkary.xyz/*` to the application Worker while the dedicated public overlay owns that route.
+- The public overlay reuses the approved Linkary public rendering and tracking-first homepage transformation from this repository rather than an unrelated out-of-band implementation.
+- Production release must dry-run and deploy both Worker configurations and then verify the live public homepage before the release is considered healthy.
+- The live public homepage must keep the approved tracking-first positioning, including “Run growth anywhere. Track it in Linkary.” and explicit support for external campaigns.
+
 ### Release and stability controls
 
 - Pull requests must pass the existing required verification path before merge.
 - Production D1 migrations remain protected and are not silently auto-applied by normal deploys.
-- Production app, `/invites`, Superadmin and protected frontend checks remain release guards.
+- Production app, `/invites`, public homepage, Superadmin and protected frontend checks remain release guards.
 - Approved capabilities should gain regression coverage when a production incident reveals they can silently disappear.
 
 ## Current preservation checkpoint
 
-Established after the September 8, 2026 Private Network restoration and tracking-first public positioning work.
+Established after the September 8, 2026 Private Network restoration and tracking-first public positioning work. The public-root deployment topology was subsequently stabilized by source-controlling the existing `linkary-public-overlay` Worker separately from the application Worker.

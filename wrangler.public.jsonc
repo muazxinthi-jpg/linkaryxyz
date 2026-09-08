@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  "name": "linkary-xyz",
+  // Dedicated owner of linkary.xyz/*. Keep this separate from the app Worker.
+  "name": "linkary-public-overlay",
   "main": "src/trackingEntry.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
@@ -17,12 +18,8 @@
   },
   "routes": [
     {
-      "pattern": "app.linkary.xyz/*",
+      "pattern": "linkary.xyz/*",
       "zone_name": "linkary.xyz"
-    },
-    {
-      "pattern": "sadmin.linkary.xyz",
-      "custom_domain": true
     }
   ],
   "assets": {
