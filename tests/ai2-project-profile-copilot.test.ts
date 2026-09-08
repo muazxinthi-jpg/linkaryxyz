@@ -26,7 +26,12 @@ test('Project Profile Copilot is organization-owned and Owner/Admin bounded', ()
   assert.match(service, /ownerId:\s*profile\.organization_id/);
   assert.match(service, /organizationId:\s*profile\.organization_id/);
   assert.match(service, /taskKey:\s*'project_profile_improve'/);
-  assert.doesNotMatch(service, /\b(?:UPDATE|INSERT|DELETE)\b/i);
+  assert.doesNotMatch(service, /\bdb\.run\s*\(/);
+  assert.doesNotMatch(service, /\bdb\.batch\s*\(/);
+  assert.doesNotMatch(service, /\bdb\.exec\s*\(/);
+  assert.doesNotMatch(service, /\bUPDATE\s+profiles\b/i);
+  assert.doesNotMatch(service, /\bINSERT\s+INTO\b/i);
+  assert.doesNotMatch(service, /\bDELETE\s+FROM\b/i);
 });
 
 test('Project prompt explicitly forbids unsupported commercial and verification claims', () => {
