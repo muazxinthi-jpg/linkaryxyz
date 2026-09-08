@@ -10,9 +10,11 @@
     "app:build": "vite build --config frontend/vite.config.ts",
     "postinstall": "npm run app:build",
     "test": "tsx --test tests/*.test.ts",
-    "check": "npm run test && npm run backend:check && npm run app:check && npm run deploy:dry",
+    "check": "npm run test && npm run backend:check && npm run app:check && npm run deploy:dry && npm run deploy:public:dry",
     "deploy": "npm run app:build && wrangler deploy",
     "deploy:dry": "npm run app:build && wrangler deploy --dry-run",
+    "deploy:public": "npm run app:build && wrangler deploy --config wrangler.public.jsonc",
+    "deploy:public:dry": "npm run app:build && wrangler deploy --config wrangler.public.jsonc --dry-run",
     "types": "wrangler types"
   },
   "dependencies": {
