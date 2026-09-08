@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in / /profile /invites; do
+          for path in / /profile; do
             ok=false
             for attempt in {1..12}; do
               body="/tmp/linkary-health-${attempt}.html"
@@ -101,7 +101,29 @@ jobs:
             fi
           done
 
-      - name: Verify production serves current protected frontend bundle
+      - name: Verify production invites shell health
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in {1..12}; do
+            body="/tmp/linkary-invites-health-${attempt}.html"
+            status=$(curl -sS -o "$body" -w '%{http_code}' "https://app.linkary.xyz/invites?deploycheck=${GITHUB_SHA}-${attempt}") || status=000
+            if [[ "$status" == "200" ]] && grep -q 'id="root"' "$body"; then
+              echo "Healthy: https://app.linkary.xyz/invites"
+              ok=true
+              break
+            fi
+            echo "Waiting for app route /invites, attempt ${attempt}, status ${status}"
+            sleep 5
+          done
+          if [[ "$ok" != "true" ]]; then
+            echo "Production app health check failed for https://app.linkary.xyz/invites"
+            exit 1
+          fi
+
+      - name: Verify Superadmin serves current production bundle (100-percent coupon + protected frontend)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cloudflare.outputs.ready == 'true'
         shell: bash
         run: |
