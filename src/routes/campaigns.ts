@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { ensureAttributionSchema } from '../db/attributionSchema';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
+import { assistCampaignBrief } from '../ai/campaignBriefAssist';
 import { organizationMembership } from './organizations';
 
 const id = () => `cam_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -20,6 +21,7 @@ export async function listCampaigns(request: Request, env: Env): Promise<Respons
 }
 
 export async function createCampaign(request: Request, env: Env): Promise<Response> {
+  if (new URL(request.url).searchParams.get('action') === 'brief-assist') return assistCampaignBrief(request, env);
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
   const body = await readJson<{ organizationId?: string; name?: string; objective?: string; budgetUsd?: number; startsAt?: string; endsAt?: string; sourceType?: string; executionMode?: string }>(request);
