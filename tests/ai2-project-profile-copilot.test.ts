@@ -55,7 +55,7 @@ test('Project Copilot generation is draft-only and application is explicit', () 
   assert.match(ui, /data-linkary-ai-project-profile-copilot/);
   assert.match(ui, /action:\s*'ai_project_improve'/);
   assert.match(ui, /window\.confirm\('Apply the reviewed LinkaryAI bio and SEO suggestions/);
-  assert.match(ui, />Apply bio \+ SEO</);
+  assert.match(ui, /'Apply bio \+ SEO'/);
   assert.match(ui, /displayName:\s*existing\.displayName/);
   assert.match(ui, /avatarUrl:\s*existing\.avatarUrl \|\| ''/);
   assert.match(ui, /bio:\s*suggestions\.bio \?\? existing\.bio/);
