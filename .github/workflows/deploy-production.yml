@@ -39,19 +39,28 @@ jobs:
 
           # Bootstrap: the first PR that introduces the preservation contract is
           # allowed to establish the guard. Once the base branch contains it,
-          # changing or deleting the contract/test requires explicit approval.
+          # changing protected contracts or protected implementation paths requires
+          # explicit product-owner approval.
           if ! git cat-file -e "origin/${BASE_REF}:docs/APPROVED_PRODUCT_PRESERVATION.md" 2>/dev/null; then
             echo "Establishing approved product preservation contract."
             exit 0
           fi
 
           changed=$(git diff --name-only "origin/${BASE_REF}" HEAD)
-          if printf '%s\n' "$changed" | grep -Eq '^(docs/APPROVED_PRODUCT_PRESERVATION\.md|tests/approved-product-preservation\.test\.ts)$'; then
-            if [[ "$PRODUCT_CHANGE_APPROVED" != "true" ]]; then
-              echo "::error::Approved product preservation contract changed. Explicit product-owner approval is required before this PR can merge. Add the approved-product-change label only after that approval."
-              exit 1
-            fi
-            echo "Approved product preservation change acknowledged by PR label."
+          protected_pattern='^(docs/APPROVED_PRODUCT_PRESERVATION\.md|tests/approved-product-preservation\.test\.ts|tests/codex-production-preservation\.test\.ts|AGENTS\.md|scripts/guard-production-deploy\.mjs|frontend/src/(InviteExperience\.tsx|PersonalNetworkPanel\.tsx|PrivateNetworkMapV2Panel\.tsx|InteractiveNetworkMapV3\.tsx|private-network-tabs\.css|AppV3\.tsx|ProductWorkspace\.tsx|main\.tsx)|src/trackingEntry\.ts|\.github/workflows/deploy-production\.yml)$'
+          protected_changed=$(printf '%s\n' "$changed" | grep -E "$protected_pattern" || true)
+
+          if [[ -n "$protected_changed" && "$PRODUCT_CHANGE_APPROVED" != "true" ]]; then
+            echo "::error::This PR changes protected Linkary product/release files without explicit product-owner approval."
+            echo "Protected changes:"
+            printf '%s\n' "$protected_changed"
+            echo "Add the approved-product-change label only after the product owner explicitly approves these protected changes."
+            exit 1
+          fi
+
+          if [[ -n "$protected_changed" ]]; then
+            echo "Approved protected product change acknowledged by PR label."
+            printf '%s\n' "$protected_changed"
           fi
 
       - name: Set up Node.js
@@ -233,4 +242,4 @@ jobs:
 
       - name: Pull request verification complete
         if: github.event_name == 'pull_request'
-        run: echo "Verification passed. Pull requests never deploy to production."
+        run: echo "Verification passed. GitHub Actions pull requests never deploy to production. Cloudflare non-production builds must use preview uploads only."
