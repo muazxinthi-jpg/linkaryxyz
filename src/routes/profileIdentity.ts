@@ -5,6 +5,7 @@ import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { buildInkV1Evidence } from '../ink';
 import { improvePersonalProfileWithAI } from '../ai/profileImprove';
+import { improveProjectProfileWithAI } from '../ai/projectProfileImprove';
 
 export const PERSONAL_PUBLIC_ROLES = [
   'founder',
@@ -342,6 +343,17 @@ async function personalNetworkPayload(db: Db, userId: string, profileId: string,
 export async function personalProfileIdentity(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
+  const targetProfile = await db.first<{ profile_type: string }>('SELECT profile_type FROM profiles WHERE id = ? LIMIT 1', [profileId]);
+
+  if (targetProfile?.profile_type === 'project') {
+    if (request.method !== 'PATCH') throw new HttpError(409, 'Project Profile Copilot is available through the Project profile editor', 'project_profile_action_required');
+    await verifyCsrf(request, env, auth);
+    const body = await readJson<{ action?: unknown; idempotencyKey?: unknown }>(request);
+    if (body.action !== 'ai_project_improve') throw new HttpError(400, 'Unsupported Project profile action', 'invalid_profile_action');
+    const result = await improveProjectProfileWithAI(env, db, auth.user.id, profileId, cleanIdempotencyKey(body.idempotencyKey));
+    return json({ ok: true, profileId, ...result });
+  }
+
   await requireOwnedPersonalProfile(db, auth.user.id, profileId);
 
   if (!(await profileIdentityColumnsReady(db))) {
