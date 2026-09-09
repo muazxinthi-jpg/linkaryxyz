@@ -82,6 +82,8 @@ function canUseEmailForAccountIdentity(lastAuthMethod: string | null): boolean {
 
 function extractVerifiedEmail(methods: UnknownRecord[]): string | null {
   for (const method of methods) {
+    const type = normalizeAuthMethodType(method.type);
+    if (type !== 'email' && type !== 'google') continue;
     const email = stringValue(method.email);
     if (email) return email.toLowerCase();
   }
