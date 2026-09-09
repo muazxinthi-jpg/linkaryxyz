@@ -1,0 +1,58 @@
+name: Linkary wallet export health
+
+on:
+  schedule:
+    - cron: '27 * * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Linkary production
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linkary-wallet-export-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check secure wallet export production UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            app_body="/tmp/linkary-wallet-export-app-${attempt}.html"
+            bundle_body="/tmp/linkary-wallet-export-bundle-${attempt}.js"
+            app_status="$(curl --max-time 20 -sS -o "$app_body" -w '%{http_code}' "https://app.linkary.xyz/wallets?walletcontract=${GITHUB_RUN_ID}-${attempt}")" || app_status=000
+            app_bundle=$(grep -oE '/assets/linkary-app/assets/index-[A-Za-z0-9_-]+\.js' "$app_body" | head -n 1 || true)
+            bundle_status=000
+            if [[ -n "$app_bundle" ]]; then
+              bundle_status="$(curl --max-time 20 -sS -o "$bundle_body" -w '%{http_code}' "https://app.linkary.xyz${app_bundle}?walletcontract=${GITHUB_RUN_ID}-${attempt}")" || bundle_status=000
+            fi
+            if [[ "$app_status" == "200" && "$bundle_status" == "200" ]] \
+              && grep -Fq 'Private key export' "$bundle_body" \
+              && grep -Fq 'Export private key' "$bundle_body" \
+              && grep -Fq 'MFA REQUIRED' "$bundle_body" \
+              && grep -Fq 'Multi-factor authentication must be enabled before Linkary allows wallet export.' "$bundle_body" \
+              && grep -Fq "Linkary does not receive, store or log your private key." "$bundle_body"; then
+              echo "Healthy secure wallet export UI contract in production bundle: ${app_bundle}"
+              healthy=true
+              break
+            fi
+            echo "Wallet export contract check failed: attempt ${attempt}, app=${app_status}, js=${bundle_status}, bundle=${app_bundle:-none}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::Production wallet bundle is missing the accepted secure private-key export contract"
+            exit 1
+          fi
