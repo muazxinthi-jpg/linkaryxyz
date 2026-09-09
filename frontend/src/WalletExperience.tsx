@@ -3,6 +3,7 @@ import { ExportWalletModal, EnrollMfaModal } from '@coinbase/cdp-react';
 import { useCurrentUser, useEvmAddress } from '@coinbase/cdp-hooks';
 import { isEnrolledInMfa } from '@coinbase/cdp-core';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import WalletPortfolioPanel from './WalletPortfolioPanel';
 import WalletSendPanel from './WalletSendPanel';
 
 type Destination = { id: string; chain_family: 'evm' | 'solana'; address: string; status: string; updated_at: string };
@@ -49,6 +50,7 @@ export default function WalletExperience({me,status}:{me:ProductMe;status:Produc
   return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
     <div className="ops-stack wallet-workspace">
       <div className="ops-heading-row"><div><span className="ops-kicker">WALLETS</span><h1>Wallet destinations</h1><p>Use your Linkary wallet, and optionally add EVM or Solana addresses where future rewards and airdrops can be delivered.</p></div></div>
+      <WalletPortfolioPanel profileId={profile.id} />
       <section className="wallet-warning"><div className="wallet-warning-icon">!</div><div><strong>Check every address carefully before saving.</strong><p>Additional wallet addresses do not need to be connected to Linkary. If a Project sends rewards or airdrops to a saved destination, the assets may go directly to that address. Blockchain transfers to the wrong address cannot be reversed.</p></div></section>
       {message&&<div className="ops-message" role="status" aria-live="polite">{message}</div>}
       <section className="wallet-grid">
