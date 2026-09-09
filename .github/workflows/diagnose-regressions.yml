@@ -25,47 +25,74 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Regression A-E
-        id: regress_a_e
+      - name: Regression A
+        id: regress_a
         continue-on-error: true
-        run: npx tsx --test tests/[a-eA-E]*.test.ts
-
-      - name: Regression F-J
-        id: regress_f_j
+        run: npx tsx --test tests/[aA]*.test.ts
+      - name: Regression B
+        id: regress_b
         continue-on-error: true
-        run: npx tsx --test tests/[f-jF-J]*.test.ts
-
-      - name: Regression K-O
-        id: regress_k_o
+        run: npx tsx --test tests/[bB]*.test.ts
+      - name: Regression C
+        id: regress_c
         continue-on-error: true
-        run: npx tsx --test tests/[k-oK-O]*.test.ts
-
-      - name: Regression P-T
-        id: regress_p_t
+        run: npx tsx --test tests/[cC]*.test.ts
+      - name: Regression D
+        id: regress_d
         continue-on-error: true
-        run: npx tsx --test tests/[p-tP-T]*.test.ts
-
-      - name: Regression U-Z
-        id: regress_u_z
+        run: npx tsx --test tests/[dD]*.test.ts
+      - name: Regression E
+        id: regress_e
         continue-on-error: true
-        run: npx tsx --test tests/[u-zU-Z]*.test.ts
+        run: npx tsx --test tests/[eE]*.test.ts
+      - name: Regression P
+        id: regress_p
+        continue-on-error: true
+        run: npx tsx --test tests/[pP]*.test.ts
+      - name: Regression Q
+        id: regress_q
+        continue-on-error: true
+        run: npx tsx --test tests/[qQ]*.test.ts
+      - name: Regression R
+        id: regress_r
+        continue-on-error: true
+        run: npx tsx --test tests/[rR]*.test.ts
+      - name: Regression S
+        id: regress_s
+        continue-on-error: true
+        run: npx tsx --test tests/[sS]*.test.ts
+      - name: Regression T
+        id: regress_t
+        continue-on-error: true
+        run: npx tsx --test tests/[tT]*.test.ts
 
-      - name: FAIL A-E
-        if: always() && steps.regress_a_e.outcome != 'success'
+      - name: FAIL A
+        if: always() && steps.regress_a.outcome != 'success'
         run: exit 1
-
-      - name: FAIL F-J
-        if: always() && steps.regress_f_j.outcome != 'success'
+      - name: FAIL B
+        if: always() && steps.regress_b.outcome != 'success'
         run: exit 1
-
-      - name: FAIL K-O
-        if: always() && steps.regress_k_o.outcome != 'success'
+      - name: FAIL C
+        if: always() && steps.regress_c.outcome != 'success'
         run: exit 1
-
-      - name: FAIL P-T
-        if: always() && steps.regress_p_t.outcome != 'success'
+      - name: FAIL D
+        if: always() && steps.regress_d.outcome != 'success'
         run: exit 1
-
-      - name: FAIL U-Z
-        if: always() && steps.regress_u_z.outcome != 'success'
+      - name: FAIL E
+        if: always() && steps.regress_e.outcome != 'success'
+        run: exit 1
+      - name: FAIL P
+        if: always() && steps.regress_p.outcome != 'success'
+        run: exit 1
+      - name: FAIL Q
+        if: always() && steps.regress_q.outcome != 'success'
+        run: exit 1
+      - name: FAIL R
+        if: always() && steps.regress_r.outcome != 'success'
+        run: exit 1
+      - name: FAIL S
+        if: always() && steps.regress_s.outcome != 'success'
+        run: exit 1
+      - name: FAIL T
+        if: always() && steps.regress_t.outcome != 'success'
         run: exit 1
