@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const beta = readFileSync(new URL('../frontend/src/ProfileExperienceBeta.tsx', import.meta.url), 'utf8');
 const gallery = readFileSync(new URL('../frontend/src/NftWalletGallery.tsx', import.meta.url), 'utf8');
-const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
+const wallets = readFileSync(new URL('../src/routes/walletsOriginal.ts', import.meta.url), 'utf8');
 const enhancer = readFileSync(new URL('../src/routes/publicProfileEnhancer.ts', import.meta.url), 'utf8');
 const identity = readFileSync(new URL('../src/routes/publicProfileIdentity.ts', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
