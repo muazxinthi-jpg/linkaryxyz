@@ -1,0 +1,50 @@
+name: Linkary short-link health
+
+on:
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Linkary production
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linkary-short-link-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check l.linkary.xyz invite route
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            body="/tmp/linkary-short-link-${attempt}.json"
+            headers="/tmp/linkary-short-link-${attempt}.headers"
+            status="$(curl --max-time 20 -sS -D "$headers" -o "$body" -w '%{http_code}' "https://l.linkary.xyz/i/__linkary_health_${GITHUB_RUN_ID}_${attempt}__")" || status=000
+            if [[ "$status" == "404" ]] \
+              && grep -Fq '"error":"invite_not_found"' "$body" \
+              && grep -qi '^x-content-type-options: nosniff' "$headers"; then
+              echo "Healthy Linkary short-link invite route on l.linkary.xyz"
+              healthy=true
+              break
+            fi
+            echo "Short-link check failed: attempt ${attempt}, HTTP ${status}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::l.linkary.xyz is not resolving to the Linkary Worker invite route"
+            exit 1
+          fi

@@ -23,6 +23,10 @@
     {
       "pattern": "sadmin.linkary.xyz",
       "custom_domain": true
+    },
+    {
+      "pattern": "l.linkary.xyz",
+      "custom_domain": true
     }
   ],
   "assets": {
