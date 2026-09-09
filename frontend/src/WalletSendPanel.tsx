@@ -8,6 +8,8 @@ type SelectedRecipient = { username: string; displayName: string; wallet: Recipi
 type Step = 'recipient' | 'amount' | 'review' | 'success';
 
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
+const USDC_DECIMALS = 6;
+const USDC_SCALE = BigInt(1_000_000);
 
 function shortAddress(address: string): string {
   return address.length > 18 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
@@ -17,6 +19,12 @@ function validUsdcAmount(value: string): boolean {
   if (!/^\d+(?:\.\d{0,6})?$/.test(value.trim())) return false;
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric > 0;
+}
+
+function usdcAmountToBaseUnits(value: string): bigint {
+  const [whole = '0', fraction = ''] = value.trim().split('.');
+  const paddedFraction = `${fraction}${'0'.repeat(USDC_DECIMALS)}`.slice(0, USDC_DECIMALS);
+  return BigInt(whole) * USDC_SCALE + BigInt(paddedFraction || '0');
 }
 
 function transferReference(result: unknown): string | null {
@@ -30,7 +38,7 @@ function transferReference(result: unknown): string | null {
 
 export default function WalletSendPanel({ profileId, expectedSenderAddress }: { profileId: string; expectedSenderAddress: string }) {
   const { evmAddress } = useEvmAddress();
-  const { sendUsdc, status: sendStatus } = useSendUsdc();
+  const { sendUsdc } = useSendUsdc();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('recipient');
   const [mode, setMode] = useState<'linkary' | 'address'>('linkary');
@@ -126,7 +134,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
       const result = await sendUsdc({
         from: evmAddress,
         to: recipientAddress as `0x${string}`,
-        amount: amount.trim(),
+        amount: usdcAmountToBaseUnits(amount),
         network: 'base',
       });
       setReference(transferReference(result));
@@ -197,7 +205,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
           </div>
           <div className="wallet-send-danger"><strong>Check the recipient and amount.</strong><span>Onchain transfers are irreversible. Linkary cannot recover USDC sent to the wrong wallet.</span></div>
           {sendError && <div className="wallet-send-alert">{sendError}</div>}
-          <div className="wallet-send-footer"><button type="button" className="wallet-send-secondary" disabled={sending} onClick={() => setStep('amount')}>Back</button><button type="button" className="wallet-send-primary" disabled={sending || sendStatus === 'pending' || !senderMatches} onClick={() => void confirmSend()}>{sending || sendStatus === 'pending' ? 'Sending…' : 'Confirm and send'}</button></div>
+          <div className="wallet-send-footer"><button type="button" className="wallet-send-secondary" disabled={sending} onClick={() => setStep('amount')}>Back</button><button type="button" className="wallet-send-primary" disabled={sending || !senderMatches} onClick={() => void confirmSend()}>{sending ? 'Sending…' : 'Confirm and send'}</button></div>
         </div>}
 
         {step === 'success' && <div className="wallet-send-body wallet-send-success">
