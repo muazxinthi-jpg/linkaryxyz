@@ -34,7 +34,7 @@ type CreatorClaimRow = {
   updated_at: string;
 };
 
-interface StartClaimBody { accessToken?: string }
+interface StartClaimBody { accessToken?: string; resumeOnly?: boolean }
 interface SubmitClaimBody { postUrl?: string }
 interface RejectClaimBody { reason?: string }
 interface VerificationSettingBody { mode?: 'manual' | 'twitterapi_io' }
@@ -182,6 +182,9 @@ export async function startCreatorAccessClaim(request: Request, env: Env): Promi
 
   const existing = await activeClaimForIdentity(db, identity.projectId, identity.providerUserId, timestamp);
   if (existing) return json(await resumableClaimPayload(env, existing));
+  if (body.resumeOnly) {
+    throw new HttpError(404, 'No active Creator Earn Access claim was found for this signed-in account.', 'creator_claim_not_found');
+  }
 
   const claimId = id('cac');
   const claimCode = `LKY-${crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
