@@ -16,7 +16,7 @@ test('Linkary wallet exposes a real Send flow without weakening private-key expo
 });
 
 test('Send flow supports Linkary-handle recipient selection and manual Base address fallback', () => {
-  assert.equal(send.includes("useSendUsdc"), true);
+  assert.equal(send.includes('useSendUsdc'), true);
   assert.equal(send.includes("network: 'base'"), true);
   assert.equal(send.includes('Search Linkary handle'), true);
   assert.equal(send.includes('Linkary member'), true);
@@ -27,15 +27,16 @@ test('Send flow supports Linkary-handle recipient selection and manual Base addr
   assert.equal(send.includes('expectedSenderAddress'), true, 'send must verify the active CDP sender matches the Linkary wallet');
 });
 
-test('recipient search only exposes eligible wallets for published Personal profiles', () => {
+test('recipient search resolves one canonical Linkary Base wallet for published Personal profiles', () => {
   assert.equal(recipients.includes("p.profile_type = 'creator'"), true);
   assert.equal(recipients.includes("p.visibility = 'published'"), true);
   assert.equal(recipients.includes('p.owner_user_id <> ?'), true, 'sender must not appear in recipient results');
   assert.equal(recipients.includes("wa.provider = 'coinbase_cdp'"), true);
   assert.equal(recipients.includes("wa.chain_family = 'evm'"), true);
-  assert.equal(recipients.includes("pwd.chain_family = 'evm'"), true);
+  assert.equal(recipients.includes("kind: 'linkary'"), true);
+  assert.equal(recipients.includes('profile_wallet_destinations'), false, 'generic saved EVM destinations must not be mislabeled as username Base receive wallets');
   assert.equal(recipients.includes('LIMIT 8'), true);
-  assert.equal(walletRoute.includes("recipientSearch"), true);
+  assert.equal(walletRoute.includes('recipientSearch'), true);
   assert.equal(walletRoute.includes('searchWalletRecipients'), true);
 });
 
