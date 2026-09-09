@@ -1,0 +1,75 @@
+name: Linkary regression diagnostics
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Regression A-E
+        id: regress_a_e
+        continue-on-error: true
+        shell: bash
+        run: npx tsx --test tests/[a-eA-E]*.test.ts
+
+      - name: Regression F-J
+        id: regress_f_j
+        continue-on-error: true
+        shell: bash
+        run: npx tsx --test tests/[f-jF-J]*.test.ts
+
+      - name: Regression K-O
+        id: regress_k_o
+        continue-on-error: true
+        shell: bash
+        run: npx tsx --test tests/[k-oK-O]*.test.ts
+
+      - name: Regression P-T
+        id: regress_p_t
+        continue-on-error: true
+        shell: bash
+        run: npx tsx --test tests/[p-tP-T]*.test.ts
+
+      - name: Regression U-Z
+        id: regress_u_z
+        continue-on-error: true
+        shell: bash
+        run: npx tsx --test tests/[u-zU-Z]*.test.ts
+
+      - name: Report regression batch result
+        if: always()
+        shell: bash
+        env:
+          A_E: ${{ steps.regress_a_e.outcome }}
+          F_J: ${{ steps.regress_f_j.outcome }}
+          K_O: ${{ steps.regress_k_o.outcome }}
+          P_T: ${{ steps.regress_p_t.outcome }}
+          U_Z: ${{ steps.regress_u_z.outcome }}
+        run: |
+          echo "A-E=${A_E}"
+          echo "F-J=${F_J}"
+          echo "K-O=${K_O}"
+          echo "P-T=${P_T}"
+          echo "U-Z=${U_Z}"
+          if [[ "$A_E" != "success" || "$F_J" != "success" || "$K_O" != "success" || "$P_T" != "success" || "$U_Z" != "success" ]]; then
+            exit 1
+          fi
