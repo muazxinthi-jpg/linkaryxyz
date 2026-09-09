@@ -27,7 +27,8 @@ test('Private Network keeps the approved seven-generation panels wired to the Pe
 
 test('accepted Network Map remains the fluid avatar V3 experience rather than the old radial-only map', () => {
   assert.equal(interactiveMap.includes('Fluid network view. Drag any node'), true);
-  assert.equal(interactiveMap.includes('placeholder="Find in network"'), true);
+  assert.equal(interactiveMap.includes('Find in network'), true);
+  assert.equal(interactiveMap.includes('placeholder="Search name or @handle"'), true);
   assert.equal(interactiveMap.includes('Verified only'), true);
   assert.equal(interactiveMap.includes('Fit'), true);
   assert.equal(interactiveMap.includes('Expand'), true);
