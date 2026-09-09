@@ -15,6 +15,13 @@ test('Linkary wallet export uses the CDP isolated export UI with MFA and explici
   assert.equal(walletSource.includes('walletMatchesCdp'), true, 'the CDP account must match the Linkary embedded wallet before export');
 });
 
+test('advanced wallet security is closed by default and must be deliberately opened', () => {
+  assert.equal(walletSource.includes('const [securityOpen,setSecurityOpen]=useState(false);'), true);
+  assert.equal(walletSource.includes('!securityOpen?<button className="wallet-security-toggle"'), true);
+  assert.equal(walletSource.includes('onClick={()=>setSecurityOpen(true)}'), true);
+  assert.equal(walletSource.includes('setSecurityOpen(false);setExportOpen(false);setExportAcknowledged(false);'), true);
+});
+
 test('Linkary application code never receives or exports raw private-key material itself', () => {
   assert.equal(walletSource.includes('useExportEvmAccount'), false, 'deprecated JS-visible key export must not be used');
   assert.equal(walletSource.includes('exportEvmAccount'), false, 'raw JS-visible key export must not be used');
