@@ -66,6 +66,20 @@ function authMethods(endUser: UnknownRecord): UnknownRecord[] {
   return value.map(asRecord).filter((item): item is UnknownRecord => Boolean(item));
 }
 
+function normalizeAuthMethodType(value: unknown): string | null {
+  const raw = stringValue(value)?.toLowerCase();
+  if (!raw) return null;
+  if (raw === 'oauth:google' || raw === 'google') return 'google';
+  if (raw === 'oauth:x' || raw === 'x' || raw === 'twitter') return 'x';
+  if (raw === 'oauth:telegram' || raw === 'telegram') return 'telegram';
+  if (raw === 'email') return 'email';
+  return raw;
+}
+
+function canUseEmailForAccountIdentity(lastAuthMethod: string | null): boolean {
+  return lastAuthMethod === 'email' || lastAuthMethod === 'google';
+}
+
 function extractVerifiedEmail(methods: UnknownRecord[]): string | null {
   for (const method of methods) {
     const email = stringValue(method.email);
@@ -77,7 +91,15 @@ function extractVerifiedEmail(methods: UnknownRecord[]): string | null {
 function extractLastAuthMethod(methods: UnknownRecord[]): string | null {
   const first = methods[0];
   if (!first) return null;
-  return stringValue(first.type)?.toLowerCase() || null;
+  return normalizeAuthMethodType(first.type);
+}
+
+function extractProviderDisplayName(methods: UnknownRecord[]): string | null {
+  for (const method of methods) {
+    const displayName = stringValue(method.name) || stringValue(method.displayName) || stringValue(method.username);
+    if (displayName) return displayName;
+  }
+  return null;
 }
 
 function extractEvmAddresses(endUser: UnknownRecord): string[] {
@@ -101,7 +123,7 @@ function extractEvmAddresses(endUser: UnknownRecord): string[] {
 
 async function syncCdpPlatformIdentities(db: Db, userId: string, methods: UnknownRecord[]): Promise<void> {
   for (const method of methods) {
-    const type = stringValue(method.type)?.toLowerCase();
+    const type = normalizeAuthMethodType(method.type);
     if (type === 'x') {
       const providerUserId = identifierValue(method.sub);
       if (!providerUserId) continue;
@@ -178,13 +200,14 @@ async function resolveReturningAccessUser(
   db: Db,
   projectId: string,
   verifiedEmail: string | null,
+  lastAuthMethod: string | null,
   methods: UnknownRecord[],
 ): Promise<ReturningAccessUser | null> {
   let candidateUserId: string | null = null;
   let source: ReturningAccessUser['source'] | null = null;
 
   for (const method of methods) {
-    if (stringValue(method.type)?.toLowerCase() !== 'x') continue;
+    if (normalizeAuthMethodType(method.type) !== 'x') continue;
     const providerUserId = identifierValue(method.sub);
     if (!providerUserId) continue;
     const owned = await db.first<{ user_id: string }>(
@@ -209,7 +232,7 @@ async function resolveReturningAccessUser(
     }
   }
 
-  if (!candidateUserId && verifiedEmail) {
+  if (!candidateUserId && verifiedEmail && canUseEmailForAccountIdentity(lastAuthMethod)) {
     const existing = await db.first<{ id: string }>(
       `SELECT id FROM users WHERE lower(email) = lower(?) AND status = 'active' LIMIT 1`,
       [verifiedEmail],
@@ -248,7 +271,9 @@ async function resolveSuperadminBootstrapUser(
   request: Request,
   env: Env,
   verifiedEmail: string | null,
+  lastAuthMethod: string | null,
 ): Promise<{ id: string } | null> {
+  if (!canUseEmailForAccountIdentity(lastAuthMethod)) return null;
   const configuredEmail = env.SUPERADMIN_EMAIL?.trim().toLowerCase();
   if (!configuredEmail || !verifiedEmail || verifiedEmail.trim().toLowerCase() !== configuredEmail) return null;
   if (!isSuperadminHostRequest(request, env)) return null;
@@ -548,11 +573,12 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   if (!cdpUserId) throw new HttpError(502, 'CDP returned an invalid end-user response', 'cdp_invalid_response');
 
   const methods = authMethods(endUser);
-  const email = extractVerifiedEmail(methods);
+  const providerEmail = extractVerifiedEmail(methods);
   const lastAuthMethod = extractLastAuthMethod(methods);
+  const accountEmail = canUseEmailForAccountIdentity(lastAuthMethod) ? providerEmail : null;
   const timestamp = now();
   const db = new Db(requireDb(env));
-  const superadminBootstrapUser = await resolveSuperadminBootstrapUser(db, request, env, email);
+  const superadminBootstrapUser = await resolveSuperadminBootstrapUser(db, request, env, accountEmail, lastAuthMethod);
 
   let link = await db.first<CdpLink>(
     `SELECT id, user_id FROM cdp_user_links WHERE cdp_project_id = ? AND cdp_user_id = ?`,
@@ -600,7 +626,7 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       await db.batch(statements);
       link = { id: linkId, user_id: superadminBootstrapUser.id };
     } else {
-      const returningUser = await resolveReturningAccessUser(db, config.projectId, email, methods);
+      const returningUser = await resolveReturningAccessUser(db, config.projectId, accountEmail, lastAuthMethod, methods);
       if (returningUser) {
         returningAccountRecovered = true;
         if (returningUser.link) {
@@ -652,19 +678,19 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
         }
 
         if (body.inviteCode?.trim()) {
-          accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
+          accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), accountEmail);
         }
       } else {
-        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, accountEmail);
         isNewUser = true;
         const userId = id('usr');
         const linkId = id('cdp');
         const authIdentityId = id('aid');
-        const existingEmail = email
-          ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [email])
+        const existingEmail = accountEmail
+          ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [accountEmail])
           : null;
-        const storedEmail = existingEmail ? null : email;
-        const displayName = email ? email.split('@')[0] : 'Linkary user';
+        const storedEmail = existingEmail ? null : accountEmail;
+        const displayName = accountEmail ? accountEmail.split('@')[0] : extractProviderDisplayName(methods) || 'Linkary user';
 
         await db.batch([
           db.statement(
@@ -695,9 +721,9 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
     if (!superadminBootstrapUser) {
       const alreadyHasAccess = await hasLinkaryAccess(db, link.user_id);
       if (!alreadyHasAccess) {
-        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, accountEmail);
       } else if (body.inviteCode?.trim()) {
-        accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
+        accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), accountEmail);
       }
     }
   }
