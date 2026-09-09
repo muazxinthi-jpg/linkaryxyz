@@ -91,7 +91,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
       setSearching(true);
       setSearchError('');
       try {
-        const response = await fetch(`/api/wallet-recipients?q=${encodeURIComponent(handle)}`, { credentials: 'same-origin' });
+        const response = await fetch(`/api/profile-wallets?profileId=${encodeURIComponent(profileId)}&recipientSearch=${encodeURIComponent(handle)}`, { credentials: 'same-origin' });
         const payload = await response.json().catch(() => ({})) as { recipients?: Recipient[]; message?: string };
         if (!response.ok) throw new Error(payload.message || 'Search failed');
         if (!cancelled) setResults(Array.isArray(payload.recipients) ? payload.recipients : []);
@@ -105,7 +105,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
       }
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, mode, query]);
+  }, [open, mode, profileId, query]);
 
   function selectWallet(recipient: Recipient, wallet: RecipientWallet) {
     setSelected({ username: recipient.username, displayName: recipient.displayName, wallet });
@@ -119,7 +119,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
   }
 
   async function confirmSend() {
-    if (!senderMatches || !recipientValid || !amountValid || sending) return;
+    if (!evmAddress || !senderMatches || !recipientValid || !amountValid || sending) return;
     setSending(true);
     setSendError('');
     try {
