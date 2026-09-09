@@ -134,7 +134,7 @@ export default function WalletSendPanel({ profileId, expectedSenderAddress }: { 
       const result = await sendUsdc({
         from: evmAddress,
         to: recipientAddress as `0x${string}`,
-        amount: usdcAmountToBaseUnits(amount),
+        amount: usdcAmountToBaseUnits(amount).toString(),
         network: 'base',
       });
       setReference(transferReference(result));
