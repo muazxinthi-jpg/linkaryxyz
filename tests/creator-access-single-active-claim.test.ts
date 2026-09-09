@@ -32,6 +32,16 @@ test('start Creator Earn Access still resumes a valid existing active claim firs
   assert.equal(start.includes('return json(await resumableClaimPayload(env, existing));'), true);
 });
 
+test('resume-only recovery never creates a new Creator Earn claim for an unrelated signed-in account', () => {
+  const existingRead = start.indexOf('activeClaimForIdentity');
+  const resumeOnly = start.indexOf('if (body.resumeOnly)');
+  const insert = start.indexOf('INSERT INTO creator_access_claims');
+  assert.ok(existingRead > 0);
+  assert.ok(resumeOnly > existingRead);
+  assert.ok(insert > resumeOnly);
+  assert.equal(start.includes("'creator_claim_not_found'"), true);
+});
+
 test('concurrent start loser recovers the authoritative winning claim instead of surfacing a database error', () => {
   assert.equal(start.includes('isActiveClaimGuardError(error)'), true);
   assert.equal(start.includes('const winner = await activeClaimForIdentity'), true);
