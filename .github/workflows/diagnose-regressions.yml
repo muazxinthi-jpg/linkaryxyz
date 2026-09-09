@@ -28,48 +28,44 @@ jobs:
       - name: Regression A-E
         id: regress_a_e
         continue-on-error: true
-        shell: bash
         run: npx tsx --test tests/[a-eA-E]*.test.ts
 
       - name: Regression F-J
         id: regress_f_j
         continue-on-error: true
-        shell: bash
         run: npx tsx --test tests/[f-jF-J]*.test.ts
 
       - name: Regression K-O
         id: regress_k_o
         continue-on-error: true
-        shell: bash
         run: npx tsx --test tests/[k-oK-O]*.test.ts
 
       - name: Regression P-T
         id: regress_p_t
         continue-on-error: true
-        shell: bash
         run: npx tsx --test tests/[p-tP-T]*.test.ts
 
       - name: Regression U-Z
         id: regress_u_z
         continue-on-error: true
-        shell: bash
         run: npx tsx --test tests/[u-zU-Z]*.test.ts
 
-      - name: Report regression batch result
-        if: always()
-        shell: bash
-        env:
-          A_E: ${{ steps.regress_a_e.outcome }}
-          F_J: ${{ steps.regress_f_j.outcome }}
-          K_O: ${{ steps.regress_k_o.outcome }}
-          P_T: ${{ steps.regress_p_t.outcome }}
-          U_Z: ${{ steps.regress_u_z.outcome }}
-        run: |
-          echo "A-E=${A_E}"
-          echo "F-J=${F_J}"
-          echo "K-O=${K_O}"
-          echo "P-T=${P_T}"
-          echo "U-Z=${U_Z}"
-          if [[ "$A_E" != "success" || "$F_J" != "success" || "$K_O" != "success" || "$P_T" != "success" || "$U_Z" != "success" ]]; then
-            exit 1
-          fi
+      - name: FAIL A-E
+        if: always() && steps.regress_a_e.outcome != 'success'
+        run: exit 1
+
+      - name: FAIL F-J
+        if: always() && steps.regress_f_j.outcome != 'success'
+        run: exit 1
+
+      - name: FAIL K-O
+        if: always() && steps.regress_k_o.outcome != 'success'
+        run: exit 1
+
+      - name: FAIL P-T
+        if: always() && steps.regress_p_t.outcome != 'success'
+        run: exit 1
+
+      - name: FAIL U-Z
+        if: always() && steps.regress_u_z.outcome != 'success'
+        run: exit 1
