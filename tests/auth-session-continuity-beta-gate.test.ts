@@ -37,6 +37,22 @@ test('signed-in users recover the Linkary session before being routed into the p
   assert.match(continuity, /window\.location\.replace\(status\.data\.profiles\?\.length \? '\/dashboard' : '\/onboarding'\)/);
 });
 
+test('returning invited users recover the existing Linkary account without consuming another invitation', () => {
+  assert.match(cdp, /async function resolveReturningAccessUser\(/);
+  assert.match(cdp, /await hasLinkaryAccess\(db, candidateUserId\)/);
+  assert.match(cdp, /SELECT id FROM users WHERE lower\(email\) = lower\(\?\) AND status = 'active' LIMIT 1/);
+  assert.match(cdp, /pi\.platform = 'x'/);
+  assert.match(cdp, /returningAccountRecovered = true/);
+  assert.match(cdp, /auth\.returning_account\.recovered/);
+});
+
+test('returning account recovery preserves the existing Linkary wallet when the current CDP identity differs', () => {
+  assert.match(cdp, /preserveExistingWalletLink = true/);
+  assert.match(cdp, /if \(!preserveExistingWalletLink\)/);
+  assert.match(cdp, /wallet: \{ evmAddresses: preserveExistingWalletLink \? \[\] : evmAddresses \}/);
+  assert.match(cdp, /preservedExistingWalletLink: true/);
+});
+
 test('Linkary session cookies are host-only, secure, CSRF protected and revocable', () => {
   assert.match(session, /export const SESSION_COOKIE = '__Host-linkary_session'/);
   assert.match(session, /export const CSRF_COOKIE = '__Host-linkary_csrf'/);

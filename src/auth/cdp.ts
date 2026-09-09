@@ -29,6 +29,11 @@ type AccessContext =
   | { kind: 'invite'; inviteId: string; inviteType: string; organizationId: string | null }
   | { kind: 'earned'; submissionId: string };
 type CdpLink = { id: string; user_id: string };
+type ReturningAccessUser = {
+  userId: string;
+  link: CdpLink | null;
+  source: 'x_identity' | 'verified_email';
+};
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -167,6 +172,61 @@ async function hasLinkaryAccess(db: Db, userId: string): Promise<boolean> {
       [userId],
     ),
   );
+}
+
+async function resolveReturningAccessUser(
+  db: Db,
+  projectId: string,
+  verifiedEmail: string | null,
+  methods: UnknownRecord[],
+): Promise<ReturningAccessUser | null> {
+  let candidateUserId: string | null = null;
+  let source: ReturningAccessUser['source'] | null = null;
+
+  for (const method of methods) {
+    if (stringValue(method.type)?.toLowerCase() !== 'x') continue;
+    const providerUserId = identifierValue(method.sub);
+    if (!providerUserId) continue;
+    const owned = await db.first<{ user_id: string }>(
+      `SELECT pil.user_id
+         FROM platform_identities pi
+         JOIN platform_identity_links pil ON pil.platform_identity_id = pi.id
+         JOIN users u ON u.id = pil.user_id
+        WHERE pi.platform = 'x'
+          AND pi.provider_uid = ?
+          AND pi.provider_object_type = 'person'
+          AND pi.status = 'active'
+          AND pil.link_type = 'owns'
+          AND pil.ended_at IS NULL
+          AND u.status = 'active'
+        LIMIT 1`,
+      [providerUserId],
+    );
+    if (owned?.user_id) {
+      candidateUserId = owned.user_id;
+      source = 'x_identity';
+      break;
+    }
+  }
+
+  if (!candidateUserId && verifiedEmail) {
+    const existing = await db.first<{ id: string }>(
+      `SELECT id FROM users WHERE lower(email) = lower(?) AND status = 'active' LIMIT 1`,
+      [verifiedEmail],
+    );
+    if (existing?.id) {
+      candidateUserId = existing.id;
+      source = 'verified_email';
+    }
+  }
+
+  if (!candidateUserId || !source || !(await hasLinkaryAccess(db, candidateUserId))) return null;
+
+  const link = await db.first<CdpLink>(
+    `SELECT id, user_id FROM cdp_user_links WHERE user_id = ? AND cdp_project_id = ? LIMIT 1`,
+    [candidateUserId, projectId],
+  );
+  return { userId: candidateUserId, link, source };
 }
 
 function isSuperadminHostRequest(request: Request, env: Env): boolean {
@@ -500,6 +560,8 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   );
   let isNewUser = false;
   let accessContext: AccessContext | null = null;
+  let returningAccountRecovered = false;
+  let preserveExistingWalletLink = false;
 
   if (superadminBootstrapUser) {
     link = await reconcileSuperadminCdpIdentity(
@@ -538,32 +600,88 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       await db.batch(statements);
       link = { id: linkId, user_id: superadminBootstrapUser.id };
     } else {
-      accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
-      isNewUser = true;
-      const userId = id('usr');
-      const linkId = id('cdp');
-      const authIdentityId = id('aid');
-      const existingEmail = email
-        ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [email])
-        : null;
-      const storedEmail = existingEmail ? null : email;
-      const displayName = email ? email.split('@')[0] : 'Linkary user';
+      const returningUser = await resolveReturningAccessUser(db, config.projectId, email, methods);
+      if (returningUser) {
+        returningAccountRecovered = true;
+        if (returningUser.link) {
+          link = returningUser.link;
+          preserveExistingWalletLink = true;
+          await db.run(
+            `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+             VALUES (?, ?, 'system', 'auth.returning_account.recovered', 'user', ?, NULL, ?, ?)`,
+            [
+              id('aud'),
+              returningUser.userId,
+              returningUser.userId,
+              JSON.stringify({ source: returningUser.source, preservedExistingWalletLink: true, currentCdpUserId: cdpUserId }),
+              timestamp,
+            ],
+          );
+        } else {
+          const linkId = id('cdp');
+          const existingAuthIdentity = await db.first<{ id: string; user_id: string }>(
+            `SELECT id, user_id FROM auth_identities WHERE provider = 'coinbase_cdp' AND provider_user_id = ? LIMIT 1`,
+            [cdpUserId],
+          );
+          if (existingAuthIdentity && existingAuthIdentity.user_id !== returningUser.userId) {
+            throw new HttpError(409, 'This secure sign-in is already mapped to another Linkary account', 'returning_identity_conflict');
+          }
+          const statements = [
+            db.statement(
+              `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [linkId, returningUser.userId, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
+            ),
+            db.statement(
+              `INSERT INTO audit_logs (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
+               VALUES (?, ?, 'system', 'auth.returning_account.recovered', 'cdp_user_link', ?, NULL, ?, ?)`,
+              [id('aud'), returningUser.userId, linkId, JSON.stringify({ source: returningUser.source, preservedExistingWalletLink: false }), timestamp],
+            ),
+          ];
+          if (!existingAuthIdentity) {
+            statements.splice(
+              1,
+              0,
+              db.statement(
+                `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
+                [id('aid'), returningUser.userId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
+              ),
+            );
+          }
+          await db.batch(statements);
+          link = { id: linkId, user_id: returningUser.userId };
+        }
 
-      await db.batch([
-        db.statement(
-          `INSERT INTO users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)`,
-          [userId, storedEmail, displayName, timestamp, timestamp],
-        ),
-        db.statement(
-          `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [linkId, userId, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
-        ),
-        db.statement(
-          `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
-          [authIdentityId, userId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
-        ),
-      ]);
-      link = { id: linkId, user_id: userId };
+        if (body.inviteCode?.trim()) {
+          accessContext = await resolveTeamInviteForExistingAccess(db, body.inviteCode.trim(), email);
+        }
+      } else {
+        accessContext = await resolveAccessContext(db, body.inviteCode, body.earnedGrant, email);
+        isNewUser = true;
+        const userId = id('usr');
+        const linkId = id('cdp');
+        const authIdentityId = id('aid');
+        const existingEmail = email
+          ? await db.first<{ id: string }>(`SELECT id FROM users WHERE lower(email) = lower(?)`, [email])
+          : null;
+        const storedEmail = existingEmail ? null : email;
+        const displayName = email ? email.split('@')[0] : 'Linkary user';
+
+        await db.batch([
+          db.statement(
+            `INSERT INTO users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)`,
+            [userId, storedEmail, displayName, timestamp, timestamp],
+          ),
+          db.statement(
+            `INSERT INTO cdp_user_links (id, user_id, cdp_project_id, cdp_user_id, last_auth_method, last_authenticated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [linkId, userId, config.projectId, cdpUserId, lastAuthMethod, timestamp, timestamp, timestamp],
+          ),
+          db.statement(
+            `INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_username, verified_at, metadata_json, created_at, updated_at) VALUES (?, ?, 'coinbase_cdp', ?, NULL, ?, ?, ?, ?)`,
+            [authIdentityId, userId, cdpUserId, timestamp, JSON.stringify({ authenticationMethods: methods }), timestamp, timestamp],
+          ),
+        ]);
+        link = { id: linkId, user_id: userId };
+      }
     }
   } else {
     await db.run(
@@ -606,26 +724,28 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
   await syncCdpPlatformIdentities(db, link.user_id, methods);
 
   const evmAddresses = extractEvmAddresses(endUser);
-  for (let index = 0; index < evmAddresses.length; index += 1) {
-    const address = evmAddresses[index];
-    if (superadminBootstrapUser) {
-      await db.run(
-        `INSERT INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at)
-         VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)
-         ON CONFLICT(provider, chain_family, address) DO UPDATE SET
-           user_id = excluded.user_id,
-           cdp_user_link_id = excluded.cdp_user_link_id,
-           account_type = excluded.account_type,
-           is_primary = excluded.is_primary,
-           status = 'active',
-           updated_at = excluded.updated_at`,
-        [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
-      );
-    } else {
-      await db.run(
-        `INSERT OR IGNORE INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at) VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)`,
-        [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
-      );
+  if (!preserveExistingWalletLink) {
+    for (let index = 0; index < evmAddresses.length; index += 1) {
+      const address = evmAddresses[index];
+      if (superadminBootstrapUser) {
+        await db.run(
+          `INSERT INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)
+           ON CONFLICT(provider, chain_family, address) DO UPDATE SET
+             user_id = excluded.user_id,
+             cdp_user_link_id = excluded.cdp_user_link_id,
+             account_type = excluded.account_type,
+             is_primary = excluded.is_primary,
+             status = 'active',
+             updated_at = excluded.updated_at`,
+          [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
+        );
+      } else {
+        await db.run(
+          `INSERT OR IGNORE INTO wallet_accounts (id, user_id, cdp_user_link_id, provider, chain_family, address, account_type, is_primary, status, created_at, updated_at) VALUES (?, ?, ?, 'coinbase_cdp', 'evm', ?, 'eoa', ?, 'active', ?, ?)`,
+          [id('wal'), link.user_id, link.id, address, index === 0 ? 1 : 0, timestamp, timestamp],
+        );
+      }
     }
   }
 
@@ -644,8 +764,9 @@ export async function createCdpSession(request: Request, env: Env): Promise<Resp
       ok: true,
       isNewUser,
       accessGranted: true,
+      returningAccountRecovered,
       user: { id: user.id, email: user.email, displayName: user.display_name },
-      wallet: { evmAddresses },
+      wallet: { evmAddresses: preserveExistingWalletLink ? [] : evmAddresses },
       csrfToken: session.csrfToken,
     },
     { status: isNewUser ? 201 : 200, headers },
