@@ -3,6 +3,8 @@ import { getPublishedProfile } from './profiles';
 import { renderPublicProfileEnhanced } from './publicProfileEnhancer';
 import { PERSONAL_PUBLIC_ROLE_LABELS, type PersonalPublicRole } from './profileIdentity';
 
+const PUBLIC_PROFILE_ICON_LINKS = '<link rel="icon" type="image/png" href="/assets/brand/linkary-icon-black.png"><link rel="apple-touch-icon" href="/assets/brand/linkary-icon-black.png">';
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] || char);
 }
@@ -12,16 +14,31 @@ function publicIdentityLabel(value: string | null | undefined): string {
   return PERSONAL_PUBLIC_ROLE_LABELS[value as PersonalPublicRole].toUpperCase();
 }
 
+function ensurePublicProfileIcons(source: string): string {
+  if (/rel=["'](?:shortcut )?icon["']/i.test(source)) return source;
+  return source.replace('</head>', `${PUBLIC_PROFILE_ICON_LINKS}</head>`);
+}
+
+function htmlResponse(base: Response, source: string): Response {
+  const headers = new Headers(base.headers);
+  headers.delete('content-length');
+  return new Response(source, { status: base.status, statusText: base.statusText, headers });
+}
+
 export async function renderPublicProfileWithIdentity(request: Request, env: Env, username: string): Promise<Response> {
   const [base, published] = await Promise.all([
     renderPublicProfileEnhanced(request, env, username),
     getPublishedProfile(username, env),
   ]);
-  if (published.profile.profile_type === 'project' || base.status !== 200 || !(base.headers.get('content-type') || '').includes('text/html')) {
+  if (base.status !== 200 || !(base.headers.get('content-type') || '').includes('text/html')) {
     return base;
   }
 
-  let source = await base.text();
+  let source = ensurePublicProfileIcons(await base.text());
+  if (published.profile.profile_type === 'project') {
+    return htmlResponse(base, source);
+  }
+
   const label = publicIdentityLabel(published.profile.public_role);
   source = source.replace(/<div class="eyebrow">[\s\S]*?<\/div>/, `<div class="eyebrow">${escapeHtml(label)}</div>`);
 
@@ -40,7 +57,5 @@ export async function renderPublicProfileWithIdentity(request: Request, env: Env
     );
   }
 
-  const headers = new Headers(base.headers);
-  headers.delete('content-length');
-  return new Response(source, { status: base.status, statusText: base.statusText, headers });
+  return htmlResponse(base, source);
 }
