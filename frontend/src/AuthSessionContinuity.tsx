@@ -214,15 +214,20 @@ export default function AuthSessionContinuity({ children }: { children: ReactNod
           return;
         }
 
-        if (bridged.data.error === 'access_required' && sessionStorage.getItem(SIGNUP_INTENT_STORAGE) === 'creator_earn') {
+        if (bridged.data.error === 'access_required') {
+          const creatorEarnIntent = sessionStorage.getItem(SIGNUP_INTENT_STORAGE) === 'creator_earn';
           const claim = await jsonRequest<{ claimToken?: string }>('/api/access/creator/claim', {
             method: 'POST',
-            body: JSON.stringify({ accessToken }),
+            body: JSON.stringify({ accessToken, resumeOnly: !creatorEarnIntent }),
           });
-          if (!claim.ok || !claim.data.claimToken) throw new Error('creator_claim_unavailable');
-          sessionStorage.setItem(CLAIM_TOKEN_STORAGE, claim.data.claimToken);
-          window.location.replace('/creator-access');
-          return;
+          if (claim.ok && claim.data.claimToken) {
+            sessionStorage.setItem(CLAIM_TOKEN_STORAGE, claim.data.claimToken);
+            window.location.replace('/creator-access');
+            return;
+          }
+          if (creatorEarnIntent || claim.status !== 404 || claim.data.error !== 'creator_claim_not_found') {
+            throw new Error('creator_claim_unavailable');
+          }
         }
 
         setState('error');
