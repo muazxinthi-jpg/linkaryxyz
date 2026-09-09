@@ -42,8 +42,10 @@ jobs:
             if [[ "$app_status" == "200" && "$bundle_status" == "200" ]] \
               && grep -Fq 'Private key export' "$bundle_body" \
               && grep -Fq 'Export private key' "$bundle_body" \
-              && grep -Fq 'MFA REQUIRED' "$bundle_body" \
-              && grep -Fq 'Multi-factor authentication must be enabled before Linkary allows wallet export.' "$bundle_body" \
+              && grep -Fq '2-STEP REQUIRED' "$bundle_body" \
+              && grep -Fq '2-step verification must be enabled before Linkary allows wallet export.' "$bundle_body" \
+              && grep -Fq 'Set up 2-step verification' "$bundle_body" \
+              && ! grep -Fq 'MFA REQUIRED' "$bundle_body" \
               && grep -Fq "Linkary does not receive, store or log your private key." "$bundle_body"; then
               echo "Healthy secure wallet export UI contract in production bundle: ${app_bundle}"
               healthy=true
