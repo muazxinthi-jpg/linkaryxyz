@@ -19,6 +19,17 @@ test('Linkary wallet export uses the CDP isolated export UI with 2-step verifica
   assert.equal(walletSource.includes('walletMatchesCdp'), true, 'the CDP account must match the Linkary embedded wallet before export');
 });
 
+test('2-step verification setup is directly available before private-key export unlocks', () => {
+  const setupGate = walletSource.indexOf("!mfaReady?<><div className=\"wallet-export-state\">2-step verification must be enabled before Linkary allows wallet export. Set it up here first, then the export option will unlock.</div>");
+  const setupButton = walletSource.indexOf('>Set up 2-step verification</button>');
+  const exportGate = walletSource.indexOf(':!exportOpen?<button className="wallet-export-start"');
+  assert.notEqual(setupGate, -1, 'users without 2-step verification must see the setup state immediately after opening Advanced Security');
+  assert.notEqual(setupButton, -1, 'the 2-step setup button must be visible before export');
+  assert.notEqual(exportGate, -1, 'private-key export must remain gated until 2-step verification is ready');
+  assert.equal(setupGate < setupButton && setupButton < exportGate, true, 'setup must come before the export action in the security flow');
+  assert.equal(walletSource.includes('Private key export is now available.'), true);
+});
+
 test('advanced wallet security is closed by default and must be deliberately opened', () => {
   assert.equal(walletSource.includes('const [securityOpen,setSecurityOpen]=useState(false);'), true);
   assert.equal(walletSource.includes('!securityOpen?<button className="wallet-security-toggle"'), true);
