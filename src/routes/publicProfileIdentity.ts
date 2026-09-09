@@ -3,7 +3,9 @@ import { getPublishedProfile } from './profiles';
 import { renderPublicProfileEnhanced } from './publicProfileEnhancer';
 import { PERSONAL_PUBLIC_ROLE_LABELS, type PersonalPublicRole } from './profileIdentity';
 
-const PUBLIC_PROFILE_ICON_LINKS = '<link rel="icon" type="image/png" href="/assets/brand/linkary-icon-black.png"><link rel="apple-touch-icon" href="/assets/brand/linkary-icon-black.png">';
+const PUBLIC_PROFILE_ICON_VERSION = '2026-09-09-v2';
+const PUBLIC_PROFILE_ICON_HREF = `/assets/brand/linkary-icon-black.png?v=${PUBLIC_PROFILE_ICON_VERSION}`;
+const PUBLIC_PROFILE_ICON_LINKS = `<link rel="icon" type="image/png" href="${PUBLIC_PROFILE_ICON_HREF}"><link rel="shortcut icon" type="image/png" href="${PUBLIC_PROFILE_ICON_HREF}"><link rel="apple-touch-icon" href="${PUBLIC_PROFILE_ICON_HREF}">`;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] || char);
@@ -15,8 +17,11 @@ function publicIdentityLabel(value: string | null | undefined): string {
 }
 
 function ensurePublicProfileIcons(source: string): string {
-  if (/rel=["'](?:shortcut )?icon["']/i.test(source)) return source;
-  return source.replace('</head>', `${PUBLIC_PROFILE_ICON_LINKS}</head>`);
+  const withoutLegacyIcons = source
+    .replace(/<link\b[^>]*\brel=["'][^"']*(?:shortcut\s+)?icon[^"']*["'][^>]*>/gi, '')
+    .replace(/<link\b[^>]*\brel=["'][^"']*apple-touch-icon[^"']*["'][^>]*>/gi, '');
+  if (!withoutLegacyIcons.includes('</head>')) return withoutLegacyIcons;
+  return withoutLegacyIcons.replace('</head>', `${PUBLIC_PROFILE_ICON_LINKS}</head>`);
 }
 
 function htmlResponse(base: Response, source: string): Response {
