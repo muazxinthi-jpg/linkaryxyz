@@ -10,11 +10,10 @@ type RecipientRow = {
   display_name: string;
   avatar_url: string | null;
   linkary_wallet_address: string | null;
-  saved_evm_address: string | null;
 };
 
 type RecipientWallet = {
-  kind: 'linkary' | 'saved_evm';
+  kind: 'linkary';
   label: string;
   address: string;
 };
@@ -28,18 +27,8 @@ function normalizeSearch(raw: string | null): string {
 }
 
 function walletOptions(row: RecipientRow): RecipientWallet[] {
-  const wallets: RecipientWallet[] = [];
-  const seen = new Set<string>();
-  const add = (kind: RecipientWallet['kind'], label: string, address: string | null) => {
-    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) return;
-    const key = address.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    wallets.push({ kind, label, address });
-  };
-  add('linkary', 'Linkary wallet', row.linkary_wallet_address);
-  add('saved_evm', 'Saved EVM wallet', row.saved_evm_address);
-  return wallets;
+  if (!row.linkary_wallet_address || !/^0x[a-fA-F0-9]{40}$/.test(row.linkary_wallet_address)) return [];
+  return [{ kind: 'linkary', label: 'Linkary wallet', address: row.linkary_wallet_address }];
 }
 
 export async function searchWalletRecipients(request: Request, env: Env): Promise<Response> {
@@ -62,15 +51,7 @@ export async function searchWalletRecipients(request: Request, env: Env): Promis
                  AND wa.status = 'active'
                ORDER BY wa.is_primary DESC, wa.created_at ASC
                LIMIT 1
-            ) AS linkary_wallet_address,
-            (
-              SELECT pwd.address
-                FROM profile_wallet_destinations pwd
-               WHERE pwd.profile_id = p.id
-                 AND pwd.chain_family = 'evm'
-                 AND pwd.status = 'active'
-               LIMIT 1
-            ) AS saved_evm_address
+            ) AS linkary_wallet_address
        FROM profiles p
       WHERE p.profile_type = 'creator'
         AND p.visibility = 'published'
