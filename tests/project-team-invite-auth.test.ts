@@ -6,7 +6,7 @@ test('CDP auth requires a present matching verified email for email-bound Team i
   const source = readFileSync(new URL('../src/auth/cdp.ts', import.meta.url), 'utf8');
   assert.equal(source.includes('team_invite_email_mismatch'), true);
   assert.equal(source.includes('validateInviteAccess(row, verifiedEmail)'), true);
-  assert.equal(source.includes('resolveAccessContext(db, body.inviteCode, body.earnedGrant, email)'), true);
+  assert.equal(source.includes('resolveAccessContext(db, body.inviteCode, body.earnedGrant, accountEmail)'), true);
   assert.equal(source.includes("row.invite_type === 'team_invite'"), true);
   assert.equal(source.includes('if (row.intended_email) {'), true);
   assert.equal(source.includes("const currentEmail = verifiedEmail?.trim().toLowerCase() || '';"), true);
