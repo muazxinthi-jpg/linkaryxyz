@@ -4,6 +4,20 @@ import type { PlatformIdentityRow, UserRow } from './models';
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 
+export type PlatformIdentityPlatform =
+  | 'x'
+  | 'telegram'
+  | 'youtube'
+  | 'tiktok'
+  | 'instagram'
+  | 'linkedin'
+  | 'facebook'
+  | 'reddit'
+  | 'discord'
+  | 'github'
+  | 'farcaster'
+  | 'whatsapp';
+
 export interface XIdentityInput {
   providerUserId: string;
   username: string;
@@ -12,7 +26,7 @@ export interface XIdentityInput {
 }
 
 export interface PlatformIdentityInput {
-  platform: 'x' | 'telegram';
+  platform: PlatformIdentityPlatform;
   providerUserId: string;
   username?: string | null;
   displayName?: string | null;
