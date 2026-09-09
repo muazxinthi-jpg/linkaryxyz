@@ -72,7 +72,7 @@ test('Controlled Beta readiness requires a server-only Alchemy API key', () => {
 
 test('Controlled Beta Alchemy chain registry is Ethereum, Base, BNB Chain, Solana and Robinhood', () => {
   const chains = read('../src/chains.ts');
-  const wallets = read('../src/routes/wallets.ts');
+  const wallets = read('../src/routes/walletsOriginal.ts');
 
   for (const key of ['ethereum', 'base', 'bnb', 'solana', 'robinhood']) {
     assert.equal(chains.includes(`key: '${key}'`), true, `missing ${key}`);

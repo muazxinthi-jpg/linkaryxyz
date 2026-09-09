@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const walletCss = readFileSync(new URL('../frontend/src/wallets-beta-acceptance.css', import.meta.url), 'utf8');
 const walletView = readFileSync(new URL('../frontend/src/WalletExperience.tsx', import.meta.url), 'utf8');
+const sendView = readFileSync(new URL('../frontend/src/WalletSendPanel.tsx', import.meta.url), 'utf8');
 const mainEntry = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
 
 function squash(value: string) {
@@ -19,6 +20,7 @@ function mediaBlock(start: string, end?: string): string {
 
 const css = squash(walletCss);
 const view = squash(walletView);
+const send = squash(sendView);
 
 test('wallet responsive acceptance stylesheet loads after shared and invite acceptance layers', () => {
   const shared = mainEntry.indexOf("import './beta-responsive-acceptance.css';");
@@ -52,10 +54,13 @@ test('wallet editor and destructive actions collapse cleanly on 430px phones', (
   assert.equal(css.includes('.wallet-workspace.wallet-actionsbutton.danger{border-color:#ead8d4;background:#fffafa;color:#99493d;}'), true);
 });
 
-test('embedded wallet receive panel is visibly contained and sending remains disabled', () => {
+test('embedded wallet receive panel remains contained while Send opens the reviewed Base flow', () => {
   assert.equal(css.includes('.wallet-workspace.wallet-receive-panel{display:grid;'), true);
-  assert.equal(css.includes('.wallet-workspace.wallet-transfer-actionsbutton:disabled{cursor:not-allowed;opacity:.55;}'), true);
-  assert.equal(view.includes('<buttondisabledtitle="Securewalletsendingisnotavailableyet">Send<span>Comingsoon</span></button>'), true);
+  assert.equal(view.includes('WalletSendPanel'), true);
+  assert.equal(view.includes('Comingsoon'), false);
+  assert.equal(send.includes('SearchLinkaryhandle'), true);
+  assert.equal(send.includes('Reviewsend'), true);
+  assert.equal(send.includes('Confirmandsend'), true);
   assert.equal(view.includes('OnlysendsupportedassetsontheBasenetworktothisaddress.'), true);
 });
 

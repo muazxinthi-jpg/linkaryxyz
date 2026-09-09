@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const chains = readFileSync(new URL('../src/chains.ts', import.meta.url), 'utf8');
-const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
+const wallets = readFileSync(new URL('../src/routes/walletsOriginal.ts', import.meta.url), 'utf8');
 const gallery = readFileSync(new URL('../frontend/src/NftWalletGallery.tsx', import.meta.url), 'utf8');
 const profile = readFileSync(new URL('../frontend/src/ProfileExperienceBeta.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/nft-wallet-gallery.css', import.meta.url), 'utf8');

@@ -7,7 +7,7 @@ const packageJson = readFileSync(new URL('../package.json', import.meta.url), 'u
 const workflow = readFileSync(new URL('../.github/workflows/deploy-production.yml', import.meta.url), 'utf8');
 const community = readFileSync(new URL('../src/routes/communityVerificationIntegrity.ts', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
-const wallets = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
+const wallets = readFileSync(new URL('../src/routes/walletsOriginal.ts', import.meta.url), 'utf8');
 
 test('authenticated app distinguishes signed-out forbidden and unavailable states without silent fallback', () => {
   assert.equal(app.includes("type GateState = 'loading' | 'legacy' | 'forbidden' | 'unavailable' | 'ready'"), true);
