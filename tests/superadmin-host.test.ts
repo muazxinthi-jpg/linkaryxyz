@@ -173,7 +173,7 @@ test('Superadmin CDP reconciliation is not a general account merge path', () => 
 });
 
 test('normal users still require invite or earned access during CDP session creation', () => {
-  assert.match(cdp, /accessContext = await resolveAccessContext\(db, body\.inviteCode, body\.earnedGrant, email\)/);
+  assert.match(cdp, /accessContext = await resolveAccessContext\(db, body\.inviteCode, body\.earnedGrant, accountEmail\)/);
   assert.match(cdp, /A valid Linkary invitation or approved access path is required/);
   assert.match(cdp, /access_required/);
 });
