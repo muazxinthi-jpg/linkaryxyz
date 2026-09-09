@@ -21,6 +21,14 @@ test('only email and Google sign-ins may use provider email as Linkary account i
   assert.match(cdp, /const accountEmail = canUseEmailForAccountIdentity\(lastAuthMethod\) \? providerEmail : null/);
 });
 
+test('trusted email extraction ignores X, Telegram and future social-provider email metadata', () => {
+  const text = compact(cdp);
+  assert.match(text, /function extractVerifiedEmail\(methods: UnknownRecord\[\]\): string \| null/);
+  assert.match(text, /const type = normalizeAuthMethodType\(method\.type\)/);
+  assert.match(text, /if \(type !== 'email' && type !== 'google'\) continue/);
+  assert.match(text, /const email = stringValue\(method\.email\)/);
+});
+
 test('returning X users recover by stable X provider id, never by an incidental X email', () => {
   const text = compact(cdp);
   assert.match(text, /normalizeAuthMethodType\(method\.type\) !== 'x'/);
