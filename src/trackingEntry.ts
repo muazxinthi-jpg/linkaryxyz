@@ -8,6 +8,12 @@ import { createAdminCoupon100 } from './routes/adminCouponCreate100';
 import { updateAdminCouponAccessUntil } from './routes/adminCouponAccessUntil';
 import { updateAdminCouponAccessDuration } from './routes/adminCouponAccessDuration';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
+import {
+  adminPlatformIntelligence,
+  createInternalReferralReward,
+  updateInternalReferralRewardStatus,
+  upsertPlatformGrowthTarget,
+} from './routes/adminPlatformIntelligence';
 import { redirectTrackedLink } from './routes/tracking';
 
 const APP_SHELL_RELEASE = '2026-09-09-private-network-v5';
@@ -103,6 +109,43 @@ export default {
       if (request.method !== 'GET') return methodNotAllowed(['GET']);
       try {
         return await redirectTrackedLink(request, env, decodeURIComponent(trackedRedirect[1]), ctx);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence') {
+      try {
+        if (request.method === 'GET') return await adminPlatformIntelligence(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-rewards') {
+      try {
+        if (request.method === 'POST') return await createInternalReferralReward(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const internalRewardStatus = url.pathname.match(/^\/api\/admin\/platform-intelligence\/referral-rewards\/([^/]+)\/status$/);
+    if (internalRewardStatus) {
+      try {
+        if (request.method === 'POST') return await updateInternalReferralRewardStatus(request, env, decodeURIComponent(internalRewardStatus[1]));
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/growth-targets') {
+      try {
+        if (request.method === 'POST') return await upsertPlatformGrowthTarget(request, env);
+        return methodNotAllowed(['POST']);
       } catch (error) {
         return errorResponse(error);
       }

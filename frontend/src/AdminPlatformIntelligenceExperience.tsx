@@ -1,0 +1,401 @@
+import { useEffect, useMemo, useState } from 'react';
+import './admin-platform-intelligence.css';
+
+type RangeDays = 30 | 90 | 180;
+type Tab = 'overview' | 'referrals' | 'growth-plan';
+type TargetMetric = 'registered_users' | 'mau' | 'paid_accounts' | 'mrr_cents' | 'referral_redemptions';
+type RewardStatus = 'review' | 'approved' | 'paid' | 'void';
+
+type TrendPoint = {
+  day: string;
+  registeredUsers: number;
+  newUsers: number;
+  referrals: number;
+  revenueCents: number;
+};
+
+type GrowthTarget = {
+  id: string;
+  period_key: string;
+  metric_key: TargetMetric;
+  target_value: number;
+  notes: string | null;
+  updated_at: string;
+};
+
+type ReferralLeader = {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  directReferrals: number;
+  networkSize: number;
+  referrals30d: number;
+  lastReferralAt: string | null;
+};
+
+type Reward = {
+  id: string;
+  beneficiaryUserId: string;
+  displayName: string;
+  username: string | null;
+  periodKey: string;
+  amountCents: number;
+  currency: string;
+  status: RewardStatus;
+  reason: string;
+  evidence: { directReferrals?: number; networkSize?: number; capturedAt?: string; basis?: string };
+  paymentReference: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Intelligence = {
+  generatedAt: string;
+  rangeDays: number;
+  privateOpsReady: boolean;
+  activity: {
+    dau: number;
+    wau: number;
+    mau: number;
+    dauMau: number | null;
+    wauMau: number | null;
+    methodology: string;
+  };
+  financials: {
+    allTimeRevenueCents: number;
+    revenue30dCents: number;
+    mrrCents: number;
+    activePaidAccounts: number;
+    arpaCents: number | null;
+    paidAccountShare: number | null;
+    discountRate30d: number | null;
+    reversalRate: number | null;
+    freePassRedemptions30d: number;
+    methodology: string;
+  };
+  growth: {
+    totalUsers: number;
+    activeProfiles: number;
+    referralRedemptionsThisMonth: number;
+    currentMonth: string;
+    trend: TrendPoint[];
+    targets: GrowthTarget[];
+  };
+  referrals: {
+    funnel: null | {
+      inviteClicks: number;
+      uniqueVisitors: number;
+      redemptions: number;
+      acceptedReferrals: number;
+      clickToRedemption: number | null;
+    };
+    leaders: ReferralLeader[];
+    rewards: Reward[];
+    rewardSummary: { reviewCents: number; approvedCents: number; paidCents: number };
+    privacy: string;
+  };
+};
+
+const metricLabels: Record<TargetMetric, string> = {
+  registered_users: 'Registered users',
+  mau: 'MAU',
+  paid_accounts: 'Paid accounts',
+  mrr_cents: 'MRR',
+  referral_redemptions: 'Referral signups',
+};
+
+function csrf(): string | null {
+  const hit = document.cookie.split('; ').find((part) => part.startsWith('__Host-linkary_csrf='));
+  return hit ? decodeURIComponent(hit.split('=').slice(1).join('=')) : null;
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  const response = await fetch(path, { ...init, headers, credentials: 'same-origin' });
+  const body = (await response.json().catch(() => ({}))) as T & { message?: string };
+  if (!response.ok) throw new Error(body.message || 'Request failed');
+  return body;
+}
+
+function number(value: number): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function compact(value: number): string {
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0));
+}
+
+function money(cents: number | null): string {
+  if (cents === null || cents === undefined) return 'N/A';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(cents / 100);
+}
+
+function percent(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'N/A';
+  return `${(value * 100).toFixed(value * 100 >= 10 ? 1 : 2)}%`;
+}
+
+function shortDate(value: string | null): string {
+  if (!value) return 'Never';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Unknown';
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function AcquisitionChart({ points }: { points: TrendPoint[] }) {
+  const [activeIndex, setActiveIndex] = useState(Math.max(0, points.length - 1));
+  useEffect(() => setActiveIndex(Math.max(0, points.length - 1)), [points.length]);
+  const max = Math.max(1, ...points.flatMap((point) => [point.newUsers, point.referrals]));
+  const x = (index: number) => (index / Math.max(1, points.length - 1)) * 100;
+  const y = (value: number) => 92 - (value / max) * 80;
+  const path = (key: 'newUsers' | 'referrals') => points.map((point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point[key])}`).join(' ');
+  const active = points[activeIndex];
+  const activeX = x(activeIndex);
+  return <article className="pai-chart pai-acquisition-chart">
+    <header><div><span>PLATFORM ACQUISITION</span><strong>New users and referral signups</strong></div><small>Hover, focus or tap a day</small></header>
+    <div className="pai-line-stage">
+      <svg viewBox="0 0 100 100" role="img" aria-label="Interactive platform acquisition chart" preserveAspectRatio="none">
+        <path className="pai-grid" d="M0 12H100M0 52H100M0 92H100" />
+        <path className="pai-user-line" d={path('newUsers')} />
+        <path className="pai-referral-line" d={path('referrals')} />
+        {active && <g className="pai-active-point" aria-hidden="true"><line x1={activeX} x2={activeX} y1="8" y2="94" /><circle className="user" cx={activeX} cy={y(active.newUsers)} r="2.2" /><circle className="referral" cx={activeX} cy={y(active.referrals)} r="2.2" /></g>}
+        {points.map((point, index) => <circle key={point.day} className="pai-hit" cx={x(index)} cy={y(Math.max(point.newUsers, point.referrals))} r="4" tabIndex={0} role="button" aria-label={`${point.day}: ${point.newUsers} new users, ${point.referrals} referral signups, ${point.registeredUsers} total registered users`} onPointerEnter={() => setActiveIndex(index)} onPointerDown={() => setActiveIndex(index)} onFocus={() => setActiveIndex(index)} />)}
+      </svg>
+      {active && <div className="pai-tooltip" style={{ left: `${Math.min(90, Math.max(10, activeX))}%` }} role="status"><strong>{active.day}</strong><span>{number(active.newUsers)} new users</span><span>{number(active.referrals)} referred</span><span>{number(active.registeredUsers)} registered total</span></div>}
+    </div>
+    <div className="pai-chart-key"><span><i className="user" />New users</span><span><i className="referral" />Referral signups</span><small>{points[0]?.day} to {points.at(-1)?.day}</small></div>
+  </article>;
+}
+
+function RevenueChart({ points }: { points: TrendPoint[] }) {
+  const recent = points.slice(-Math.min(points.length, 45));
+  const [activeDay, setActiveDay] = useState(recent.at(-1)?.day || '');
+  useEffect(() => setActiveDay(recent.at(-1)?.day || ''), [points.length]);
+  const max = Math.max(1, ...recent.map((point) => point.revenueCents));
+  const active = recent.find((point) => point.day === activeDay) || recent.at(-1);
+  return <article className="pai-chart pai-revenue-chart">
+    <header><div><span>VERIFIED REVENUE</span><strong>Daily Base USDC receipts</strong></div><small>{active ? `${active.day} · ${money(active.revenueCents)}` : 'No receipts yet'}</small></header>
+    <div className="pai-revenue-bars" role="group" aria-label="Interactive daily verified revenue">
+      {recent.map((point) => <button type="button" key={point.day} className={point.day === active?.day ? 'active' : ''} style={{ height: `${Math.max(5, (point.revenueCents / max) * 100)}%` }} onPointerEnter={() => setActiveDay(point.day)} onPointerDown={() => setActiveDay(point.day)} onFocus={() => setActiveDay(point.day)} aria-label={`${point.day}: ${money(point.revenueCents)} verified revenue`}><span>{money(point.revenueCents)}</span></button>)}
+    </div>
+    <div className="pai-revenue-axis"><span>{recent[0]?.day}</span><span>{recent.at(-1)?.day}</span></div>
+  </article>;
+}
+
+function ActivityBars({ data }: { data: Intelligence['activity'] }) {
+  const max = Math.max(1, data.mau);
+  return <article className="pai-panel pai-activity-bars">
+    <header><div><span>ACTIVE USERS</span><strong>Rolling engagement windows</strong></div><small>Authenticated users</small></header>
+    {([['DAU', data.dau], ['WAU', data.wau], ['MAU', data.mau]] as const).map(([label, value]) => <div className="pai-activity-row" key={label}><div><span>{label}</span><strong>{number(value)}</strong></div><i><b style={{ width: `${(value / max) * 100}%` }} /></i></div>)}
+    <footer><span>DAU / MAU <strong>{percent(data.dauMau)}</strong></span><span>WAU / MAU <strong>{percent(data.wauMau)}</strong></span></footer>
+  </article>;
+}
+
+function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return <article className="pai-metric-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>;
+}
+
+function Progress({ actual, target, moneyMetric = false }: { actual: number; target: number | null; moneyMetric?: boolean }) {
+  const ratio = target && target > 0 ? actual / target : null;
+  return <div className="pai-target-progress">
+    <div><span>{moneyMetric ? moneyMetricValue(actual) : number(actual)} actual</span><span>{target === null ? 'No target' : `${moneyMetric ? moneyMetricValue(target) : number(target)} target`}</span></div>
+    <i><b style={{ width: `${ratio === null ? 0 : Math.min(100, ratio * 100)}%` }} /></i>
+    <small>{ratio === null ? 'Set a target to measure progress' : `${(ratio * 100).toFixed(1)}% of target`}</small>
+  </div>;
+}
+
+function moneyMetricValue(value: number): string {
+  return money(value);
+}
+
+export default function AdminPlatformIntelligenceExperience() {
+  const [range, setRange] = useState<RangeDays>(90);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [data, setData] = useState<Intelligence | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [message, setMessage] = useState('');
+  const [selectedLeader, setSelectedLeader] = useState<ReferralLeader | null>(null);
+  const [rewardPeriod, setRewardPeriod] = useState('');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [rewardReason, setRewardReason] = useState('Discretionary community growth reward');
+  const [targetPeriod, setTargetPeriod] = useState('');
+  const [targetMetric, setTargetMetric] = useState<TargetMetric>('registered_users');
+  const [targetValue, setTargetValue] = useState('');
+  const [targetNotes, setTargetNotes] = useState('Internal monthly growth target');
+
+  async function load(nextRange = range) {
+    setLoading(true);
+    setMessage('');
+    try {
+      const result = await api<Intelligence>(`/api/admin/platform-intelligence?range=${nextRange}`);
+      setData(result);
+      setRewardPeriod((current) => current || result.growth.currentMonth);
+      setTargetPeriod((current) => current || result.growth.currentMonth);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Platform intelligence could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void load(range); }, [range]);
+
+  async function mutate(path: string, body: unknown, key: string) {
+    const token = csrf();
+    if (!token) {
+      setMessage('Security token is unavailable. Refresh Superadmin and try again.');
+      return false;
+    }
+    setBusy(key);
+    setMessage('');
+    try {
+      await api(path, { method: 'POST', headers: { 'x-csrf-token': token }, body: JSON.stringify(body) });
+      await load();
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Private operation could not be saved.');
+      return false;
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function createReward(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selectedLeader || !rewardAmount.trim()) return;
+    const amountCents = Math.round(Number(rewardAmount) * 100);
+    const ok = await mutate('/api/admin/platform-intelligence/referral-rewards', {
+      beneficiaryUserId: selectedLeader.userId,
+      periodKey: rewardPeriod,
+      amountCents,
+      reason: rewardReason,
+    }, 'create-reward');
+    if (ok) {
+      setMessage(`Private reward review created for ${selectedLeader.displayName}. It is not payable until approved.`);
+      setRewardAmount('');
+      setSelectedLeader(null);
+    }
+  }
+
+  async function rewardStatus(reward: Reward, status: 'approved' | 'paid' | 'void') {
+    let paymentReference: string | null = null;
+    if (status === 'paid') {
+      paymentReference = window.prompt('Enter the payment reference, transaction hash, invoice reference, or internal settlement ID:')?.trim() || null;
+      if (!paymentReference) return;
+    }
+    const label = status === 'approved' ? 'approve this reward and add it to the amount to pay' : status === 'paid' ? 'mark this reward as paid' : 'void this private reward record';
+    if (!window.confirm(`Confirm you want to ${label}?`)) return;
+    if (await mutate(`/api/admin/platform-intelligence/referral-rewards/${encodeURIComponent(reward.id)}/status`, { status, paymentReference }, `${status}:${reward.id}`)) {
+      setMessage(status === 'approved' ? 'Reward approved. It now appears in the amount to pay.' : status === 'paid' ? 'Reward marked paid and settlement reference recorded.' : 'Reward record voided.');
+    }
+  }
+
+  async function saveTarget(event: React.FormEvent) {
+    event.preventDefault();
+    if (!targetValue.trim()) return;
+    const raw = Number(targetValue);
+    const normalized = targetMetric === 'mrr_cents' ? Math.round(raw * 100) : Math.round(raw);
+    if (await mutate('/api/admin/platform-intelligence/growth-targets', {
+      periodKey: targetPeriod,
+      metricKey: targetMetric,
+      targetValue: normalized,
+      notes: targetNotes,
+    }, 'save-target')) {
+      setMessage(`${metricLabels[targetMetric]} target saved for ${targetPeriod}.`);
+      setTargetValue('');
+    }
+  }
+
+  const currentTargets = useMemo(() => {
+    const map = new Map<TargetMetric, GrowthTarget>();
+    if (!data) return map;
+    for (const target of data.growth.targets) if (target.period_key === data.growth.currentMonth) map.set(target.metric_key, target);
+    return map;
+  }, [data]);
+
+  if (loading && !data) return <section className="pai-page"><div className="pai-loading">Loading platform intelligence…</div></section>;
+  if (!data) return <section className="pai-page"><div className="pai-error">{message || 'Platform intelligence is unavailable.'}<button type="button" onClick={() => void load()}>Retry</button></div></section>;
+
+  const targetActuals: Record<TargetMetric, number> = {
+    registered_users: data.growth.totalUsers,
+    mau: data.activity.mau,
+    paid_accounts: data.financials.activePaidAccounts,
+    mrr_cents: data.financials.mrrCents,
+    referral_redemptions: data.growth.referralRedemptionsThisMonth,
+  };
+  const revenuePerMau = data.activity.mau > 0 ? Math.round(data.financials.revenue30dCents / data.activity.mau) : null;
+
+  return <section className="pai-page">
+    <header className="pai-page-head">
+      <div><span>LINKARY OPERATING INTELLIGENCE</span><h1>Platform intelligence</h1><p>Private growth, revenue, activity and referral operations for Superadmin.</p></div>
+      <div className="pai-head-actions"><label>Range<select value={range} onChange={(event) => setRange(Number(event.target.value) as RangeDays)}><option value={30}>30 days</option><option value={90}>90 days</option><option value={180}>180 days</option></select></label><button type="button" onClick={() => void load()} disabled={loading}>Refresh</button></div>
+    </header>
+
+    {!data.privateOpsReady && <div className="pai-migration-note"><strong>Read-only intelligence is live.</strong><span>Production migration 0044 is required before private reward reviews and growth targets can be saved.</span></div>}
+    {message && <div className="pai-message" role="status">{message}</div>}
+
+    <nav className="pai-tabs" aria-label="Platform intelligence sections">
+      <button type="button" className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Overview & financials</button>
+      <button type="button" className={tab === 'referrals' ? 'active' : ''} onClick={() => setTab('referrals')}>Referral operations</button>
+      <button type="button" className={tab === 'growth-plan' ? 'active' : ''} onClick={() => setTab('growth-plan')}>Growth plan</button>
+    </nav>
+
+    <div className="pai-kpis">
+      <MetricCard label="DAU" value={compact(data.activity.dau)} note="Rolling 24 hours" />
+      <MetricCard label="WAU" value={compact(data.activity.wau)} note="Rolling 7 days" />
+      <MetricCard label="MAU" value={compact(data.activity.mau)} note="Rolling 30 days" />
+      <MetricCard label="MRR" value={money(data.financials.mrrCents)} note={`${number(data.financials.activePaidAccounts)} paid accounts`} />
+      <MetricCard label="Revenue · 30D" value={money(data.financials.revenue30dCents)} note="Verified receipts" />
+      <MetricCard label="To pay" value={money(data.referrals.rewardSummary.approvedCents)} note="Approved private rewards" />
+    </div>
+
+    {tab === 'overview' && <>
+      <div className="pai-chart-grid"><AcquisitionChart points={data.growth.trend} /><RevenueChart points={data.growth.trend} /></div>
+      <div className="pai-overview-grid">
+        <ActivityBars data={data.activity} />
+        <article className="pai-panel pai-financial-ratios">
+          <header><div><span>FINANCIAL RATIOS</span><strong>Commercial health from recorded billing</strong></div><small>Actuals only</small></header>
+          <div className="pai-ratio-grid">
+            <MetricCard label="ARPA" value={money(data.financials.arpaCents)} note="MRR / paid accounts" />
+            <MetricCard label="Paid account share" value={percent(data.financials.paidAccountShare)} note="Paid accounts / active profiles" />
+            <MetricCard label="Revenue / MAU" value={money(revenuePerMau)} note="30D revenue / MAU" />
+            <MetricCard label="Discount rate" value={percent(data.financials.discountRate30d)} note="Paid checkouts · 30D" />
+            <MetricCard label="Reversal ratio" value={percent(data.financials.reversalRate)} note="Refunded + reversed payment value" />
+            <MetricCard label="Free passes" value={number(data.financials.freePassRedemptions30d)} note="100% coupon redemptions · 30D" />
+          </div>
+        </article>
+      </div>
+      <div className="pai-methodology"><strong>Measurement rules</strong><p>{data.activity.methodology}</p><p>{data.financials.methodology}</p><p>Cost-based metrics such as gross margin and burn are intentionally not invented. We can add them once actual operating costs are recorded.</p></div>
+    </>}
+
+    {tab === 'referrals' && <>
+      <div className="pai-private-banner"><div><span>PRIVATE OPERATIONS</span><strong>Referral rewards are discretionary internal records</strong></div><p>{data.referrals.privacy}</p></div>
+      <div className="pai-referral-summary">
+        <MetricCard label="Under review" value={money(data.referrals.rewardSummary.reviewCents)} note="Not yet payable" />
+        <MetricCard label="Approved · to pay" value={money(data.referrals.rewardSummary.approvedCents)} note="Internal outstanding amount" />
+        <MetricCard label="Paid" value={money(data.referrals.rewardSummary.paidCents)} note="Recorded settlements" />
+        <MetricCard label="Referral signups · month" value={number(data.growth.referralRedemptionsThisMonth)} note={data.growth.currentMonth} />
+      </div>
+      {data.referrals.funnel && <article className="pai-panel pai-funnel"><header><div><span>REFERRAL FUNNEL · 30D</span><strong>From invite traffic to accepted network members</strong></div><small>Indexed, date-bounded</small></header><div className="pai-funnel-grid"><MetricCard label="Invite clicks" value={number(data.referrals.funnel.inviteClicks)} note={`${number(data.referrals.funnel.uniqueVisitors)} unique visitors`} /><MetricCard label="Redemptions" value={number(data.referrals.funnel.redemptions)} note={`${percent(data.referrals.funnel.clickToRedemption)} click conversion`} /><MetricCard label="Accepted network" value={number(data.referrals.funnel.acceptedReferrals)} note="Canonical referral edges" /></div></article>}
+      <article className="pai-panel pai-leaderboard">
+        <header><div><span>REFERRAL NETWORK</span><strong>Internal referral performance</strong></div><small>Top 75 inviters</small></header>
+        <div className="pai-table-wrap"><table><thead><tr><th>User</th><th>Direct</th><th>7-gen network</th><th>Last 30D</th><th>Last referral</th><th>Internal action</th></tr></thead><tbody>{data.referrals.leaders.length ? data.referrals.leaders.map((leader) => <tr key={leader.userId}><td><strong>{leader.displayName}</strong><small>{leader.username ? `@${leader.username}` : leader.userId}</small></td><td>{number(leader.directReferrals)}</td><td>{number(leader.networkSize)}</td><td>{number(leader.referrals30d)}</td><td>{shortDate(leader.lastReferralAt)}</td><td><button type="button" className="pai-small-action" disabled={!data.privateOpsReady} onClick={() => { setSelectedLeader(leader); setRewardPeriod(data.growth.currentMonth); }}>Review reward</button></td></tr>) : <tr><td colSpan={6}>No referral network activity recorded yet.</td></tr>}</tbody></table></div>
+      </article>
+      {selectedLeader && <form className="pai-panel pai-reward-form" onSubmit={(event) => void createReward(event)}><header><div><span>PRIVATE REWARD REVIEW</span><strong>{selectedLeader.displayName}</strong></div><button type="button" className="pai-close" onClick={() => setSelectedLeader(null)}>Close</button></header><div className="pai-form-grid"><label>Period<input type="month" value={rewardPeriod} onChange={(event) => setRewardPeriod(event.target.value)} required /></label><label>Proposed amount · USD<input type="number" min="0.01" max="100000" step="0.01" value={rewardAmount} onChange={(event) => setRewardAmount(event.target.value)} placeholder="100.00" required /></label><label className="wide">Internal reason<input value={rewardReason} onChange={(event) => setRewardReason(event.target.value)} maxLength={240} required /></label></div><p>Creating this record places it under review only. It does not become an amount to pay until a Superadmin explicitly approves it.</p><button type="submit" disabled={busy === 'create-reward' || !data.privateOpsReady}>{busy === 'create-reward' ? 'Creating…' : 'Create private review'}</button></form>}
+      <article className="pai-panel pai-reward-ledger"><header><div><span>REWARD LEDGER</span><strong>Review, approval and settlement trail</strong></div><small>Superadmin only</small></header><div className="pai-table-wrap"><table><thead><tr><th>User</th><th>Period</th><th>Amount</th><th>Evidence snapshot</th><th>Status</th><th>Action</th></tr></thead><tbody>{data.referrals.rewards.length ? data.referrals.rewards.map((reward) => <tr key={reward.id}><td><strong>{reward.displayName}</strong><small>{reward.username ? `@${reward.username}` : reward.beneficiaryUserId}</small></td><td>{reward.periodKey}</td><td>{money(reward.amountCents)}</td><td><small>{number(reward.evidence.directReferrals || 0)} direct · {number(reward.evidence.networkSize || 0)} network</small></td><td><span className={`pai-status ${reward.status}`}>{reward.status}</span>{reward.paymentReference && <small>{reward.paymentReference}</small>}</td><td><div className="pai-row-actions">{reward.status === 'review' && <><button type="button" onClick={() => void rewardStatus(reward, 'approved')} disabled={Boolean(busy)}>Approve</button><button type="button" onClick={() => void rewardStatus(reward, 'void')} disabled={Boolean(busy)}>Void</button></>}{reward.status === 'approved' && <><button type="button" onClick={() => void rewardStatus(reward, 'paid')} disabled={Boolean(busy)}>Mark paid</button><button type="button" onClick={() => void rewardStatus(reward, 'void')} disabled={Boolean(busy)}>Void</button></>}</div></td></tr>) : <tr><td colSpan={6}>No private reward reviews yet.</td></tr>}</tbody></table></div></article>
+    </>}
+
+    {tab === 'growth-plan' && <>
+      <div className="pai-plan-head"><div><span>MONTHLY OPERATING PLAN</span><h2>{data.growth.currentMonth} growth targets</h2><p>Set internal targets, then compare them with measured platform actuals. Missing targets stay visibly unset.</p></div><MetricCard label="Registered users" value={number(data.growth.totalUsers)} note={`${number(data.growth.activeProfiles)} active profiles`} /></div>
+      <div className="pai-target-grid">{(Object.keys(metricLabels) as TargetMetric[]).map((metric) => { const target = currentTargets.get(metric); return <article className="pai-panel pai-target-card" key={metric}><header><span>{metricLabels[metric]}</span><strong>{metric === 'mrr_cents' ? money(targetActuals[metric]) : number(targetActuals[metric])}</strong></header><Progress actual={targetActuals[metric]} target={target ? Number(target.target_value) : null} moneyMetric={metric === 'mrr_cents'} />{target?.notes && <p>{target.notes}</p>}</article>; })}</div>
+      <form className="pai-panel pai-target-form" onSubmit={(event) => void saveTarget(event)}><header><div><span>SET OR UPDATE TARGET</span><strong>Internal growth plan</strong></div><small>Audited change</small></header><div className="pai-form-grid"><label>Month<input type="month" value={targetPeriod} onChange={(event) => setTargetPeriod(event.target.value)} required /></label><label>Metric<select value={targetMetric} onChange={(event) => setTargetMetric(event.target.value as TargetMetric)}>{(Object.keys(metricLabels) as TargetMetric[]).map((metric) => <option key={metric} value={metric}>{metricLabels[metric]}</option>)}</select></label><label>Target {targetMetric === 'mrr_cents' ? '· USD' : ''}<input type="number" min="0" step={targetMetric === 'mrr_cents' ? '0.01' : '1'} value={targetValue} onChange={(event) => setTargetValue(event.target.value)} required /></label><label className="wide">Notes<input value={targetNotes} onChange={(event) => setTargetNotes(event.target.value)} maxLength={240} /></label></div><button type="submit" disabled={busy === 'save-target' || !data.privateOpsReady}>{busy === 'save-target' ? 'Saving…' : 'Save growth target'}</button></form>
+      <div className="pai-chart-grid"><AcquisitionChart points={data.growth.trend} /><RevenueChart points={data.growth.trend} /></div>
+    </>}
+
+    <footer className="pai-page-foot">Generated {new Date(data.generatedAt).toLocaleString()} · Superadmin data is private and noindexed.</footer>
+  </section>;
+}

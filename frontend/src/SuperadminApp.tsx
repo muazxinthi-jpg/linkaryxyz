@@ -3,6 +3,7 @@ import AdminCommercialExperience from './AdminCommercialExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
 import AdminCouponsExperience from './AdminCouponsExperience';
 import AdminCreatorAccessExperience from './AdminCreatorAccessExperience';
+import AdminPlatformIntelligenceExperience from './AdminPlatformIntelligenceExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import SuperadminWorkspace from './SuperadminWorkspace';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
@@ -34,6 +35,7 @@ export default function SuperadminApp({ me }: { me: ProductMe }) {
   if (location.pathname === '/admin/community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
   if (location.pathname === '/admin/commercial') return <AdminCommercialExperience me={me} status={status} />;
   if (location.pathname === '/admin/coupons') return <SuperadminWorkspace me={me}><AdminCouponsExperience /></SuperadminWorkspace>;
+  if (location.pathname === '/admin/platform-intelligence') return <SuperadminWorkspace me={me}><AdminPlatformIntelligenceExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/readiness') return <AdminReadinessExperience me={me} status={status} />;
 
   return <Navigate to="/admin/readiness" replace />;
