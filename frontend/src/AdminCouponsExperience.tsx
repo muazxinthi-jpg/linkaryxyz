@@ -7,19 +7,21 @@ type Coupon = {
   discountType: 'percent' | 'fixed_cents' | 'fixed_price_cents';
   discountValue: number; eligiblePlanCodes: string[];
   maxRedemptions: number | null; maxRedemptionsPerAccount: number;
-  startsAt: string | null; endsAt: string | null; accessUntil: string | null;
+  startsAt: string | null; endsAt: string | null; accessUntil: string | null; accessDurationMonths: number | null;
   active: boolean; stackable: boolean; redeemedCount: number; reservedCount: number;
 };
-type CouponResponse = { plans: Plan[]; coupons: Coupon[]; supportsAccessUntil: boolean };
+type CouponResponse = {
+  plans: Plan[]; coupons: Coupon[]; supportsAccessUntil: boolean; supportsAccessDuration: boolean;
+};
 type Draft = {
   code: string; label: string; discountType: Coupon['discountType']; discountValue: string;
   eligiblePlanCodes: string[]; maxRedemptions: string; maxRedemptionsPerAccount: string;
-  startsAt: string; endsAt: string; accessUntil: string; stackable: boolean;
+  startsAt: string; endsAt: string; accessUntil: string; accessDurationMonths: string; stackable: boolean;
 };
 
 const blankDraft = (): Draft => ({
   code: '', label: '', discountType: 'percent', discountValue: '20', eligiblePlanCodes: [],
-  maxRedemptions: '', maxRedemptionsPerAccount: '1', startsAt: '', endsAt: '', accessUntil: '', stackable: false,
+  maxRedemptions: '', maxRedemptionsPerAccount: '1', startsAt: '', endsAt: '', accessUntil: '', accessDurationMonths: '', stackable: false,
 });
 
 function cookie(name: string): string | null {
@@ -36,15 +38,23 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 const localDate = (value: string | null) => value ? new Date(value).toLocaleString() : 'No expiry';
-const discountLabel = (coupon: Coupon) => coupon.discountType === 'percent'
-  ? `${coupon.discountValue}% off`
-  : coupon.discountType === 'fixed_cents' ? `${money(coupon.discountValue)} off` : `${money(coupon.discountValue)} final price`;
 const isFreeCoupon = (discountType: Coupon['discountType'], discountValue: string | number) => discountType === 'percent' && Number(discountValue) === 100;
+const discountLabel = (coupon: Coupon) => isFreeCoupon(coupon.discountType, coupon.discountValue)
+  ? 'Free access pass'
+  : coupon.discountType === 'percent'
+    ? `${coupon.discountValue}% off`
+    : coupon.discountType === 'fixed_cents' ? `${money(coupon.discountValue)} off` : `${money(coupon.discountValue)} final price`;
+const accessLabel = (coupon: Coupon) => coupon.accessDurationMonths
+  ? `${coupon.accessDurationMonths} month${coupon.accessDurationMonths === 1 ? '' : 's'} from claim`
+  : coupon.accessUntil
+    ? `until ${localDate(coupon.accessUntil)}`
+    : 'one billing period from redemption';
 
 export default function AdminCouponsExperience() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [supportsAccessUntil, setSupportsAccessUntil] = useState(false);
+  const [supportsAccessDuration, setSupportsAccessDuration] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => blankDraft());
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState('');
@@ -57,6 +67,7 @@ export default function AdminCouponsExperience() {
       setPlans(result.plans || []);
       setCoupons(result.coupons || []);
       setSupportsAccessUntil(Boolean(result.supportsAccessUntil));
+      setSupportsAccessDuration(Boolean(result.supportsAccessDuration));
       setDraft((current) => current.eligiblePlanCodes.length ? current : { ...current, eligiblePlanCodes: (result.plans || []).map((plan) => plan.code) });
       setState('ready');
     } catch (error) {
@@ -85,6 +96,10 @@ export default function AdminCouponsExperience() {
     const type = draft.discountType;
     const value = type === 'percent' ? Math.round(raw) : Math.round(raw * 100);
     const freeCoupon = isFreeCoupon(type, value);
+    const duration = draft.accessDurationMonths ? Number(draft.accessDurationMonths) : null;
+    if (duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 60)) {
+      setMessage('Free access duration must be between 1 and 60 whole months.'); return;
+    }
     setBusy('create');
     setMessage('');
     try {
@@ -96,14 +111,17 @@ export default function AdminCouponsExperience() {
           eligiblePlanCodes: draft.eligiblePlanCodes, maxRedemptions: draft.maxRedemptions || null,
           maxRedemptionsPerAccount: draft.maxRedemptionsPerAccount || '1', startsAt: draft.startsAt || null,
           endsAt: draft.endsAt || null,
-          accessUntil: supportsAccessUntil && freeCoupon ? draft.accessUntil || null : null,
+          accessDurationMonths: supportsAccessDuration && freeCoupon ? duration : null,
+          accessUntil: supportsAccessUntil && freeCoupon && !duration ? draft.accessUntil || null : null,
           stackable: draft.stackable,
         }),
       });
       setMessage(freeCoupon
-        ? draft.accessUntil && supportsAccessUntil
-          ? '100% coupon created. Claims use the configured fixed access expiry with no USDC payment.'
-          : '100% coupon created. Each redemption grants one paid billing period with no USDC payment.'
+        ? duration && supportsAccessDuration
+          ? `Free access pass created. Each account receives ${duration} month${duration === 1 ? '' : 's'} from its own claim time, with monthly plan credits.`
+          : draft.accessUntil && supportsAccessUntil
+            ? 'Free access pass created with the configured fixed expiry and no USDC payment.'
+            : 'Free access pass created. Each redemption grants one paid billing period with no USDC payment.'
         : 'Coupon created. It is active for eligible checkout quotes.');
       setDraft({ ...blankDraft(), eligiblePlanCodes: plans.map((plan) => plan.code) });
       await load();
@@ -127,10 +145,42 @@ export default function AdminCouponsExperience() {
     finally { setBusy(''); }
   }
 
-  async function setCouponAccessUntil(coupon: Coupon) {
-    if (!supportsAccessUntil || !isFreeCoupon(coupon.discountType, coupon.discountValue)) return;
+  async function setCouponAccessDuration(coupon: Coupon) {
+    if (!supportsAccessDuration || !isFreeCoupon(coupon.discountType, coupon.discountValue) || coupon.accessUntil) return;
     const requested = window.prompt(
-      'Access until, as an ISO 8601 timestamp including timezone. Example: 2028-12-31T23:59:59.000Z',
+      `Free access duration for ${coupon.code}, in whole months from each account's claim time. Enter 1-60. Leave blank to reset to one billing period.`,
+      coupon.accessDurationMonths ? String(coupon.accessDurationMonths) : '12',
+    );
+    if (requested === null) return;
+    const trimmed = requested.trim();
+    const durationMonths = trimmed === '' ? null : Number(trimmed);
+    if (durationMonths !== null && (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 60)) {
+      setMessage('Access duration must be between 1 and 60 whole months.');
+      return;
+    }
+    const policy = durationMonths === null ? 'one billing period from redemption' : `${durationMonths} month${durationMonths === 1 ? '' : 's'} from each claim`;
+    if (!window.confirm(`Set ${coupon.code} free access to ${policy}? This changes future redemptions only.`)) return;
+    const csrf = cookie('__Host-linkary_csrf');
+    if (!csrf) { setMessage('Your admin session needs to be refreshed.'); return; }
+    const busyKey = `duration:${coupon.id}`;
+    setBusy(busyKey);
+    setMessage('');
+    try {
+      await apiJson(`/api/admin/commercial/coupons/${encodeURIComponent(coupon.id)}/access-duration`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+        body: JSON.stringify({ durationMonths }),
+      });
+      setMessage(`${coupon.code} free-access policy saved as ${policy}.`);
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Coupon access duration could not be changed.'); }
+    finally { setBusy(''); }
+  }
+
+  async function setCouponAccessUntil(coupon: Coupon) {
+    if (!supportsAccessUntil || !isFreeCoupon(coupon.discountType, coupon.discountValue) || coupon.accessDurationMonths) return;
+    const requested = window.prompt(
+      `Fixed Access until for ${coupon.code}, as an ISO 8601 timestamp including timezone. Example: 2028-12-31T23:59:59.000Z`,
       coupon.accessUntil || '',
     );
     if (requested === null) return;
@@ -168,21 +218,21 @@ export default function AdminCouponsExperience() {
     </header>
     <div className="admin-coupons-shell">
       <section className="admin-coupons-heading">
-        <div><span>COMMERCIAL CONTROL</span><h1>Discount coupons</h1><p>Create controlled checkout discounts without changing plan prices. Superadmin may issue 100% coupons for tracked free access, with claim timing kept separate from entitlement expiry.</p></div>
+        <div><span>COMMERCIAL CONTROL</span><h1>Coupons & free access</h1><p>Create normal checkout discounts or tracked free-access passes. A free pass can grant a set number of months from each user's claim time, a fixed calendar expiry, or the legacy one billing period.</p></div>
         <div className="admin-coupons-summary"><article><small>Coupons</small><strong>{coupons.length}</strong></article><article><small>Active</small><strong>{activeCoupons}</strong></article></div>
       </section>
       {message && <div className="admin-coupons-message">{message}</div>}
       <div className="admin-coupons-layout">
         <section className="admin-coupons-card">
-          <div className="admin-coupons-section-head"><div><span>NEW COUPON</span><h2>Create discount code</h2></div><small>All terms are audited.</small></div>
+          <div className="admin-coupons-section-head"><div><span>NEW CODE</span><h2>Create coupon or free pass</h2></div><small>All terms are audited.</small></div>
           <form className="admin-coupons-form" onSubmit={createCoupon}>
             <div className="admin-coupons-two">
-              <label>Coupon code<input required maxLength={40} value={draft.code} placeholder="BETA100" onChange={(e) => setDraft({ ...draft, code: e.target.value.toUpperCase().replace(/\s+/g, '') })} /></label>
-              <label>Internal label<input required maxLength={100} value={draft.label} placeholder="Controlled Beta access" onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></label>
+              <label>Coupon code<input required maxLength={40} value={draft.code} placeholder="LINKARYFOUNDERS" onChange={(e) => setDraft({ ...draft, code: e.target.value.toUpperCase().replace(/\s+/g, '') })} /></label>
+              <label>Internal label<input required maxLength={100} value={draft.label} placeholder="Founder 12-month access" onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></label>
             </div>
             <div className="admin-coupons-two">
-              <label>Discount type<select value={draft.discountType} onChange={(e) => setDraft({ ...draft, discountType: e.target.value as Coupon['discountType'], discountValue: e.target.value === 'percent' ? '20' : '1.00', accessUntil: '' })}><option value="percent">Percent off</option><option value="fixed_cents">Fixed USD amount off</option><option value="fixed_price_cents">Final monthly price</option></select></label>
-              <label>{draft.discountType === 'percent' ? 'Percent' : 'USD amount'}<input required type="number" min={draft.discountType === 'percent' ? '1' : '0.01'} max={draft.discountType === 'percent' ? '100' : undefined} step={draft.discountType === 'percent' ? '1' : '0.01'} value={draft.discountValue} onChange={(e) => setDraft({ ...draft, discountValue: e.target.value, accessUntil: e.target.value === '100' ? draft.accessUntil : '' })} /></label>
+              <label>Discount type<select value={draft.discountType} onChange={(e) => setDraft({ ...draft, discountType: e.target.value as Coupon['discountType'], discountValue: e.target.value === 'percent' ? '20' : '1.00', accessUntil: '', accessDurationMonths: '' })}><option value="percent">Percent off</option><option value="fixed_cents">Fixed USD amount off</option><option value="fixed_price_cents">Final monthly price</option></select></label>
+              <label>{draft.discountType === 'percent' ? 'Percent' : 'USD amount'}<input required type="number" min={draft.discountType === 'percent' ? '1' : '0.01'} max={draft.discountType === 'percent' ? '100' : undefined} step={draft.discountType === 'percent' ? '1' : '0.01'} value={draft.discountValue} onChange={(e) => setDraft({ ...draft, discountValue: e.target.value, accessUntil: e.target.value === '100' ? draft.accessUntil : '', accessDurationMonths: e.target.value === '100' ? draft.accessDurationMonths : '' })} /></label>
             </div>
             <fieldset className="admin-coupons-plans"><legend>Eligible paid plans</legend>{plans.map((plan) => <label key={plan.code}><input type="checkbox" checked={draft.eligiblePlanCodes.includes(plan.code)} onChange={() => togglePlan(plan.code)} /><span><strong>{plan.name}</strong><small>{money(plan.base_price_cents)} / month</small></span></label>)}</fieldset>
             <div className="admin-coupons-two">
@@ -193,10 +243,11 @@ export default function AdminCouponsExperience() {
               <label>Starts <small>(blank = now)</small><input type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} /></label>
               <label>Claim ends <small>(blank = no expiry)</small><input type="datetime-local" value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} /></label>
             </div>
-            {supportsAccessUntil && draftIsFreeCoupon && <label>Access until <small>(blank = one billing period from redemption)</small><input type="datetime-local" value={draft.accessUntil} onChange={(e) => setDraft({ ...draft, accessUntil: e.target.value })} /></label>}
+            {supportsAccessDuration && draftIsFreeCoupon && <label>Free access duration <small>(months from each user's claim time, blank = one billing period)</small><input type="number" min="1" max="60" step="1" value={draft.accessDurationMonths} placeholder="12" onChange={(e) => setDraft({ ...draft, accessDurationMonths: e.target.value, accessUntil: e.target.value ? '' : draft.accessUntil })} /></label>}
+            {supportsAccessUntil && draftIsFreeCoupon && !draft.accessDurationMonths && <label>Fixed Access until <small>(alternative to duration from claim)</small><input type="datetime-local" value={draft.accessUntil} onChange={(e) => setDraft({ ...draft, accessUntil: e.target.value })} /></label>}
             <label className="admin-coupons-check"><input type="checkbox" checked={draft.stackable} onChange={(e) => setDraft({ ...draft, stackable: e.target.checked })} /><span><strong>Allow stacking</strong><small>Coupon can combine with another eligible promotion or private account price adjustment.</small></span></label>
-            <div className="admin-coupons-warning">Claim end controls when a code may be redeemed. For a 100% coupon, Access until controls the fixed entitlement expiry when configured; leaving it blank keeps the existing one paid billing-period grant. No fake $0 onchain payment is created.</div>
-            <button className="admin-coupons-primary" disabled={busy === 'create' || state !== 'ready'}>{busy === 'create' ? 'Creating…' : 'Create coupon'}</button>
+            <div className="admin-coupons-warning">Claim end only controls how long the code can be claimed. For a 100% free-access pass, Duration starts separately for each account when they redeem. Example: 12 months claimed on 10 Sep 2026 stays active until 10 Sep 2027. Plan usage credits refresh each entitlement month. No fake $0 onchain payment is created.</div>
+            <button className="admin-coupons-primary" disabled={busy === 'create' || state !== 'ready'}>{busy === 'create' ? 'Creating…' : draftIsFreeCoupon ? 'Create free access pass' : 'Create coupon'}</button>
           </form>
         </section>
         <section className="admin-coupons-card admin-coupons-list-card">
@@ -205,6 +256,7 @@ export default function AdminCouponsExperience() {
           {state === 'ready' && !coupons.length && <div className="admin-coupons-empty">No coupons yet. Create the first controlled discount code.</div>}
           <div className="admin-coupons-list">{coupons.map((coupon) => {
             const accessBusy = busy === `access:${coupon.id}`;
+            const durationBusy = busy === `duration:${coupon.id}`;
             const statusBusy = busy === coupon.id;
             const freeCoupon = isFreeCoupon(coupon.discountType, coupon.discountValue);
             return <article key={coupon.id} className={coupon.active ? '' : 'inactive'}>
@@ -212,10 +264,11 @@ export default function AdminCouponsExperience() {
               <h3>{coupon.label}</h3><div className="admin-coupons-discount">{discountLabel(coupon)}</div>
               <div className="admin-coupons-meta"><span><b>{coupon.redeemedCount}</b> redeemed</span><span><b>{coupon.reservedCount}</b> reserved</span><span><b>{coupon.maxRedemptions ?? '∞'}</b> total limit</span><span><b>{coupon.maxRedemptionsPerAccount}</b> per account</span></div>
               <div className="admin-coupons-plan-tags">{coupon.eligiblePlanCodes.map((code) => <span key={code}>{plans.find((plan) => plan.code === code)?.name || code}</span>)}</div>
-              <small>Starts {localDate(coupon.startsAt)} · Claim ends {localDate(coupon.endsAt)}{freeCoupon ? ` · Access ${coupon.accessUntil ? `until ${localDate(coupon.accessUntil)}` : 'one billing period from redemption'}` : ''} · {coupon.stackable ? 'Stackable' : 'Not stackable'}</small>
+              <small>Starts {localDate(coupon.startsAt)} · Claim ends {localDate(coupon.endsAt)}{freeCoupon ? ` · Free access ${accessLabel(coupon)}` : ''} · {coupon.stackable ? 'Stackable' : 'Not stackable'}</small>
               <div className="admin-coupons-actions">
-                {supportsAccessUntil && freeCoupon && <button type="button" disabled={accessBusy || statusBusy} onClick={() => void setCouponAccessUntil(coupon)}>{accessBusy ? 'Saving expiry…' : 'Set access expiry'}</button>}
-                <button type="button" disabled={statusBusy || accessBusy} onClick={() => void setCouponActive(coupon, !coupon.active)}>{statusBusy ? 'Saving…' : coupon.active ? 'Deactivate' : 'Activate'}</button>
+                {supportsAccessDuration && freeCoupon && !coupon.accessUntil && <button type="button" disabled={durationBusy || statusBusy || accessBusy} onClick={() => void setCouponAccessDuration(coupon)}>{durationBusy ? 'Saving duration…' : coupon.accessDurationMonths ? 'Edit duration' : 'Set duration from claim'}</button>}
+                {supportsAccessUntil && freeCoupon && !coupon.accessDurationMonths && <button type="button" disabled={accessBusy || statusBusy || durationBusy} onClick={() => void setCouponAccessUntil(coupon)}>{accessBusy ? 'Saving expiry…' : 'Set fixed expiry'}</button>}
+                <button type="button" disabled={statusBusy || accessBusy || durationBusy} onClick={() => void setCouponActive(coupon, !coupon.active)}>{statusBusy ? 'Saving…' : coupon.active ? 'Deactivate' : 'Activate'}</button>
               </div>
             </article>;
           })}</div>
