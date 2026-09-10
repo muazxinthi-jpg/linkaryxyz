@@ -35,7 +35,9 @@ jobs:
         run: |
           git config user.name 'Linkary Engineering'
           git config user.email 'engineering@linkary.xyz'
-          git add src/routes/profiles.ts tests/public-profile-rendering-hotfix.test.ts
+          git add src/routes/profiles.ts tests/public-profile-rendering-hotfix.test.ts tests/public-profile-analytics-layout-regression.test.ts
           git diff --cached --check
           git commit -m 'Fix public profile rendering regression'
           git push origin HEAD:hotfix/public-profile-rendering-regression
+
+# Verification pass 2: aligned guards with the repaired renderer structure.
