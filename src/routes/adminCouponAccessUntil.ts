@@ -12,6 +12,7 @@ type CouponRow = {
   starts_at: string | null;
   ends_at: string | null;
   access_until: string | null;
+  access_duration_months?: number | null;
 };
 
 const now = () => new Date().toISOString();
@@ -46,16 +47,17 @@ export async function updateAdminCouponAccessUntil(
     throw new ServiceConfigurationError('Coupon access-until database migration is not applied');
   }
 
+  // SELECT * remains compatible both before and after migration 0043.
   const current = await db.first<CouponRow>(
-    `SELECT id, code, discount_type, discount_value, starts_at, ends_at, access_until
-       FROM discount_coupons
-      WHERE id = ?
-      LIMIT 1`,
+    `SELECT * FROM discount_coupons WHERE id = ? LIMIT 1`,
     [couponId],
   );
   if (!current) throw new HttpError(404, 'Coupon not found', 'coupon_not_found');
   if (current.discount_type !== 'percent' || current.discount_value !== 100) {
     throw new HttpError(400, 'Access until is available only for 100% coupons', 'coupon_access_until_not_supported');
+  }
+  if (current.access_duration_months) {
+    throw new HttpError(409, 'This coupon already uses a duration from claim. Reset that policy before setting a fixed Access until date.', 'coupon_access_policy_conflict');
   }
   if (current.starts_at && accessUntil <= current.starts_at) {
     throw new HttpError(400, 'Access until must be after the coupon start date', 'coupon_access_until_invalid');
