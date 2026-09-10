@@ -29,6 +29,7 @@ type CouponRow = {
   discount_value: number;
   eligible_plan_codes_json: string;
   created_by_user_id: string | null;
+  access_until?: string | null;
 };
 
 function addOneMonth(iso: string): string {
@@ -141,7 +142,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
 
   const timestamp = now();
   const coupon = await db.first<CouponRow>(
-    `SELECT id, code, discount_type, discount_value, eligible_plan_codes_json, created_by_user_id
+    `SELECT *
        FROM discount_coupons
       WHERE upper(code) = ? AND is_active = 1
         AND (starts_at IS NULL OR starts_at <= ?)
@@ -159,6 +160,9 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
   if (!coupon.created_by_user_id) {
     throw new ServiceConfigurationError('The 100% coupon is missing its Superadmin creator');
   }
+  if (coupon.access_until && coupon.access_until <= timestamp) {
+    throw new HttpError(400, 'Coupon access period has expired', 'coupon_access_expired');
+  }
 
   await requireFreeCouponGuards(db);
   if (await activePaidAccess(db, owner.ownerType, owner.ownerId, timestamp)) {
@@ -167,7 +171,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
 
   const redemptionId = id('crd');
   const grantId = id('grant');
-  const endsAt = addOneMonth(timestamp);
+  const grantEndsAt = coupon.access_until || addOneMonth(timestamp);
   const reason = `coupon_redemption:${redemptionId}:${coupon.code}`;
   const statements = [
     db.statement(
@@ -187,7 +191,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
       [grantId,
         owner.ownerType === 'user' ? owner.ownerId : null,
         owner.ownerType === 'organization' ? owner.ownerId : null,
-        plan.id, timestamp, endsAt, reason, coupon.created_by_user_id, timestamp, timestamp],
+        plan.id, timestamp, grantEndsAt, reason, coupon.created_by_user_id, timestamp, timestamp],
     ),
   ];
 
@@ -209,7 +213,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
      VALUES (?, ?, 'user', 'billing_coupon.free_redeemed', 'coupon_redemption', ?, ?, ?, ?)`,
     [id('aud'), auth.user.id, redemptionId,
       owner.ownerType === 'organization' ? owner.ownerId : null,
-      JSON.stringify({ couponId: coupon.id, couponCode: coupon.code, grantId, planCode: plan.code, periodStart: timestamp, periodEnd: endsAt }),
+      JSON.stringify({ couponId: coupon.id, couponCode: coupon.code, grantId, planCode: plan.code, periodStart: timestamp, periodEnd: grantEndsAt, accessUntil: coupon.access_until || null }),
       timestamp],
   ));
 
@@ -229,7 +233,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
     finalPriceCents: 0,
     plan: { code: plan.code, name: plan.name },
     periodStart: timestamp,
-    periodEnd: endsAt,
+    periodEnd: grantEndsAt,
     monthlyUsageCredits: plan.monthly_usage_credits,
   }, { status: 201, headers: { 'cache-control': 'private, no-store' } });
 }

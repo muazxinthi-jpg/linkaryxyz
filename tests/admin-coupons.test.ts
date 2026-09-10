@@ -10,6 +10,7 @@ const ui = readFileSync(new URL('../frontend/src/AdminCouponsExperience.tsx', im
 const checkout = readFileSync(new URL('../frontend/src/BillingCheckoutPanel.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0036_free_coupon_redemption_guards.sql', import.meta.url), 'utf8');
+const accessMigration = readFileSync(new URL('../migrations/0042_coupon_access_until.sql', import.meta.url), 'utf8');
 
 test('Superadmin coupon API reuses the existing commercial coupon schema', () => {
   assert.equal(route.includes('discount_coupons'), true);
@@ -21,7 +22,7 @@ test('Superadmin coupon API reuses the existing commercial coupon schema', () =>
 
 test('Superadmin can create a 100 percent coupon while fixed discounts still cannot fake zero-value checkout', () => {
   assert.equal(createRoute.includes('between 1% and 100%'), true);
-  assert.equal(createRoute.includes('discountValue === 100'), true);
+  assert.equal(createRoute.includes("discountValue === 100"), true);
   assert.equal(createRoute.includes('Fixed discount must leave a positive checkout price'), true);
   assert.equal(createRoute.includes('Choose at least one eligible paid plan'), true);
 });
@@ -37,6 +38,30 @@ test('100 percent coupon redemption is a tracked entitlement, not a zero-value p
   assert.equal(freeRoute.includes('monthly_grant'), true);
   assert.equal(freeRoute.includes('billing_payments'), false);
   assert.equal(freeRoute.includes('billing_checkout_intents'), false);
+});
+
+test('coupon claim deadline is separate from optional fixed access expiry', () => {
+  assert.equal(accessMigration.includes('ADD COLUMN access_until TEXT'), true);
+  assert.equal(accessMigration.includes('discount_coupons.ends_at remains the deadline for claiming a coupon'), true);
+  assert.equal(createRoute.includes('accessUntil?: unknown'), true);
+  assert.equal(createRoute.includes('Access until is available only for 100% coupons'), true);
+  assert.equal(createRoute.includes('Access until must be after the coupon claim end date'), true);
+  assert.equal(createRoute.includes('access_until'), true);
+  assert.equal(route.includes('supportsAccessUntil'), true);
+  assert.equal(route.includes('accessUntil:'), true);
+  assert.equal(freeRoute.includes('coupon.access_until || addOneMonth(timestamp)'), true);
+  assert.equal(freeRoute.includes("'coupon_access_expired'"), true);
+  assert.equal(ui.includes('Claim ends'), true);
+  assert.equal(ui.includes('Access until'), true);
+  assert.equal(ui.includes('one billing period from redemption'), true);
+});
+
+test('access-until rollout is backward compatible until migration 0042 is applied', () => {
+  assert.equal(createRoute.includes('PRAGMA table_info(discount_coupons)'), true);
+  assert.equal(createRoute.includes('Coupon access-until database migration is not applied'), true);
+  assert.equal(route.includes('PRAGMA table_info(discount_coupons)'), true);
+  assert.equal(ui.includes('supportsAccessUntil && draftIsFreeCoupon'), true);
+  assert.equal(freeRoute.includes('SELECT *'), true);
 });
 
 test('free coupon redemption preserves total and per-account limits including paid reservations', () => {
@@ -64,10 +89,10 @@ test('tracking entry exposes Superadmin coupon creation plus authenticated free 
   assert.equal(entry.includes('redeemFreeCoupon'), true);
 });
 
-test('Superadmin coupon UI accepts exactly 100 percent and explains coupon versus comped access', () => {
+test('Superadmin coupon UI accepts exactly 100 percent and separates claim timing from access timing', () => {
   assert.equal(ui.includes("max={draft.discountType === 'percent' ? '100' : undefined}"), true);
   assert.equal(ui.includes('100% coupon'), true);
-  assert.equal(ui.includes('Direct comped accounts remain a separate entitlement grant'), true);
+  assert.equal(ui.includes('claim timing kept separate from entitlement expiry'), true);
   assert.equal(ui.includes('Total redemption limit'), true);
   assert.equal(ui.includes('Per-account limit'), true);
 });
