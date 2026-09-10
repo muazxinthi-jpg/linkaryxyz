@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { requireDb } from '../env';
+import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { requireSuperadmin, verifyCsrf } from '../auth/session';
 import { HttpError, json, readJson } from '../http';
@@ -53,6 +53,11 @@ async function paidPlans(db: Db): Promise<PlanRow[]> {
   );
 }
 
+async function supportsCouponAccessUntil(db: Db): Promise<boolean> {
+  const columns = await db.all<{ name: string }>('PRAGMA table_info(discount_coupons)');
+  return columns.some((column) => column.name === 'access_until');
+}
+
 function validateDiscount(type: DiscountType, value: number, plans: PlanRow[]): void {
   if (type === 'percent') {
     if (value > 100) throw new HttpError(400, 'Percentage coupons must be between 1% and 100%.', 'coupon_discount_invalid');
@@ -75,7 +80,7 @@ export async function createAdminCoupon100(request: Request, env: Env): Promise<
   const body = await readJson<{
     code?: unknown; label?: unknown; discountType?: unknown; discountValue?: unknown;
     eligiblePlanCodes?: unknown; maxRedemptions?: unknown; maxRedemptionsPerAccount?: unknown;
-    startsAt?: unknown; endsAt?: unknown; stackable?: unknown;
+    startsAt?: unknown; endsAt?: unknown; accessUntil?: unknown; stackable?: unknown;
   }>(request);
   const db = new Db(requireDb(env));
   const code = normalizeCode(body.code);
@@ -98,8 +103,21 @@ export async function createAdminCoupon100(request: Request, env: Env): Promise<
   const maxRedemptions = optionalPositiveInt(body.maxRedemptions, 'Maximum redemptions');
   const maxRedemptionsPerAccount = optionalPositiveInt(body.maxRedemptionsPerAccount, 'Per-account redemption limit') ?? 1;
   const startsAt = optionalDate(body.startsAt, 'Start date') || now();
-  const endsAt = optionalDate(body.endsAt, 'End date');
-  if (endsAt && endsAt <= startsAt) throw new HttpError(400, 'Coupon end date must be after its start date', 'coupon_date_invalid');
+  const endsAt = optionalDate(body.endsAt, 'Claim end date');
+  const accessUntil = optionalDate(body.accessUntil, 'Access until date');
+  if (endsAt && endsAt <= startsAt) throw new HttpError(400, 'Coupon claim end date must be after its start date', 'coupon_date_invalid');
+
+  const isFreeCoupon = discountType === 'percent' && discountValue === 100;
+  if (accessUntil && !isFreeCoupon) {
+    throw new HttpError(400, 'Access until is available only for 100% coupons', 'coupon_access_until_not_supported');
+  }
+  if (accessUntil && accessUntil <= startsAt) {
+    throw new HttpError(400, 'Access until must be after the coupon start date', 'coupon_access_until_invalid');
+  }
+  if (accessUntil && endsAt && accessUntil <= endsAt) {
+    throw new HttpError(400, 'Access until must be after the coupon claim end date', 'coupon_access_until_invalid');
+  }
+
   const stackable = body.stackable === true;
   const couponId = newId('cpn');
   const timestamp = now();
@@ -107,8 +125,22 @@ export async function createAdminCoupon100(request: Request, env: Env): Promise<
     throw new HttpError(409, 'That coupon code already exists', 'coupon_code_exists');
   }
 
-  await db.batch([
-    db.statement(
+  const accessUntilSupported = await supportsCouponAccessUntil(db);
+  if (accessUntil && !accessUntilSupported) {
+    throw new ServiceConfigurationError('Coupon access-until database migration is not applied');
+  }
+
+  const insertCoupon = accessUntilSupported
+    ? db.statement(
+      `INSERT INTO discount_coupons
+        (id, code, label, discount_type, discount_value, eligible_plan_codes_json,
+         max_redemptions, max_redemptions_per_account, starts_at, ends_at, access_until,
+         is_active, stackable, created_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+      [couponId, code, label, discountType, discountValue, JSON.stringify(requestedCodes), maxRedemptions,
+        maxRedemptionsPerAccount, startsAt, endsAt, accessUntil, stackable ? 1 : 0, auth.user.id, timestamp, timestamp],
+    )
+    : db.statement(
       `INSERT INTO discount_coupons
         (id, code, label, discount_type, discount_value, eligible_plan_codes_json,
          max_redemptions, max_redemptions_per_account, starts_at, ends_at,
@@ -116,15 +148,18 @@ export async function createAdminCoupon100(request: Request, env: Env): Promise<
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [couponId, code, label, discountType, discountValue, JSON.stringify(requestedCodes), maxRedemptions,
         maxRedemptionsPerAccount, startsAt, endsAt, stackable ? 1 : 0, auth.user.id, timestamp, timestamp],
-    ),
+    );
+
+  await db.batch([
+    insertCoupon,
     db.statement(
       `INSERT INTO audit_logs
         (id, actor_user_id, actor_kind, action, resource_type, resource_id, organization_id, metadata_json, created_at)
        VALUES (?, ?, 'superadmin', 'billing_coupon.created', 'discount_coupon', ?, NULL, ?, ?)`,
       [newId('aud'), auth.user.id, couponId, JSON.stringify({
         after: { code, label, discountType, discountValue, eligiblePlanCodes: requestedCodes,
-          maxRedemptions, maxRedemptionsPerAccount, startsAt, endsAt, stackable, active: true,
-          zeroValueRedemption: discountType === 'percent' && discountValue === 100 },
+          maxRedemptions, maxRedemptionsPerAccount, startsAt, endsAt, accessUntil, stackable, active: true,
+          zeroValueRedemption: isFreeCoupon },
       }), timestamp],
     ),
   ]);
