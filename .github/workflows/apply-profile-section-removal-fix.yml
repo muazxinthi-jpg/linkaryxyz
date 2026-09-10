@@ -1,0 +1,39 @@
+name: Apply history-safe profile section removal fix
+
+on:
+  push:
+    branches:
+      - fix/profile-section-removal-archive
+    paths:
+      - .github/workflows/apply-profile-section-removal-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/profile-section-removal-archive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply guarded removal repair
+        run: python scripts/apply-profile-section-removal-fix.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Run focused profile removal tests
+        run: npx tsx --test tests/profile-section-removal-history.test.ts tests/profile-editor-social-nft.test.ts tests/public-profile-analytics-layout-regression.test.ts
+      - name: Run full repository checks
+        run: npm run check
+      - name: Commit verified removal repair
+        run: |
+          git config user.name "Muaz Linkary"
+          git config user.email "muazxinthi@gmail.com"
+          git add src/routes/profiles.ts frontend/src/ProfileExperienceBeta.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: make profile section removal history-safe"
+          git push origin HEAD:fix/profile-section-removal-archive
