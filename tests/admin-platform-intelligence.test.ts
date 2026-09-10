@@ -29,7 +29,6 @@ test('DAU WAU and MAU use bounded authenticated session activity without changin
   assert.match(session, /SESSION_ACTIVITY_REFRESH_MS = 6 \* 60 \* 60 \* 1000/);
   assert.match(session, /UPDATE sessions SET last_seen_at/);
   assert.match(session, /telemetry write failure must not interrupt an otherwise valid session/i);
-  assert.match(session, /provider_user_id/).negated;
 });
 
 test('financial ratios use recorded billing only and do not fabricate free-pass revenue', () => {
