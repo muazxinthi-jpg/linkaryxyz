@@ -8,6 +8,7 @@ const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 
 const app = readFileSync(new URL('../frontend/src/SuperadminApp.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../frontend/src/SuperadminWorkspace.tsx', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../frontend/src/AdminPlatformIntelligenceExperience.tsx', import.meta.url), 'utf8');
+const rewardUi = readFileSync(new URL('../frontend/src/AdminReferralRewardsPanel.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/admin-platform-intelligence.css', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0044_superadmin_platform_intelligence.sql', import.meta.url), 'utf8');
 const networkMigration = readFileSync(new URL('../migrations/0037_seven_generation_network.sql', import.meta.url), 'utf8');
@@ -47,7 +48,7 @@ test('financial ratios use recorded billing only and do not fabricate free-pass 
   assert.match(ui, /Cost-based metrics such as gross margin, burn, CAC and LTV are intentionally not invented/);
 });
 
-test('private referral rewards are discretionary, audited and never automatic public payout logic', () => {
+test('legacy discretionary rewards remain private and settlement controlled', () => {
   for (const token of [
     'internal_referral_rewards',
     "status IN ('review', 'approved', 'paid')",
@@ -58,8 +59,9 @@ test('private referral rewards are discretionary, audited and never automatic pu
   ]) assert.equal(route.toLowerCase().includes(token.toLowerCase()), true, token);
   assert.match(migration, /do not create an automatic referral liability or a public\s+-- promise to pay/);
   assert.match(networkMigration, /Economic downstream rewards are deliberately NOT implemented/);
-  assert.match(ui, /Referral rewards are discretionary internal records/);
-  assert.match(ui, /It does not become an amount to pay until a Superadmin explicitly approves it/);
+  assert.match(ui, /Referral reward intelligence stays inside Superadmin/);
+  assert.match(ui, /no amount becomes payable without Superadmin approval/);
+  assert.match(ui, /LEGACY DISCRETIONARY REWARDS/);
 });
 
 test('referral analytics reuse the canonical seven-generation graph and add bounded funnel indexes', () => {
@@ -124,12 +126,14 @@ test('six month operating history is calendar bounded and visualized without inv
   assert.match(css, /\.pai-history-grid/);
 });
 
-test('payables command center surfaces approved rewards without changing settlement controls', () => {
-  assert.match(ui, /PAYABLES COMMAND CENTER/);
+test('payables command center remains explicit under automatic V3 rewards and legacy records', () => {
+  assert.match(rewardUi, /AUTOMATIC PAYABLES/);
+  assert.match(rewardUi, /Approved rewards waiting for settlement/);
+  assert.match(rewardUi, /Mark paid/);
+  assert.match(rewardUi, /Manual approval still required/);
   assert.match(ui, /\.filter\(\(reward\) => reward\.status === 'approved'\)/);
   assert.match(ui, /People waiting/);
   assert.match(ui, /Oldest waiting/);
-  assert.match(ui, /Mark paid/);
   assert.match(ui, /waitingDays/);
   assert.match(route, /A payment reference is required before a reward is marked paid/);
 });
