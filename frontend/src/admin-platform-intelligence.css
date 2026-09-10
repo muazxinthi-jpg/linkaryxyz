@@ -361,3 +361,106 @@
   .pai-chart-key { flex-wrap: wrap; }
   .pai-chart-key small { width: 100%; margin-left: 0; }
 }
+
+/* Platform Intelligence V2 */
+.pai-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+.pai-executive-pulse .pai-metric-card { background: #f8f7f4; box-shadow: none; }
+
+.pai-velocity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.pai-velocity-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px 10px;
+  padding: 15px;
+  border: 1px solid rgba(21, 25, 27, .1);
+  border-radius: 12px;
+  background: #f8f7f4;
+}
+.pai-velocity-card > div { display: grid; gap: 5px; min-width: 0; }
+.pai-velocity-card > div > span { color: #777d80; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.pai-velocity-card > div > strong { overflow: hidden; font-size: clamp(22px, 2.5vw, 30px); letter-spacing: -.035em; text-overflow: ellipsis; }
+.pai-velocity-card > small { grid-column: 1 / -1; color: #83898c; font-size: 10px; }
+.pai-change { display: inline-flex; align-items: center; min-height: 26px; padding: 0 8px; border-radius: 999px; font-size: 10px; font-weight: 900; }
+.pai-change.positive { background: #e7f6e9; color: #276337; }
+.pai-change.negative { background: #fee9e4; color: #9b3d27; }
+.pai-change.flat { background: #ecebea; color: #666c6f; }
+.pai-change.unknown { background: #fff1ca; color: #785700; }
+
+.pai-history-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.pai-history-series {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border-radius: 12px;
+  background: #f8f7f4;
+}
+.pai-history-series-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pai-history-series-title strong { font-size: 12px; }
+.pai-history-series-title small { color: #83898c; font-size: 9px; text-align: right; }
+.pai-history-bars { height: 126px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 6px; }
+.pai-history-column { min-width: 0; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 5px; align-items: end; }
+.pai-history-column i { position: relative; display: block; height: 100%; overflow: hidden; border-radius: 6px 6px 3px 3px; background: #eeece8; }
+.pai-history-column i b { position: absolute; inset: auto 0 0; display: block; border-radius: 5px 5px 2px 2px; background: #f05b31; min-height: 2px; }
+.pai-history-column span { color: #929799; font-size: 8px; text-align: center; }
+
+.pai-payables-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 14px;
+}
+.pai-payables .pai-metric-card { background: #fff8f4; border-color: rgba(240, 91, 49, .16); box-shadow: none; }
+.pai-payables .pai-table-wrap table { min-width: 980px; }
+
+.pai-attainment-list { display: grid; gap: 12px; }
+.pai-attainment-row {
+  display: grid;
+  grid-template-columns: minmax(190px, .8fr) minmax(180px, 1.6fr) 58px;
+  align-items: center;
+  gap: 12px;
+}
+.pai-attainment-row > div { display: grid; gap: 3px; }
+.pai-attainment-row > div strong { font-size: 11px; }
+.pai-attainment-row > div span { color: #858a8d; font-size: 9px; }
+.pai-attainment-row > i { display: block; overflow: hidden; height: 10px; border-radius: 999px; background: #eeece8; }
+.pai-attainment-row > i b { display: block; height: 100%; border-radius: inherit; background: #f05b31; }
+.pai-attainment-row > small { color: #646a6d; font-size: 10px; font-weight: 900; text-align: right; }
+
+@media (max-width: 1180px) {
+  .pai-pulse-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .pai-history-grid { grid-template-columns: 1fr; }
+  .pai-velocity-grid { grid-template-columns: 1fr; }
+  .pai-payables-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 680px) {
+  .pai-pulse-grid,
+  .pai-payables-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pai-attainment-row { grid-template-columns: 1fr 54px; gap: 7px 10px; }
+  .pai-attainment-row > div { grid-column: 1 / -1; }
+  .pai-history-bars { gap: 4px; }
+}
+
+@media (max-width: 430px) {
+  .pai-pulse-grid,
+  .pai-payables-summary { grid-template-columns: 1fr; }
+  .pai-velocity-card { grid-template-columns: minmax(0, 1fr) auto; }
+}
