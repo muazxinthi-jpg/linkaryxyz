@@ -41,8 +41,9 @@ test('tracking entry exposes only a dedicated PATCH path for fixed access expiry
   assert.equal(entry.includes('updateAdminCouponStatus'), true);
 });
 
-test('Superadmin UI requires an explicit timezone and confirmation before saving fixed expiry', () => {
-  assert.equal(ui.includes('Set access expiry'), true);
+test('Superadmin UI clearly distinguishes fixed expiry and requires timezone plus confirmation', () => {
+  assert.equal(ui.includes('Set fixed expiry'), true);
+  assert.equal(ui.includes('Fixed Access until for ${coupon.code}'), true);
   assert.equal(ui.includes('ISO 8601 timestamp including timezone'), true);
   assert.equal(ui.includes("/(Z|[+-]\\d{2}:\\d{2})$/i"), true);
   assert.equal(ui.includes('Only future redemptions use this value.'), true);

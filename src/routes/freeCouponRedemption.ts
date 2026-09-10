@@ -3,6 +3,7 @@ import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { HttpError, json, readJson } from '../http';
+import { addCalendarMonths } from '../couponEntitlementCredits';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -30,16 +31,11 @@ type CouponRow = {
   eligible_plan_codes_json: string;
   created_by_user_id: string | null;
   access_until?: string | null;
+  access_duration_months?: number | null;
 };
 
 function addOneMonth(iso: string): string {
-  const date = new Date(iso);
-  const day = date.getUTCDate();
-  date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() + 1);
-  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
-  date.setUTCDate(Math.min(day, lastDay));
-  return date.toISOString();
+  return addCalendarMonths(iso, 1);
 }
 
 function eligiblePlanCodes(value: string): string[] {
@@ -163,6 +159,13 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
   if (coupon.access_until && coupon.access_until <= timestamp) {
     throw new HttpError(400, 'Coupon access period has expired', 'coupon_access_expired');
   }
+  const accessDurationMonths = coupon.access_duration_months == null ? null : Number(coupon.access_duration_months);
+  if (accessDurationMonths !== null && (!Number.isInteger(accessDurationMonths) || accessDurationMonths < 1 || accessDurationMonths > 60)) {
+    throw new ServiceConfigurationError('Coupon access duration is invalid');
+  }
+  if (accessDurationMonths !== null && coupon.access_until) {
+    throw new ServiceConfigurationError('Coupon access policy is ambiguous');
+  }
 
   await requireFreeCouponGuards(db);
   if (await activePaidAccess(db, owner.ownerType, owner.ownerId, timestamp)) {
@@ -171,7 +174,9 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
 
   const redemptionId = id('crd');
   const grantId = id('grant');
-  const grantEndsAt = coupon.access_until || addOneMonth(timestamp);
+  const grantEndsAt = accessDurationMonths !== null
+    ? addCalendarMonths(timestamp, accessDurationMonths)
+    : coupon.access_until || addOneMonth(timestamp);
   const reason = `coupon_redemption:${redemptionId}:${coupon.code}`;
   const statements = [
     db.statement(
@@ -213,7 +218,16 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
      VALUES (?, ?, 'user', 'billing_coupon.free_redeemed', 'coupon_redemption', ?, ?, ?, ?)`,
     [id('aud'), auth.user.id, redemptionId,
       owner.ownerType === 'organization' ? owner.ownerId : null,
-      JSON.stringify({ couponId: coupon.id, couponCode: coupon.code, grantId, planCode: plan.code, periodStart: timestamp, periodEnd: grantEndsAt, accessUntil: coupon.access_until || null }),
+      JSON.stringify({
+        couponId: coupon.id,
+        couponCode: coupon.code,
+        grantId,
+        planCode: plan.code,
+        periodStart: timestamp,
+        periodEnd: grantEndsAt,
+        accessUntil: coupon.access_until || null,
+        accessDurationMonths,
+      }),
       timestamp],
   ));
 
@@ -234,6 +248,7 @@ export async function redeemFreeCoupon(request: Request, env: Env): Promise<Resp
     plan: { code: plan.code, name: plan.name },
     periodStart: timestamp,
     periodEnd: grantEndsAt,
+    accessDurationMonths,
     monthlyUsageCredits: plan.monthly_usage_credits,
   }, { status: 201, headers: { 'cache-control': 'private, no-store' } });
 }

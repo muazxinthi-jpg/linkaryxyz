@@ -3,6 +3,7 @@ import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { HttpError } from '../http';
 import { isCanonicalSuperadminUser } from '../superadminPlatformAccess';
+import { ensureCouponEntitlementMonthlyCredits } from '../couponEntitlementCredits';
 import { LinkaryAI, LinkaryAiProviderError } from './LinkaryAI';
 import { AI_TASKS, type AiTaskKey } from './tasks';
 
@@ -270,6 +271,7 @@ async function markSuccess(
 export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise<ExecuteAiResult> {
   const normalized = requireExecutionInput(input);
   const db = new Db(requireDb(env));
+  await ensureCouponEntitlementMonthlyCredits(db, input.ownerType, input.ownerId, new Date().toISOString());
   const task = AI_TASKS[input.taskKey];
   const prompt = await activePrompt(db, task.promptKey);
   const budget = await activeBudget(db, input.ownerType, input.ownerId, input.taskKey);
