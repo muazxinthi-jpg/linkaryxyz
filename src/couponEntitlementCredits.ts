@@ -1,4 +1,5 @@
 import { Db } from './db/client';
+import type { D1PreparedStatement } from './platform';
 
 type OwnerType = 'user' | 'organization';
 
@@ -64,7 +65,7 @@ export async function ensureCouponEntitlementMonthlyCredits(
 
   // Redemption already grants period 0. Fill any later elapsed entitlement
   // months exactly once so long-duration free access mirrors paid monthly credit grants.
-  const statements = [];
+  const statements: D1PreparedStatement[] = [];
   for (let index = 1; index <= Math.min(periodIndex, 60); index += 1) {
     const periodStart = addCalendarMonths(grant.starts_at, index);
     if (grant.ends_at && periodStart >= grant.ends_at) break;
