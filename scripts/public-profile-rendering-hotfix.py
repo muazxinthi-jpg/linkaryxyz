@@ -1,0 +1,82 @@
+from pathlib import Path
+
+p = Path('src/routes/profiles.ts')
+text = p.read_text()
+
+start = text.index('  const previewFallback = (block: ProfileBlockRow')
+end = text.index('  const productGallery = async () => {', start)
+
+replacement = '''  const previewFallback = (block: ProfileBlockRow, compact = false): string => {
+    let host = 'External link';
+    try { host = new URL(block.url || '').hostname.replace(/^www\\./, '') || host; } catch { /* Keep public rendering resilient to legacy destinations. */ }
+    const initial = (host === 'External link' ? block.title || 'L' : host).trim().slice(0, 1).toUpperCase() || 'L';
+    const label = block.block_type === 'featured_article' ? 'ARTICLE PREVIEW' : block.block_type === 'featured_video' ? 'VIDEO PREVIEW' : 'LINK PREVIEW';
+    const className = compact ? 'showcase-site-preview' : 'feature-site-preview';
+    return `<div class="${className}"><b>${escapeHtml(initial)}</b><div><small>${escapeHtml(label)}</small><strong>${escapeHtml(host)}</strong></div></div>`;
+  };
+  const featureCards = (await Promise.all(features.map(async (block, index) => {
+    const config = safeJson(block.config_json) as { mediaUrl?: string };
+    const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
+    const media = resolved?.kind === 'video'
+      ? `<video src="${escapeHtml(resolved.src)}" muted playsinline loop autoplay preload="metadata" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"></video><span class="feature-art" hidden>◆</span>`
+      : resolved?.kind === 'image'
+        ? `<img src="${escapeHtml(resolved.src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"><span class="feature-art" hidden>◆</span>${resolved.youtube ? '<span class="feature-play">▶</span>' : ''}`
+        : previewFallback(block);
+    return `<a class="feature ${index === 0 ? 'hero-feature' : ''}" href="${escapeHtml(blockUrl(block))}">${media}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
+  }))).join('');
+  const galleryStyle = `<style>.showcase{margin-top:22px}.showcase-title{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:0 4px 10px;color:#ffc4b4;font:700 11px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em}.showcase-title span:first-child{grid-column:2;text-align:center}.showcase-title span:last-child{grid-column:3;justify-self:end;font-size:9px}.showcase-grid,.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.showcase-item,.product-item{position:relative;min-height:180px;overflow:hidden;border:1px solid #ffffff28;border-radius:20px;background:#2a1713;color:#fff;text-decoration:none;box-shadow:0 14px 32px #0005}.showcase-item img,.product-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.84}.showcase-item:after,.product-item:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#100b09e8,transparent 65%)}.showcase-item>span,.product-item>span{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;display:grid;gap:4px}.showcase-item strong,.product-item strong{font-size:14px;line-height:1.15}.showcase-item small{color:#ffc4b4;font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.product-item i{font-size:12px;font-style:normal;color:#ffe0d6}.showcase-art{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;color:#ff654833}@media(min-width:680px){.nft-showcase .showcase-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nft-showcase .showcase-item{min-height:132px}}@media(max-width:650px){.showcase-item{min-height:142px;border-radius:15px}.nft-showcase .showcase-item{min-height:108px}.showcase-item strong{font-size:12px}.product-item{min-height:135px}}</style>`;
+  const galleryRefinement = `<style>.image-showcase .showcase-item{min-height:230px;background:#eee9e5;border-color:#ffffff3b}.image-showcase .showcase-item img{object-fit:contain;opacity:1;padding:14px}.image-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09dd,transparent 52%)}.nft-showcase .showcase-item{background:#f8f6f3}.nft-showcase .showcase-item img{object-fit:contain;opacity:1;padding:8px;background:#f8f6f3}.nft-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09d9,transparent 55%)}</style>`;
+  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {
+    if (!items.length) return '';
+    const cards = await Promise.all(items.map(async (block) => {
+      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };
+      const media = className === 'nft-showcase'
+        ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)
+        : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
+      const image = media?.kind === 'image'
+        ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+        : className === 'image-showcase' ? previewFallback(block, true) : '<b class="showcase-art">◇</b>';
+      return `<a class="showcase-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
+    }));
+    const countClass = className === 'image-showcase' ? ` count-${Math.min(items.length, 3)}` : '';
+    return `<section class="showcase ${className}${countClass}"><div class="showcase-title"><span>${label}</span><span>${items.length}</span></div><div class="showcase-grid">${cards.join('')}</div></section>`;
+  };
+'''
+text = text[:start] + replacement + text[end:]
+
+style_start = text.index('  const previewFallbackStyle = `<style>')
+style_end = text.index('  const ctaHtml =', style_start)
+style_replacement = '''  const previewFallbackStyle = `<style>.feature-site-preview,.showcase-site-preview{position:absolute;z-index:1;display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#fff7f2,#f6eee9);color:#17110e}.feature-site-preview{inset:14px 14px 110px;padding:24px;border-radius:19px}.showcase-site-preview{inset:12px 12px 64px;padding:16px;border-radius:15px}.feature-site-preview>b,.showcase-site-preview>b{flex:0 0 auto;display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:#ff6543;color:#fff;font-size:25px;box-shadow:0 9px 24px #ff65432e}.showcase-site-preview>b{width:44px;height:44px;border-radius:14px;font-size:19px}.feature-site-preview>div,.showcase-site-preview>div{display:grid;gap:5px;min-width:0}.feature-site-preview small,.showcase-site-preview small{color:#d84c2b;font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.feature-site-preview strong,.showcase-site-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#17110e;font-size:17px}.showcase-site-preview strong{font-size:13px}.image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.image-showcase.count-1 .showcase-item{min-height:360px!important}.image-showcase.count-2 .showcase-item{min-height:270px!important}@media(max-width:650px){.feature-site-preview{inset:10px 10px 92px;padding:16px}.showcase-site-preview{inset:9px 9px 54px;padding:12px}.image-showcase.count-1 .showcase-item{min-height:250px!important}.image-showcase.count-2 .showcase-item{min-height:190px!important}}</style>`;
+  const hasProfileMedia = Boolean(featureCards || productHtml || featuredImages.length || nftItems.length);
+  const featureHtml = hasProfileMedia ? `${previewFallbackStyle}${featureCards}${productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : ''}` : '';
+
+'''
+text = text[:style_start] + style_replacement + text[style_end:]
+p.write_text(text)
+
+Path('tests/public-profile-rendering-hotfix.test.ts').write_text('''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const profiles = readFileSync('src/routes/profiles.ts', 'utf8');
+const renderer = profiles.slice(profiles.indexOf('const previewFallback ='), profiles.indexOf('const ctaHtml ='));
+
+test('resolved public profile media keeps the previously-good rendering path', () => {
+  assert.match(renderer, /resolved\?\.kind === 'video'[\s\S]*<video src="\$\{escapeHtml\(resolved\.src\)\}"/);
+  assert.match(renderer, /resolved\?\.kind === 'image'[\s\S]*<img src="\$\{escapeHtml\(resolved\.src\)\}"/);
+  assert.doesNotMatch(renderer, /class=\\\\"/);
+});
+
+test('fallback previews are isolated from existing title spans', () => {
+  assert.match(renderer, /return `<div class="\$\{className\}">/);
+  assert.match(renderer, /\.showcase-item>span,.product-item>span/);
+  assert.match(renderer, /\.feature-site-preview>div,.showcase-site-preview>div/);
+});
+
+test('Featured Work is count-aware without changing 3 plus grids', () => {
+  assert.match(renderer, /count-\$\{Math\.min\(items\.length, 3\)\}/);
+  assert.match(renderer, /\.image-showcase\.count-1 \.showcase-grid\{grid-template-columns:1fr!important\}/);
+  assert.match(renderer, /\.image-showcase\.count-2 \.showcase-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important\}/);
+  assert.doesNotMatch(renderer, /\.image-showcase\.count-3 \.showcase-grid/);
+});
+''')
