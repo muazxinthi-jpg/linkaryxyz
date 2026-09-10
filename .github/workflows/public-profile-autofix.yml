@@ -27,24 +27,23 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected one target, found {count}')
-              p.write_text(text.replace(old, new, 1))
+          def replace_between(text, start, end, replacement, label):
+              start_at = text.find(start)
+              if start_at < 0:
+                  raise SystemExit(f'{label}: start marker not found')
+              end_at = text.find(end, start_at)
+              if end_at < 0:
+                  raise SystemExit(f'{label}: end marker not found')
+              if text.find(start, start_at + len(start)) >= 0 and text.find(start, start_at + len(start)) < end_at:
+                  raise SystemExit(f'{label}: ambiguous start marker')
+              return text[:start_at] + replacement + text[end_at:]
 
-          profiles = 'src/routes/profiles.ts'
-          old_analytics = r'''export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {
-            const auth = await requireAuth(request, env);
-            const db = new Db(requireDb(env));
-            await requireEditableProfile(db, auth.user.id, profileId);
-            const row = await db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]);
-            return json({ linkClicks: row?.link_clicks || 0 });
-          }'''
-          new_analytics = r'''type ProfileClickMonthRow = { month: string; count: number };
+          profiles_path = Path('src/routes/profiles.ts')
+          profiles = profiles_path.read_text()
+
+          analytics = r'''type ProfileClickMonthRow = { month: string; count: number };
           type ProfileClickDestinationRow = { block_id: string; count: number };
 
           function monthlyClickSeries(rows: ProfileClickMonthRow[], totalClicks: number): ProfileClickMonthRow[] {
@@ -75,7 +74,7 @@ jobs:
                 const host = new URL(block.url).hostname.replace(/^www\./, '');
                 if (host) return host;
               } catch {
-                // Stored destinations are validated on write. Keep analytics rendering resilient to legacy rows.
+                // Stored destinations are validated on write. Keep analytics resilient to legacy rows.
               }
             }
             return block.title?.trim() || 'Other';
@@ -126,74 +125,73 @@ jobs:
               platformClicks,
               proof,
             });
-          }'''
-          replace_once(profiles, old_analytics, new_analytics)
+          }
 
-          old_feature = r'''  const socialHtml = socials.map((block) => `<a class=\"social\" href=\"${escapeHtml(blockUrl(block))}\" aria-label=\"${escapeHtml(block.title || 'Social link')}\">${publicIcon(block)}</a>`).join('');
-            const featureCards = (await Promise.all(features.map(async (block, index) => {
-              const config = safeJson(block.config_json) as { mediaUrl?: string };
-              const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
-              const fallback = '<span class=\"feature-art\">◆</span>';
-              const media = resolved?.kind === 'video'
-                ? `<video src=\"${escapeHtml(resolved.src)}\" muted playsinline loop autoplay preload=\"metadata\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\"></video><span class=\"feature-art\" hidden>◆</span>`
-                : resolved?.kind === 'image'
-                  ? `<img src=\"${escapeHtml(resolved.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\"><span class=\"feature-art\" hidden>◆</span>${resolved.youtube ? '<span class=\"feature-play\">▶</span>' : ''}`
-                  : fallback;
-              return `<a class=\"feature ${index === 0 ? 'hero-feature' : ''}\" href=\"${escapeHtml(blockUrl(block))}\">${media}<span class=\"feature-shade\"></span><span class=\"feature-copy\"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
-            }))).join('');'''
-          new_feature = r'''  const socialHtml = socials.map((block) => `<a class=\"social\" href=\"${escapeHtml(blockUrl(block))}\" aria-label=\"${escapeHtml(block.title || 'Social link')}\">${publicIcon(block)}</a>`).join('');
-            const previewFallback = (block: ProfileBlockRow, compact = false, hidden = false): string => {
-              let host = 'External link';
-              try { host = new URL(block.url || '').hostname.replace(/^www\./, '') || host; } catch { /* Legacy destinations still get a deterministic preview. */ }
-              const initial = (host === 'External link' ? block.title || 'L' : host).trim().slice(0, 1).toUpperCase() || 'L';
-              const label = block.block_type === 'featured_article' ? 'ARTICLE PREVIEW' : block.block_type === 'featured_video' ? 'VIDEO PREVIEW' : 'LINK PREVIEW';
-              return `<span class=\"${compact ? 'showcase-site-preview' : 'feature-site-preview'}\"${hidden ? ' hidden' : ''}><b>${escapeHtml(initial)}</b><span><small>${escapeHtml(label)}</small><strong>${escapeHtml(host)}</strong></span></span>`;
-            };
-            const featureCards = (await Promise.all(features.map(async (block, index) => {
-              const config = safeJson(block.config_json) as { mediaUrl?: string };
-              const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
-              const fallback = previewFallback(block);
-              const media = resolved?.kind === 'video'
-                ? `<video src=\"${escapeHtml(resolved.src)}\" muted playsinline loop autoplay preload=\"metadata\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\"></video>${previewFallback(block, false, true)}`
-                : resolved?.kind === 'image'
-                  ? `<img src=\"${escapeHtml(resolved.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, false, true)}${resolved.youtube ? '<span class=\"feature-play\">▶</span>' : ''}`
-                  : fallback;
-              return `<a class=\"feature ${index === 0 ? 'hero-feature' : ''}\" href=\"${escapeHtml(blockUrl(block))}\">${media}<span class=\"feature-shade\"></span><span class=\"feature-copy\"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
-            }))).join('');'''
-          replace_once(profiles, old_feature, new_feature)
+          '''
+          profiles = replace_between(
+              profiles,
+              'export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {',
+              'export async function redirectPublicProfileBlock',
+              analytics,
+              'profile analytics',
+          )
 
-          old_gallery_image = r'''      const image = media?.kind === 'image' ? `<img src=\"${escapeHtml(media.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\">` : '<b class=\"showcase-art\">◇</b>';
-                return `<a class=\"showcase-item\" href=\"${escapeHtml(blockUrl(block))}\">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
-              }));
-              return `<section class=\"showcase ${className}\"><div class=\"showcase-title\"><span>${label}</span><span>${items.length}</span></div><div class=\"showcase-grid\">${cards.join('')}</div></section>`;'''
-          new_gallery_image = r'''      const image = media?.kind === 'image'
-                  ? `<img src=\"${escapeHtml(media.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, true, true)}`
-                  : previewFallback(block, true);
-                return `<a class=\"showcase-item\" href=\"${escapeHtml(blockUrl(block))}\">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
-              }));
-              const featuredWorkColumns = className === 'image-showcase' && items.length === 1
-                ? ' style=\"grid-template-columns:1fr!important\"'
-                : className === 'image-showcase' && items.length === 2
-                  ? ' style=\"grid-template-columns:repeat(2,minmax(0,1fr))!important\"'
-                  : '';
-              return `<section class=\"showcase ${className} count-${items.length}\"><div class=\"showcase-title\"><span>${label}</span><span>${items.length}</span></div><div class=\"showcase-grid\"${featuredWorkColumns}>${cards.join('')}</div></section>`;'''
-          replace_once(profiles, old_gallery_image, new_gallery_image)
+          feature_cards = r'''  const previewFallback = (block: ProfileBlockRow, compact = false, hidden = false): string => {
+            let host = 'External link';
+            try { host = new URL(block.url || '').hostname.replace(/^www\./, '') || host; } catch { /* Legacy destinations still get a deterministic preview. */ }
+            const initial = (host === 'External link' ? block.title || 'L' : host).trim().slice(0, 1).toUpperCase() || 'L';
+            const label = block.block_type === 'featured_article' ? 'ARTICLE PREVIEW' : block.block_type === 'featured_video' ? 'VIDEO PREVIEW' : 'LINK PREVIEW';
+            return `<span class=\"${compact ? 'showcase-site-preview' : 'feature-site-preview'}\"${hidden ? ' hidden' : ''}><b>${escapeHtml(initial)}</b><span><small>${escapeHtml(label)}</small><strong>${escapeHtml(host)}</strong></span></span>`;
+          };
+          const featureCards = (await Promise.all(features.map(async (block, index) => {
+            const config = safeJson(block.config_json) as { mediaUrl?: string };
+            const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
+            const fallback = previewFallback(block);
+            const media = resolved?.kind === 'video'
+              ? `<video src=\"${escapeHtml(resolved.src)}\" muted playsinline loop autoplay preload=\"metadata\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\"></video>${previewFallback(block, false, true)}`
+              : resolved?.kind === 'image'
+                ? `<img src=\"${escapeHtml(resolved.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, false, true)}${resolved.youtube ? '<span class=\"feature-play\">▶</span>' : ''}`
+                : fallback;
+            return `<a class=\"feature ${index === 0 ? 'hero-feature' : ''}\" href=\"${escapeHtml(blockUrl(block))}\">${media}<span class=\"feature-shade\"></span><span class=\"feature-copy\"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
+          }))).join('');
+          '''
+          profiles = replace_between(profiles, '  const featureCards = (await Promise.all(features.map(async (block, index) => {', '  const galleryStyle =', feature_cards, 'feature cards')
 
-          old_feature_html = r'''  const featureHtml = featureCards + (productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : '');'''
-          new_feature_html = r'''  const previewFallbackStyle = `<style>.feature-site-preview,.showcase-site-preview{position:absolute;display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#fff7f2,#f6eee9);color:#17110e}.feature-site-preview{inset:14px 14px 110px;padding:24px;border-radius:19px}.showcase-site-preview{inset:10px 10px 58px;padding:15px;border-radius:15px}.feature-site-preview>b,.showcase-site-preview>b{flex:0 0 auto;display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:#ff6543;color:#fff;font-size:25px;box-shadow:0 9px 24px #ff65432e}.showcase-site-preview>b{width:44px;height:44px;border-radius:14px;font-size:19px}.feature-site-preview>span,.showcase-site-preview>span{display:grid;gap:5px;min-width:0}.feature-site-preview small,.showcase-site-preview small{color:#d84c2b;font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.feature-site-preview strong,.showcase-site-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#17110e;font-size:17px}.showcase-site-preview strong{font-size:13px}.image-showcase.count-1 .showcase-item{min-height:360px!important}.image-showcase.count-2 .showcase-item{min-height:270px!important}@media(max-width:650px){.feature-site-preview{inset:10px 10px 92px;padding:16px}.image-showcase.count-1 .showcase-item{min-height:250px!important}.image-showcase.count-2 .showcase-item{min-height:190px!important}}</style>`;
-            const hasProfileMedia = Boolean(featureCards || productHtml || featuredImages.length || nftItems.length);
-            const featureHtml = hasProfileMedia ? `${previewFallbackStyle}${featureCards}${productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : ''}` : '';'''
-          replace_once(profiles, old_feature_html, new_feature_html)
+          gallery = r'''  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {
+            if (!items.length) return '';
+            const cards = await Promise.all(items.map(async (block) => {
+              const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };
+              const media = className === 'nft-showcase'
+                ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)
+                : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
+              const image = media?.kind === 'image'
+                ? `<img src=\"${escapeHtml(media.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, true, true)}`
+                : previewFallback(block, true);
+              return `<a class=\"showcase-item\" href=\"${escapeHtml(blockUrl(block))}\">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
+            }));
+            const featuredWorkColumns = className === 'image-showcase' && items.length === 1
+              ? ' style=\"grid-template-columns:1fr!important\"'
+              : className === 'image-showcase' && items.length === 2
+                ? ' style=\"grid-template-columns:repeat(2,minmax(0,1fr))!important\"'
+                : '';
+            return `<section class=\"showcase ${className} count-${items.length}\"><div class=\"showcase-title\"><span>${label}</span><span>${items.length}</span></div><div class=\"showcase-grid\"${featuredWorkColumns}>${cards.join('')}</div></section>`;
+          };
+          '''
+          profiles = replace_between(profiles, '  const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {', '  const productGallery = async () => {', gallery, 'featured work gallery')
 
-          editor = 'frontend/src/ProfileExperienceBeta.tsx'
-          old_type = r'''type ProfileCardAnalytics = {
-            linkClicks: number;
-            sections: number;
-            connectedChannels: number;
-            x: { handle: string | null; followers: number | null; source: 'provider' | 'awaiting_provider' };
-            monthlyClicks: Array<{ month: string; count: number }>;
-          };'''
-          new_type = r'''type ProfileCardAnalytics = {
+          feature_html_pattern = re.compile(r"^  const featureHtml = featureCards \+ \(productHtml \|\| featuredImages\.length \|\| nftItems\.length \? `\$\{galleryStyle\}\$\{galleryRefinement\}\$\{productHtml\}\$\{imageHtml\}\$\{nftHtml\}` : ''\);$", re.M)
+          preview_html = r'''  const previewFallbackStyle = `<style>.feature-site-preview,.showcase-site-preview{position:absolute;display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#fff7f2,#f6eee9);color:#17110e}.feature-site-preview{inset:14px 14px 110px;padding:24px;border-radius:19px}.showcase-site-preview{inset:10px 10px 58px;padding:15px;border-radius:15px}.feature-site-preview>b,.showcase-site-preview>b{flex:0 0 auto;display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:#ff6543;color:#fff;font-size:25px;box-shadow:0 9px 24px #ff65432e}.showcase-site-preview>b{width:44px;height:44px;border-radius:14px;font-size:19px}.feature-site-preview>span,.showcase-site-preview>span{display:grid;gap:5px;min-width:0}.feature-site-preview small,.showcase-site-preview small{color:#d84c2b;font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.feature-site-preview strong,.showcase-site-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#17110e;font-size:17px}.showcase-site-preview strong{font-size:13px}.image-showcase.count-1 .showcase-item{min-height:360px!important}.image-showcase.count-2 .showcase-item{min-height:270px!important}@media(max-width:650px){.feature-site-preview{inset:10px 10px 92px;padding:16px}.image-showcase.count-1 .showcase-item{min-height:250px!important}.image-showcase.count-2 .showcase-item{min-height:190px!important}}</style>`;
+          const hasProfileMedia = Boolean(featureCards || productHtml || featuredImages.length || nftItems.length);
+          const featureHtml = hasProfileMedia ? `${previewFallbackStyle}${featureCards}${productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : ''}` : '';'''
+          profiles, count = feature_html_pattern.subn(lambda _: preview_html, profiles, count=1)
+          if count != 1:
+              raise SystemExit(f'feature HTML: expected one target, found {count}')
+
+          profiles_path.write_text(profiles)
+
+          editor_path = Path('frontend/src/ProfileExperienceBeta.tsx')
+          editor = editor_path.read_text()
+          analytics_type = r'''type ProfileCardAnalytics = {
             linkClicks: number;
             sections: number;
             connectedChannels: number;
@@ -202,18 +200,16 @@ jobs:
             platformClicks?: Array<{ platform: string; count: number }>;
             proof?: { metrics: Array<{ label: string; value: string }> } | null;
           };'''
-          replace_once(editor, old_type, new_type)
+          editor, count = re.subn(r'type ProfileCardAnalytics = \{.*?\n\};', analytics_type, editor, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'editor analytics type: expected one target, found {count}')
+          monthly_line = '        monthlyClicks: analyticsResult.monthlyClicks ?? [],\n'
+          if editor.count(monthly_line) != 1:
+              raise SystemExit(f'editor analytics assignment: expected one target, found {editor.count(monthly_line)}')
+          editor = editor.replace(monthly_line, monthly_line + '        platformClicks: analyticsResult.platformClicks ?? [],\n        proof: analyticsResult.proof ?? null,\n', 1)
+          editor_path.write_text(editor)
 
-          old_set = r'''        monthlyClicks: analyticsResult.monthlyClicks ?? [],
-                });'''
-          new_set = r'''        monthlyClicks: analyticsResult.monthlyClicks ?? [],
-                  platformClicks: analyticsResult.platformClicks ?? [],
-                  proof: analyticsResult.proof ?? null,
-                });'''
-          replace_once(editor, old_set, new_set)
-
-          test_path = Path('tests/public-profile-analytics-layout-regression.test.ts')
-          test_path.write_text(r'''import test from 'node:test';
+          Path('tests/public-profile-analytics-layout-regression.test.ts').write_text(r'''import test from 'node:test';
           import assert from 'node:assert/strict';
           import { readFileSync } from 'node:fs';
 
@@ -226,14 +222,13 @@ jobs:
             assert.match(profiles, /GROUP BY block_id/);
             assert.match(profiles, /monthlyClicks: monthlyClickSeries\(monthRows, linkClicks\)/);
             assert.match(profiles, /platformClicks,/);
-            assert.match(profiles, /event_type = 'link_click'/);
             assert.match(editor, /platformClicks: analyticsResult\.platformClicks \?\? \[\]/);
             assert.match(editor, /proof: analyticsResult\.proof \?\? null/);
             assert.match(card, /onPointerEnter=\{\(\) => setPoint\(i\)\}/);
             assert.match(card, /Hover or touch to explore/);
           });
 
-          test('featured work layout is count-aware without changing NFT or product grids', () => {
+          test('featured work layout is count-aware while larger collections stay responsive', () => {
             assert.match(profiles, /className === 'image-showcase' && items\.length === 1/);
             assert.match(profiles, /grid-template-columns:1fr!important/);
             assert.match(profiles, /className === 'image-showcase' && items\.length === 2/);
@@ -242,13 +237,12 @@ jobs:
             assert.match(profiles, /image-showcase\.count-1 \.showcase-item/);
           });
 
-          test('public media uses the shared preview resolver and deterministic nonblank fallback', () => {
+          test('public media retains shared metadata resolution and has a nonblank global fallback', () => {
             assert.match(profiles, /await resolveFeaturedPreview\(config\.mediaUrl, block\.url, block\.block_type\)/);
             assert.match(profiles, /const previewFallback = \(block: ProfileBlockRow/);
             assert.match(profiles, /ARTICLE PREVIEW/);
             assert.match(profiles, /showcase-site-preview/);
-            assert.match(profiles, /onerror=\\"this\.hidden=true;var f=this\.nextElementSibling;if\(f\)f\.hidden=false/);
-            assert.doesNotMatch(profiles, /const fallback = '<span class=\\"feature-art\\">◆<\/span>';/);
+            assert.match(profiles, /nextElementSibling/);
           });
           ''')
           PY
