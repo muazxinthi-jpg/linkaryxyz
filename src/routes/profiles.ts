@@ -231,12 +231,88 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
   }, { headers: { 'cache-control': 'public, max-age=60, s-maxage=300' } });
 }
 
+type ProfileClickMonthRow = { month: string; count: number };
+type ProfileClickDestinationRow = { block_id: string; count: number };
+
+function monthlyClickSeries(rows: ProfileClickMonthRow[], totalClicks: number): ProfileClickMonthRow[] {
+  if (!totalClicks || !rows.length) return [];
+  const byMonth = new Map(rows.map((row) => [row.month, Number(row.count || 0)]));
+  const latest = rows[rows.length - 1]?.month;
+  const current = new Date();
+  const latestDate = latest ? new Date(`${latest}-01T00:00:00Z`) : current;
+  const elevenMonthsAgo = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() - 11, 1));
+  const anchor = !Number.isNaN(latestDate.getTime()) && latestDate < elevenMonthsAgo ? latestDate : current;
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - (11 - index), 1));
+    const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+    return { month, count: byMonth.get(month) || 0 };
+  });
+}
+
+function clickDestinationLabel(block: ProfileBlockRow): string {
+  const social = socialName(block);
+  const socialLabels: Record<string, string> = {
+    x: 'X', linkedin: 'LinkedIn', youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok',
+    facebook: 'Facebook', telegram: 'Telegram', whatsapp: 'WhatsApp', reddit: 'Reddit', discord: 'Discord',
+    github: 'GitHub', farcaster: 'Farcaster',
+  };
+  if (social) return socialLabels[social] || social;
+  if (block.url) {
+    try {
+      const host = new URL(block.url).hostname.replace(/^www\./, '');
+      if (host) return host;
+    } catch {
+      // Stored destinations are validated on write. Keep analytics resilient to legacy rows.
+    }
+  }
+  return block.title?.trim() || 'Other';
+}
+
 export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
-  await requireEditableProfile(db, auth.user.id, profileId);
-  const row = await db.first<{ link_clicks: number }>('SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ?', [profileId]);
-  return json({ linkClicks: row?.link_clicks || 0 });
+  const profile = await requireEditableProfile(db, auth.user.id, profileId);
+  const [totalRow, monthRows, destinationRows, blocks, proof] = await Promise.all([
+    db.first<{ link_clicks: number }>(
+      "SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ? AND event_type = 'link_click'",
+      [profileId],
+    ),
+    db.all<ProfileClickMonthRow>(
+      `SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS count
+         FROM profile_engagement_events
+        WHERE profile_id = ? AND event_type = 'link_click'
+        GROUP BY substr(created_at, 1, 7)
+        ORDER BY month ASC`,
+      [profileId],
+    ),
+    db.all<ProfileClickDestinationRow>(
+      `SELECT block_id, COUNT(*) AS count
+         FROM profile_engagement_events
+        WHERE profile_id = ? AND event_type = 'link_click' AND block_id IS NOT NULL
+        GROUP BY block_id
+        ORDER BY count DESC`,
+      [profileId],
+    ),
+    db.all<ProfileBlockRow>('SELECT * FROM profile_blocks WHERE profile_id = ?', [profileId]),
+    loadPublicProof(db, profile),
+  ]);
+  const linkClicks = Number(totalRow?.link_clicks || 0);
+  const blockById = new Map(blocks.map((block) => [block.id, block]));
+  const destinationTotals = new Map<string, number>();
+  for (const row of destinationRows) {
+    const block = blockById.get(row.block_id);
+    if (!block) continue;
+    const label = clickDestinationLabel(block);
+    destinationTotals.set(label, (destinationTotals.get(label) || 0) + Number(row.count || 0));
+  }
+  const platformClicks = Array.from(destinationTotals, ([platform, count]) => ({ platform, count }))
+    .sort((left, right) => right.count - left.count || left.platform.localeCompare(right.platform));
+  return json({
+    linkClicks,
+    monthlyClicks: monthlyClickSeries(monthRows, linkClicks),
+    platformClicks,
+    proof,
+  });
 }
 
 export async function redirectPublicProfileBlock(_request: Request, env: Env, username: string, blockId: string): Promise<Response> {
@@ -429,31 +505,45 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
 
   const avatar = avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">` : escapeHtml((profile.display_name || profile.username).slice(0, 1).toUpperCase());
   const socialHtml = socials.map((block) => `<a class="social" href="${escapeHtml(blockUrl(block))}" aria-label="${escapeHtml(block.title || 'Social link')}">${publicIcon(block)}</a>`).join('');
-  const featureCards = (await Promise.all(features.map(async (block, index) => {
-    const config = safeJson(block.config_json) as { mediaUrl?: string };
-    const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
-    const fallback = '<span class="feature-art">◆</span>';
-    const media = resolved?.kind === 'video'
-      ? `<video src="${escapeHtml(resolved.src)}" muted playsinline loop autoplay preload="metadata" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"></video><span class="feature-art" hidden>◆</span>`
-      : resolved?.kind === 'image'
-        ? `<img src="${escapeHtml(resolved.src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"><span class="feature-art" hidden>◆</span>${resolved.youtube ? '<span class="feature-play">▶</span>' : ''}`
-        : fallback;
-    return `<a class="feature ${index === 0 ? 'hero-feature' : ''}" href="${escapeHtml(blockUrl(block))}">${media}<span class="feature-shade"></span><span class="feature-copy"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
-  }))).join('');
+  const previewFallback = (block: ProfileBlockRow, compact = false, hidden = false): string => {
+  let host = 'External link';
+  try { host = new URL(block.url || '').hostname.replace(/^www\./, '') || host; } catch { /* Legacy destinations still get a deterministic preview. */ }
+  const initial = (host === 'External link' ? block.title || 'L' : host).trim().slice(0, 1).toUpperCase() || 'L';
+  const label = block.block_type === 'featured_article' ? 'ARTICLE PREVIEW' : block.block_type === 'featured_video' ? 'VIDEO PREVIEW' : 'LINK PREVIEW';
+  return `<span class=\"${compact ? 'showcase-site-preview' : 'feature-site-preview'}\"${hidden ? ' hidden' : ''}><b>${escapeHtml(initial)}</b><span><small>${escapeHtml(label)}</small><strong>${escapeHtml(host)}</strong></span></span>`;
+};
+const featureCards = (await Promise.all(features.map(async (block, index) => {
+  const config = safeJson(block.config_json) as { mediaUrl?: string };
+  const resolved = await resolveFeaturedPreview(config.mediaUrl, block.url, block.block_type);
+  const fallback = previewFallback(block);
+  const media = resolved?.kind === 'video'
+    ? `<video src=\"${escapeHtml(resolved.src)}\" muted playsinline loop autoplay preload=\"metadata\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\"></video>${previewFallback(block, false, true)}`
+    : resolved?.kind === 'image'
+      ? `<img src=\"${escapeHtml(resolved.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, false, true)}${resolved.youtube ? '<span class=\"feature-play\">▶</span>' : ''}`
+      : fallback;
+  return `<a class=\"feature ${index === 0 ? 'hero-feature' : ''}\" href=\"${escapeHtml(blockUrl(block))}\">${media}<span class=\"feature-shade\"></span><span class=\"feature-copy\"><small>${escapeHtml(block.block_type.replace('featured_', 'FEATURED ').toUpperCase())}</small><strong>${escapeHtml(block.title || 'Open featured work')}</strong><i>Explore ↗</i></span></a>`;
+}))).join('');
   const galleryStyle = `<style>.showcase{margin-top:22px}.showcase-title{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:0 4px 10px;color:#ffc4b4;font:700 11px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em}.showcase-title span:first-child{grid-column:2;text-align:center}.showcase-title span:last-child{grid-column:3;justify-self:end;font-size:9px}.showcase-grid,.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.showcase-item,.product-item{position:relative;min-height:180px;overflow:hidden;border:1px solid #ffffff28;border-radius:20px;background:#2a1713;color:#fff;text-decoration:none;box-shadow:0 14px 32px #0005}.showcase-item img,.product-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.84}.showcase-item:after,.product-item:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#100b09e8,transparent 65%)}.showcase-item span,.product-item span{position:absolute;z-index:1;left:14px;right:14px;bottom:13px;display:grid;gap:4px}.showcase-item strong,.product-item strong{font-size:14px;line-height:1.15}.showcase-item small{color:#ffc4b4;font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.product-item i{font-size:12px;font-style:normal;color:#ffe0d6}.showcase-art{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;color:#ff654833}@media(min-width:680px){.nft-showcase .showcase-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nft-showcase .showcase-item{min-height:132px}}@media(max-width:650px){.showcase-item{min-height:142px;border-radius:15px}.nft-showcase .showcase-item{min-height:108px}.showcase-item strong{font-size:12px}.product-item{min-height:135px}}</style>`;
   const galleryRefinement = `<style>.image-showcase .showcase-item{min-height:230px;background:#eee9e5;border-color:#ffffff3b}.image-showcase .showcase-item img{object-fit:contain;opacity:1;padding:14px}.image-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09dd,transparent 52%)}.nft-showcase .showcase-item{background:#f8f6f3}.nft-showcase .showcase-item img{object-fit:contain;opacity:1;padding:8px;background:#f8f6f3}.nft-showcase .showcase-item:after{background:linear-gradient(0deg,#100b09d9,transparent 55%)}</style>`;
   const gallery = async (items: ProfileBlockRow[], className: string, label: string) => {
-    if (!items.length) return '';
-    const cards = await Promise.all(items.map(async (block) => {
-      const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };
-      const media = className === 'nft-showcase'
-        ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)
-        : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
-      const image = media?.kind === 'image' ? `<img src="${escapeHtml(media.src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<b class="showcase-art">◇</b>';
-      return `<a class="showcase-item" href="${escapeHtml(blockUrl(block))}">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
-    }));
-    return `<section class="showcase ${className}"><div class="showcase-title"><span>${label}</span><span>${items.length}</span></div><div class="showcase-grid">${cards.join('')}</div></section>`;
-  };
+  if (!items.length) return '';
+  const cards = await Promise.all(items.map(async (block) => {
+    const config = safeJson(block.config_json) as { mediaUrl?: string; chain?: string; nftContract?: string; nftTokenId?: string };
+    const media = className === 'nft-showcase'
+      ? await resolveNftArtworkPreview(env, config.mediaUrl, config.chain, config.nftContract, config.nftTokenId)
+      : await resolveFeaturedPreview(config.mediaUrl, block.url, 'featured_image');
+    const image = media?.kind === 'image'
+      ? `<img src=\"${escapeHtml(media.src)}\" alt=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer\" onerror=\"this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false\">${previewFallback(block, true, true)}`
+      : previewFallback(block, true);
+    return `<a class=\"showcase-item\" href=\"${escapeHtml(blockUrl(block))}\">${image}<span><strong>${escapeHtml(block.title || 'Featured item')}</strong>${config.chain ? `<small>${escapeHtml(config.chain)}</small>` : ''}</span></a>`;
+  }));
+  const featuredWorkColumns = className === 'image-showcase' && items.length === 1
+    ? ' style=\"grid-template-columns:1fr!important\"'
+    : className === 'image-showcase' && items.length === 2
+      ? ' style=\"grid-template-columns:repeat(2,minmax(0,1fr))!important\"'
+      : '';
+  return `<section class=\"showcase ${className} count-${items.length}\"><div class=\"showcase-title\"><span>${label}</span><span>${items.length}</span></div><div class=\"showcase-grid\"${featuredWorkColumns}>${cards.join('')}</div></section>`;
+};
   const productGallery = async () => {
     if (!productFeatures.length) return '';
     const cards = await Promise.all(productFeatures.map(async (block) => {
@@ -469,7 +559,9 @@ export async function renderPublicProfile(request: Request, env: Env, username: 
     gallery(featuredImages, 'image-showcase', escapeHtml(galleryLabel(featuredImages, 'FEATURED IMAGES'))),
     gallery(nftItems, 'nft-showcase', escapeHtml(galleryLabel(nftItems, 'COLLECTED IDENTITY'))),
   ]);
-  const featureHtml = featureCards + (productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : '');
+  const previewFallbackStyle = `<style>.feature-site-preview,.showcase-site-preview{position:absolute;display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#fff7f2,#f6eee9);color:#17110e}.feature-site-preview{inset:14px 14px 110px;padding:24px;border-radius:19px}.showcase-site-preview{inset:10px 10px 58px;padding:15px;border-radius:15px}.feature-site-preview>b,.showcase-site-preview>b{flex:0 0 auto;display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:#ff6543;color:#fff;font-size:25px;box-shadow:0 9px 24px #ff65432e}.showcase-site-preview>b{width:44px;height:44px;border-radius:14px;font-size:19px}.feature-site-preview>span,.showcase-site-preview>span{display:grid;gap:5px;min-width:0}.feature-site-preview small,.showcase-site-preview small{color:#d84c2b;font:800 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.feature-site-preview strong,.showcase-site-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#17110e;font-size:17px}.showcase-site-preview strong{font-size:13px}.image-showcase.count-1 .showcase-item{min-height:360px!important}.image-showcase.count-2 .showcase-item{min-height:270px!important}@media(max-width:650px){.feature-site-preview{inset:10px 10px 92px;padding:16px}.image-showcase.count-1 .showcase-item{min-height:250px!important}.image-showcase.count-2 .showcase-item{min-height:190px!important}}</style>`;
+const hasProfileMedia = Boolean(featureCards || productHtml || featuredImages.length || nftItems.length);
+const featureHtml = hasProfileMedia ? `${previewFallbackStyle}${featureCards}${productHtml || featuredImages.length || nftItems.length ? `${galleryStyle}${galleryRefinement}${productHtml}${imageHtml}${nftHtml}` : ''}` : '';
 
   const ctaHtml = ctas.length ? `<section class="cta-grid">${ctas.map((block) => `<a class="cta-card ${block.block_type}" href="${escapeHtml(blockUrl(block))}"><span>${publicIcon(block)}</span><div><small>${block.block_type === 'media_kit' ? 'MEDIA KIT' : profile.profile_type === 'project' ? 'COLLABORATE' : 'AVAILABLE FOR WORK'}</small><strong>${escapeHtml(block.title || (block.block_type === 'media_kit' ? 'View media kit' : 'Work with me'))}</strong></div><i>↗</i></a>`).join('')}</section>` : '';
   const relationshipHtml = relationshipCards.length ? `<section class="section"><div class="section-title"><span>RELATIONSHIPS</span><h2>${profile.profile_type === 'project' ? 'Community' : 'Projects & communities'}</h2></div><div class="relationship-grid">${relationshipCards.map((block) => `<a class="relationship-card" href="${escapeHtml(blockUrl(block))}"><b>${publicIcon(block)}</b><span><small>${block.block_type === 'project_card' ? 'PROJECT' : 'COMMUNITY'}</small><strong>${escapeHtml(block.title || 'Open')}</strong></span><i>↗</i></a>`).join('')}</div></section>` : '';

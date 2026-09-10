@@ -155,6 +155,8 @@ type ProfileCardAnalytics = {
   connectedChannels: number;
   x: { handle: string | null; followers: number | null; source: 'provider' | 'awaiting_provider' };
   monthlyClicks: Array<{ month: string; count: number }>;
+  platformClicks?: Array<{ platform: string; count: number }>;
+  proof?: { metrics: Array<{ label: string; value: string }> } | null;
 };
 
 export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; status: ProductStatus }) {
@@ -203,6 +205,8 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
         connectedChannels: analyticsResult.connectedChannels ?? enabled.filter(isSocialBlock).length,
         x: analyticsResult.x ?? { handle: inferredX?.url?.split('/').filter(Boolean).pop() || null, followers: null, source: 'awaiting_provider' },
         monthlyClicks: analyticsResult.monthlyClicks ?? [],
+        platformClicks: analyticsResult.platformClicks ?? [],
+        proof: analyticsResult.proof ?? null,
       });
       setPreviewRevision(Date.now());
     } catch { setMessage('Profile settings are temporarily unavailable. Please try again shortly.'); }
