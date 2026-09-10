@@ -14,6 +14,11 @@ import {
   updateInternalReferralRewardStatus,
   upsertPlatformGrowthTarget,
 } from './routes/adminPlatformIntelligence';
+import {
+  adminReferralRewardIntelligence,
+  updateReferralRewardDecision,
+  updateReferralRewardRule,
+} from './routes/adminReferralRewardIntelligence';
 import { redirectTrackedLink } from './routes/tracking';
 
 const APP_SHELL_RELEASE = '2026-09-09-private-network-v5';
@@ -118,6 +123,34 @@ export default {
       try {
         if (request.method === 'GET') return await adminPlatformIntelligence(request, env);
         return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-reward-intelligence') {
+      try {
+        if (request.method === 'GET') return await adminReferralRewardIntelligence(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-reward-rule') {
+      try {
+        if (request.method === 'POST') return await updateReferralRewardRule(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const referralRewardPaymentStatus = url.pathname.match(/^\/api\/admin\/platform-intelligence\/referral-reward-payments\/([^/]+)\/status$/);
+    if (referralRewardPaymentStatus) {
+      try {
+        if (request.method === 'POST') return await updateReferralRewardDecision(request, env, decodeURIComponent(referralRewardPaymentStatus[1]));
+        return methodNotAllowed(['POST']);
       } catch (error) {
         return errorResponse(error);
       }
