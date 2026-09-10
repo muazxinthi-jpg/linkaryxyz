@@ -44,7 +44,7 @@ test('financial ratios use recorded billing only and do not fabricate free-pass 
     'Free passes never create fake zero-value payments',
   ]) assert.equal(route.includes(token), true, token);
   assert.equal(route.includes('grossMargin'), false);
-  assert.match(ui, /Cost-based metrics such as gross margin and burn are intentionally not invented/);
+  assert.match(ui, /Cost-based metrics such as gross margin, burn, CAC and LTV are intentionally not invented/);
 });
 
 test('private referral rewards are discretionary, audited and never automatic public payout logic', () => {
@@ -91,4 +91,52 @@ test('platform intelligence UI includes interactive responsive growth charts', (
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /touch-action: pan-y/);
   assert.match(css, /\.pai-table-wrap/);
+});
+
+test('executive pulse ratios use real bounded platform facts', () => {
+  assert.match(route, /COUNT\(DISTINCT p\.owner_user_id\) AS count/);
+  assert.match(route, /profileActivationRate: moneyRatio\(activatedUserCount, totalUserCount\)/);
+  assert.match(route, /paidConversionRate: moneyRatio\(paidAccounts, totalUserCount\)/);
+  assert.match(route, /referralContribution30d: moneyRatio\(referralsCurrent30, newUsersCurrent30\)/);
+  assert.match(ui, /EXECUTIVE PULSE/);
+  assert.match(ui, /Profile activation/);
+  assert.match(ui, /Paid conversion/);
+  assert.match(ui, /Referral contribution/);
+});
+
+test('growth velocity compares the latest 30 days with the preceding 30 days', () => {
+  assert.match(route, /const sixtyDaysAt = daysAgo\(60, nowDate\)/);
+  assert.match(route, /growthChange\(newUsersCurrent30, newUsersPrevious30\)/);
+  assert.match(route, /growthChange\(referralsCurrent30, referralsPrevious30\)/);
+  assert.match(route, /growthChange\(revenueCurrent30, revenuePrevious30\)/);
+  assert.match(route, /change is unavailable when the prior period is zero/);
+  assert.match(ui, /GROWTH VELOCITY/);
+  assert.match(ui, /Latest 30 days vs preceding 30 days/);
+});
+
+test('six month operating history is calendar bounded and visualized without invented MRR history', () => {
+  assert.match(route, /monthStartMonthsAgo\(5, nowDate\)/);
+  assert.match(route, /monthlyHistory/);
+  assert.match(route, /substr\(u\.created_at, 1, 7\) AS month/);
+  assert.match(route, /substr\(verified_at, 1, 7\) AS month/);
+  assert.match(ui, /6-MONTH OPERATING HISTORY/);
+  assert.match(ui, /Acquisition, referrals and verified revenue/);
+  assert.match(css, /\.pai-history-grid/);
+});
+
+test('payables command center surfaces approved rewards without changing settlement controls', () => {
+  assert.match(ui, /PAYABLES COMMAND CENTER/);
+  assert.match(ui, /\.filter\(\(reward\) => reward\.status === 'approved'\)/);
+  assert.match(ui, /People waiting/);
+  assert.match(ui, /Oldest waiting/);
+  assert.match(ui, /Mark paid/);
+  assert.match(ui, /waitingDays/);
+  assert.match(route, /A payment reference is required before a reward is marked paid/);
+});
+
+test('target attainment chart remains driven by explicit internal targets', () => {
+  assert.match(ui, /TARGET ATTAINMENT/);
+  assert.match(ui, /Actual vs internal target/);
+  assert.match(ui, /target unset/);
+  assert.match(css, /\.pai-attainment-row/);
 });
