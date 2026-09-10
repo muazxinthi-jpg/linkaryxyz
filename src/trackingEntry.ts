@@ -5,6 +5,7 @@ import { errorResponse, methodNotAllowed } from './http';
 import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
 import { listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
 import { createAdminCoupon100 } from './routes/adminCouponCreate100';
+import { updateAdminCouponAccessUntil } from './routes/adminCouponAccessUntil';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
@@ -114,6 +115,16 @@ export default {
         }
         if (request.method === 'POST') return await createAdminCoupon100(request, env);
         return methodNotAllowed(['GET', 'POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const adminCouponAccessUntil = url.pathname.match(/^\/api\/admin\/commercial\/coupons\/([^/]+)\/access-until$/);
+    if (adminCouponAccessUntil) {
+      try {
+        if (request.method === 'PATCH') return await updateAdminCouponAccessUntil(request, env, decodeURIComponent(adminCouponAccessUntil[1]));
+        return methodNotAllowed(['PATCH']);
       } catch (error) {
         return errorResponse(error);
       }
