@@ -53,6 +53,15 @@ test('desktop galleries stay expanded and public profile cache turns over quickl
   assert.equal(enhancer.includes("headers.set('cache-control', 'public, max-age=30, s-maxage=60')"), true);
 });
 
+test('Featured Work fills each row with up to three count-aware columns', () => {
+  assert.equal(profiles.includes("const countClass = className === 'image-showcase' ? ` count-${Math.min(items.length, 3)}` : '';"), true);
+  assert.equal(profiles.includes('.image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}'), true);
+  assert.equal(profiles.includes('.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}'), true);
+  assert.equal(profiles.includes('.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}'), true);
+  assert.equal(enhancer.includes('.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}'), true);
+  assert.equal(enhancer.includes('.image-showcase.count-3 .showcase-item strong{font-size:12px!important}'), true);
+});
+
 test('NFT collection artwork is contained rather than cropped as a generic thumbnail', () => {
   assert.equal(enhancer.includes('.nft-showcase .showcase-item img{object-fit:contain!important'), true);
   assert.equal(profiles.includes('.nft-showcase .showcase-item img{object-fit:contain;opacity:1;padding:8px'), true);
