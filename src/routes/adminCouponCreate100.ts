@@ -118,8 +118,11 @@ export async function createAdminCoupon100(request: Request, env: Env): Promise<
   if (endsAt && endsAt <= startsAt) throw new HttpError(400, 'Coupon claim end date must be after its start date', 'coupon_date_invalid');
 
   const isFreeCoupon = discountType === 'percent' && discountValue === 100;
-  if ((accessUntil || accessDurationMonths) && !isFreeCoupon) {
-    throw new HttpError(400, 'Free-access policy is available only for 100% coupons', 'coupon_access_policy_not_supported');
+  if (accessUntil && !isFreeCoupon) {
+    throw new HttpError(400, 'Access until is available only for 100% coupons', 'coupon_access_until_not_supported');
+  }
+  if (accessDurationMonths && !isFreeCoupon) {
+    throw new HttpError(400, 'Access duration is available only for 100% coupons', 'coupon_access_duration_not_supported');
   }
   if (accessUntil && accessDurationMonths) {
     throw new HttpError(400, 'Choose either a duration from claim or a fixed Access until date, not both', 'coupon_access_policy_conflict');
