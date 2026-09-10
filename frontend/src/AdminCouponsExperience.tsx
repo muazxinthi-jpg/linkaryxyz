@@ -118,10 +118,10 @@ export default function AdminCouponsExperience() {
       });
       setMessage(freeCoupon
         ? duration && supportsAccessDuration
-          ? `Free access pass created. Each account receives ${duration} month${duration === 1 ? '' : 's'} from its own claim time, with monthly plan credits.`
+          ? `100% coupon created. Free access pass grants ${duration} month${duration === 1 ? '' : 's'} from each account's claim time, with monthly plan credits.`
           : draft.accessUntil && supportsAccessUntil
-            ? 'Free access pass created with the configured fixed expiry and no USDC payment.'
-            : 'Free access pass created. Each redemption grants one paid billing period with no USDC payment.'
+            ? '100% coupon created. Free access pass uses the configured fixed expiry with no USDC payment.'
+            : '100% coupon created. Each redemption grants one paid billing period with no USDC payment.'
         : 'Coupon created. It is active for eligible checkout quotes.');
       setDraft({ ...blankDraft(), eligiblePlanCodes: plans.map((plan) => plan.code) });
       await load();
@@ -218,7 +218,7 @@ export default function AdminCouponsExperience() {
     </header>
     <div className="admin-coupons-shell">
       <section className="admin-coupons-heading">
-        <div><span>COMMERCIAL CONTROL</span><h1>Coupons & free access</h1><p>Create normal checkout discounts or tracked free-access passes. A free pass can grant a set number of months from each user's claim time, a fixed calendar expiry, or the legacy one billing period.</p></div>
+        <div><span>COMMERCIAL CONTROL</span><h1>Coupons & free access</h1><p>Create normal checkout discounts or tracked free-access passes. Superadmin may issue 100% coupons for tracked free access, with claim timing kept separate from entitlement expiry. A free pass can grant a set number of months from each user's claim time, a fixed calendar expiry, or the legacy one billing period.</p></div>
         <div className="admin-coupons-summary"><article><small>Coupons</small><strong>{coupons.length}</strong></article><article><small>Active</small><strong>{activeCoupons}</strong></article></div>
       </section>
       {message && <div className="admin-coupons-message">{message}</div>}
@@ -246,7 +246,7 @@ export default function AdminCouponsExperience() {
             {supportsAccessDuration && draftIsFreeCoupon && <label>Free access duration <small>(months from each user's claim time, blank = one billing period)</small><input type="number" min="1" max="60" step="1" value={draft.accessDurationMonths} placeholder="12" onChange={(e) => setDraft({ ...draft, accessDurationMonths: e.target.value, accessUntil: e.target.value ? '' : draft.accessUntil })} /></label>}
             {supportsAccessUntil && draftIsFreeCoupon && !draft.accessDurationMonths && <label>Fixed Access until <small>(alternative to duration from claim)</small><input type="datetime-local" value={draft.accessUntil} onChange={(e) => setDraft({ ...draft, accessUntil: e.target.value })} /></label>}
             <label className="admin-coupons-check"><input type="checkbox" checked={draft.stackable} onChange={(e) => setDraft({ ...draft, stackable: e.target.checked })} /><span><strong>Allow stacking</strong><small>Coupon can combine with another eligible promotion or private account price adjustment.</small></span></label>
-            <div className="admin-coupons-warning">Claim end only controls how long the code can be claimed. For a 100% free-access pass, Duration starts separately for each account when they redeem. Example: 12 months claimed on 10 Sep 2026 stays active until 10 Sep 2027. Plan usage credits refresh each entitlement month. No fake $0 onchain payment is created.</div>
+            <div className="admin-coupons-warning">Claim end controls when a code may be redeemed. For a 100% coupon, Access until controls the fixed entitlement expiry when configured. Duration from claim instead starts a separate access clock for each account when they redeem. Example: 12 months claimed on 10 Sep 2026 stays active until 10 Sep 2027. Plan usage credits refresh each entitlement month. Leaving both blank keeps the existing one paid billing-period grant. No fake $0 onchain payment is created.</div>
             <button className="admin-coupons-primary" disabled={busy === 'create' || state !== 'ready'}>{busy === 'create' ? 'Creating…' : draftIsFreeCoupon ? 'Create free access pass' : 'Create coupon'}</button>
           </form>
         </section>
