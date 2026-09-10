@@ -144,6 +144,61 @@ function metaContent(source: string, property: string): string | null {
   return null;
 }
 
+function itempropContent(source: string, itemprop: string): string | null {
+  const escaped = itemprop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`<meta[^>]+itemprop=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+itemprop=["']${escaped}["'][^>]*>`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return match[1].replace(/&amp;/gi, '&');
+  }
+  return null;
+}
+
+function linkRelHref(source: string, rel: string): string | null {
+  const escaped = rel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`<link[^>]+rel=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>`, 'i'),
+    new RegExp(`<link[^>]+href=["']([^"']+)["'][^>]+rel=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return match[1].replace(/&amp;/gi, '&');
+  }
+  return null;
+}
+
+function pagePreviewImage(source: string, baseUrl: string): string | null {
+  const image = metaContent(source, 'og:image:secure_url')
+    || metaContent(source, 'og:image')
+    || metaContent(source, 'twitter:image')
+    || metaContent(source, 'twitter:image:src')
+    || itempropContent(source, 'image')
+    || linkRelHref(source, 'image_src');
+  if (!image) return null;
+  try {
+    const resolved = safeHttpsUrl(new URL(image, baseUrl).toString());
+    return resolved && isPublicWebHost(new URL(resolved).hostname) ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+const LINKARY_CANONICAL_PREVIEW = 'https://linkary.xyz/assets/brand/linkary-banner.jpeg';
+
+function ownedPublicSitePreview(value: string): string | null {
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+    // linkary.xyz is served by a Worker route on the same Cloudflare zone. Avoid
+    // a same-zone self-subrequest and use the public site's canonical social card.
+    return host === 'linkary.xyz' ? LINKARY_CANONICAL_PREVIEW : null;
+  } catch {
+    return null;
+  }
+}
+
 type NftMetadataLocator = {
   chain: string;
   contractAddress: string;
@@ -516,17 +571,20 @@ export async function resolveFeaturedPreview(
     .map((value) => safeHttpsUrl(value))
     .filter((value): value is string => Boolean(value) && isPublicWebHost(new URL(value!).hostname));
   for (const candidate of [...new Set(candidates)]) {
+    const ownedPreview = ownedPublicSitePreview(candidate);
+    if (ownedPreview) return { kind: 'image', src: ownedPreview, youtube: false };
     try {
       const response = await fetch(candidate, { headers: { accept: 'text/html,application/xhtml+xml,image/avif,image/webp,image/*;q=0.8,*/*;q=0.5' }, redirect: 'follow' });
       if (!response.ok) continue;
+      const finalUrl = safeHttpsUrl(response.url || candidate);
+      if (!finalUrl || !isPublicWebHost(new URL(finalUrl).hostname)) continue;
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
-      if (contentType.startsWith('image/')) return { kind: 'image', src: response.url, youtube: false };
-      if (contentType.startsWith('video/')) return { kind: 'video', src: response.url, youtube: false };
+      if (contentType.startsWith('image/')) return { kind: 'image', src: finalUrl, youtube: false };
+      if (contentType.startsWith('video/')) return { kind: 'video', src: finalUrl, youtube: false };
       if (!contentType.includes('html')) continue;
       const source = (await response.text()).slice(0, 350_000);
-      const image = metaContent(source, 'og:image') || metaContent(source, 'twitter:image');
-      const resolved = image ? safeHttpsUrl(new URL(image, response.url).toString()) : null;
-      if (resolved && isPublicWebHost(new URL(resolved).hostname)) return { kind: 'image', src: resolved, youtube: false };
+      const resolved = pagePreviewImage(source, finalUrl);
+      if (resolved) return { kind: 'image', src: resolved, youtube: false };
     } catch {
       // A third-party site must never make a Linkary profile unavailable.
     }

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isDirectVideoUrl,
   resolveFeaturedMedia,
+  resolveFeaturedPreview,
   safeDirectImageUrl,
   safeHttpsUrl,
   youtubeThumbnail,
@@ -75,4 +76,78 @@ test("does not treat an ordinary featured destination as preview media", () => {
     resolveFeaturedMedia(null, "https://x.com/example/status/123", "featured_image"),
     null,
   );
+});
+
+
+test("uses the canonical Linkary preview without a same-zone self-fetch", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => { throw new Error("self fetch should not run"); }) as typeof fetch;
+  try {
+    assert.deepEqual(
+      await resolveFeaturedPreview(null, "https://linkary.xyz/", "featured_article"),
+      { kind: "image", src: "https://linkary.xyz/assets/brand/linkary-banner.jpeg", youtube: false },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolves Open Graph images for external public sites", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    '<html><head><meta property="og:image" content="/social-card.jpg"></head></html>',
+    { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+  )) as typeof fetch;
+  try {
+    assert.deepEqual(
+      await resolveFeaturedPreview(null, "https://example.com/article", "featured_article"),
+      { kind: "image", src: "https://example.com/social-card.jpg", youtube: false },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolves schema.org itemprop image when Open Graph is absent", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    '<html><head><meta itemprop="image" content="https://cdn.example.com/schema-card.webp"></head></html>',
+    { status: 200, headers: { "content-type": "text/html" } },
+  )) as typeof fetch;
+  try {
+    assert.deepEqual(
+      await resolveFeaturedPreview(null, "https://example.com/post", "featured_image"),
+      { kind: "image", src: "https://cdn.example.com/schema-card.webp", youtube: false },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolves image_src links as a conservative website preview fallback", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    '<html><head><link href="/hero.png" rel="image_src"></head></html>',
+    { status: 200, headers: { "content-type": "text/html" } },
+  )) as typeof fetch;
+  try {
+    assert.deepEqual(
+      await resolveFeaturedPreview(null, "https://example.com/landing", "featured_image"),
+      { kind: "image", src: "https://example.com/hero.png", youtube: false },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("does not resolve private-host page previews", async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch;
+  try {
+    assert.equal(await resolveFeaturedPreview(null, "https://127.0.0.1/private", "featured_image"), null);
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
