@@ -22,7 +22,9 @@ test('Superadmin coupon API clears pre-existing stale browser HTTP cache without
 
 test('production deployment proves the live Superadmin JS contains the 100 percent coupon UI', () => {
   assert.match(workflow, /100% coupon created\./);
-  assert.match(workflow, /A 100% percent-off coupon grants one paid monthly period/);
+  assert.match(workflow, /claim timing kept separate from entitlement expiry\./);
+  assert.match(workflow, /Claim end controls when a code may be redeemed\./);
+  assert.match(workflow, /Access until controls the fixed entitlement expiry/);
   assert.match(workflow, /Coupons cannot reduce a paid checkout to \$0/);
   assert.equal(workflow.includes('cache-control: .*no-store'), true);
 });
