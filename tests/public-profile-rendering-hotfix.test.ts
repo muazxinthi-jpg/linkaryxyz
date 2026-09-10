@@ -20,9 +20,9 @@ test('fallback previews are isolated from existing title spans', () => {
   assert.match(renderer, /\.feature-site-preview>div,.showcase-site-preview>div/);
 });
 
-test('Featured Work is count-aware through the three-column maximum', () => {
+test('Featured Work is count-aware without changing 3 plus grids', () => {
   assert.match(renderer, /const countClass = className === 'image-showcase' \? ` count-\$\{Math\.min\(items\.length, 3\)\}` : '';/);
   assert.match(renderer, /\.image-showcase\.count-1 \.showcase-grid\{grid-template-columns:1fr!important\}/);
   assert.match(renderer, /\.image-showcase\.count-2 \.showcase-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important\}/);
-  assert.match(renderer, /\.image-showcase\.count-3 \.showcase-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)!important\}/);
+  assert.doesNotMatch(renderer, /\.image-showcase\.count-3 \.showcase-grid/);
 });
