@@ -79,6 +79,7 @@ export default function AdminCouponsExperience() {
   useEffect(() => { void load(); }, []);
   const activeCoupons = useMemo(() => coupons.filter((coupon) => coupon.active).length, [coupons]);
   const draftIsFreeCoupon = isFreeCoupon(draft.discountType, draft.discountValue);
+  const allPlansSelected = plans.length > 0 && draft.eligiblePlanCodes.length === plans.length;
 
   function togglePlan(code: string) {
     setDraft((current) => ({ ...current, eligiblePlanCodes: current.eligiblePlanCodes.includes(code)
@@ -233,6 +234,10 @@ export default function AdminCouponsExperience() {
             <div className="admin-coupons-two">
               <label>Discount type<select value={draft.discountType} onChange={(e) => setDraft({ ...draft, discountType: e.target.value as Coupon['discountType'], discountValue: e.target.value === 'percent' ? '20' : '1.00', accessUntil: '', accessDurationMonths: '' })}><option value="percent">Percent off</option><option value="fixed_cents">Fixed USD amount off</option><option value="fixed_price_cents">Final monthly price</option></select></label>
               <label>{draft.discountType === 'percent' ? 'Percent' : 'USD amount'}<input required type="number" min={draft.discountType === 'percent' ? '1' : '0.01'} max={draft.discountType === 'percent' ? '100' : undefined} step={draft.discountType === 'percent' ? '1' : '0.01'} value={draft.discountValue} onChange={(e) => setDraft({ ...draft, discountValue: e.target.value, accessUntil: e.target.value === '100' ? draft.accessUntil : '', accessDurationMonths: e.target.value === '100' ? draft.accessDurationMonths : '' })} /></label>
+            </div>
+            <div className="admin-coupons-actions" role="group" aria-label="Eligible plan selection">
+              <button type="button" disabled={!plans.length || allPlansSelected} onClick={() => setDraft((current) => ({ ...current, eligiblePlanCodes: plans.map((plan) => plan.code) }))}>Select all plans</button>
+              <button type="button" disabled={!draft.eligiblePlanCodes.length} onClick={() => setDraft((current) => ({ ...current, eligiblePlanCodes: [] }))}>Clear all</button>
             </div>
             <fieldset className="admin-coupons-plans"><legend>Eligible paid plans</legend>{plans.map((plan) => <label key={plan.code}><input type="checkbox" checked={draft.eligiblePlanCodes.includes(plan.code)} onChange={() => togglePlan(plan.code)} /><span><strong>{plan.name}</strong><small>{money(plan.base_price_cents)} / month</small></span></label>)}</fieldset>
             <div className="admin-coupons-two">

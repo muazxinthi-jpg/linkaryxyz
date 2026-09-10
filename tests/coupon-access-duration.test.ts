@@ -91,3 +91,11 @@ test('admin capability and UI expose duration from claim without removing fixed 
   assert.equal(ui.includes('one billing period from redemption'), true);
   assert.equal(ui.includes('Plan usage credits refresh each entitlement month.'), true);
 });
+
+test('Superadmin can select or clear all eligible plans without hardcoding plan codes', () => {
+  assert.equal(ui.includes('Select all plans'), true);
+  assert.equal(ui.includes('Clear all'), true);
+  assert.equal(ui.includes('aria-label="Eligible plan selection"'), true);
+  assert.equal(ui.includes('eligiblePlanCodes: plans.map((plan) => plan.code)'), true);
+  assert.equal(ui.includes('eligiblePlanCodes: []'), true);
+});
