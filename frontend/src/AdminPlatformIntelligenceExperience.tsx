@@ -14,6 +14,19 @@ type TrendPoint = {
   revenueCents: number;
 };
 
+type VelocityMetric = {
+  current: number;
+  previous: number;
+  change: number | null;
+};
+
+type MonthlyHistoryPoint = {
+  month: string;
+  newUsers: number;
+  referrals: number;
+  revenueCents: number;
+};
+
 type GrowthTarget = {
   id: string;
   period_key: string;
@@ -80,8 +93,18 @@ type Intelligence = {
     activeProfiles: number;
     referralRedemptionsThisMonth: number;
     currentMonth: string;
+    profileActivationRate: number | null;
+    paidConversionRate: number | null;
+    referralContribution30d: number | null;
+    velocity: {
+      newUsers: VelocityMetric;
+      referrals: VelocityMetric;
+      revenueCents: VelocityMetric;
+    };
+    monthlyHistory: MonthlyHistoryPoint[];
     trend: TrendPoint[];
     targets: GrowthTarget[];
+    methodology: string;
   };
   referrals: {
     funnel: null | {
@@ -135,7 +158,21 @@ function money(cents: number | null): string {
 
 function percent(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return 'N/A';
-  return `${(value * 100).toFixed(value * 100 >= 10 ? 1 : 2)}%`;
+  return `${(value * 100).toFixed(Math.abs(value * 100) >= 10 ? 1 : 2)}%`;
+}
+
+function signedPercent(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'N/A';
+  const amount = value * 100;
+  const sign = amount > 0 ? '+' : '';
+  return `${sign}${amount.toFixed(Math.abs(amount) >= 10 ? 1 : 2)}%`;
+}
+
+function changeTone(value: number | null): 'positive' | 'negative' | 'flat' | 'unknown' {
+  if (value === null || !Number.isFinite(value)) return 'unknown';
+  if (value > 0) return 'positive';
+  if (value < 0) return 'negative';
+  return 'flat';
 }
 
 function shortDate(value: string | null): string {
@@ -143,6 +180,14 @@ function shortDate(value: string | null): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Unknown';
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function waitingDays(value: string | null, generatedAt: string): number | null {
+  if (!value) return null;
+  const start = new Date(value).getTime();
+  const end = new Date(generatedAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return Math.max(0, Math.floor((end - start) / 86_400_000));
 }
 
 function AcquisitionChart({ points }: { points: TrendPoint[] }) {
@@ -198,6 +243,39 @@ function MetricCard({ label, value, note }: { label: string; value: string; note
   return <article className="pai-metric-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>;
 }
 
+function VelocityCard({ label, metric, formatter = number }: { label: string; metric: VelocityMetric; formatter?: (value: number) => string }) {
+  const tone = changeTone(metric.change);
+  return <article className="pai-velocity-card">
+    <div><span>{label}</span><strong>{formatter(metric.current)}</strong></div>
+    <b className={`pai-change ${tone}`}>{signedPercent(metric.change)}</b>
+    <small>Previous 30D: {formatter(metric.previous)}</small>
+  </article>;
+}
+
+function HistorySeries({ label, points, value, formatter }: { label: string; points: MonthlyHistoryPoint[]; value: (point: MonthlyHistoryPoint) => number; formatter: (value: number) => string }) {
+  const max = Math.max(1, ...points.map(value));
+  return <div className="pai-history-series">
+    <div className="pai-history-series-title"><strong>{label}</strong><small>{formatter(value(points.at(-1) || { month: '', newUsers: 0, referrals: 0, revenueCents: 0 }))} this month</small></div>
+    <div className="pai-history-bars" role="group" aria-label={`${label} six month history`}>
+      {points.map((point) => {
+        const amount = value(point);
+        return <div key={`${label}:${point.month}`} className="pai-history-column"><i><b style={{ height: `${Math.max(amount > 0 ? 8 : 2, (amount / max) * 100)}%` }} title={`${point.month}: ${formatter(amount)}`} /></i><span>{point.month.slice(5)}</span></div>;
+      })}
+    </div>
+  </div>;
+}
+
+function MonthlyHistoryChart({ points }: { points: MonthlyHistoryPoint[] }) {
+  return <article className="pai-panel pai-history-panel">
+    <header><div><span>6-MONTH OPERATING HISTORY</span><strong>Acquisition, referrals and verified revenue</strong></div><small>Calendar-month actuals</small></header>
+    <div className="pai-history-grid">
+      <HistorySeries label="New users" points={points} value={(point) => point.newUsers} formatter={number} />
+      <HistorySeries label="Referral signups" points={points} value={(point) => point.referrals} formatter={number} />
+      <HistorySeries label="Verified revenue" points={points} value={(point) => point.revenueCents} formatter={money} />
+    </div>
+  </article>;
+}
+
 function Progress({ actual, target, moneyMetric = false }: { actual: number; target: number | null; moneyMetric?: boolean }) {
   const ratio = target && target > 0 ? actual / target : null;
   return <div className="pai-target-progress">
@@ -209,6 +287,25 @@ function Progress({ actual, target, moneyMetric = false }: { actual: number; tar
 
 function moneyMetricValue(value: number): string {
   return money(value);
+}
+
+function TargetAttainmentChart({ actuals, targets }: { actuals: Record<TargetMetric, number>; targets: Map<TargetMetric, GrowthTarget> }) {
+  return <article className="pai-panel pai-attainment-panel">
+    <header><div><span>TARGET ATTAINMENT</span><strong>Current month operating plan</strong></div><small>Actual vs internal target</small></header>
+    <div className="pai-attainment-list">
+      {(Object.keys(metricLabels) as TargetMetric[]).map((metric) => {
+        const target = targets.get(metric);
+        const targetValue = target ? Number(target.target_value) : null;
+        const actual = actuals[metric];
+        const ratio = targetValue && targetValue > 0 ? actual / targetValue : null;
+        return <div className="pai-attainment-row" key={metric}>
+          <div><strong>{metricLabels[metric]}</strong><span>{metric === 'mrr_cents' ? money(actual) : number(actual)} actual · {targetValue === null ? 'target unset' : `${metric === 'mrr_cents' ? money(targetValue) : number(targetValue)} target`}</span></div>
+          <i><b style={{ width: `${ratio === null ? 0 : Math.min(100, ratio * 100)}%` }} /></i>
+          <small>{ratio === null ? 'N/A' : `${(ratio * 100).toFixed(1)}%`}</small>
+        </div>;
+      })}
+    </div>
+  </article>;
 }
 
 export default function AdminPlatformIntelligenceExperience() {
@@ -317,6 +414,13 @@ export default function AdminPlatformIntelligenceExperience() {
     return map;
   }, [data]);
 
+  const approvedRewards = useMemo(() => {
+    if (!data) return [] as Reward[];
+    return data.referrals.rewards
+      .filter((reward) => reward.status === 'approved')
+      .sort((a, b) => (a.approvedAt || '').localeCompare(b.approvedAt || ''));
+  }, [data]);
+
   if (loading && !data) return <section className="pai-page"><div className="pai-loading">Loading platform intelligence…</div></section>;
   if (!data) return <section className="pai-page"><div className="pai-error">{message || 'Platform intelligence is unavailable.'}<button type="button" onClick={() => void load()}>Retry</button></div></section>;
 
@@ -328,6 +432,12 @@ export default function AdminPlatformIntelligenceExperience() {
     referral_redemptions: data.growth.referralRedemptionsThisMonth,
   };
   const revenuePerMau = data.activity.mau > 0 ? Math.round(data.financials.revenue30dCents / data.activity.mau) : null;
+  const peopleWaiting = new Set(approvedRewards.map((reward) => reward.beneficiaryUserId)).size;
+  const oldestWaiting = approvedRewards.reduce<number | null>((oldest, reward) => {
+    const days = waitingDays(reward.approvedAt, data.generatedAt);
+    if (days === null) return oldest;
+    return oldest === null ? days : Math.max(oldest, days);
+  }, null);
 
   return <section className="pai-page">
     <header className="pai-page-head">
@@ -354,6 +464,26 @@ export default function AdminPlatformIntelligenceExperience() {
     </div>
 
     {tab === 'overview' && <>
+      <article className="pai-panel pai-executive-pulse">
+        <header><div><span>EXECUTIVE PULSE</span><strong>Platform conversion and engagement</strong></div><small>Recorded actuals only</small></header>
+        <div className="pai-pulse-grid">
+          <MetricCard label="Profile activation" value={percent(data.growth.profileActivationRate)} note="Active profiles / registered users" />
+          <MetricCard label="Paid conversion" value={percent(data.growth.paidConversionRate)} note="Paid accounts / registered users" />
+          <MetricCard label="Referral contribution" value={percent(data.growth.referralContribution30d)} note="Referred users / new users · 30D" />
+          <MetricCard label="DAU / MAU" value={percent(data.activity.dauMau)} note="Daily stickiness" />
+          <MetricCard label="WAU / MAU" value={percent(data.activity.wauMau)} note="Weekly stickiness" />
+        </div>
+      </article>
+
+      <article className="pai-panel pai-velocity-panel">
+        <header><div><span>GROWTH VELOCITY</span><strong>Latest 30 days vs preceding 30 days</strong></div><small>N/A when the prior period is zero</small></header>
+        <div className="pai-velocity-grid">
+          <VelocityCard label="New users" metric={data.growth.velocity.newUsers} />
+          <VelocityCard label="Referral signups" metric={data.growth.velocity.referrals} />
+          <VelocityCard label="Verified revenue" metric={data.growth.velocity.revenueCents} formatter={money} />
+        </div>
+      </article>
+
       <div className="pai-chart-grid"><AcquisitionChart points={data.growth.trend} /><RevenueChart points={data.growth.trend} /></div>
       <div className="pai-overview-grid">
         <ActivityBars data={data.activity} />
@@ -369,7 +499,8 @@ export default function AdminPlatformIntelligenceExperience() {
           </div>
         </article>
       </div>
-      <div className="pai-methodology"><strong>Measurement rules</strong><p>{data.activity.methodology}</p><p>{data.financials.methodology}</p><p>Cost-based metrics such as gross margin and burn are intentionally not invented. We can add them once actual operating costs are recorded.</p></div>
+      <MonthlyHistoryChart points={data.growth.monthlyHistory} />
+      <div className="pai-methodology"><strong>Measurement rules</strong><p>{data.activity.methodology}</p><p>{data.financials.methodology}</p><p>{data.growth.methodology}</p><p>Cost-based metrics such as gross margin, burn, CAC and LTV are intentionally not invented. We can add them once actual operating costs and attributable acquisition spend are recorded.</p></div>
     </>}
 
     {tab === 'referrals' && <>
@@ -380,6 +511,17 @@ export default function AdminPlatformIntelligenceExperience() {
         <MetricCard label="Paid" value={money(data.referrals.rewardSummary.paidCents)} note="Recorded settlements" />
         <MetricCard label="Referral signups · month" value={number(data.growth.referralRedemptionsThisMonth)} note={data.growth.currentMonth} />
       </div>
+
+      <article className="pai-panel pai-payables">
+        <header><div><span>PAYABLES COMMAND CENTER</span><strong>Approved rewards waiting for settlement</strong></div><small>Private internal liability queue</small></header>
+        <div className="pai-payables-summary">
+          <MetricCard label="Amount to pay" value={money(data.referrals.rewardSummary.approvedCents)} note="Approved, not settled" />
+          <MetricCard label="People waiting" value={number(peopleWaiting)} note={`${number(approvedRewards.length)} approved records`} />
+          <MetricCard label="Oldest waiting" value={oldestWaiting === null ? 'N/A' : `${oldestWaiting}d`} note="Since approval" />
+        </div>
+        <div className="pai-table-wrap"><table><thead><tr><th>User</th><th>Amount</th><th>Approved</th><th>Waiting</th><th>Referral evidence</th><th>Reason</th><th>Action</th></tr></thead><tbody>{approvedRewards.length ? approvedRewards.map((reward) => { const days = waitingDays(reward.approvedAt, data.generatedAt); return <tr key={`payable:${reward.id}`}><td><strong>{reward.displayName}</strong><small>{reward.username ? `@${reward.username}` : reward.beneficiaryUserId}</small></td><td><strong>{money(reward.amountCents)}</strong></td><td>{shortDate(reward.approvedAt)}</td><td>{days === null ? 'N/A' : `${days} day${days === 1 ? '' : 's'}`}</td><td><small>{number(reward.evidence.directReferrals || 0)} direct · {number(reward.evidence.networkSize || 0)} network</small></td><td><small>{reward.reason}</small></td><td><button type="button" className="pai-small-action" onClick={() => void rewardStatus(reward, 'paid')} disabled={Boolean(busy)}>Mark paid</button></td></tr>; }) : <tr><td colSpan={7}>No approved rewards are waiting for payment.</td></tr>}</tbody></table></div>
+      </article>
+
       {data.referrals.funnel && <article className="pai-panel pai-funnel"><header><div><span>REFERRAL FUNNEL · 30D</span><strong>From invite traffic to accepted network members</strong></div><small>Indexed, date-bounded</small></header><div className="pai-funnel-grid"><MetricCard label="Invite clicks" value={number(data.referrals.funnel.inviteClicks)} note={`${number(data.referrals.funnel.uniqueVisitors)} unique visitors`} /><MetricCard label="Redemptions" value={number(data.referrals.funnel.redemptions)} note={`${percent(data.referrals.funnel.clickToRedemption)} click conversion`} /><MetricCard label="Accepted network" value={number(data.referrals.funnel.acceptedReferrals)} note="Canonical referral edges" /></div></article>}
       <article className="pai-panel pai-leaderboard">
         <header><div><span>REFERRAL NETWORK</span><strong>Internal referral performance</strong></div><small>Top 75 inviters</small></header>
@@ -391,8 +533,10 @@ export default function AdminPlatformIntelligenceExperience() {
 
     {tab === 'growth-plan' && <>
       <div className="pai-plan-head"><div><span>MONTHLY OPERATING PLAN</span><h2>{data.growth.currentMonth} growth targets</h2><p>Set internal targets, then compare them with measured platform actuals. Missing targets stay visibly unset.</p></div><MetricCard label="Registered users" value={number(data.growth.totalUsers)} note={`${number(data.growth.activeProfiles)} active profiles`} /></div>
+      <TargetAttainmentChart actuals={targetActuals} targets={currentTargets} />
       <div className="pai-target-grid">{(Object.keys(metricLabels) as TargetMetric[]).map((metric) => { const target = currentTargets.get(metric); return <article className="pai-panel pai-target-card" key={metric}><header><span>{metricLabels[metric]}</span><strong>{metric === 'mrr_cents' ? money(targetActuals[metric]) : number(targetActuals[metric])}</strong></header><Progress actual={targetActuals[metric]} target={target ? Number(target.target_value) : null} moneyMetric={metric === 'mrr_cents'} />{target?.notes && <p>{target.notes}</p>}</article>; })}</div>
       <form className="pai-panel pai-target-form" onSubmit={(event) => void saveTarget(event)}><header><div><span>SET OR UPDATE TARGET</span><strong>Internal growth plan</strong></div><small>Audited change</small></header><div className="pai-form-grid"><label>Month<input type="month" value={targetPeriod} onChange={(event) => setTargetPeriod(event.target.value)} required /></label><label>Metric<select value={targetMetric} onChange={(event) => setTargetMetric(event.target.value as TargetMetric)}>{(Object.keys(metricLabels) as TargetMetric[]).map((metric) => <option key={metric} value={metric}>{metricLabels[metric]}</option>)}</select></label><label>Target {targetMetric === 'mrr_cents' ? '· USD' : ''}<input type="number" min="0" step={targetMetric === 'mrr_cents' ? '0.01' : '1'} value={targetValue} onChange={(event) => setTargetValue(event.target.value)} required /></label><label className="wide">Notes<input value={targetNotes} onChange={(event) => setTargetNotes(event.target.value)} maxLength={240} /></label></div><button type="submit" disabled={busy === 'save-target' || !data.privateOpsReady}>{busy === 'save-target' ? 'Saving…' : 'Save growth target'}</button></form>
+      <MonthlyHistoryChart points={data.growth.monthlyHistory} />
       <div className="pai-chart-grid"><AcquisitionChart points={data.growth.trend} /><RevenueChart points={data.growth.trend} /></div>
     </>}
 

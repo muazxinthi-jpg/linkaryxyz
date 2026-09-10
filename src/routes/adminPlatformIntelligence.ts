@@ -12,9 +12,14 @@ type RewardStatus = 'review' | 'approved' | 'paid' | 'void';
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const iso = (value: Date) => value.toISOString();
 const moneyRatio = (numerator: number, denominator: number) => denominator > 0 ? numerator / denominator : null;
+const growthChange = (current: number, previous: number) => previous > 0 ? (current - previous) / previous : null;
 
 function daysAgo(days: number, from = new Date()): string {
   return iso(new Date(from.getTime() - days * 86_400_000));
+}
+
+function monthStartMonthsAgo(months: number, from = new Date()): string {
+  return iso(new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - months, 1)));
 }
 
 function monthKey(value = new Date()): string {
@@ -59,6 +64,8 @@ type CheckoutDiscountRow = { base_cents: number; final_cents: number };
 type CountRow = { count: number };
 type DayCount = { day: string; count: number };
 type DayRevenue = { day: string; amount_cents: number };
+type MonthCount = { month: string; count: number };
+type MonthRevenue = { month: string; amount_cents: number };
 type LeaderRow = {
   user_id: string;
   display_name: string;
@@ -110,11 +117,36 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
   const dayAt = daysAgo(1, nowDate);
   const weekAt = daysAgo(7, nowDate);
   const monthAt = daysAgo(30, nowDate);
+  const sixtyDaysAt = daysAgo(60, nowDate);
+  const historyStartAt = monthStartMonthsAgo(5, nowDate);
   const currentMonth = monthKey(nowDate);
 
   const schemaReady = await privateSchemaReady(db);
 
-  const [activity, totalUsers, activeProfiles, revenue, paid, discounts, freePass30, referredThisMonth, baseUsers, dailyUsers, dailyReferrals, dailyRevenue, leaders] = await Promise.all([
+  const [
+    activity,
+    totalUsers,
+    activeProfiles,
+    activatedUsers,
+    revenue,
+    previousRevenue,
+    paid,
+    discounts,
+    freePass30,
+    referredThisMonth,
+    newUsers30,
+    previousNewUsers30,
+    referrals30,
+    previousReferrals30,
+    baseUsers,
+    dailyUsers,
+    dailyReferrals,
+    dailyRevenue,
+    monthlyUsers,
+    monthlyReferrals,
+    monthlyRevenue,
+    leaders,
+  ] = await Promise.all([
     db.first<ActivityRow>(
       `SELECT
          COUNT(DISTINCT CASE WHEN s.last_seen_at >= ? THEN s.user_id END) AS dau,
@@ -134,6 +166,13 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
           AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')`,
     ),
     db.first<CountRow>(`SELECT COUNT(*) AS count FROM profiles WHERE visibility <> 'archived'`),
+    db.first<CountRow>(
+      `SELECT COUNT(DISTINCT p.owner_user_id) AS count
+         FROM profiles p
+         JOIN users u ON u.id = p.owner_user_id AND u.status = 'active'
+        WHERE p.owner_user_id IS NOT NULL AND p.visibility <> 'archived'
+          AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = p.owner_user_id AND ag.role = 'superadmin' AND ag.status = 'active')`,
+    ),
     db.first<RevenueRow>(
       `SELECT
          COALESCE(SUM(CASE WHEN status = 'verified' THEN amount_cents ELSE 0 END), 0) AS all_time_cents,
@@ -142,6 +181,12 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
          COALESCE(SUM(amount_cents), 0) AS payment_cents
        FROM billing_payments`,
       [monthAt],
+    ),
+    db.first<{ amount_cents: number }>(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS amount_cents
+         FROM billing_payments
+        WHERE status = 'verified' AND verified_at >= ? AND verified_at < ?`,
+      [sixtyDaysAt, monthAt],
     ),
     db.first<PaidRow>(
       `SELECT COUNT(*) AS paid_accounts, COALESCE(SUM(price_cents), 0) AS mrr_cents
@@ -175,6 +220,28 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
     ),
     db.first<CountRow>(
       `SELECT COUNT(*) AS count FROM users u
+        WHERE u.status <> 'deleted' AND u.created_at >= ?
+          AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')`,
+      [monthAt],
+    ),
+    db.first<CountRow>(
+      `SELECT COUNT(*) AS count FROM users u
+        WHERE u.status <> 'deleted' AND u.created_at >= ? AND u.created_at < ?
+          AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')`,
+      [sixtyDaysAt, monthAt],
+    ),
+    db.first<CountRow>(
+      `SELECT COUNT(*) AS count FROM network_referral_edges
+        WHERE status = 'active' AND created_at >= ?`,
+      [monthAt],
+    ),
+    db.first<CountRow>(
+      `SELECT COUNT(*) AS count FROM network_referral_edges
+        WHERE status = 'active' AND created_at >= ? AND created_at < ?`,
+      [sixtyDaysAt, monthAt],
+    ),
+    db.first<CountRow>(
+      `SELECT COUNT(*) AS count FROM users u
         WHERE u.status <> 'deleted' AND u.created_at < ?
           AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')`,
       [startAt],
@@ -204,6 +271,32 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
         GROUP BY substr(verified_at, 1, 10)
         ORDER BY day`,
       [startAt],
+    ),
+    db.all<MonthCount>(
+      `SELECT substr(u.created_at, 1, 7) AS month, COUNT(*) AS count
+         FROM users u
+        WHERE u.status <> 'deleted' AND u.created_at >= ?
+          AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')
+        GROUP BY substr(u.created_at, 1, 7)
+        ORDER BY month`,
+      [historyStartAt],
+    ),
+    db.all<MonthCount>(
+      `SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS count
+         FROM network_referral_edges
+        WHERE status = 'active' AND created_at >= ?
+        GROUP BY substr(created_at, 1, 7)
+        ORDER BY month`,
+      [historyStartAt],
+    ),
+    db.all<MonthRevenue>(
+      `SELECT substr(verified_at, 1, 7) AS month,
+              COALESCE(SUM(CASE WHEN status = 'verified' THEN amount_cents ELSE 0 END), 0) AS amount_cents
+         FROM billing_payments
+        WHERE verified_at >= ?
+        GROUP BY substr(verified_at, 1, 7)
+        ORDER BY month`,
+      [historyStartAt],
     ),
     db.all<LeaderRow>(
       `SELECT e.inviter_user_id AS user_id,
@@ -329,9 +422,32 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
     });
   }
 
+  const usersByMonth = new Map(monthlyUsers.map((row) => [row.month, Number(row.count || 0)]));
+  const referralsByMonth = new Map(monthlyReferrals.map((row) => [row.month, Number(row.count || 0)]));
+  const revenueByMonth = new Map(monthlyRevenue.map((row) => [row.month, Number(row.amount_cents || 0)]));
+  const monthlyHistory: Array<{ month: string; newUsers: number; referrals: number; revenueCents: number }> = [];
+  for (let monthsAgo = 5; monthsAgo >= 0; monthsAgo -= 1) {
+    const monthDate = new Date(Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth() - monthsAgo, 1));
+    const key = monthDate.toISOString().slice(0, 7);
+    monthlyHistory.push({
+      month: key,
+      newUsers: usersByMonth.get(key) || 0,
+      referrals: referralsByMonth.get(key) || 0,
+      revenueCents: revenueByMonth.get(key) || 0,
+    });
+  }
+
   const paidAccounts = Number(paid?.paid_accounts || 0);
   const mrrCents = Number(paid?.mrr_cents || 0);
   const activeProfileCount = Number(activeProfiles?.count || 0);
+  const activatedUserCount = Number(activatedUsers?.count || 0);
+  const totalUserCount = Number(totalUsers?.count || 0);
+  const newUsersCurrent30 = Number(newUsers30?.count || 0);
+  const newUsersPrevious30 = Number(previousNewUsers30?.count || 0);
+  const referralsCurrent30 = Number(referrals30?.count || 0);
+  const referralsPrevious30 = Number(previousReferrals30?.count || 0);
+  const revenueCurrent30 = Number(revenue?.revenue_30d_cents || 0);
+  const revenuePrevious30 = Number(previousRevenue?.amount_cents || 0);
   const baseCents = Number(discounts?.base_cents || 0);
   const finalCents = Number(discounts?.final_cents || 0);
   const totalPaymentCents = Number(revenue?.payment_cents || 0);
@@ -355,7 +471,7 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
     },
     financials: {
       allTimeRevenueCents: Number(revenue?.all_time_cents || 0),
-      revenue30dCents: Number(revenue?.revenue_30d_cents || 0),
+      revenue30dCents: revenueCurrent30,
       mrrCents,
       activePaidAccounts: paidAccounts,
       arpaCents: paidAccounts > 0 ? Math.round(mrrCents / paidAccounts) : null,
@@ -366,12 +482,35 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
       methodology: 'Revenue uses verified Base USDC billing payments only. Free passes never create fake zero-value payments. MRR uses current active paid subscription periods. Ratios remain unavailable when their denominator is zero.',
     },
     growth: {
-      totalUsers: Number(totalUsers?.count || 0),
+      totalUsers: totalUserCount,
       activeProfiles: activeProfileCount,
+      activatedUsers: activatedUserCount,
       referralRedemptionsThisMonth: Number(referredThisMonth?.count || 0),
       currentMonth,
+      profileActivationRate: moneyRatio(activatedUserCount, totalUserCount),
+      paidConversionRate: moneyRatio(paidAccounts, totalUserCount),
+      referralContribution30d: moneyRatio(referralsCurrent30, newUsersCurrent30),
+      velocity: {
+        newUsers: {
+          current: newUsersCurrent30,
+          previous: newUsersPrevious30,
+          change: growthChange(newUsersCurrent30, newUsersPrevious30),
+        },
+        referrals: {
+          current: referralsCurrent30,
+          previous: referralsPrevious30,
+          change: growthChange(referralsCurrent30, referralsPrevious30),
+        },
+        revenueCents: {
+          current: revenueCurrent30,
+          previous: revenuePrevious30,
+          change: growthChange(revenueCurrent30, revenuePrevious30),
+        },
+      },
+      monthlyHistory,
       trend,
       targets,
+      methodology: 'Executive ratios use recorded Linkary facts only. Profile activation is distinct active non-Superadmin user accounts with at least one non-archived profile divided by active registered non-Superadmin users. Paid conversion is active paid accounts divided by active registered non-Superadmin users. Referral contribution compares canonical active referral edges created in the last 30 days with new non-Superadmin users created in the same rolling 30-day window. Velocity compares the latest rolling 30 days with the immediately preceding 30 days; change is unavailable when the prior period is zero.',
     },
     referrals: {
       funnel,
