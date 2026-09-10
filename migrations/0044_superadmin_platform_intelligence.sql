@@ -51,9 +51,17 @@ CREATE TABLE IF NOT EXISTS platform_growth_targets (
 CREATE INDEX IF NOT EXISTS idx_platform_growth_targets_period
   ON platform_growth_targets(period_key, metric_key);
 
--- Platform-level referral funnel reads are date-bounded in Superadmin. These
--- indexes prevent those private analytics queries from becoming broad scans as
--- Linkary grows.
+-- Platform intelligence reads are bounded by time or a short leaderboard. These
+-- indexes keep the dashboard from becoming a repeat of the old broad-scan D1
+-- failure mode as Linkary grows.
+CREATE INDEX IF NOT EXISTS idx_sessions_last_seen_user
+  ON sessions(last_seen_at, user_id);
+CREATE INDEX IF NOT EXISTS idx_users_created_status
+  ON users(created_at, status);
+CREATE INDEX IF NOT EXISTS idx_billing_payments_verified_status
+  ON billing_payments(verified_at, status);
+CREATE INDEX IF NOT EXISTS idx_network_referral_edges_status_created
+  ON network_referral_edges(status, created_at, inviter_user_id);
 CREATE INDEX IF NOT EXISTS idx_invite_click_events_occurred
   ON invite_click_events(occurred_at, invite_id);
 CREATE INDEX IF NOT EXISTS idx_invite_redemptions_redeemed
