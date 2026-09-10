@@ -9,6 +9,7 @@ import { randomToken, sha256 } from '../security/crypto';
 export const SESSION_COOKIE = '__Host-linkary_session';
 export const CSRF_COOKIE = '__Host-linkary_csrf';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const SESSION_ACTIVITY_REFRESH_MS = 6 * 60 * 60 * 1000;
 
 export interface AuthContext { user: UserRow; session: SessionRow; isSuperadmin: boolean; }
 
@@ -25,6 +26,25 @@ export async function createSession(env: Env, userId: string): Promise<{ cookieH
   return { csrfToken, cookieHeaders: [serializeCookie(SESSION_COOKIE, rawToken, { maxAge: SESSION_TTL_SECONDS, httpOnly: true, secure: true, sameSite: 'Lax' }), serializeCookie(CSRF_COOKIE, csrfToken, { maxAge: SESSION_TTL_SECONDS, httpOnly: false, secure: true, sameSite: 'Lax' })] };
 }
 
+async function refreshSessionActivity(db: Db, session: SessionRow): Promise<void> {
+  const previous = Date.parse(session.last_seen_at);
+  const nowMs = Date.now();
+  if (Number.isFinite(previous) && nowMs - previous < SESSION_ACTIVITY_REFRESH_MS) return;
+  const observedAt = new Date(nowMs).toISOString();
+  const refreshBefore = new Date(nowMs - SESSION_ACTIVITY_REFRESH_MS).toISOString();
+  try {
+    // This is deliberately bounded to at most one write per active session per
+    // six hours. Analytics telemetry must never become a login dependency.
+    await db.run(
+      `UPDATE sessions SET last_seen_at = ? WHERE id = ? AND last_seen_at < ?`,
+      [observedAt, session.id, refreshBefore],
+    );
+    session.last_seen_at = observedAt;
+  } catch {
+    // A telemetry write failure must not interrupt an otherwise valid session.
+  }
+}
+
 export async function getAuthContext(request: Request, env: Env): Promise<AuthContext | null> {
   if (!env.DB) return null;
   const rawToken = parseCookies(request)[SESSION_COOKIE];
@@ -34,6 +54,7 @@ export async function getAuthContext(request: Request, env: Env): Promise<AuthCo
   if (!session) return null;
   const user = await db.first<UserRow>(`SELECT * FROM users WHERE id = ? AND status = 'active'`, [session.user_id]);
   if (!user) return null;
+  await refreshSessionActivity(db, session);
   const grant = await db.first<{ id: string }>(`SELECT id FROM admin_grants WHERE user_id = ? AND role = 'superadmin' AND status = 'active'`, [user.id]);
   const configuredSuperadminEmail = env.SUPERADMIN_EMAIL?.trim().toLowerCase();
   const emailMatchesSuperadmin = !configuredSuperadminEmail
