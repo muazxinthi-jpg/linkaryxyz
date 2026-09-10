@@ -319,10 +319,25 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
 
   async function removeBlock(block: Block) {
     if (!profile || !window.confirm(`Remove ${block.title || 'this item'} from the profile?`)) return;
-    const token = cookie('__Host-linkary_csrf'); if (!token) return;
-    const response = await fetch(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'DELETE', headers: { 'x-csrf-token': token }, credentials: 'same-origin' });
-    if (!response.ok) { setMessage('This profile item could not be removed.'); return; }
-    await load();
+    const token = cookie('__Host-linkary_csrf');
+    if (!token) { setMessage('Your session needs to be refreshed before removing profile items.'); return; }
+    setBusy(`remove:${block.id}`);
+    setMessage('');
+    try {
+      await apiJson(`/api/profiles/${encodeURIComponent(profile.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'DELETE', headers: { 'x-csrf-token': token } });
+      setBlocks((current) => current.filter((item) => item.id !== block.id));
+      setAnalytics((current) => ({
+        ...current,
+        sections: Math.max(0, current.sections - (block.enabled ? 1 : 0)),
+        connectedChannels: Math.max(0, current.connectedChannels - (block.enabled && isSocialBlock(block) ? 1 : 0)),
+      }));
+      setPreviewRevision(Date.now());
+      setMessage(`${block.title || blockLabel(block.type)} removed from profile.`);
+    } catch (error) {
+      setMessage(safeError(error, 'This profile item could not be removed.'));
+    } finally {
+      setBusy('');
+    }
   }
 
   async function persistOrder(ordered: Block[]) {
@@ -405,7 +420,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
               {!blocks.length ? <div className="ops-empty"><div className="ops-empty-icon">＋</div><h3>Build your public page</h3><p>Add social links, featured work, NFTs and a clear way for people to work with you.</p><button className="ops-button secondary" onClick={() => openNew(isProject ? 'featured_article' : 'work_with_me')}>Add first section</button></div> : <div className="profile-beta-blocks">{blocks.map((block, index) => <article key={block.id} draggable onDragStart={() => setDraggedId(block.id)} onDragEnd={() => setDraggedId(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropOn(block.id)} className={`${block.enabled ? '' : 'disabled'} ${draggedId === block.id ? 'dragging' : ''}`}>
                 <button type="button" className="profile-beta-grip" aria-label={`Move ${block.title || blockLabel(block.type)}`}>⋮⋮</button>
                 <div className="profile-beta-block-copy"><span>{blockLabel(block.type)}</span><strong>{block.title || 'Untitled'}</strong><small>{block.url || (block.type === 'heading' ? 'Section label' : 'No destination')}</small></div>
-                <div className="profile-beta-block-actions"><button disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label="Move up">↑</button><button disabled={index === blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label="Move down">↓</button><button onClick={() => void setBlockEnabled(block)}>{block.enabled ? 'Hide' : 'Show'}</button><button onClick={() => openEdit(block)}>Edit</button><button className="danger" onClick={() => void removeBlock(block)}>Remove</button></div>
+                <div className="profile-beta-block-actions"><button disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label="Move up">↑</button><button disabled={index === blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label="Move down">↓</button><button onClick={() => void setBlockEnabled(block)}>{block.enabled ? 'Hide' : 'Show'}</button><button onClick={() => openEdit(block)}>Edit</button><button className="danger" disabled={busy.startsWith('remove:')} onClick={() => void removeBlock(block)}>{busy === `remove:${block.id}` ? 'Removing...' : 'Remove'}</button></div>
               </article>)}</div>}
             </section>
 
