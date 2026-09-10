@@ -127,6 +127,39 @@ export default function AdminCouponsExperience() {
     finally { setBusy(''); }
   }
 
+  async function setCouponAccessUntil(coupon: Coupon) {
+    if (!supportsAccessUntil || !isFreeCoupon(coupon.discountType, coupon.discountValue)) return;
+    const requested = window.prompt(
+      'Access until, as an ISO 8601 timestamp including timezone. Example: 2028-12-31T23:59:59.000Z',
+      coupon.accessUntil || '',
+    );
+    if (requested === null) return;
+    const trimmed = requested.trim();
+    if (!/(Z|[+-]\d{2}:\d{2})$/i.test(trimmed)) {
+      setMessage('Access until must include an explicit timezone, for example 2028-12-31T23:59:59.000Z.');
+      return;
+    }
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) { setMessage('Enter a valid Access until timestamp.'); return; }
+    const accessUntil = parsed.toISOString();
+    if (!window.confirm(`Set ${coupon.code} fixed entitlement expiry to ${accessUntil}? Only future redemptions use this value.`)) return;
+    const csrf = cookie('__Host-linkary_csrf');
+    if (!csrf) { setMessage('Your admin session needs to be refreshed.'); return; }
+    const busyKey = `access:${coupon.id}`;
+    setBusy(busyKey);
+    setMessage('');
+    try {
+      await apiJson(`/api/admin/commercial/coupons/${encodeURIComponent(coupon.id)}/access-until`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
+        body: JSON.stringify({ accessUntil }),
+      });
+      setMessage(`${coupon.code} Access until saved as ${accessUntil}.`);
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Coupon Access until could not be changed.'); }
+    finally { setBusy(''); }
+  }
+
   return <main className="admin-coupons-page">
     <header className="admin-coupons-topbar">
       <a className="admin-coupons-brand" href="/admin/readiness">Linkary Superadmin</a>
@@ -170,14 +203,22 @@ export default function AdminCouponsExperience() {
           <div className="admin-coupons-section-head"><div><span>LIVE CODES</span><h2>Manage coupons</h2></div><button type="button" className="admin-coupons-refresh" onClick={() => void load()} disabled={state === 'loading'}>{state === 'loading' ? 'Loading…' : 'Refresh'}</button></div>
           {state === 'error' && <div className="admin-coupons-empty">Coupon data could not be loaded.</div>}
           {state === 'ready' && !coupons.length && <div className="admin-coupons-empty">No coupons yet. Create the first controlled discount code.</div>}
-          <div className="admin-coupons-list">{coupons.map((coupon) => <article key={coupon.id} className={coupon.active ? '' : 'inactive'}>
-            <div className="admin-coupons-code"><strong>{coupon.code}</strong><span className={coupon.active ? 'active' : 'inactive'}>{coupon.active ? 'Active' : 'Inactive'}</span></div>
-            <h3>{coupon.label}</h3><div className="admin-coupons-discount">{discountLabel(coupon)}</div>
-            <div className="admin-coupons-meta"><span><b>{coupon.redeemedCount}</b> redeemed</span><span><b>{coupon.reservedCount}</b> reserved</span><span><b>{coupon.maxRedemptions ?? '∞'}</b> total limit</span><span><b>{coupon.maxRedemptionsPerAccount}</b> per account</span></div>
-            <div className="admin-coupons-plan-tags">{coupon.eligiblePlanCodes.map((code) => <span key={code}>{plans.find((plan) => plan.code === code)?.name || code}</span>)}</div>
-            <small>Starts {localDate(coupon.startsAt)} · Claim ends {localDate(coupon.endsAt)}{isFreeCoupon(coupon.discountType, coupon.discountValue) ? ` · Access ${coupon.accessUntil ? `until ${localDate(coupon.accessUntil)}` : 'one billing period from redemption'}` : ''} · {coupon.stackable ? 'Stackable' : 'Not stackable'}</small>
-            <button type="button" disabled={busy === coupon.id} onClick={() => void setCouponActive(coupon, !coupon.active)}>{busy === coupon.id ? 'Saving…' : coupon.active ? 'Deactivate' : 'Activate'}</button>
-          </article>)}</div>
+          <div className="admin-coupons-list">{coupons.map((coupon) => {
+            const accessBusy = busy === `access:${coupon.id}`;
+            const statusBusy = busy === coupon.id;
+            const freeCoupon = isFreeCoupon(coupon.discountType, coupon.discountValue);
+            return <article key={coupon.id} className={coupon.active ? '' : 'inactive'}>
+              <div className="admin-coupons-code"><strong>{coupon.code}</strong><span className={coupon.active ? 'active' : 'inactive'}>{coupon.active ? 'Active' : 'Inactive'}</span></div>
+              <h3>{coupon.label}</h3><div className="admin-coupons-discount">{discountLabel(coupon)}</div>
+              <div className="admin-coupons-meta"><span><b>{coupon.redeemedCount}</b> redeemed</span><span><b>{coupon.reservedCount}</b> reserved</span><span><b>{coupon.maxRedemptions ?? '∞'}</b> total limit</span><span><b>{coupon.maxRedemptionsPerAccount}</b> per account</span></div>
+              <div className="admin-coupons-plan-tags">{coupon.eligiblePlanCodes.map((code) => <span key={code}>{plans.find((plan) => plan.code === code)?.name || code}</span>)}</div>
+              <small>Starts {localDate(coupon.startsAt)} · Claim ends {localDate(coupon.endsAt)}{freeCoupon ? ` · Access ${coupon.accessUntil ? `until ${localDate(coupon.accessUntil)}` : 'one billing period from redemption'}` : ''} · {coupon.stackable ? 'Stackable' : 'Not stackable'}</small>
+              <div className="admin-coupons-actions">
+                {supportsAccessUntil && freeCoupon && <button type="button" disabled={accessBusy || statusBusy} onClick={() => void setCouponAccessUntil(coupon)}>{accessBusy ? 'Saving expiry…' : 'Set access expiry'}</button>}
+                <button type="button" disabled={statusBusy || accessBusy} onClick={() => void setCouponActive(coupon, !coupon.active)}>{statusBusy ? 'Saving…' : coupon.active ? 'Deactivate' : 'Activate'}</button>
+              </div>
+            </article>;
+          })}</div>
         </section>
       </div>
     </div>
