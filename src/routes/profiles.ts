@@ -16,6 +16,17 @@ function safeJson(value: string): unknown {
   try { return JSON.parse(value); } catch { return {}; }
 }
 
+function profileBlockConfig(value: string | null | undefined): Record<string, unknown> {
+  const parsed = safeJson(value || '{}');
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : {};
+}
+
+function isArchivedProfileBlock(block: Pick<ProfileBlockRow, 'config_json'>): boolean {
+  return profileBlockConfig(block.config_json).archived === true;
+}
+
 function safePublicImageUrl(value: string | null): string | null {
   return safeHttpsUrl(value);
 }
@@ -196,7 +207,8 @@ export async function getPublishedProfile(username: string, env: Env): Promise<{
   const db = new Db(requireDb(env));
   const profile = await db.first<ProfileRow>(`SELECT * FROM profiles WHERE username = ? AND visibility = 'published' LIMIT 1`, [username.toLowerCase()]);
   if (!profile) throw new HttpError(404, 'Profile not found', 'profile_not_found');
-  const blocks = await db.all<ProfileBlockRow>(`SELECT * FROM profile_blocks WHERE profile_id = ? AND enabled = 1 ORDER BY position ASC`, [profile.id]);
+  const blocks = (await db.all<ProfileBlockRow>(`SELECT * FROM profile_blocks WHERE profile_id = ? AND enabled = 1 ORDER BY position ASC`, [profile.id]))
+    .filter((block) => !isArchivedProfileBlock(block));
   return { profile, blocks };
 }
 
@@ -697,7 +709,8 @@ export async function listProfileBlocks(request: Request, env: Env, profileId: s
   const db = new Db(requireDb(env));
   await requireEditableProfile(db, auth.user.id, profileId);
   const blocks = await db.all<ProfileBlockRow>(`SELECT * FROM profile_blocks WHERE profile_id = ? ORDER BY position ASC`, [profileId]);
-  return json({ blocks: blocks.map((block) => ({ id: block.id, type: block.block_type, title: block.title, url: block.url, enabled: Boolean(block.enabled), config: safeJson(block.config_json) })) });
+  const activeBlocks = blocks.filter((block) => !isArchivedProfileBlock(block));
+  return json({ blocks: activeBlocks.map((block) => ({ id: block.id, type: block.block_type, title: block.title, url: block.url, enabled: Boolean(block.enabled), config: safeJson(block.config_json) })) });
 }
 
 const ALLOWED_BLOCK_TYPES = new Set(['link','social_link','telegram','youtube','tiktok','instagram','facebook','reddit','linkedin','website','booking','custom_button','featured_article','featured_video','featured_image','product_feature','nft_item','campaign_proof','media_kit','work_with_me','project_card','community_card','team_member','heading']);
@@ -727,8 +740,8 @@ export async function updateProfileBlock(request: Request, env: Env, profileId: 
   await verifyCsrf(request, env, auth);
   const db = new Db(requireDb(env));
   await requireEditableProfile(db, auth.user.id, profileId);
-  const existing = await db.first<{ id: string; block_type: string }>(`SELECT id, block_type FROM profile_blocks WHERE id = ? AND profile_id = ?`, [blockId, profileId]);
-  if (!existing) throw new HttpError(404, 'Block not found', 'block_not_found');
+  const existing = await db.first<{ id: string; block_type: string; config_json: string }>(`SELECT id, block_type, config_json FROM profile_blocks WHERE id = ? AND profile_id = ?`, [blockId, profileId]);
+  if (!existing || isArchivedProfileBlock(existing)) throw new HttpError(404, 'Block not found', 'block_not_found');
   const body = await readJson<{ title?: string; url?: string | null; enabled?: boolean; config?: unknown }>(request);
   const urlProvided = body.url !== undefined;
   const nextUrl = urlProvided ? existing.block_type === 'nft_item' ? validateNftDestinationUrl(body.url) : validateDestination(body.url) : null;
@@ -743,8 +756,9 @@ export async function reorderProfileBlocks(request: Request, env: Env, profileId
   await requireEditableProfile(db, auth.user.id, profileId);
   const body = await readJson<{ blockIds?: string[] }>(request);
   if (!Array.isArray(body.blockIds) || new Set(body.blockIds).size !== body.blockIds.length || body.blockIds.length > 100) throw new HttpError(400, 'Invalid block order', 'invalid_block_order');
-  const current = await db.all<{ id: string }>(`SELECT id FROM profile_blocks WHERE profile_id = ?`, [profileId]);
-  if (current.length !== body.blockIds.length || current.some((row) => !body.blockIds!.includes(row.id))) throw new HttpError(400, 'Block order must include every profile block exactly once', 'invalid_block_order');
+  const current = await db.all<{ id: string; config_json: string }>(`SELECT id, config_json FROM profile_blocks WHERE profile_id = ?`, [profileId]);
+  const activeCurrent = current.filter((row) => !isArchivedProfileBlock(row));
+  if (activeCurrent.length !== body.blockIds.length || activeCurrent.some((row) => !body.blockIds!.includes(row.id))) throw new HttpError(400, 'Block order must include every active profile block exactly once', 'invalid_block_order');
   const timestamp = new Date().toISOString();
   await db.batch(body.blockIds.map((blockId, position) => db.statement(`UPDATE profile_blocks SET position = ?, updated_at = ? WHERE id = ? AND profile_id = ?`, [position, timestamp, blockId, profileId])));
   return json({ ok: true });
@@ -755,8 +769,16 @@ export async function deleteProfileBlock(request: Request, env: Env, profileId: 
   await verifyCsrf(request, env, auth);
   const db = new Db(requireDb(env));
   await requireEditableProfile(db, auth.user.id, profileId);
-  await db.run(`DELETE FROM profile_blocks WHERE id = ? AND profile_id = ?`, [blockId, profileId]);
-  return json({ ok: true });
+  const existing = await db.first<{ config_json: string }>(`SELECT config_json FROM profile_blocks WHERE id = ? AND profile_id = ? LIMIT 1`, [blockId, profileId]);
+  if (!existing || isArchivedProfileBlock(existing)) return json({ ok: true, archived: true });
+
+  // Profile engagement events reference block_id. Archive instead of hard deleting
+  // so a user can remove a section without destroying or invalidating click history.
+  const timestamp = new Date().toISOString();
+  const config = profileBlockConfig(existing.config_json);
+  const archivedConfig = { ...config, archived: true, archivedAt: timestamp };
+  await db.run(`UPDATE profile_blocks SET enabled = 0, config_json = ?, updated_at = ? WHERE id = ? AND profile_id = ?`, [JSON.stringify(archivedConfig), timestamp, blockId, profileId]);
+  return json({ ok: true, archived: true });
 }
 
 export async function publishProfile(request: Request, env: Env, profileId: string, published: boolean): Promise<Response> {
