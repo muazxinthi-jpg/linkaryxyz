@@ -3,6 +3,7 @@ import AdminCommercialExperience from './AdminCommercialExperience';
 import AdminCommunityVerificationExperience from './AdminCommunityVerificationExperience';
 import AdminCouponsExperience from './AdminCouponsExperience';
 import AdminCreatorAccessExperience from './AdminCreatorAccessExperience';
+import AdminNetworkRewardsExperience from './AdminNetworkRewardsExperience';
 import AdminPlatformIntelligenceExperience from './AdminPlatformIntelligenceExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
 import SuperadminWorkspace from './SuperadminWorkspace';
@@ -36,6 +37,7 @@ export default function SuperadminApp({ me }: { me: ProductMe }) {
   if (location.pathname === '/admin/commercial') return <AdminCommercialExperience me={me} status={status} />;
   if (location.pathname === '/admin/coupons') return <SuperadminWorkspace me={me}><AdminCouponsExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/platform-intelligence') return <SuperadminWorkspace me={me}><AdminPlatformIntelligenceExperience /></SuperadminWorkspace>;
+  if (location.pathname === '/admin/network-rewards') return <SuperadminWorkspace me={me}><AdminNetworkRewardsExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/readiness') return <AdminReadinessExperience me={me} status={status} />;
 
   return <Navigate to="/admin/readiness" replace />;

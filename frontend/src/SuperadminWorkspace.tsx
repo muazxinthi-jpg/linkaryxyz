@@ -12,6 +12,7 @@ const adminLinks = [
   ['/admin/community-verifications', 'Community reviews'],
   ['/admin/readiness', 'Beta readiness'],
   ['/admin/platform-intelligence', 'Platform intelligence'],
+  ['/admin/network-rewards', 'Network rewards'],
   ['/admin/commercial', 'Commercial accounts'],
   ['/admin/coupons', 'Coupons'],
 ] as const;
@@ -19,8 +20,8 @@ const adminLinks = [
 const adminSections = [
   ['ACCESS', adminLinks.slice(0, 2)],
   ['OPERATIONS', adminLinks.slice(2, 3)],
-  ['INTELLIGENCE', adminLinks.slice(3, 4)],
-  ['COMMERCIAL', adminLinks.slice(4)],
+  ['INTELLIGENCE', adminLinks.slice(3, 5)],
+  ['COMMERCIAL', adminLinks.slice(5)],
 ] as const;
 
 export default function SuperadminWorkspace({ me, children }: { me: ProductMe; children: React.ReactNode }) {

@@ -19,6 +19,12 @@ import {
   updateReferralRewardDecision,
   updateReferralRewardRule,
 } from './routes/adminReferralRewardIntelligence';
+import {
+  adminNetworkRewardLedger,
+  syncNetworkRewardLedger,
+  updateNetworkRewardSettings,
+  updateNetworkRewardSettlement,
+} from './routes/adminNetworkRewardLedger';
 import { redirectTrackedLink } from './routes/tracking';
 
 const APP_SHELL_RELEASE = '2026-09-09-private-network-v5';
@@ -150,6 +156,43 @@ export default {
     if (referralRewardPaymentStatus) {
       try {
         if (request.method === 'POST') return await updateReferralRewardDecision(request, env, decodeURIComponent(referralRewardPaymentStatus[1]));
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-ledger') {
+      try {
+        if (request.method === 'GET') return await adminNetworkRewardLedger(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-ledger/sync') {
+      try {
+        if (request.method === 'POST') return await syncNetworkRewardLedger(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-settings') {
+      try {
+        if (request.method === 'POST') return await updateNetworkRewardSettings(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const networkRewardSettlement = url.pathname.match(/^\/api\/admin\/platform-intelligence\/network-reward-ledger\/([^/]+)\/status$/);
+    if (networkRewardSettlement) {
+      try {
+        if (request.method === 'POST') return await updateNetworkRewardSettlement(request, env, decodeURIComponent(networkRewardSettlement[1]));
         return methodNotAllowed(['POST']);
       } catch (error) {
         return errorResponse(error);
