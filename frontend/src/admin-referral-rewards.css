@@ -62,6 +62,29 @@
 .rr-small { border-color: rgba(240, 91, 49, .24); }
 .rr-ledger footer { margin-top: 10px; color: #8c9193; font-size: 9px; line-height: 1.45; }
 
+/* Platform Acquisition V3: visible circular points, nearest-day hit zones and pin state. */
+.pai-dot-chart svg { display: block; }
+.pai-grid-wide { vector-effect: non-scaling-stroke; stroke-width: 1; }
+.pai-dot-chart .pai-user-line,
+.pai-dot-chart .pai-referral-line { vector-effect: non-scaling-stroke; stroke-width: 2.25; }
+.pai-point-dot { vector-effect: non-scaling-stroke; stroke: #fff; stroke-width: 1.6; transition: r .12s ease, opacity .12s ease; pointer-events: none; }
+.pai-point-dot.user { fill: #15191b; }
+.pai-point-dot.referral { fill: #f05b31; }
+.pai-active-dot line { vector-effect: non-scaling-stroke; stroke: rgba(21, 25, 27, .28); stroke-width: 1; stroke-dasharray: 4 4; }
+.pai-active-dot circle { vector-effect: non-scaling-stroke; stroke: #fff; stroke-width: 2; }
+.pai-active-dot circle.halo { opacity: .18; stroke: none; }
+.pai-active-dot circle.halo.user { fill: #15191b; }
+.pai-active-dot circle.halo.referral { fill: #f05b31; }
+.pai-active-dot.pinned circle:not(.halo) { stroke-width: 3; }
+.pai-hit-zone { fill: transparent; stroke: transparent; cursor: crosshair; outline: none; }
+.pai-hit-zone:focus { fill: rgba(240, 91, 49, .025); }
+.pai-dot-tooltip { transform: translate(-50%, -100%); min-width: 156px; }
+.pai-dot-tooltip span { display: flex; align-items: center; gap: 6px; }
+.pai-dot-tooltip span i { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.pai-dot-tooltip span i.user { background: #15191b; }
+.pai-dot-tooltip span i.referral { background: #f05b31; }
+.pai-dot-tooltip em { width: fit-content; margin-top: 2px; padding: 2px 5px; border-radius: 4px; background: #15191b; color: #fff; font-size: 7px; font-style: normal; font-weight: 900; letter-spacing: .08em; }
+
 @media (max-width: 1180px) {
   .rr-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rr-rule form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -74,6 +97,7 @@
   .rr-panel header { flex-wrap: wrap; }
   .rr-ledger header > label { width: 100%; }
   .rr-ledger header select { width: 100%; }
+  .pai-point-dot { r: 4px; }
 }
 
 @media (max-width: 520px) {
