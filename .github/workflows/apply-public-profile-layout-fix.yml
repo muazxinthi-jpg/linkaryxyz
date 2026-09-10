@@ -1,0 +1,66 @@
+name: Apply public profile Featured Work layout fix
+
+on:
+  push:
+    branches:
+      - fix/public-profile-featured-work-layout
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/public-profile-featured-work-layout
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply count-aware Featured Work layout
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          profiles = Path('src/routes/profiles.ts')
+          text = profiles.read_text()
+          old = ".image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.image-showcase.count-1 .showcase-item"
+          new = ".image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.image-showcase.count-1 .showcase-item"
+          if old not in text:
+              raise SystemExit('profiles.ts Featured Work layout anchor not found')
+          profiles.write_text(text.replace(old, new, 1))
+
+          enhancer = Path('src/routes/publicProfileEnhancer.ts')
+          text = enhancer.read_text()
+          old = ".image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.proof-grid"
+          new = ".image-showcase .showcase-grid,.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.image-showcase.count-3 .showcase-item{min-height:160px!important}.image-showcase.count-3 .showcase-item strong{font-size:12px!important}.proof-grid"
+          if old not in text:
+              raise SystemExit('publicProfileEnhancer.ts mobile gallery anchor not found')
+          enhancer.write_text(text.replace(old, new, 1))
+
+          test_file = Path('tests/public-profile-readability.test.ts')
+          text = test_file.read_text()
+          anchor = "test('NFT collection artwork is contained rather than cropped as a generic thumbnail', () => {"
+          addition = """test('Featured Work fills each row with up to three count-aware columns', () => {\n  assert.equal(profiles.includes(\"const countClass = className === 'image-showcase' ? ` count-${Math.min(items.length, 3)}` : '';\"), true);\n  assert.equal(profiles.includes('.image-showcase.count-1 .showcase-grid{grid-template-columns:1fr!important}'), true);\n  assert.equal(profiles.includes('.image-showcase.count-2 .showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}'), true);\n  assert.equal(profiles.includes('.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}'), true);\n  assert.equal(enhancer.includes('.image-showcase.count-3 .showcase-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}'), true);\n  assert.equal(enhancer.includes('.image-showcase.count-3 .showcase-item strong{font-size:12px!important}'), true);\n});\n\n"""
+          if anchor not in text:
+              raise SystemExit('public-profile-readability test anchor not found')
+          test_file.write_text(text.replace(anchor, addition + anchor, 1))
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Run focused public profile regression tests
+        run: npx tsx --test tests/public-profile-readability.test.ts tests/public-profile-preview-resolution.test.ts tests/public-profile-rendering-hotfix.test.ts
+      - name: Check backend TypeScript
+        run: npm run backend:check
+      - name: Remove helper workflow and commit fix
+        run: |
+          rm .github/workflows/apply-public-profile-layout-fix.yml
+          git config user.name "Linkary Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/routes/profiles.ts src/routes/publicProfileEnhancer.ts tests/public-profile-readability.test.ts .github/workflows/apply-public-profile-layout-fix.yml
+          git commit -m "Fix Featured Work responsive row layout"
+          git push origin HEAD:fix/public-profile-featured-work-layout
