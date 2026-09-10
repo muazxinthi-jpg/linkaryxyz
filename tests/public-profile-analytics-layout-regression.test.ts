@@ -18,12 +18,10 @@ test('profile analytics restores measured monthly history and destination contri
 });
 
 test('featured work layout is count-aware while larger collections stay responsive', () => {
-  assert.match(profiles, /className === 'image-showcase' && items\.length === 1/);
-  assert.match(profiles, /grid-template-columns:1fr!important/);
-  assert.match(profiles, /className === 'image-showcase' && items\.length === 2/);
-  assert.match(profiles, /repeat\(2,minmax\(0,1fr\)\)!important/);
-  assert.match(profiles, /showcase \$\{className\} count-\$\{items\.length\}/);
-  assert.match(profiles, /image-showcase\.count-1 \.showcase-item/);
+  assert.match(profiles, /const countClass = className === 'image-showcase' \? ` count-\$\{Math\.min\(items\.length, 3\)\}` : '';/);
+  assert.match(profiles, /image-showcase\.count-1 \.showcase-grid\{grid-template-columns:1fr!important\}/);
+  assert.match(profiles, /image-showcase\.count-2 \.showcase-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important\}/);
+  assert.doesNotMatch(profiles, /image-showcase\.count-3 \.showcase-grid/);
 });
 
 test('public media retains shared metadata resolution and has a nonblank global fallback', () => {
