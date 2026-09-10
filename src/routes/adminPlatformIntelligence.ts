@@ -127,6 +127,7 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
     activity,
     totalUsers,
     activeProfiles,
+    activatedUsers,
     revenue,
     previousRevenue,
     paid,
@@ -165,6 +166,13 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
           AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = u.id AND ag.role = 'superadmin' AND ag.status = 'active')`,
     ),
     db.first<CountRow>(`SELECT COUNT(*) AS count FROM profiles WHERE visibility <> 'archived'`),
+    db.first<CountRow>(
+      `SELECT COUNT(DISTINCT p.owner_user_id) AS count
+         FROM profiles p
+         JOIN users u ON u.id = p.owner_user_id AND u.status = 'active'
+        WHERE p.owner_user_id IS NOT NULL AND p.visibility <> 'archived'
+          AND NOT EXISTS (SELECT 1 FROM admin_grants ag WHERE ag.user_id = p.owner_user_id AND ag.role = 'superadmin' AND ag.status = 'active')`,
+    ),
     db.first<RevenueRow>(
       `SELECT
          COALESCE(SUM(CASE WHEN status = 'verified' THEN amount_cents ELSE 0 END), 0) AS all_time_cents,
@@ -432,6 +440,7 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
   const paidAccounts = Number(paid?.paid_accounts || 0);
   const mrrCents = Number(paid?.mrr_cents || 0);
   const activeProfileCount = Number(activeProfiles?.count || 0);
+  const activatedUserCount = Number(activatedUsers?.count || 0);
   const totalUserCount = Number(totalUsers?.count || 0);
   const newUsersCurrent30 = Number(newUsers30?.count || 0);
   const newUsersPrevious30 = Number(previousNewUsers30?.count || 0);
@@ -475,9 +484,10 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
     growth: {
       totalUsers: totalUserCount,
       activeProfiles: activeProfileCount,
+      activatedUsers: activatedUserCount,
       referralRedemptionsThisMonth: Number(referredThisMonth?.count || 0),
       currentMonth,
-      profileActivationRate: moneyRatio(activeProfileCount, totalUserCount),
+      profileActivationRate: moneyRatio(activatedUserCount, totalUserCount),
       paidConversionRate: moneyRatio(paidAccounts, totalUserCount),
       referralContribution30d: moneyRatio(referralsCurrent30, newUsersCurrent30),
       velocity: {
@@ -500,7 +510,7 @@ export async function adminPlatformIntelligence(request: Request, env: Env): Pro
       monthlyHistory,
       trend,
       targets,
-      methodology: 'Executive ratios use recorded Linkary facts only. Profile activation is active non-archived profiles divided by active registered non-Superadmin users. Paid conversion is active paid accounts divided by active registered non-Superadmin users. Referral contribution compares canonical active referral edges created in the last 30 days with new non-Superadmin users created in the same rolling 30-day window. Velocity compares the latest rolling 30 days with the immediately preceding 30 days; change is unavailable when the prior period is zero.',
+      methodology: 'Executive ratios use recorded Linkary facts only. Profile activation is distinct active non-Superadmin user accounts with at least one non-archived profile divided by active registered non-Superadmin users. Paid conversion is active paid accounts divided by active registered non-Superadmin users. Referral contribution compares canonical active referral edges created in the last 30 days with new non-Superadmin users created in the same rolling 30-day window. Velocity compares the latest rolling 30 days with the immediately preceding 30 days; change is unavailable when the prior period is zero.',
     },
     referrals: {
       funnel,
