@@ -58,8 +58,11 @@ test('provider events are immutable, idempotent and do not silently become conve
   assert.match(migration, /review_status TEXT NOT NULL DEFAULT 'pending'/);
   assert.match(migration, /evidence_confidence TEXT NOT NULL DEFAULT 'verified'/);
 
-  const webhookBody = route.slice(route.indexOf('export async function receiveAlchemyAddressActivityWebhook'));
-  assert.doesNotMatch(webhookBody, /INSERT INTO conversion_events/);
+  const webhookStart = route.indexOf('export async function receiveAlchemyAddressActivityWebhook');
+  const conversionInsert = route.lastIndexOf('INSERT INTO conversion_events');
+  assert.ok(webhookStart >= 0, 'Alchemy webhook handler must exist');
+  assert.ok(conversionInsert >= 0, 'review path must write to the canonical conversion ledger');
+  assert.ok(conversionInsert < webhookStart, 'raw provider webhook must not create conversions before operator review');
 });
 
 test('confirmed Alchemy evidence reuses the canonical conversion ledger with provider_verified confidence', () => {
