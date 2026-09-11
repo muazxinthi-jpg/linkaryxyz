@@ -82,8 +82,35 @@ test('payable settlement remains an explicit audited Superadmin workflow', () =>
   assert.match(backend, /network_reward\.reconciled/);
   assert.match(backend, /`network_reward\.\$\{next\}`/);
   assert.match(ui, /PAYABLES COMMAND CENTER/);
-  assert.match(ui, /Mark paid/);
+  assert.match(ui, /Mark sent/);
   assert.match(ui, /Settlement reference/);
+});
+
+test('Superadmin has a clear approve or reject decision queue', () => {
+  assert.match(ui, /APPROVAL QUEUE/);
+  assert.match(ui, /Rewards waiting for a Superadmin decision/);
+  assert.match(ui, />Approve</);
+  assert.match(ui, />Reject</);
+  assert.match(ui, /Why should this reward be rejected\?/);
+  assert.match(ui, /status, reason, paymentReference/);
+});
+
+test('approved unsent payables can be downloaded and copied for manual settlement', () => {
+  assert.match(ui, /Download approved CSV/);
+  assert.match(ui, /Copy payout list/);
+  assert.match(ui, /text\/csv;charset=utf-8/);
+  assert.match(ui, /approved_awaiting_settlement/);
+  assert.match(ui, /linkary-approved-network-rewards-/);
+  assert.match(ui, /data\.payables\.map\(payableCopyLine\)/);
+});
+
+test('mark sent preserves the paid accounting state and requires one settlement reference', () => {
+  assert.match(ui, /markPayableSent/);
+  assert.match(ui, /updateLedgerStatus\(row, 'paid'/);
+  assert.match(ui, /transaction hash, invoice, bank reference, or internal payment ID/);
+  assert.match(ui, /settlementStatus === 'paid'/);
+  assert.match(ui, /'Sent'/);
+  assert.match(backend, /current\.status === 'approved' \? \['paid', 'void'\]/);
 });
 
 test('private routes and Superadmin navigation expose the V4 workspace without removing Platform Intelligence', () => {
