@@ -110,7 +110,7 @@ test('mark sent preserves the paid accounting state and requires one settlement 
   assert.match(ui, /transaction hash, invoice, bank reference, or internal payment ID/);
   assert.match(ui, /settlementStatus === 'paid'/);
   assert.match(ui, /'Sent'/);
-  assert.match(backend, /approved: \['paid', 'void'\]/);
+  assert.match(backend, /current\.status === 'approved' \? \['paid', 'void'\]/);
 });
 
 test('private routes and Superadmin navigation expose the V4 workspace without removing Platform Intelligence', () => {
