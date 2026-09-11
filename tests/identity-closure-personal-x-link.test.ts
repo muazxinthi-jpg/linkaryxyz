@@ -40,8 +40,9 @@ test('Identity Closure refuses silent X reassignment and directs provider confli
 });
 
 test('Personal Public Profile publication remains gated behind verified X ownership', () => {
-  assert.match(profiles, /verificationStatus !== 'verified_x'/);
-  assert.match(profiles, /verification_required/);
+  const text = compact(profiles);
+  assert.match(text, /profile\.verification_status !== 'verified_x'/);
+  assert.match(text, /verification_required/);
 });
 
 test('current-account identity refresh remains session scoped and cannot create or switch users', () => {
