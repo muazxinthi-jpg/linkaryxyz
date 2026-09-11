@@ -1,6 +1,6 @@
 # Linkary Alchemy Controlled Beta Architecture
 
-Last updated: 2026-09-06
+Last updated: 2026-09-12
 
 This document is the current production addendum for Alchemy usage during Linkary Controlled Beta. It supersedes older chain-allocation language in Section 15 of `LINKARY_TECHNICAL_PRODUCT_PAPER.md` wherever there is a conflict.
 
@@ -14,13 +14,13 @@ The active Linkary production Alchemy app is configured for these five networks:
 4. Solana
 5. Robinhood Chain
 
-Arbitrum is not an active Controlled Beta Alchemy network and must not be called by current automatic NFT discovery.
+Arbitrum and Polygon are not active Controlled Beta attribution networks. Polygon may exist only in historical attribution rows created before the five-network correction; new Polygon watch targets and events are rejected.
 
 ## Wallet infrastructure boundary
 
 Coinbase CDP remains Linkary's embedded wallet infrastructure and must not be replaced by Alchemy Wallets.
 
-Alchemy is used as an onchain data, NFT discovery, verification and future attribution provider. Manually saved additional EVM and Solana addresses remain non-signing reward/display destinations unless a separate verification workflow proves ownership.
+Alchemy is used as an onchain data, NFT discovery, verification and attribution provider. Manually saved additional EVM and Solana addresses remain non-signing reward/display destinations unless a separate verification workflow proves ownership.
 
 ## Enable broadly, consume narrowly
 
@@ -51,7 +51,19 @@ Current NFT discovery states:
 | Solana | Active | Active | Alchemy Solana asset discovery |
 | Robinhood Chain | Active | Unavailable for current NFT picker | Keep available for future RPC/onchain use, do not fake NFT indexing |
 
-Token, transfer, price and webhook services can remain prepared for later Beta work, but they are not automatically invoked simply because the Alchemy app has them enabled.
+Token, transfer and price services can remain prepared for later Beta work, but they are not automatically invoked simply because the Alchemy app has them enabled.
+
+## Campaign attribution chain set
+
+The active onchain attribution contract is exactly Ethereum, Base, BNB Chain, Solana and Robinhood Chain. This list is explicit in the attribution route so a future expansion of the general chain registry cannot silently expand webhook acceptance.
+
+- Ethereum, Base, BNB Chain and Robinhood Chain use canonical `0x` EVM addresses and store them lowercase.
+- Solana uses validated 32-byte base58 public keys and preserves their case.
+- Each network fails closed unless its own webhook ID and signing key are configured.
+- Base keeps its existing webhook and secret bindings. Additional provider webhooks are not created by repository code or by this corrective change.
+- Raw webhook bodies are authenticated before parsing. Provider events remain idempotent evidence and become `provider_verified` conversions only after explicit review approval.
+- Reorg notifications retain the evidence row and revoke only the corresponding provider-verified conversion.
+- Polygon is storage-compatible for historical rows only and cannot receive new watch targets or events.
 
 ## NFT picker
 
@@ -78,6 +90,6 @@ Behavior:
 
 Linkary remains first-party and event-driven wherever possible.
 
-For campaigns, Linkary tracking/UTM links remain the primary low-cost attribution signal. Future onchain attribution should be activated only for the relevant Project, campaign, activity or wallet scope. Webhooks, Transfers API, Token API and Prices API should be introduced only where they materially improve a real Beta workflow.
+For campaigns, Linkary tracking/UTM links remain the primary low-cost attribution signal. Onchain attribution is activated only for the relevant Project, campaign, activity or wallet scope. Webhooks and any future Transfers API, Token API or Prices API use should be introduced only where they materially improve a real Beta workflow.
 
 The platform must not scan every Linkary wallet, user or campaign on a timer. Database growth should not make normal requests proportionally more expensive.
