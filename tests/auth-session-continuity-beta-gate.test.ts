@@ -34,7 +34,8 @@ test('signed-in users recover the Linkary session before being routed into the p
   assert.match(continuity, /\/api\/auth\/cdp\/session/);
   assert.match(continuity, /inviteCode: context\.inviteCode/);
   assert.match(continuity, /earnedGrant: context\.earnedGrant/);
-  assert.match(continuity, /window\.location\.replace\(status\.data\.profiles\?\.length \? '\/dashboard' : '\/onboarding'\)/);
+  assert.match(continuity, /const target = authenticatedRoute\(status\.data\.profiles\?\.length \|\| 0\)/);
+  assert.match(continuity, /const result = replaceAuthRoute\(target\)/);
 });
 
 test('returning Creator Earn users resume an existing claim even after browser signup intent is gone', () => {
@@ -42,7 +43,7 @@ test('returning Creator Earn users resume an existing claim even after browser s
   assert.match(continuity, /const creatorEarnIntent = sessionStorage\.getItem\(SIGNUP_INTENT_STORAGE\) === 'creator_earn'/);
   assert.match(continuity, /resumeOnly: !creatorEarnIntent/);
   assert.match(continuity, /claim\.data\.error !== 'creator_claim_not_found'/);
-  assert.match(continuity, /window\.location\.replace\('\/creator-access'\)/);
+  assert.match(continuity, /replaceAuthRoute\('\/creator-access'\)/);
 });
 
 test('returning invited users recover the existing Linkary account without consuming another invitation', () => {
