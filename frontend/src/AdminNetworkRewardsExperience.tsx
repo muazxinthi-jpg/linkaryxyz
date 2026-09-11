@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './admin-network-rewards.css';
 
 type SettlementStatus = 'review' | 'approved' | 'paid' | 'void';
-type Filter = 'all' | 'direct' | 'downstream' | 'approved' | 'reversed';
+type Filter = 'all' | 'direct' | 'downstream' | 'approved' | 'sent' | 'reversed';
 
 type Rate = {
   generation: number;
@@ -132,6 +132,29 @@ function waitingDays(value: string | null | undefined): number | null {
   return Math.max(0, Math.floor((Date.now() - time) / 86_400_000));
 }
 
+function csvCell(value: string | number | null | undefined): string {
+  const text = value === null || value === undefined ? '' : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function payableCsv(rows: Payable[]): string {
+  const header = ['beneficiary_user_id', 'display_name', 'username', 'amount_usd', 'approved_entries', 'oldest_approved_at', 'status'];
+  const body = rows.map((row) => [
+    row.beneficiaryUserId,
+    row.displayName,
+    row.username ? `@${row.username}` : '',
+    (row.amountCents / 100).toFixed(2),
+    row.entryCount,
+    row.oldestApprovedAt,
+    'approved_awaiting_settlement',
+  ]);
+  return [header, ...body].map((columns) => columns.map(csvCell).join(',')).join('\r\n');
+}
+
+function payableCopyLine(row: Payable): string {
+  return [row.displayName, row.username ? `@${row.username}` : row.beneficiaryUserId, (row.amountCents / 100).toFixed(2)].join('\t');
+}
+
 function Metric({ label, value, note, tone = '' }: { label: string; value: string; note: string; tone?: string }) {
   return <article className={`nr-metric ${tone}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>;
 }
@@ -139,8 +162,17 @@ function Metric({ label, value, note, tone = '' }: { label: string; value: strin
 function Status({ row, reversed }: { row: LedgerRow; reversed: boolean }) {
   if (row.entryKind === 'reversal') return <span className="nr-status reversed">Reversal</span>;
   if (reversed) return <span className="nr-status reversed">Reversed</span>;
-  if (row.settlementStatus) return <span className={`nr-status ${row.settlementStatus}`}>{row.settlementStatus === 'review' ? 'Under review' : row.settlementStatus}</span>;
-  return <span className="nr-status unreviewed">Unreviewed</span>;
+  if (row.settlementStatus) {
+    const label = row.settlementStatus === 'review'
+      ? 'Under review'
+      : row.settlementStatus === 'paid'
+        ? 'Sent'
+        : row.settlementStatus === 'void'
+          ? 'Rejected'
+          : 'Approved';
+    return <span className={`nr-status ${row.settlementStatus}`}>{label}</span>;
+  }
+  return <span className="nr-status unreviewed">Needs decision</span>;
 }
 
 export default function AdminNetworkRewardsExperience() {
@@ -189,6 +221,17 @@ export default function AdminNetworkRewardsExperience() {
     }
   }
 
+  async function updateLedgerStatus(row: LedgerRow, status: SettlementStatus, reason: string, paymentReference: string | null, token: string) {
+    return api<{ message?: string }>(
+      `/api/admin/platform-intelligence/network-reward-ledger/${encodeURIComponent(row.id)}/status`,
+      {
+        method: 'POST',
+        headers: { 'x-csrf-token': token, 'content-type': 'application/json' },
+        body: JSON.stringify({ status, reason, paymentReference }),
+      },
+    );
+  }
+
   async function reconcileDirect() {
     if (!window.confirm('Reconcile the Gen 1 lifetime ledger against all recorded Linkary billing payments? This is idempotent and will not create Gen 2-7 history.')) return;
     const ok = await mutate('/api/admin/platform-intelligence/network-reward-ledger/sync', { includeDownstreamHistory: false }, 'sync-direct');
@@ -223,7 +266,7 @@ export default function AdminNetworkRewardsExperience() {
     let reason = '';
     let paymentReference: string | null = null;
     if (status === 'void') {
-      reason = window.prompt('Why should this reward be voided?')?.trim() || '';
+      reason = window.prompt('Why should this reward be rejected? This reason is kept in the audit history.')?.trim() || '';
       if (reason.length < 3) return;
     }
     if (status === 'paid') {
@@ -233,25 +276,109 @@ export default function AdminNetworkRewardsExperience() {
     const wording: Record<SettlementStatus, string> = {
       review: 'place this accrual under review',
       approved: 'approve this accrual for payment',
-      paid: 'mark this accrual as paid',
-      void: 'void this accrual',
+      paid: 'mark this accrual as sent',
+      void: 'reject this accrual',
     };
     if (!window.confirm(`Confirm you want to ${wording[status]}?`)) return;
-    const ok = await mutate(
-      `/api/admin/platform-intelligence/network-reward-ledger/${encodeURIComponent(row.id)}/status`,
-      { status, reason, paymentReference },
-      `${status}:${row.id}`,
-    );
-    if (ok) setMessage(status === 'paid' ? 'Settlement recorded.' : status === 'approved' ? 'Accrual added to approved payables.' : status === 'void' ? 'Accrual voided.' : 'Accrual moved under review.');
+    const token = csrf();
+    if (!token) {
+      setMessage('Security token is unavailable. Refresh Superadmin and try again.');
+      return;
+    }
+    setBusy(`${status}:${row.id}`);
+    setMessage('');
+    try {
+      await updateLedgerStatus(row, status, reason, paymentReference, token);
+      await load();
+      setMessage(status === 'paid' ? 'Settlement marked as sent.' : status === 'approved' ? 'Reward approved and added to the payout queue.' : status === 'void' ? 'Reward rejected. The immutable accrual record was preserved.' : 'Reward moved under review.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'The reward decision could not be saved.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function copyPayable(row: Payable) {
+    try {
+      await navigator.clipboard.writeText(payableCopyLine(row));
+      setMessage(`${row.displayName} payout row copied.`);
+    } catch {
+      setMessage('Clipboard access was unavailable. Download the CSV instead.');
+    }
+  }
+
+  async function copyAllPayables() {
+    if (!data?.payables?.length) return;
+    const lines = ['Name\tUser\tAmount USD', ...data.payables.map(payableCopyLine)];
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setMessage(`${data.payables.length} approved payout row${data.payables.length === 1 ? '' : 's'} copied.`);
+    } catch {
+      setMessage('Clipboard access was unavailable. Download the CSV instead.');
+    }
+  }
+
+  function downloadPayablesCsv() {
+    if (!data?.payables?.length) return;
+    const blob = new Blob([payableCsv(data.payables)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `linkary-approved-network-rewards-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setMessage(`${data.payables.length} approved payout row${data.payables.length === 1 ? '' : 's'} exported to CSV.`);
+  }
+
+  async function markPayableSent(payable: Payable) {
+    if (!data?.ledger) return;
+    const rows = data.ledger.filter((row) => row.entryKind === 'accrual' && row.beneficiaryUserId === payable.beneficiaryUserId && row.settlementStatus === 'approved');
+    if (!rows.length) {
+      setMessage('No approved entries remain for this user. Refresh the page and try again.');
+      return;
+    }
+    const paymentReference = window.prompt(`Settlement reference for ${payable.displayName}. This can be a transaction hash, invoice, bank reference, or internal payment ID:`)?.trim() || '';
+    if (!paymentReference) return;
+    if (!window.confirm(`Mark ${money(payable.amountCents)} for ${payable.displayName} as sent across ${rows.length} approved entr${rows.length === 1 ? 'y' : 'ies'}?`)) return;
+    const token = csrf();
+    if (!token) {
+      setMessage('Security token is unavailable. Refresh Superadmin and try again.');
+      return;
+    }
+    const key = `sent:${payable.beneficiaryUserId}`;
+    setBusy(key);
+    setMessage('');
+    let completed = 0;
+    try {
+      for (const row of rows) {
+        await updateLedgerStatus(row, 'paid', '', paymentReference, token);
+        completed += 1;
+      }
+      await load();
+      setMessage(`${payable.displayName} marked as sent. ${completed} settlement entr${completed === 1 ? 'y' : 'ies'} recorded with reference ${paymentReference}.`);
+    } catch (error) {
+      await load();
+      const detail = error instanceof Error ? error.message : 'The settlement update failed.';
+      setMessage(`${completed} of ${rows.length} entries were marked sent before the operation stopped. ${detail}`);
+    } finally {
+      setBusy('');
+    }
   }
 
   const reversalIds = useMemo(() => new Set((data?.ledger || []).filter((row) => row.entryKind === 'reversal').map((row) => row.relatedEntryId).filter(Boolean)), [data]);
+  const pending = useMemo(() => (data?.ledger || []).filter((row) => {
+    const reversed = row.entryKind === 'accrual' && reversalIds.has(row.id);
+    return row.entryKind === 'accrual' && !reversed && row.paymentStatus === 'verified' && (!row.settlementStatus || row.settlementStatus === 'review');
+  }), [data, reversalIds]);
   const filtered = useMemo(() => (data?.ledger || []).filter((row) => {
     const reversed = row.entryKind === 'accrual' && reversalIds.has(row.id);
     if (filter === 'all') return true;
     if (filter === 'direct') return row.generation === 1;
     if (filter === 'downstream') return row.generation > 1;
     if (filter === 'approved') return row.entryKind === 'accrual' && row.settlementStatus === 'approved' && !reversed;
+    if (filter === 'sent') return row.entryKind === 'accrual' && row.settlementStatus === 'paid';
     return row.entryKind === 'reversal' || reversed;
   }), [data, filter, reversalIds]);
 
@@ -277,12 +404,12 @@ export default function AdminNetworkRewardsExperience() {
       <Metric label="Gen 1 accrued" value={money(summary.directNetAccrualCents)} note="10% lifetime eligible revenue" />
       <Metric label="Gen 2-7 shadow" value={money(summary.downstreamShadowCents)} note={enabled ? 'Historical projection, separate from actual ledger' : 'Projection only, no liability created'} tone={enabled ? '' : 'shadow'} />
       <Metric label="Approved · to pay" value={money(summary.approvedCents)} note={`${number(summary.approvedPeople)} people waiting`} tone="payable" />
-      <Metric label="Paid" value={money(summary.paidCents)} note="Recorded settlement decisions" />
+      <Metric label="Sent" value={money(summary.paidCents)} note="Recorded settlements with a reference" />
       <Metric label="Reversal adjustments" value={money(summary.reversalCents)} note="Append-only corrections" tone={summary.reversalCents > 0 ? 'warning' : ''} />
     </section>
 
     {(summary.clawbackCents > 0 || summary.legacyVarianceCents > 0) && <section className="nr-alerts">
-      {summary.clawbackCents > 0 && <article><strong>{money(summary.clawbackCents)} paid before source reversal</strong><span>Review for internal clawback or accounting adjustment. The original ledger history remains intact.</span></article>}
+      {summary.clawbackCents > 0 && <article><strong>{money(summary.clawbackCents)} sent before source reversal</strong><span>Review for internal clawback or accounting adjustment. The original ledger history remains intact.</span></article>}
       {summary.legacyVarianceCents > 0 && <article><strong>{money(summary.legacyVarianceCents)} V3 rule variance</strong><span>Historical V3 first-payment decisions differ from the locked Gen 1 10% calculation. They remain preserved for audit.</span></article>}
     </section>}
 
@@ -314,15 +441,44 @@ export default function AdminNetworkRewardsExperience() {
       </article>
     </div>
 
+    <article className="nr-panel nr-ledger">
+      <header><div><span>APPROVAL QUEUE</span><h2>Rewards waiting for a Superadmin decision</h2></div><small>{number(pending.length)} pending</small></header>
+      {pending.length ? <div className="nr-table-wrap"><table><thead><tr><th>Beneficiary</th><th>Source</th><th>Gen</th><th>Reward</th><th>Status</th><th>Decision</th></tr></thead><tbody>
+        {pending.map((row) => {
+          const canApprove = row.generation === 1 || enabled;
+          return <tr key={`decision:${row.id}`}>
+            <td><strong>{row.beneficiaryName}</strong><small>{row.beneficiaryUsername ? `@${row.beneficiaryUsername}` : row.beneficiaryUserId}</small></td>
+            <td><strong>{row.sourceName}</strong><small>{row.planName || row.sourcePaymentId}</small></td>
+            <td><b>G{row.generation}</b><small>{(row.rateBps / 100).toFixed(2)}%</small></td>
+            <td>{money(row.settlementAmountCents ?? row.amountCents)}</td>
+            <td><Status row={row} reversed={false} /></td>
+            <td><div className="nr-actions">{canApprove && <button type="button" onClick={() => void changeStatus(row, 'approved')} disabled={Boolean(busy)}>{busy === `approved:${row.id}` ? 'Approving…' : 'Approve'}</button>}<button className="danger" type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>{busy === `void:${row.id}` ? 'Rejecting…' : 'Reject'}</button></div></td>
+          </tr>;
+        })}
+      </tbody></table></div> : <div className="nr-empty">No rewards are waiting for approval or rejection.</div>}
+    </article>
+
     <article className="nr-panel nr-payables">
       <header><div><span>PAYABLES COMMAND CENTER</span><h2>Approved rewards waiting for settlement</h2></div><small>{money(summary.approvedCents)} · {number(summary.approvedPeople)} people</small></header>
-      {data.payables.length ? <div className="nr-payable-grid">{data.payables.map((row) => <article key={row.beneficiaryUserId}><div><strong>{row.displayName}</strong><small>{row.username ? `@${row.username}` : row.beneficiaryUserId}</small></div><b>{money(row.amountCents)}</b><span>{number(row.entryCount)} approved entr{row.entryCount === 1 ? 'y' : 'ies'} · {waitingDays(row.oldestApprovedAt) ?? 0}d waiting</span></article>)}</div> : <div className="nr-empty">No approved reward balance is waiting for settlement.</div>}
+      <div className="nr-filters" role="group" aria-label="Approved payout tools">
+        <button type="button" onClick={downloadPayablesCsv} disabled={!data.payables.length || Boolean(busy)}>Download approved CSV</button>
+        <button type="button" onClick={() => void copyAllPayables()} disabled={!data.payables.length || Boolean(busy)}>Copy payout list</button>
+      </div>
+      {data.payables.length ? <div className="nr-table-wrap"><table><thead><tr><th>User</th><th>Approved amount</th><th>Entries</th><th>Waiting</th><th>Actions</th></tr></thead><tbody>
+        {data.payables.map((row) => <tr key={row.beneficiaryUserId}>
+          <td><strong>{row.displayName}</strong><small>{row.username ? `@${row.username}` : row.beneficiaryUserId}</small></td>
+          <td><strong>{money(row.amountCents)}</strong></td>
+          <td>{number(row.entryCount)}</td>
+          <td>{waitingDays(row.oldestApprovedAt) ?? 0}d</td>
+          <td><div className="nr-actions"><button type="button" onClick={() => void copyPayable(row)} disabled={Boolean(busy)}>Copy</button><button type="button" onClick={() => void markPayableSent(row)} disabled={Boolean(busy)}>{busy === `sent:${row.beneficiaryUserId}` ? 'Saving…' : 'Mark sent'}</button></div></td>
+        </tr>)}
+      </tbody></table></div> : <div className="nr-empty">No approved reward balance is waiting for settlement.</div>}
     </article>
 
     <article className="nr-panel nr-ledger">
       <header><div><span>IMMUTABLE REWARD LEDGER</span><h2>Accruals, reversals and settlement state</h2></div><small>Latest 500 entries</small></header>
       <div className="nr-filters" role="group" aria-label="Network reward ledger filters">
-        {([['all', 'All'], ['direct', 'Gen 1'], ['downstream', 'Gen 2-7'], ['approved', 'Approved'], ['reversed', 'Reversed']] as const).map(([key, label]) => <button type="button" key={key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>{label}</button>)}
+        {([['all', 'All'], ['direct', 'Gen 1'], ['downstream', 'Gen 2-7'], ['approved', 'Approved'], ['sent', 'Sent'], ['reversed', 'Reversed']] as const).map(([key, label]) => <button type="button" key={key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>{label}</button>)}
       </div>
       <div className="nr-table-wrap"><table><thead><tr><th>Beneficiary</th><th>Source</th><th>Gen</th><th>Revenue basis</th><th>Reward</th><th>Status</th><th>Effective</th><th>Action</th></tr></thead><tbody>
         {filtered.length ? filtered.map((row) => {
@@ -337,9 +493,9 @@ export default function AdminNetworkRewardsExperience() {
             <td><Status row={row} reversed={reversed} />{row.paymentReference && <small>{row.paymentReference}</small>}</td>
             <td>{shortDate(row.effectiveAt)}</td>
             <td><div className="nr-actions">
-              {row.entryKind === 'accrual' && !reversed && !row.settlementStatus && <><button type="button" onClick={() => void changeStatus(row, 'review')} disabled={Boolean(busy)}>Review</button>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'approved')} disabled={Boolean(busy)}>Approve</button>}<button type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Void</button></>}
-              {row.entryKind === 'accrual' && !reversed && row.settlementStatus === 'review' && <>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'approved')} disabled={Boolean(busy)}>Approve</button>}<button type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Void</button></>}
-              {row.entryKind === 'accrual' && !reversed && row.settlementStatus === 'approved' && <>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'paid')} disabled={Boolean(busy)}>Mark paid</button>}<button type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Void</button></>}
+              {row.entryKind === 'accrual' && !reversed && !row.settlementStatus && <><button type="button" onClick={() => void changeStatus(row, 'review')} disabled={Boolean(busy)}>Review</button>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'approved')} disabled={Boolean(busy)}>Approve</button>}<button className="danger" type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Reject</button></>}
+              {row.entryKind === 'accrual' && !reversed && row.settlementStatus === 'review' && <>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'approved')} disabled={Boolean(busy)}>Approve</button>}<button className="danger" type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Reject</button></>}
+              {row.entryKind === 'accrual' && !reversed && row.settlementStatus === 'approved' && <>{canApprove && <button type="button" onClick={() => void changeStatus(row, 'paid')} disabled={Boolean(busy)}>Mark sent</button>}<button className="danger" type="button" onClick={() => void changeStatus(row, 'void')} disabled={Boolean(busy)}>Reject</button></>}
               {(row.entryKind === 'reversal' || reversed || row.settlementStatus === 'paid' || row.settlementStatus === 'void') && <span>—</span>}
             </div></td>
           </tr>;
