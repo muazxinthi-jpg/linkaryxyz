@@ -17,18 +17,22 @@ test('completion boundary is active only on the legacy onboarding route', () => 
   assert.equal(boundary.includes('window.fetch = originalFetch;'), true);
 });
 
-test('only a successful onboarding completion POST triggers the hard dashboard transition', () => {
+test('only a successful onboarding completion POST triggers the loop-guarded dashboard transition', () => {
   assert.equal(boundary.includes("method === 'POST'"), true);
   assert.equal(boundary.includes("pathname === '/api/onboarding/complete'"), true);
   assert.equal(boundary.includes('response.ok'), true);
-  assert.equal(boundary.includes("window.location.replace('/dashboard');"), true);
+  assert.equal(boundary.includes("const redirect = replaceAuthRoute('/dashboard');"), true);
+  assert.equal(boundary.includes("if (redirect === 'navigated') return new Promise<Response>(() => undefined);"), true);
+  assert.equal(boundary.includes("window.location.replace('/dashboard');"), false);
 });
 
-test('successful completion does not return to the legacy caller for a second inline status request', () => {
-  const replaceIndex = boundary.indexOf("window.location.replace('/dashboard');");
+test('successful completion does not return to the legacy caller after a loop-guarded navigation starts', () => {
+  const replaceIndex = boundary.indexOf("const redirect = replaceAuthRoute('/dashboard');");
+  const navigatedIndex = boundary.indexOf("if (redirect === 'navigated')");
   const pendingIndex = boundary.indexOf('new Promise<Response>');
   assert.ok(replaceIndex > 0);
-  assert.ok(pendingIndex > replaceIndex);
+  assert.ok(navigatedIndex > replaceIndex);
+  assert.ok(pendingIndex > navigatedIndex);
 });
 
 test('failed onboarding POSTs are returned to the existing form error handling', () => {

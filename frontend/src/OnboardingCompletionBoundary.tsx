@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { replaceAuthRoute } from './authReliability';
 
 function requestTarget(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input;
@@ -26,8 +27,8 @@ export default function OnboardingCompletionBoundary() {
       const pathname = new URL(requestTarget(input), window.location.origin).pathname;
 
       if (method === 'POST' && pathname === '/api/onboarding/complete' && response.ok) {
-        window.location.replace('/dashboard');
-        return new Promise<Response>(() => undefined);
+        const redirect = replaceAuthRoute('/dashboard');
+        if (redirect === 'navigated') return new Promise<Response>(() => undefined);
       }
 
       return response;

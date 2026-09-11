@@ -25,12 +25,15 @@ test('Superadmin host gate is mounted only on sadmin.linkary.xyz', () => {
 
 test('Superadmin host bypasses normal invite recovery and onboarding wrappers', () => {
   const text = compact(main);
-  const superadminBranch = text.slice(text.indexOf('if (isSuperadminHost)'), text.indexOf('return ( <AuthSessionContinuity>'));
+  const normalBranchStart = text.indexOf('return ( <AuthInitializationBoundary>');
+  assert.ok(normalBranchStart > 0);
+  const superadminBranch = text.slice(text.indexOf('if (isSuperadminHost)'), normalBranchStart);
   assert.match(superadminBranch, /SuperadminHostGate/);
   assert.match(superadminBranch, /SuperadminApp/);
+  assert.doesNotMatch(superadminBranch, /AuthInitializationBoundary/);
   assert.doesNotMatch(superadminBranch, /AuthSessionContinuity/);
   assert.doesNotMatch(superadminBranch, /OnboardingCompletionBoundary/);
-  assert.match(text, /return \( <AuthSessionContinuity>.*<OnboardingCompletionBoundary \/>.*<App \/>.*<\/AuthSessionContinuity> \);/);
+  assert.match(text, /return \( <AuthInitializationBoundary> <AuthSessionContinuity>.*<OnboardingCompletionBoundary \/>.*<App \/>.*<\/AuthSessionContinuity> <\/AuthInitializationBoundary> \);/);
 });
 
 test('Superadmin routes cannot fall through to normal onboarding', () => {
