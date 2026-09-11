@@ -5,7 +5,9 @@ import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
 import SuperadminApp from './SuperadminApp';
 import SuperadminHostGate from './SuperadminHostGate';
+import AuthInitializationBoundary from './AuthInitializationBoundary';
 import AuthSessionContinuity from './AuthSessionContinuity';
+import { installAuthFetchTimeoutGuard } from './authReliability';
 import UiSafetyGuard from './UiSafetyGuard';
 import OnboardingCompletionBoundary from './OnboardingCompletionBoundary';
 import './styles.css';
@@ -50,6 +52,7 @@ const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 if (typeof document !== 'undefined') document.documentElement.dataset.linkaryRelease = APP_RELEASE;
+installAuthFetchTimeoutGuard();
 
 function moduleBundlePath(root: Document): string | null {
   const script = root.querySelector<HTMLScriptElement>('script[type="module"][src]');
@@ -120,12 +123,14 @@ function RootApp() {
   }
 
   return (
-    <AuthSessionContinuity>
-      <ReleaseFreshnessGuard />
-      <UiSafetyGuard />
-      <OnboardingCompletionBoundary />
-      <App />
-    </AuthSessionContinuity>
+    <AuthInitializationBoundary>
+      <AuthSessionContinuity>
+        <ReleaseFreshnessGuard />
+        <UiSafetyGuard />
+        <OnboardingCompletionBoundary />
+        <App />
+      </AuthSessionContinuity>
+    </AuthInitializationBoundary>
   );
 }
 
