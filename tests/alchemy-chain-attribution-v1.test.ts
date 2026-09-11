@@ -4,23 +4,17 @@ import test from 'node:test';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('Alchemy attribution uses the locked five-chain registry and fails closed by configuration', () => {
+test('Alchemy attribution is limited to Base and Polygon and fails closed by configuration', () => {
   const route = read('../src/routes/onchainAttribution.ts');
   const env = read('../src/env.ts');
-  const chains = read('../src/chains.ts');
 
-  for (const chain of ['ethereum', 'base', 'bnb', 'solana', 'robinhood']) {
-    assert.match(chains, new RegExp(`key: '${chain}'`));
-  }
-  assert.doesNotMatch(chains, /key: 'arbitrum'/);
-  assert.match(route, /betaChain\(value\)/);
+  assert.match(route, /ATTRIBUTION_CHAINS: readonly AttributionChain\[\] = \['base', 'polygon'\]/);
+  assert.doesNotMatch(route, /case '(?:ethereum|bnb|solana|robinhood)'/);
   assert.match(route, /alchemy_not_configured/);
   assert.match(env, /ALCHEMY_NOTIFY_AUTH_TOKEN/);
-  assert.match(env, /ALCHEMY_WEBHOOK_ID_ETHEREUM/);
   assert.match(env, /ALCHEMY_WEBHOOK_ID_BASE/);
-  assert.match(env, /ALCHEMY_WEBHOOK_ID_BNB/);
-  assert.match(env, /ALCHEMY_WEBHOOK_ID_SOLANA/);
-  assert.match(env, /ALCHEMY_WEBHOOK_ID_ROBINHOOD/);
+  assert.match(env, /ALCHEMY_WEBHOOK_ID_POLYGON/);
+  assert.doesNotMatch(env, /ALCHEMY_WEBHOOK_ID_(?:ETHEREUM|BNB|SOLANA|ROBINHOOD)/);
 });
 
 test('Alchemy webhook verification uses the raw body, chain signing key and constant-time HMAC comparison', () => {
@@ -52,7 +46,7 @@ test('provider events are immutable, idempotent and do not silently become conve
   const route = read('../src/routes/onchainAttribution.ts');
   const migration = read('../migrations/0047_alchemy_chain_attribution.sql');
 
-  assert.match(route, /providerItemKey = `\$\{providerEventId\}:\$\{index\}:\$\{target\.id\}`/);
+  assert.match(route, /providerItemKey = `\$\{chain\}:\$\{identity\}:\$\{target\.id\}`/);
   assert.match(route, /INSERT OR IGNORE INTO onchain_attribution_events/);
   assert.match(migration, /UNIQUE\(provider_item_key\)/);
   assert.match(migration, /review_status TEXT NOT NULL DEFAULT 'pending'/);
@@ -63,6 +57,20 @@ test('provider events are immutable, idempotent and do not silently become conve
   assert.ok(webhookStart >= 0, 'Alchemy webhook handler must exist');
   assert.ok(conversionInsert >= 0, 'review path must write to the canonical conversion ledger');
   assert.ok(conversionInsert < webhookStart, 'raw provider webhook must not create conversions before operator review');
+});
+
+test('reorg notifications preserve evidence and revoke any provider-verified conversion', () => {
+  const route = read('../src/routes/onchainAttribution.ts');
+  const migration = read('../migrations/0047_alchemy_chain_attribution.sql');
+
+  assert.match(route, /item\.removed === true \|\| item\.log\?\.removed === true/);
+  assert.match(route, /SET chain_status = 'reorged', review_status = 'reorged', linked_conversion_id = NULL/);
+  assert.match(route, /reorg_provider_event_id = \?, reorg_payload_json = \?/);
+  assert.match(route, /DELETE FROM conversion_events[\s\S]*source = 'provider_verified'/);
+  assert.match(route, /if \(event\.chain_status === 'reorged'\)/);
+  assert.match(migration, /chain_status TEXT NOT NULL DEFAULT 'confirmed'/);
+  assert.match(migration, /reorg_payload_json TEXT/);
+  assert.match(migration, /review_status IN \('pending', 'confirmed', 'ignored', 'reorged'\)/);
 });
 
 test('confirmed Alchemy evidence reuses the canonical conversion ledger with provider_verified confidence', () => {
@@ -82,7 +90,7 @@ test('Worker exposes authenticated review APIs separately from the unauthenticat
 
   assert.match(worker, /\/api\/onchain\/watch-targets/);
   assert.match(worker, /\/api\/onchain\/events/);
-  assert.match(worker, /\/api\/webhooks\/alchemy/);
+  assert.ok(worker.includes("url.pathname.match(/^\\/api\\/webhooks\\/alchemy\\/([^/]+)$/)"));
   assert.match(worker, /receiveAlchemyAddressActivityWebhook/);
   assert.match(worker, /reviewOnchainAttributionEvent/);
 });

@@ -5,7 +5,9 @@ import { ensureAttributionSchema } from '../db/attributionSchema';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { requireOperationalProjectAccess } from './organizations';
-import { betaChain, type BetaChainKey } from '../chains';
+
+type AttributionChain = 'base' | 'polygon';
+const ATTRIBUTION_CHAINS: readonly AttributionChain[] = ['base', 'polygon'];
 
 const now = () => new Date().toISOString();
 const makeId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -49,6 +51,15 @@ type WebhookActivity = {
   to?: unknown;
   blockTimestamp?: unknown;
   timestamp?: unknown;
+  blockNum?: unknown;
+  typeTraceAddress?: unknown;
+  removed?: unknown;
+  log?: {
+    blockNumber?: unknown;
+    blockHash?: unknown;
+    logIndex?: unknown;
+    removed?: unknown;
+  } | null;
   rawContract?: { value?: unknown } | null;
   [key: string]: unknown;
 };
@@ -69,7 +80,7 @@ type WatchTargetRow = {
   campaign_id: string;
   activity_id: string | null;
   tracked_link_id: string | null;
-  chain: BetaChainKey;
+  chain: AttributionChain;
   address: string;
   label: string | null;
   status: 'active' | 'disabled';
@@ -88,18 +99,25 @@ type EventRow = {
   tracked_link_id: string | null;
   provider_event_id: string;
   provider_item_key: string;
-  chain: BetaChainKey;
+  chain: AttributionChain;
   watched_address: string;
   direction: 'inbound' | 'outbound' | 'self' | 'unknown';
   transaction_hash: string | null;
+  block_number: string | null;
+  block_hash: string | null;
+  log_index: string | null;
   category: string | null;
   asset: string | null;
   value_text: string | null;
   from_address: string | null;
   to_address: string | null;
   evidence_confidence: 'verified';
-  review_status: 'pending' | 'confirmed' | 'ignored';
+  chain_status: 'confirmed' | 'reorged';
+  review_status: 'pending' | 'confirmed' | 'ignored' | 'reorged';
   linked_conversion_id: string | null;
+  reorged_at: string | null;
+  reorg_provider_event_id: string | null;
+  reorg_payload_json: string | null;
   provider_created_at: string | null;
   occurred_at: string;
   created_at: string;
@@ -111,36 +129,28 @@ type AlchemyWebhookConfig = {
   signingKey?: string;
 };
 
-function chainConfig(env: Env, chain: BetaChainKey): AlchemyWebhookConfig {
+function chainConfig(env: Env, chain: AttributionChain): AlchemyWebhookConfig {
   switch (chain) {
-    case 'ethereum': return { webhookId: env.ALCHEMY_WEBHOOK_ID_ETHEREUM, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_ETHEREUM };
     case 'base': return { webhookId: env.ALCHEMY_WEBHOOK_ID_BASE, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_BASE };
-    case 'bnb': return { webhookId: env.ALCHEMY_WEBHOOK_ID_BNB, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_BNB };
-    case 'solana': return { webhookId: env.ALCHEMY_WEBHOOK_ID_SOLANA, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_SOLANA };
-    case 'robinhood': return { webhookId: env.ALCHEMY_WEBHOOK_ID_ROBINHOOD, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_ROBINHOOD };
+    case 'polygon': return { webhookId: env.ALCHEMY_WEBHOOK_ID_POLYGON, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_POLYGON };
   }
 }
 
-function requireChain(value: string | null | undefined): BetaChainKey {
-  const chain = betaChain(value);
-  if (!chain || chain.webhooks === 'unavailable') throw new HttpError(400, 'Unsupported chain', 'unsupported_chain');
-  return chain.key;
+function requireChain(value: string | null | undefined): AttributionChain {
+  const chain = String(value || '').trim().toLowerCase();
+  if (!ATTRIBUTION_CHAINS.includes(chain as AttributionChain)) throw new HttpError(400, 'Unsupported chain', 'unsupported_chain');
+  return chain as AttributionChain;
 }
 
-function normalizeAddress(chain: BetaChainKey, raw: string | null | undefined): string {
+function normalizeAddress(_chain: AttributionChain, raw: string | null | undefined): string {
   const value = String(raw || '').trim();
-  if (chain === 'solana') {
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) throw new HttpError(400, 'Invalid Solana address', 'invalid_wallet_address');
-    return value;
-  }
   if (!/^0x[a-fA-F0-9]{40}$/.test(value)) throw new HttpError(400, 'Invalid EVM address', 'invalid_wallet_address');
   return value.toLowerCase();
 }
 
-function normalizeEventAddress(chain: BetaChainKey, value: unknown): string | null {
+function normalizeEventAddress(_chain: AttributionChain, value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   const clean = value.trim();
-  if (chain === 'solana') return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(clean) ? clean : null;
   return /^0x[a-fA-F0-9]{40}$/.test(clean) ? clean.toLowerCase() : null;
 }
 
@@ -171,7 +181,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 
 async function syncWebhookAddress(
   env: Env,
-  chain: BetaChainKey,
+  chain: AttributionChain,
   address: string,
   mode: 'add' | 'remove',
 ): Promise<'active' | 'pending_config'> {
@@ -383,14 +393,16 @@ export async function listOnchainAttributionEvents(request: Request, env: Env): 
   const campaignId = url.searchParams.get('campaignId')?.trim();
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
   const status = url.searchParams.get('status')?.trim();
-  if (status && !['pending', 'confirmed', 'ignored'].includes(status)) throw new HttpError(400, 'Invalid review status', 'invalid_review_status');
+  if (status && !['pending', 'confirmed', 'ignored', 'reorged'].includes(status)) throw new HttpError(400, 'Invalid review status', 'invalid_review_status');
   const db = new Db(requireDb(env));
   await campaignAccess(db, auth.user.id, campaignId, false);
   const rows = await db.all<EventRow & { watch_label: string | null }>(
     `SELECT e.id, e.watch_target_id, e.organization_id, e.campaign_id, e.activity_id, e.tracked_link_id,
             e.provider_event_id, e.provider_item_key, e.chain, e.watched_address, e.direction,
-            e.transaction_hash, e.category, e.asset, e.value_text, e.from_address, e.to_address,
-            e.evidence_confidence, e.review_status, e.linked_conversion_id, e.provider_created_at,
+            e.transaction_hash, e.block_number, e.block_hash, e.log_index,
+            e.category, e.asset, e.value_text, e.from_address, e.to_address,
+            e.evidence_confidence, e.chain_status, e.review_status, e.linked_conversion_id,
+            e.reorged_at, e.reorg_provider_event_id, e.reorg_payload_json, e.provider_created_at,
             e.occurred_at, e.created_at, e.updated_at, w.label AS watch_label
        FROM onchain_attribution_events e
        JOIN onchain_watch_targets w ON w.id = e.watch_target_id
@@ -414,6 +426,7 @@ export async function reviewOnchainAttributionEvent(
   const event = await db.first<EventRow>('SELECT * FROM onchain_attribution_events WHERE id = ?', [eventId]);
   if (!event) throw new HttpError(404, 'Onchain event not found', 'onchain_event_not_found');
   await requireOperationalProjectAccess(db, auth.user.id, event.organization_id, true);
+  if (event.chain_status === 'reorged') throw new HttpError(409, 'Reorged events cannot be approved', 'event_reorged');
 
   if (action === 'ignore') {
     if (event.review_status === 'confirmed') throw new HttpError(409, 'Confirmed events cannot be ignored', 'event_already_confirmed');
@@ -467,7 +480,7 @@ export async function reviewOnchainAttributionEvent(
   return json({ ok: true, reviewStatus: 'confirmed', conversionId: conversion.id });
 }
 
-async function findTargetsByAddresses(db: Db, chain: BetaChainKey, addresses: string[]): Promise<WatchTargetRow[]> {
+async function findTargetsByAddresses(db: Db, chain: AttributionChain, addresses: string[]): Promise<WatchTargetRow[]> {
   const unique = Array.from(new Set(addresses));
   const rows: WatchTargetRow[] = [];
   for (let offset = 0; offset < unique.length; offset += 50) {
@@ -548,21 +561,56 @@ export async function receiveAlchemyAddressActivityWebhook(
       const fromMatch = from === target.address;
       const toMatch = to === target.address;
       const direction = fromMatch && toMatch ? 'self' : toMatch ? 'inbound' : fromMatch ? 'outbound' : 'unknown';
-      const providerItemKey = `${providerEventId}:${index}:${target.id}`;
+      const transactionHash = stringOrNull(item.hash ?? item.transactionHash, 180);
+      const blockNumber = stringOrNull(item.blockNum ?? item.log?.blockNumber, 80);
+      const blockHash = stringOrNull(item.log?.blockHash, 180);
+      const logIndex = stringOrNull(item.log?.logIndex, 80);
+      const traceAddress = stringOrNull(item.typeTraceAddress, 160);
+      const identity = [transactionHash || providerEventId, blockHash, logIndex || traceAddress || stringOrNull(item.category, 80) || String(index)]
+        .filter(Boolean)
+        .join(':');
+      const providerItemKey = `${chain}:${identity}:${target.id}`;
       const timestamp = now();
       const occurredAt = stringOrNull(item.blockTimestamp ?? item.timestamp, 80) || providerCreatedAt || timestamp;
-      const transactionHash = stringOrNull(item.hash ?? item.transactionHash, 180);
       const category = stringOrNull(item.category, 80);
       const asset = stringOrNull(item.asset, 120);
       const valueText = stringOrNull(item.value ?? item.rawContract?.value, 160);
+      const removed = item.removed === true || item.log?.removed === true;
+
+      if (removed) {
+        const existing = await db.first<{ id: string; linked_conversion_id: string | null }>(
+          'SELECT id, linked_conversion_id FROM onchain_attribution_events WHERE provider_item_key = ?',
+          [providerItemKey],
+        );
+        if (existing) {
+          const statements = [db.statement(
+            `UPDATE onchain_attribution_events
+                SET chain_status = 'reorged', review_status = 'reorged', linked_conversion_id = NULL,
+                    reorged_at = ?, reorg_provider_event_id = ?, reorg_payload_json = ?, updated_at = ?
+              WHERE id = ?`,
+            [timestamp, providerEventId, JSON.stringify(item).slice(0, 12000), timestamp, existing.id],
+          )];
+          if (existing.linked_conversion_id) {
+            statements.push(db.statement(
+              `DELETE FROM conversion_events
+                WHERE id = ? AND source = 'provider_verified' AND external_event_key = ?`,
+              [existing.linked_conversion_id, `alchemy:${providerItemKey}`],
+            ));
+          }
+          await db.batch(statements);
+          matched += 1;
+          continue;
+        }
+      }
+
       await db.run(
         `INSERT OR IGNORE INTO onchain_attribution_events (
            id, watch_target_id, organization_id, campaign_id, activity_id, tracked_link_id,
            provider, provider_event_id, provider_item_key, chain, watched_address, direction,
-           transaction_hash, category, asset, value_text, from_address, to_address,
-           evidence_confidence, review_status, linked_conversion_id, provider_created_at,
+           transaction_hash, block_number, block_hash, log_index, category, asset, value_text, from_address, to_address,
+           evidence_confidence, chain_status, review_status, linked_conversion_id, reorged_at, provider_created_at,
            occurred_at, raw_payload_json, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, 'alchemy', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 'pending', NULL, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, 'alchemy', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
         [
           makeId('oce'),
           target.id,
@@ -576,11 +624,17 @@ export async function receiveAlchemyAddressActivityWebhook(
           target.address,
           direction,
           transactionHash,
+          blockNumber,
+          blockHash,
+          logIndex,
           category,
           asset,
           valueText,
           from,
           to,
+          removed ? 'reorged' : 'confirmed',
+          removed ? 'reorged' : 'pending',
+          removed ? timestamp : null,
           providerCreatedAt,
           occurredAt,
           JSON.stringify(item).slice(0, 12000),
