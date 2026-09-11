@@ -3,13 +3,59 @@ import { useIsInitialized } from '@coinbase/cdp-hooks';
 import {
   AUTH_INIT_MAX_MS,
   AUTH_INIT_SLOW_MS,
+  authenticatedRoute,
   authDiagnostic,
   initializationPhase,
+  isAuthenticationEntryPath,
+  replaceAuthRoute,
   type InitializationPhase,
 } from './authReliability';
 
+type SessionPreflightOutcome = 'anonymous' | 'redirected' | 'blocked' | 'failed' | 'skipped';
+
+let sessionPreflight: { path: string; promise: Promise<SessionPreflightOutcome> } | null = null;
+
 function now() {
   return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+}
+
+async function json<T>(path: string): Promise<{ ok: boolean; data: T }> {
+  const response = await fetch(path, { credentials: 'same-origin' });
+  const data = await response.json().catch(() => ({})) as T;
+  return { ok: response.ok, data };
+}
+
+async function inspectExistingLinkarySession(): Promise<SessionPreflightOutcome> {
+  if (!isAuthenticationEntryPath(window.location.pathname)) return 'skipped';
+  try {
+    const current = await json<{ authenticated?: boolean }>('/api/auth/me');
+    if (!current.ok || !current.data.authenticated) return 'anonymous';
+
+    const status = await json<{ profiles?: unknown[] }>('/api/onboarding/status');
+    if (!status.ok) return 'failed';
+
+    const target = authenticatedRoute(status.data.profiles?.length || 0);
+    const redirect = replaceAuthRoute(target);
+    if (redirect === 'blocked') return 'blocked';
+    return redirect === 'navigated' ? 'redirected' : 'skipped';
+  } catch {
+    // Provider initialization remains a separate recovery path. A failed server
+    // preflight must not hide the bounded CDP recovery UI.
+    return 'failed';
+  }
+}
+
+function inspectExistingLinkarySessionOnce(): Promise<SessionPreflightOutcome> {
+  const path = window.location.pathname;
+  if (sessionPreflight?.path === path) return sessionPreflight.promise;
+  const promise = inspectExistingLinkarySession();
+  sessionPreflight = { path, promise };
+  void promise.finally(() => {
+    window.setTimeout(() => {
+      if (sessionPreflight?.promise === promise) sessionPreflight = null;
+    }, 1_500);
+  });
+  return promise;
 }
 
 function Brand() {
@@ -52,19 +98,30 @@ export default function AuthInitializationBoundary({ children }: { children: Rea
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<InitializationPhase>(() => initializationPhase(isInitialized, 0));
   const startedAt = useRef(now());
-  const terminalLogged = useRef(false);
+  const timeoutLogged = useRef(false);
+  const successLogged = useRef(false);
+
+  useEffect(() => {
+    if (!isInitialized && isAuthenticationEntryPath(window.location.pathname)) {
+      void inspectExistingLinkarySessionOnce();
+    }
+  }, [isInitialized, attempt]);
 
   useEffect(() => {
     if (isInitialized) {
       setPhase('ready');
-      if (!terminalLogged.current) {
-        terminalLogged.current = true;
-        authDiagnostic('cdp_initialization', 'success', startedAt.current, { attempt });
+      if (!successLogged.current) {
+        successLogged.current = true;
+        authDiagnostic('cdp_initialization', 'success', startedAt.current, {
+          attempt,
+          recoveredAfterTimeout: timeoutLogged.current,
+        });
       }
       return undefined;
     }
 
-    terminalLogged.current = false;
+    timeoutLogged.current = false;
+    successLogged.current = false;
     startedAt.current = now();
     setPhase('loading');
 
@@ -78,8 +135,8 @@ export default function AuthInitializationBoundary({ children }: { children: Rea
 
     const maxTimer = window.setTimeout(() => {
       setPhase('timeout');
-      if (!terminalLogged.current) {
-        terminalLogged.current = true;
+      if (!timeoutLogged.current) {
+        timeoutLogged.current = true;
         authDiagnostic('cdp_initialization', 'timeout', startedAt.current, {
           timeoutMs: AUTH_INIT_MAX_MS,
           reference: 'LK-AUTH-INIT',
