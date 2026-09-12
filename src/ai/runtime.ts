@@ -38,6 +38,7 @@ type ExecuteAiInput = {
   input: string;
   evidenceRefs?: string[];
   idempotencyKey: string;
+  validateOutput?: (text: string) => void;
 };
 
 export type ExecuteAiResult = {
@@ -291,6 +292,7 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
 
   try {
     const result = await ai.generate({ system: prompt.system_prompt, user: userPrompt, maxOutputTokens: task.maxOutputTokens });
+    input.validateOutput?.(result.text);
     await markSuccess(
       db, input, eventId, result.provider, result.model, prompt, task.usageCredits,
       normalized.evidenceRefs.length, result, usageCreditBalanceExempt,
@@ -309,7 +311,7 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
       latencyMs: result.latencyMs,
     };
   } catch (error) {
-    const errorCode = error instanceof LinkaryAiProviderError ? error.code : 'ai_execution_failed';
+    const errorCode = error instanceof LinkaryAiProviderError ? error.code : error instanceof HttpError ? error.code : 'ai_execution_failed';
     try {
       await markFailure(db, eventId, input.actorUserId, input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null), errorCode);
     } catch {
