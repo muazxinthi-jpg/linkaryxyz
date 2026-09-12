@@ -55,10 +55,10 @@ function csrf(): string | null {
   return hit ? decodeURIComponent(hit.split('=').slice(1).join('=')) : null;
 }
 
-async function api<T>(init?: RequestInit): Promise<T> {
+async function api<T>(init?: RequestInit, path = '/api/admin/ai-governance'): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set('content-type', 'application/json');
-  const response = await fetch('/api/admin/ai-governance', { ...init, headers, credentials: 'same-origin' });
+  const response = await fetch(path, { ...init, headers, credentials: 'same-origin' });
   const body = (await response.json().catch(() => ({}))) as T & { message?: string };
   if (!response.ok) throw new Error(body.message || 'AI governance request failed');
   return body;
@@ -75,6 +75,7 @@ export default function AdminAiGovernanceExperience() {
   const [saving, setSaving] = useState(false);
   const [probing, setProbing] = useState(false);
   const [probeResults, setProbeResults] = useState<ProviderProbe[]>([]);
+  const [probeMessage, setProbeMessage] = useState('');
   const [message, setMessage] = useState('');
 
   async function load() {
@@ -133,17 +134,32 @@ export default function AdminAiGovernanceExperience() {
 
   async function runProviderProbe() {
     const token = csrf();
-    if (!token) return setMessage('Security token is missing. Refresh the Superadmin console and try again.');
+    if (!token) {
+      const missing = 'Security token is missing. Refresh the Superadmin console and try again.';
+      setProbeMessage(missing);
+      return setMessage(missing);
+    }
     setProbing(true);
+    setProbeMessage('Testing active AI providers…');
     setMessage('');
     try {
-      const result = await api<ProbeResponse>({ method: 'POST', headers: { 'x-csrf-token': token } });
+      const result = await api<ProbeResponse>(
+        { method: 'PATCH', headers: { 'x-csrf-token': token } },
+        '/api/admin/ai-governance?action=probe',
+      );
       setProbeResults(result.probes || []);
       const healthy = (result.probes || []).filter((item) => item.healthy).length;
       const total = (result.probes || []).length;
-      setMessage(total ? `Provider health test complete: ${healthy}/${total} active providers responded.` : 'No active AI providers are available to test.');
+      const summary = total
+        ? `Provider health test complete: ${healthy}/${total} active providers responded.`
+        : 'No active AI providers are available to test.';
+      setProbeMessage(summary);
+      setMessage(summary);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'AI provider health test failed.');
+      const failure = error instanceof Error ? error.message : 'AI provider health test failed.';
+      setProbeResults([]);
+      setProbeMessage(`Provider health test failed: ${failure}`);
+      setMessage(failure);
     } finally {
       setProbing(false);
     }
@@ -167,6 +183,7 @@ export default function AdminAiGovernanceExperience() {
       setMasterEnabled(result.aiEnabled);
       setPolicies(result.policies || []);
       setProbeResults([]);
+      setProbeMessage('');
       setMessage('LinkaryAI runtime governance saved. Changes take effect on the next AI request.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'AI governance could not be saved.');
@@ -206,6 +223,7 @@ export default function AdminAiGovernanceExperience() {
               <div className="admin-ai-provider-actions">
                 <p>Secrets stay in Cloudflare. Health tests return status only, never API keys or generated content.</p>
                 <button type="button" onClick={() => void runProviderProbe()} disabled={probing}>{probing ? 'Testing…' : 'Test active providers'}</button>
+                {probeMessage ? <small className="admin-ai-provider-status" role="status">{probeMessage}</small> : null}
               </div>
             </div>
             <div className="admin-ai-provider-grid">
