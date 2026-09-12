@@ -94,8 +94,14 @@ export default function AdminAiGovernanceExperience() {
 
   useEffect(() => { void load(); }, []);
 
-  const providerMap = useMemo(() => new Map((state?.providers || []).map((item) => [item.provider, item])), [state]);
-  const probeMap = useMemo(() => new Map(probeResults.map((item) => [item.provider, item])), [probeResults]);
+  const providerMap = useMemo(
+    () => new Map<AiProvider, ProviderConfiguration>((state?.providers || []).map((item) => [item.provider, item] as const)),
+    [state],
+  );
+  const probeMap = useMemo(
+    () => new Map<AiProvider, ProviderProbe>(probeResults.map((item) => [item.provider, item] as const)),
+    [probeResults],
+  );
   const runtimeReady = masterEnabled && (policies.length === 0
     ? (state?.providers || []).some((item) => item.configured && item.environmentModel)
     : policies.some((item) => item.isActive && providerMap.get(item.provider)?.configured));
