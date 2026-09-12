@@ -1,6 +1,6 @@
 # Linkary implementation status
 
-Updated: 2026-09-06
+Updated: 2026-09-12
 
 This file is a current repository-level status summary for Linkary Beta. When an older handoff conflicts with this file, verify against `main`, the canonical `docs/LINKARY_TECHNICAL_PRODUCT_PAPER.md`, current migrations and current CI before rebuilding anything.
 
@@ -26,7 +26,7 @@ The core product is built. Remaining launch work is real-account/end-to-end acce
 - [x] `main` is protected with required `verify-and-deploy` and `Workers Builds: linkary-xyz` checks. Required-check enforcement has been observed blocking merge until the Worker build completed successfully.
 - [x] Current `main` regression, TypeScript and Wrangler verification are green. The latest `main` CI run is authoritative for the exact test count.
 - [x] Latest production deployment on 2026-09-06 completed Cloudflare deploy and live health verification successfully.
-- [x] Production schema is current through `0034_project_growth_baselines.sql`; the latest production migration-state check reported `No migrations to apply!`.
+- [x] Production schema includes deployed migration `0047_alchemy_chain_attribution.sql`; deployed migrations are immutable and follow-up schema corrections are forward-only.
 - [x] Production Beta readiness was observed at 34/34 required tables, 5/5 required automation checks and 9/9 production configuration checks.
 
 Production D1 history relevant to the current acceptance phase includes:
@@ -201,7 +201,8 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Chain-aware, bounded NFT discovery/pagination is deployed for the locked Beta chain set.
 - [ ] Live acceptance of more-than-one-page NFT browsing, chain selection, avatar persistence and NFT Showcase persistence.
 - [ ] Issue #168 paid NFT entitlement enforcement.
-- [ ] Advanced Alchemy webhook/onchain attribution remains deferred.
+- [x] Reviewed Alchemy webhook/onchain attribution foundation for exactly Ethereum, Base, BNB Chain, Solana and Robinhood Chain; provider evidence requires explicit approval before conversion creation.
+- [ ] Production application of forward-only migration `0048_expand_alchemy_attribution_chains.sql` and configuration of the four additional chain-specific webhooks require separate approval and operations work.
 
 ## LinkaryAI foundation
 
@@ -298,7 +299,7 @@ Do not delay Beta for:
 
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
-- advanced Alchemy webhook attribution
+- broader automated Alchemy attribution beyond the controlled five-network, review-gated foundation
 - AI recommendations beyond the already deployed AI-0 foundation
 - Linkary Score
 - public voting/reputation system

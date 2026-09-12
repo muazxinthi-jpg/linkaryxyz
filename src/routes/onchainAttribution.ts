@@ -6,8 +6,9 @@ import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { requireOperationalProjectAccess } from './organizations';
 
-type AttributionChain = 'base' | 'polygon';
-const ATTRIBUTION_CHAINS: readonly AttributionChain[] = ['base', 'polygon'];
+export type AttributionChain = 'ethereum' | 'base' | 'bnb' | 'solana' | 'robinhood';
+export const ATTRIBUTION_CHAINS: readonly AttributionChain[] = ['ethereum', 'base', 'bnb', 'solana', 'robinhood'];
+type StoredAttributionChain = AttributionChain | 'polygon';
 
 const now = () => new Date().toISOString();
 const makeId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -49,6 +50,11 @@ type WebhookActivity = {
   toAddress?: unknown;
   from?: unknown;
   to?: unknown;
+  source?: unknown;
+  destination?: unknown;
+  signature?: unknown;
+  slot?: unknown;
+  blockTime?: unknown;
   blockTimestamp?: unknown;
   timestamp?: unknown;
   blockNum?: unknown;
@@ -80,7 +86,7 @@ type WatchTargetRow = {
   campaign_id: string;
   activity_id: string | null;
   tracked_link_id: string | null;
-  chain: AttributionChain;
+  chain: StoredAttributionChain;
   address: string;
   label: string | null;
   status: 'active' | 'disabled';
@@ -99,7 +105,7 @@ type EventRow = {
   tracked_link_id: string | null;
   provider_event_id: string;
   provider_item_key: string;
-  chain: AttributionChain;
+  chain: StoredAttributionChain;
   watched_address: string;
   direction: 'inbound' | 'outbound' | 'self' | 'unknown';
   transaction_hash: string | null;
@@ -129,29 +135,63 @@ type AlchemyWebhookConfig = {
   signingKey?: string;
 };
 
-function chainConfig(env: Env, chain: AttributionChain): AlchemyWebhookConfig {
+export function alchemyWebhookConfig(env: Env, chain: AttributionChain): AlchemyWebhookConfig {
   switch (chain) {
+    case 'ethereum': return { webhookId: env.ALCHEMY_WEBHOOK_ID_ETHEREUM, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_ETHEREUM };
     case 'base': return { webhookId: env.ALCHEMY_WEBHOOK_ID_BASE, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_BASE };
-    case 'polygon': return { webhookId: env.ALCHEMY_WEBHOOK_ID_POLYGON, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_POLYGON };
+    case 'bnb': return { webhookId: env.ALCHEMY_WEBHOOK_ID_BNB, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_BNB };
+    case 'solana': return { webhookId: env.ALCHEMY_WEBHOOK_ID_SOLANA, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_SOLANA };
+    case 'robinhood': return { webhookId: env.ALCHEMY_WEBHOOK_ID_ROBINHOOD, signingKey: env.ALCHEMY_WEBHOOK_SIGNING_KEY_ROBINHOOD };
   }
 }
 
-function requireChain(value: string | null | undefined): AttributionChain {
+export function requireAttributionChain(value: string | null | undefined): AttributionChain {
   const chain = String(value || '').trim().toLowerCase();
   if (!ATTRIBUTION_CHAINS.includes(chain as AttributionChain)) throw new HttpError(400, 'Unsupported chain', 'unsupported_chain');
   return chain as AttributionChain;
 }
 
-function normalizeAddress(_chain: AttributionChain, raw: string | null | undefined): string {
+const SOLANA_BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+function isSolanaPublicKey(value: string): boolean {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return false;
+  let decoded = 0n;
+  for (const character of value) {
+    const digit = SOLANA_BASE58_ALPHABET.indexOf(character);
+    if (digit < 0) return false;
+    decoded = (decoded * 58n) + BigInt(digit);
+  }
+  const leadingZeroBytes = value.match(/^1*/)?.[0].length || 0;
+  const decodedBytes = decoded === 0n ? 0 : Math.ceil(decoded.toString(16).length / 2);
+  return leadingZeroBytes + decodedBytes === 32;
+}
+
+export function normalizeAttributionAddress(chain: AttributionChain, raw: string | null | undefined): string {
   const value = String(raw || '').trim();
+  if (chain === 'solana') {
+    if (!isSolanaPublicKey(value)) throw new HttpError(400, 'Invalid Solana address', 'invalid_wallet_address');
+    return value;
+  }
   if (!/^0x[a-fA-F0-9]{40}$/.test(value)) throw new HttpError(400, 'Invalid EVM address', 'invalid_wallet_address');
   return value.toLowerCase();
 }
 
-function normalizeEventAddress(_chain: AttributionChain, value: unknown): string | null {
+function normalizeEventAddress(chain: AttributionChain, value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
-  const clean = value.trim();
-  return /^0x[a-fA-F0-9]{40}$/.test(clean) ? clean.toLowerCase() : null;
+  try { return normalizeAttributionAddress(chain, value); }
+  catch { return null; }
+}
+
+function activityAddress(item: WebhookActivity, side: 'from' | 'to'): unknown {
+  if (side === 'from') return item.fromAddress ?? item.from ?? (item.source as { address?: unknown } | null)?.address ?? item.source;
+  return item.toAddress ?? item.to ?? (item.destination as { address?: unknown } | null)?.address ?? item.destination;
+}
+
+export function normalizeAlchemyActivityAddresses(chain: AttributionChain, item: WebhookActivity) {
+  return {
+    from: normalizeEventAddress(chain, activityAddress(item, 'from')),
+    to: normalizeEventAddress(chain, activityAddress(item, 'to')),
+  };
 }
 
 function stringOrNull(value: unknown, max = 240): string | null {
@@ -179,13 +219,13 @@ function constantTimeEqual(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
-async function syncWebhookAddress(
+export async function syncWebhookAddress(
   env: Env,
   chain: AttributionChain,
   address: string,
   mode: 'add' | 'remove',
 ): Promise<'active' | 'pending_config'> {
-  const config = chainConfig(env, chain);
+  const config = alchemyWebhookConfig(env, chain);
   if (!env.ALCHEMY_NOTIFY_AUTH_TOKEN || !config.webhookId || !config.signingKey) return 'pending_config';
 
   const response = await fetch('https://dashboard.alchemy.com/api/update-webhook-addresses', {
@@ -261,8 +301,8 @@ export async function createOnchainWatchTarget(request: Request, env: Env): Prom
   const input = await readJson<WatchTargetInput>(request);
   const campaignId = String(input.campaignId || '').trim();
   if (!campaignId) throw new HttpError(400, 'campaignId is required', 'campaign_required');
-  const chain = requireChain(input.chain);
-  const address = normalizeAddress(chain, input.address);
+  const chain = requireAttributionChain(input.chain);
+  const address = normalizeAttributionAddress(chain, input.address);
   const activityId = input.activityId ? String(input.activityId).trim() : null;
   const trackedLinkId = input.trackedLinkId ? String(input.trackedLinkId).trim() : null;
   const label = input.label ? String(input.label).trim().slice(0, 120) : null;
@@ -271,7 +311,7 @@ export async function createOnchainWatchTarget(request: Request, env: Env): Prom
   const campaign = await campaignAccess(db, auth.user.id, campaignId, true);
   await validateContext(db, campaignId, activityId, trackedLinkId);
 
-  const config = chainConfig(env, chain);
+  const config = alchemyWebhookConfig(env, chain);
   const providerReady = Boolean(env.ALCHEMY_NOTIFY_AUTH_TOKEN && config.webhookId && config.signingKey);
   const timestamp = now();
   const proposedId = makeId('owt');
@@ -359,10 +399,10 @@ export async function disableOnchainWatchTarget(request: Request, env: Env, targ
       WHERE chain = ? AND address = ? AND status = 'active' AND id <> ?`,
     [target.chain, target.address, target.id],
   );
-  const config = chainConfig(env, target.chain);
+  const config = target.chain === 'polygon' ? {} : alchemyWebhookConfig(env, target.chain);
   const providerReady = Boolean(env.ALCHEMY_NOTIFY_AUTH_TOKEN && config.webhookId && config.signingKey);
 
-  if (Number(other?.count || 0) === 0 && target.provider_sync_status === 'active') {
+  if (target.chain !== 'polygon' && Number(other?.count || 0) === 0 && target.provider_sync_status === 'active') {
     if (!providerReady) throw new HttpError(503, 'Alchemy webhook configuration is unavailable', 'alchemy_not_configured');
     try {
       await syncWebhookAddress(env, target.chain, target.address, 'remove');
@@ -503,8 +543,8 @@ export async function receiveAlchemyAddressActivityWebhook(
   env: Env,
   chainValue: string,
 ): Promise<Response> {
-  const chain = requireChain(chainValue);
-  const config = chainConfig(env, chain);
+  const chain = requireAttributionChain(chainValue);
+  const config = alchemyWebhookConfig(env, chain);
   if (!config.webhookId || !config.signingKey) throw new HttpError(503, 'Alchemy webhook is not configured for this chain', 'alchemy_not_configured');
 
   const rawBody = await request.text();
@@ -528,8 +568,7 @@ export async function receiveAlchemyAddressActivityWebhook(
 
   const addresses: string[] = [];
   for (const item of activity) {
-    const from = normalizeEventAddress(chain, item.fromAddress ?? item.from);
-    const to = normalizeEventAddress(chain, item.toAddress ?? item.to);
+    const { from, to } = normalizeAlchemyActivityAddresses(chain, item);
     if (from) addresses.push(from);
     if (to) addresses.push(to);
   }
@@ -548,8 +587,7 @@ export async function receiveAlchemyAddressActivityWebhook(
   const providerCreatedAt = stringOrNull(payload.createdAt, 80);
   for (let index = 0; index < activity.length; index += 1) {
     const item = activity[index];
-    const from = normalizeEventAddress(chain, item.fromAddress ?? item.from);
-    const to = normalizeEventAddress(chain, item.toAddress ?? item.to);
+    const { from, to } = normalizeAlchemyActivityAddresses(chain, item);
     const matchedTargets = new Map<string, WatchTargetRow>();
     for (const address of [from, to]) {
       if (!address) continue;
@@ -561,8 +599,8 @@ export async function receiveAlchemyAddressActivityWebhook(
       const fromMatch = from === target.address;
       const toMatch = to === target.address;
       const direction = fromMatch && toMatch ? 'self' : toMatch ? 'inbound' : fromMatch ? 'outbound' : 'unknown';
-      const transactionHash = stringOrNull(item.hash ?? item.transactionHash, 180);
-      const blockNumber = stringOrNull(item.blockNum ?? item.log?.blockNumber, 80);
+      const transactionHash = stringOrNull(item.hash ?? item.transactionHash ?? item.signature, 180);
+      const blockNumber = stringOrNull(item.blockNum ?? item.log?.blockNumber ?? item.slot, 80);
       const blockHash = stringOrNull(item.log?.blockHash, 180);
       const logIndex = stringOrNull(item.log?.logIndex, 80);
       const traceAddress = stringOrNull(item.typeTraceAddress, 160);
@@ -571,7 +609,7 @@ export async function receiveAlchemyAddressActivityWebhook(
         .join(':');
       const providerItemKey = `${chain}:${identity}:${target.id}`;
       const timestamp = now();
-      const occurredAt = stringOrNull(item.blockTimestamp ?? item.timestamp, 80) || providerCreatedAt || timestamp;
+      const occurredAt = stringOrNull(item.blockTimestamp ?? item.timestamp ?? item.blockTime, 80) || providerCreatedAt || timestamp;
       const category = stringOrNull(item.category, 80);
       const asset = stringOrNull(item.asset, 120);
       const valueText = stringOrNull(item.value ?? item.rawContract?.value, 160);
