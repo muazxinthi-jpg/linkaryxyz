@@ -30,8 +30,13 @@ export type AiProviderProbe = {
   hint: string | null;
 };
 
+type MessageContentPart = {
+  type?: string;
+  text?: string | null;
+};
+
 type OpenAiLikePayload = {
-  choices?: Array<{ message?: { content?: string | null } }>;
+  choices?: Array<{ message?: { content?: string | MessageContentPart[] | null } }>;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -73,11 +78,32 @@ function cleanText(value: unknown): string | null {
   return text ? text : null;
 }
 
+function messageContentText(value: unknown): string | null {
+  const direct = cleanText(value);
+  if (direct) return direct;
+  if (!Array.isArray(value)) return null;
+  const text = value
+    .map((part) => {
+      if (!part || typeof part !== 'object') return '';
+      const row = part as Record<string, unknown>;
+      return cleanText(row.text) || '';
+    })
+    .filter(Boolean)
+    .join('\n');
+  return cleanText(text);
+}
+
+function openAiPayloadText(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const row = payload as OpenAiLikePayload;
+  return messageContentText(row.choices?.[0]?.message?.content);
+}
+
 function workersText(payload: unknown): string | null {
   if (typeof payload === 'string') return cleanText(payload);
   if (!payload || typeof payload !== 'object') return null;
   const row = payload as Record<string, unknown>;
-  return cleanText(row.response) || cleanText(row.result) || cleanText(row.text);
+  return openAiPayloadText(payload) || cleanText(row.response) || cleanText(row.result) || cleanText(row.text);
 }
 
 function workersUsage(payload: unknown): { inputUnits: number | null; outputUnits: number | null } {
@@ -144,6 +170,7 @@ function probeHint(error: LinkaryAiProviderError): string {
     if (error.providerCode === '3040') return 'Cloudflare Workers AI reported temporary model capacity pressure. Retry shortly or let Linkary fall back to another provider.';
     if (error.providerCode === '5035') return 'The selected Cloudflare model requires a Workers Paid plan. Choose a Free-plan model or upgrade Workers.';
     if (error.providerCode === '5007' || error.providerCode === '3042') return 'Cloudflare rejected the configured model ID. Select a currently supported Workers AI model.';
+    if (error.providerCode === 'empty_response') return 'Cloudflare accepted the request but returned no final text. The adapter now supports the current chat-completion response shape; retry once and inspect Workers AI logs only if this persists.';
     if (error.providerStatus === 429) return 'Cloudflare Workers AI is rate-limited or its free daily allocation is exhausted.';
     if (error.providerStatus === 403) return 'Cloudflare rejected this Workers AI request for the current account or model.';
     return 'Cloudflare Workers AI did not complete the health request. Check Workers AI usage and provider logs for this account.';
@@ -152,7 +179,10 @@ function probeHint(error: LinkaryAiProviderError): string {
     if (error.providerStatus === 401 || error.providerStatus === 403) return 'OpenRouter rejected the API key or account permissions. Verify the Linkary Production key in Cloudflare.';
     if (error.providerStatus === 429) return 'OpenRouter free-model rate limits were reached. Free accounts have limited daily and per-minute requests.';
     if (error.providerStatus === 402) return 'OpenRouter reported an account or credit restriction for this request.';
-    return 'OpenRouter did not complete the health request. Check the API key status and OpenRouter activity logs.';
+    if (error.providerStatus && error.providerStatus >= 200 && error.providerStatus < 300 && error.providerCode === 'empty_response') {
+      return 'OpenRouter accepted the request but returned no final text. This is not an API-key failure; retry because the free router may select a different upstream model.';
+    }
+    return 'OpenRouter did not complete the health request. Check OpenRouter activity logs if the provider continues to fail.';
   }
   if (error.providerStatus === 429) return 'The provider rate-limited the health request.';
   if (error.providerStatus === 401 || error.providerStatus === 403) return 'The provider rejected the configured server credential.';
@@ -188,6 +218,7 @@ async function runWorkers(env: Env, model: string, prompt: LinkaryAiPrompt): Pro
       ],
       max_tokens: prompt.maxOutputTokens,
       stream: false,
+      ...(model === WORKERS_DEFAULT_MODEL ? { chat_template_kwargs: { enable_thinking: false } } : {}),
     });
   } catch (error) {
     const meta = providerErrorMeta(error);
@@ -252,6 +283,7 @@ async function runOpenAiCompatible(
       body: JSON.stringify({
         model,
         max_tokens: prompt.maxOutputTokens,
+        ...(provider === 'openrouter' ? { reasoning: { effort: 'minimal', exclude: true } } : {}),
         messages: [
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
@@ -268,7 +300,7 @@ async function runOpenAiCompatible(
   } catch {
     throw new LinkaryAiProviderError(provider, response.status, 'invalid_response');
   }
-  const text = cleanText(payload.choices?.[0]?.message?.content);
+  const text = openAiPayloadText(payload);
   if (!text) throw new LinkaryAiProviderError(provider, response.status, 'empty_response');
   return {
     text,
@@ -295,8 +327,8 @@ export async function probeAiProvider(env: Env, selected: ProviderChoice): Promi
   try {
     await runProvider(env, selected, {
       system: 'You are a Linkary infrastructure health check. Reply with OK only.',
-      user: 'OK',
-      maxOutputTokens: 8,
+      user: 'Reply exactly with OK.',
+      maxOutputTokens: 64,
     });
     return {
       provider: selected.provider,
