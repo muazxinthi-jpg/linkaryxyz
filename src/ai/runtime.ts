@@ -231,9 +231,9 @@ async function markSuccess(
   const statements = [
     db.statement(
       `UPDATE ai_usage_events
-          SET status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
+          SET provider = ?, model = ?, status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
         WHERE id = ? AND status = 'reserved'`,
-      [result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
+      [provider, model, result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
     ),
     db.statement(
       `INSERT INTO audit_logs
