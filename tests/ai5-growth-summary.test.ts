@@ -9,6 +9,7 @@ const growthRoute = readFileSync(new URL('../src/routes/growthIntelligence.ts', 
 const ui = readFileSync(new URL('../frontend/src/FounderGrowthIntelligencePanel.tsx', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0049_linkaryai_v1_completion.sql', import.meta.url), 'utf8');
+const runtime = readFileSync(new URL('../src/ai/runtime.ts', import.meta.url), 'utf8');
 
 test('Growth Summary uses the governed 15-credit task and new prompt version', () => {
   assert.equal(AI_TASKS.growth_summary.usageCredits, 15);
@@ -53,6 +54,12 @@ test('strict Growth Summary JSON parser rejects malformed, extra, and overlong o
   assert.throws(() => parseGrowthSummary('{}'), /invalid growth summary/);
   assert.throws(() => parseGrowthSummary(JSON.stringify({ ...JSON.parse(valid), score: 1 })), /invalid growth summary/);
   assert.throws(() => parseGrowthSummary(JSON.stringify({ ...JSON.parse(valid), executiveSummary: 'x'.repeat(501) })), /invalid growth summary/);
+});
+
+test('invalid Growth Summary output fails before Usage Credits are debited', () => {
+  assert.match(service, /validateOutput: \(text\) => \{ parseGrowthSummary\(text\); \}/);
+  assert.match(runtime, /input\.validateOutput\?\.\(result\.text\);[\s\S]+await markSuccess/);
+  assert.match(runtime, /error instanceof HttpError \? error\.code/);
 });
 
 test('Growth Summary is explicit-only and its UI states the selected-trend versus current-aggregate scope', () => {
