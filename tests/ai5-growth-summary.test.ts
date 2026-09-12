@@ -40,6 +40,13 @@ test('Growth AI evidence preserves nulls, confidence mix, baselines, and partner
   assert.match(service, /ai_evidence_insufficient/);
 });
 
+test('Growth Summary prompt keeps selected trend separate from current aggregate evidence', () => {
+  assert.match(migration, /Respect dataScope: use the selected-range trend for claims about that time window/);
+  assert.match(migration, /Explain the selected-range trend/);
+  assert.match(migration, /do not describe aggregate\/comparison rows as selected-range data unless their scope says so/);
+  assert.doesNotMatch(migration, /Summarize what happened in the selected range/);
+});
+
 test('strict Growth Summary JSON parser rejects malformed, extra, and overlong output', () => {
   const valid = JSON.stringify({ executiveSummary: 'Recorded growth was mixed.', whatWorked: [], needsAttention: [], evidenceQuality: ['Tracked clicks are first-party.'], nextActions: [], dataGaps: [] });
   assert.equal(parseGrowthSummary(valid).evidenceQuality.length, 1);
