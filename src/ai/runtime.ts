@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError } from '../http';
 import { isCanonicalSuperadminUser } from '../superadminPlatformAccess';
 import { ensureCouponEntitlementMonthlyCredits } from '../couponEntitlementCredits';
+import { loadAiRuntimeGovernance } from './governance';
 import { LinkaryAI, LinkaryAiProviderError } from './LinkaryAI';
 import { AI_TASKS, type AiTaskKey } from './tasks';
 
@@ -281,12 +282,20 @@ async function markSuccess(
 export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise<ExecuteAiResult> {
   const normalized = requireExecutionInput(input);
   const db = new Db(requireDb(env));
+  const governance = await loadAiRuntimeGovernance(db, env);
+  if (!governance.enabled) {
+    throw new HttpError(503, 'Linkary AI is temporarily disabled by platform operations', 'ai_globally_disabled');
+  }
+  if (!governance.providers.length) {
+    throw new ServiceConfigurationError('No active Linkary AI model is configured');
+  }
+
   await ensureCouponEntitlementMonthlyCredits(db, input.ownerType, input.ownerId, new Date().toISOString());
   const task = AI_TASKS[input.taskKey];
   const prompt = await activePrompt(db, task.promptKey);
   const budget = await activeBudget(db, input.ownerType, input.ownerId, input.taskKey);
   const usageCreditBalanceExempt = await isCanonicalSuperadminUser(db, env, input.actorUserId);
-  const ai = new LinkaryAI(env);
+  const ai = new LinkaryAI(env, governance.providers);
   const provider = ai.provider();
   const eventId = await reserveUsage(
     db, input, prompt, budget, provider.provider, provider.model,
