@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError } from '../http';
 import { isCanonicalSuperadminUser } from '../superadminPlatformAccess';
 import { ensureCouponEntitlementMonthlyCredits } from '../couponEntitlementCredits';
+import { loadAiRuntimeGovernance } from './governance';
 import { LinkaryAI, LinkaryAiProviderError } from './LinkaryAI';
 import { AI_TASKS, type AiTaskKey } from './tasks';
 
@@ -38,6 +39,7 @@ type ExecuteAiInput = {
   input: string;
   evidenceRefs?: string[];
   idempotencyKey: string;
+  validateOutput?: (text: string) => void;
 };
 
 export type ExecuteAiResult = {
@@ -126,49 +128,58 @@ async function reserveUsage(
   const scopeOwnerId = input.ownerId;
   const budgetTask = budget.task_key;
 
-  await db.run(
-    `INSERT INTO ai_usage_events
-      (id, actor_user_id, owner_type, owner_id, profile_id, organization_id, task_key,
-       prompt_key, prompt_version, provider, model, status, usage_credits, input_units,
-       output_units, latency_ms, error_code, evidence_refs_json, idempotency_key, created_at, completed_at)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, NULL, NULL, NULL, NULL, ?, ?, ?, NULL
-      WHERE
-        (SELECT COUNT(*)
-           FROM ai_usage_events
-          WHERE created_at >= ?
-            AND (? = '*' OR task_key = ?)
-            AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
-            AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) < ?
-        AND
-        (SELECT COALESCE(SUM(usage_credits), 0)
-           FROM ai_usage_events
-          WHERE created_at >= ?
-            AND (? = '*' OR task_key = ?)
-            AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
-            AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) + ? <= ?
-        AND
-        (? = 1 OR
-          (SELECT COALESCE(SUM(amount), 0)
-             FROM usage_credit_ledger
-            WHERE owner_type = ? AND owner_id = ?)
-          -
+  const existing = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = ?`, [idempotencyKey]);
+  if (existing) throw new HttpError(409, 'This AI request has already been submitted', 'ai_duplicate_request');
+
+  try {
+    await db.run(
+      `INSERT INTO ai_usage_events
+        (id, actor_user_id, owner_type, owner_id, profile_id, organization_id, task_key,
+         prompt_key, prompt_version, provider, model, status, usage_credits, input_units,
+         output_units, latency_ms, error_code, evidence_refs_json, idempotency_key, created_at, completed_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, NULL, NULL, NULL, NULL, ?, ?, ?, NULL
+        WHERE
+          (SELECT COUNT(*)
+             FROM ai_usage_events
+            WHERE created_at >= ?
+              AND (? = '*' OR task_key = ?)
+              AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
+              AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) < ?
+          AND
           (SELECT COALESCE(SUM(usage_credits), 0)
              FROM ai_usage_events
-            WHERE owner_type = ? AND owner_id = ?
-              AND status = 'reserved' AND created_at >= ?) >= ?
-        )`,
-    [
-      eventId, input.actorUserId, input.ownerType, input.ownerId, input.profileId || null,
-      input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
-      input.taskKey, prompt.prompt_key, prompt.version, provider, model, credits,
-      JSON.stringify(evidenceRefs), idempotencyKey, createdAt,
-      periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, budget.max_calls,
-      periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, credits, budget.max_usage_credits,
-      usageCreditBalanceExempt ? 1 : 0,
-      input.ownerType, input.ownerId,
-      input.ownerType, input.ownerId, reservationFreshAfter, credits,
-    ],
-  );
+            WHERE created_at >= ?
+              AND (? = '*' OR task_key = ?)
+              AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
+              AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) + ? <= ?
+          AND
+          (? = 1 OR
+            (SELECT COALESCE(SUM(amount), 0)
+               FROM usage_credit_ledger
+              WHERE owner_type = ? AND owner_id = ?)
+            -
+            (SELECT COALESCE(SUM(usage_credits), 0)
+               FROM ai_usage_events
+              WHERE owner_type = ? AND owner_id = ?
+                AND status = 'reserved' AND created_at >= ?) >= ?
+          )`,
+      [
+        eventId, input.actorUserId, input.ownerType, input.ownerId, input.profileId || null,
+        input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
+        input.taskKey, prompt.prompt_key, prompt.version, provider, model, credits,
+        JSON.stringify(evidenceRefs), idempotencyKey, createdAt,
+        periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, budget.max_calls,
+        periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, credits, budget.max_usage_credits,
+        usageCreditBalanceExempt ? 1 : 0,
+        input.ownerType, input.ownerId,
+        input.ownerType, input.ownerId, reservationFreshAfter, credits,
+      ],
+    );
+  } catch (error) {
+    const duplicate = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = ?`, [idempotencyKey]);
+    if (duplicate) throw new HttpError(409, 'This AI request has already been submitted', 'ai_duplicate_request');
+    throw error;
+  }
 
   const reserved = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE id = ?`, [eventId]);
   if (reserved) return eventId;
@@ -221,9 +232,9 @@ async function markSuccess(
   const statements = [
     db.statement(
       `UPDATE ai_usage_events
-          SET status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
+          SET provider = ?, model = ?, status = 'success', input_units = ?, output_units = ?, latency_ms = ?, completed_at = ?
         WHERE id = ? AND status = 'reserved'`,
-      [result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
+      [provider, model, result.inputUnits, result.outputUnits, result.latencyMs, completedAt, eventId],
     ),
     db.statement(
       `INSERT INTO audit_logs
@@ -271,12 +282,20 @@ async function markSuccess(
 export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise<ExecuteAiResult> {
   const normalized = requireExecutionInput(input);
   const db = new Db(requireDb(env));
+  const governance = await loadAiRuntimeGovernance(db, env);
+  if (!governance.enabled) {
+    throw new HttpError(503, 'Linkary AI is temporarily disabled by platform operations', 'ai_globally_disabled');
+  }
+  if (!governance.providers.length) {
+    throw new ServiceConfigurationError('No active Linkary AI model is configured');
+  }
+
   await ensureCouponEntitlementMonthlyCredits(db, input.ownerType, input.ownerId, new Date().toISOString());
   const task = AI_TASKS[input.taskKey];
   const prompt = await activePrompt(db, task.promptKey);
   const budget = await activeBudget(db, input.ownerType, input.ownerId, input.taskKey);
   const usageCreditBalanceExempt = await isCanonicalSuperadminUser(db, env, input.actorUserId);
-  const ai = new LinkaryAI(env);
+  const ai = new LinkaryAI(env, governance.providers);
   const provider = ai.provider();
   const eventId = await reserveUsage(
     db, input, prompt, budget, provider.provider, provider.model,
@@ -291,6 +310,7 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
 
   try {
     const result = await ai.generate({ system: prompt.system_prompt, user: userPrompt, maxOutputTokens: task.maxOutputTokens });
+    input.validateOutput?.(result.text);
     await markSuccess(
       db, input, eventId, result.provider, result.model, prompt, task.usageCredits,
       normalized.evidenceRefs.length, result, usageCreditBalanceExempt,
@@ -309,7 +329,7 @@ export async function executeLinkaryAI(env: Env, input: ExecuteAiInput): Promise
       latencyMs: result.latencyMs,
     };
   } catch (error) {
-    const errorCode = error instanceof LinkaryAiProviderError ? error.code : 'ai_execution_failed';
+    const errorCode = error instanceof LinkaryAiProviderError ? error.code : error instanceof HttpError ? error.code : 'ai_execution_failed';
     try {
       await markFailure(db, eventId, input.actorUserId, input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null), errorCode);
     } catch {

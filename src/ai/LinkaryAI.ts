@@ -18,7 +18,7 @@ export type LinkaryAiResult = {
   latencyMs: number;
 };
 
-type ProviderChoice = { provider: AiProvider; model: string };
+export type ProviderChoice = { provider: AiProvider; model: string };
 
 type OpenAiLikePayload = {
   choices?: Array<{ message?: { content?: string | null } }>;
@@ -137,7 +137,12 @@ async function runGemini(env: Env, model: string, prompt: LinkaryAiPrompt): Prom
     throw new LinkaryAiProviderError('gemini');
   }
   if (!response.ok) throw new LinkaryAiProviderError('gemini', response.status);
-  const payload = await response.json() as GeminiPayload;
+  let payload: GeminiPayload;
+  try {
+    payload = await response.json() as GeminiPayload;
+  } catch {
+    throw new LinkaryAiProviderError('gemini', response.status);
+  }
   const text = cleanText(payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join(''));
   if (!text) throw new LinkaryAiProviderError('gemini', response.status);
   return {
@@ -178,7 +183,12 @@ async function runOpenAiCompatible(
     throw new LinkaryAiProviderError(provider);
   }
   if (!response.ok) throw new LinkaryAiProviderError(provider, response.status);
-  const payload = await response.json() as OpenAiLikePayload;
+  let payload: OpenAiLikePayload;
+  try {
+    payload = await response.json() as OpenAiLikePayload;
+  } catch {
+    throw new LinkaryAiProviderError(provider, response.status);
+  }
   const text = cleanText(payload.choices?.[0]?.message?.content);
   if (!text) throw new LinkaryAiProviderError(provider, response.status);
   return {
@@ -188,33 +198,55 @@ async function runOpenAiCompatible(
   };
 }
 
+async function runProvider(
+  env: Env,
+  selected: ProviderChoice,
+  prompt: LinkaryAiPrompt,
+): Promise<{ text: string; inputUnits: number | null; outputUnits: number | null }> {
+  if (selected.provider === 'workers_ai') return runWorkers(env, selected.model, prompt);
+  if (selected.provider === 'gemini') return runGemini(env, selected.model, prompt);
+  if (selected.provider === 'groq') {
+    return runOpenAiCompatible('groq', 'https://api.groq.com/openai/v1/chat/completions', env.GROQ_API_KEY, selected.model, prompt);
+  }
+  return runOpenAiCompatible('openrouter', 'https://openrouter.ai/api/v1/chat/completions', env.OPENROUTER_API_KEY, selected.model, prompt);
+}
+
 export class LinkaryAI {
-  constructor(private readonly env: Env) {}
+  private readonly providers: ProviderChoice[];
+
+  constructor(private readonly env: Env, providers?: ProviderChoice[]) {
+    this.providers = providers ? providers.map((item) => ({ ...item })) : configuredAiProviders(env);
+  }
 
   provider(): ProviderChoice {
-    return selectedAiProvider(this.env);
+    const provider = this.providers[0];
+    if (!provider) throw new ServiceConfigurationError('No active Linkary AI model is configured');
+    return provider;
   }
 
   async generate(prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
-    const selected = this.provider();
+    if (!this.providers.length) throw new ServiceConfigurationError('No active Linkary AI model is configured');
+
     const started = Date.now();
-    let result: { text: string; inputUnits: number | null; outputUnits: number | null };
-    if (selected.provider === 'workers_ai') {
-      result = await runWorkers(this.env, selected.model, prompt);
-    } else if (selected.provider === 'gemini') {
-      result = await runGemini(this.env, selected.model, prompt);
-    } else if (selected.provider === 'groq') {
-      result = await runOpenAiCompatible('groq', 'https://api.groq.com/openai/v1/chat/completions', this.env.GROQ_API_KEY, selected.model, prompt);
-    } else {
-      result = await runOpenAiCompatible('openrouter', 'https://openrouter.ai/api/v1/chat/completions', this.env.OPENROUTER_API_KEY, selected.model, prompt);
+    let lastProviderError: LinkaryAiProviderError | null = null;
+
+    for (const selected of this.providers) {
+      try {
+        const result = await runProvider(this.env, selected, prompt);
+        return {
+          provider: selected.provider,
+          model: selected.model,
+          text: result.text,
+          inputUnits: result.inputUnits,
+          outputUnits: result.outputUnits,
+          latencyMs: Math.max(0, Date.now() - started),
+        };
+      } catch (error) {
+        if (!(error instanceof LinkaryAiProviderError)) throw error;
+        lastProviderError = error;
+      }
     }
-    return {
-      provider: selected.provider,
-      model: selected.model,
-      text: result.text,
-      inputUnits: result.inputUnits,
-      outputUnits: result.outputUnits,
-      latencyMs: Math.max(0, Date.now() - started),
-    };
+
+    throw lastProviderError || new ServiceConfigurationError('No active Linkary AI model is configured');
   }
 }
