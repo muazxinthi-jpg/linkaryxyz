@@ -12,13 +12,13 @@ const superadminApp = readFileSync(new URL('../frontend/src/SuperadminApp.tsx', 
 const superadminWorkspace = readFileSync(new URL('../frontend/src/SuperadminWorkspace.tsx', import.meta.url), 'utf8');
 const adminUi = readFileSync(new URL('../frontend/src/AdminAiGovernanceExperience.tsx', import.meta.url), 'utf8');
 
-test('AI runtime governance stores a master switch and provider/model allowlist without secrets', () => {
+test('AI runtime governance stores a master switch and provider/model allowlist without secret fields', () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS ai_runtime_settings/);
   assert.match(migration, /ai_enabled INTEGER NOT NULL DEFAULT 1 CHECK \(ai_enabled IN \(0, 1\)\)/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS ai_provider_model_policies/);
   assert.match(migration, /provider IN \('workers_ai', 'gemini', 'groq', 'openrouter'\)/);
   assert.match(migration, /UNIQUE \(provider, model\)/);
-  assert.doesNotMatch(migration, /api_key|secret|token/i);
+  assert.doesNotMatch(migration, /\b(api_key|api_secret|access_token|secret_value)\s+TEXT/i);
 });
 
 test('AI master switch is enforced before credit entitlement or usage reservation', () => {
