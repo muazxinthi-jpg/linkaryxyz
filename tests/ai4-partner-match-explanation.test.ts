@@ -62,6 +62,12 @@ test('invalid governed AI output fails before Usage Credits are debited', () => 
   assert.match(runtime, /error instanceof HttpError \? error\.code/);
 });
 
+test('AI usage reservation handles duplicate idempotency keys before or during the insert race', () => {
+  assert.match(runtime, /const existing = await db\.first<UsageRow>\(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = \?`/);
+  assert.match(runtime, /if \(existing\) throw new HttpError\(409, 'This AI request has already been submitted', 'ai_duplicate_request'\)/);
+  assert.match(runtime, /catch \(error\) \{[\s\S]+const duplicate = await db\.first<UsageRow>[\s\S]+ai_duplicate_request/);
+});
+
 test('Partner Discovery exposes contextual LinkaryAI UX only to roles that can spend Project credits', () => {
   assert.match(ui, />Why this match\?</);
   assert.match(ui, /canManage\(project\) && <button className="linkaryai-trigger"/);
