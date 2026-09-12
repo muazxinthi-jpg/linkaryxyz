@@ -39,6 +39,7 @@ import './wallets-beta-acceptance.css';
 import './network-beta-acceptance.css';
 import './admin-readiness-beta-acceptance.css';
 import './admin-commercial.css';
+import './admin-ai-governance.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
