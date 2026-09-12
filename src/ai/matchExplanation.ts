@@ -223,6 +223,7 @@ export async function explainPartnerMatch(request: Request, env: Env): Promise<R
       `relationship_inquiries:${relationship.inquiries.length}`,
       ...communities.slice(0, 20).map((item) => `community:${item.id}`),
     ],
+    validateOutput: (text) => { parseMatchExplanation(text); },
     idempotencyKey: clean(body.idempotencyKey) || `match-explanation:${organizationId}:${partnerKind}:${partnerId}:${crypto.randomUUID()}`,
   });
 
