@@ -56,6 +56,12 @@ test('strict match JSON parser accepts the exact contract and rejects invalid or
   assert.throws(() => parseMatchExplanation(JSON.stringify({ headline: 'x', whyRelevant: ['x'.repeat(241)], evidence: [], cautions: [], nextQuestions: [] })), /invalid match explanation/);
 });
 
+test('invalid governed AI output fails before Usage Credits are debited', () => {
+  assert.match(service, /validateOutput: \(text\) => \{ parseMatchExplanation\(text\); \}/);
+  assert.match(runtime, /input\.validateOutput\?\.\(result\.text\);[\s\S]+await markSuccess/);
+  assert.match(runtime, /error instanceof HttpError \? error\.code/);
+});
+
 test('Partner Discovery exposes contextual LinkaryAI UX only to roles that can spend Project credits', () => {
   assert.match(ui, />Why this match\?</);
   assert.match(ui, /canManage\(project\) && <button className="linkaryai-trigger"/);
