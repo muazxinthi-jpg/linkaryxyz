@@ -224,18 +224,11 @@ function trendDays(days: number): string[] {
   return result;
 }
 
-export async function founderGrowthIntelligence(request: Request, env: Env): Promise<Response> {
-  const auth = await requireAuth(request, env);
-  const organizationId = new URL(request.url).searchParams.get('organizationId')?.trim();
-  if (!organizationId) throw new HttpError(400, 'organizationId is required', 'organization_required');
-  const requestedDays = Number(new URL(request.url).searchParams.get('range') || 30);
+export async function loadGrowthIntelligenceData(db: Db, organizationId: string, requestedDays: number) {
   const rangeDays = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
   const since = `-${rangeDays - 1} days`;
 
-  const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
-  const membership = await organizationMembership(db, auth.user.id, organizationId);
-  if (!membership) throw new HttpError(403, 'Growth Intelligence access denied', 'forbidden');
 
   const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution, clickTrend, outcomeTrend, spendTrend] = await Promise.all([
     db.all<CampaignRow>(
@@ -510,7 +503,7 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
   for (const row of outcomeTrend) { const point = trend.get(row.day); if (point) { point.outcomes += number(row.outcomes); point.value += number(row.value); } }
   for (const row of spendTrend) { const point = trend.get(row.day); if (point) point.spend += number(row.spend); }
 
-  return json({
+  return {
     summary: {
       campaigns: campaignResults.length,
       activities: activityResults.length,
@@ -535,5 +528,21 @@ export async function founderGrowthIntelligence(request: Request, env: Env): Pro
           : 'Partner comparison uses immutable partner snapshots captured at tracking-link creation. Unassigned links remain unassigned even if the activity is assigned later.',
       missing_metrics: 'Unavailable denominators remain null. Linkary does not fabricate CPM, CPC, CPA, CTR or ROAS.',
     },
+  };
+}
+
+export async function founderGrowthIntelligence(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const url = new URL(request.url);
+  const organizationId = url.searchParams.get('organizationId')?.trim();
+  if (!organizationId) throw new HttpError(400, 'organizationId is required', 'organization_required');
+  const requestedDays = Number(url.searchParams.get('range') || 30);
+  const db = new Db(requireDb(env));
+  const membership = await organizationMembership(db, auth.user.id, organizationId);
+  if (!membership) throw new HttpError(403, 'Growth Intelligence access denied', 'forbidden');
+  const intelligence = await loadGrowthIntelligenceData(db, organizationId, requestedDays);
+  return json({
+    ...intelligence,
+    permissions: { can_generate_ai: ['owner', 'admin', 'marketing_manager'].includes(membership.role) },
   });
 }

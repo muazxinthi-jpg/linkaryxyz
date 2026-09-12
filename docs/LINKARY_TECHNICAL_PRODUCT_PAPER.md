@@ -510,12 +510,15 @@ AI must preserve the same evidence boundary as the rest of Linkary. It may summa
 
 Locked Controlled Beta task weights are:
 
-- Profile / SEO improvement: 5 Usage Credits
+- Personal Profile improvement: 5 Usage Credits
+- Project Profile Copilot: 5 Usage Credits
 - Campaign brief assist: 10 Usage Credits
 - Match explanation: 10 Usage Credits
 - Growth summary: 15 Usage Credits
 
-The AI-0 governance foundation may exist before user-facing AI controls. A user-facing AI feature must still pass its own entitlement, UX, evidence and failure-mode acceptance before it is considered launched.
+LinkaryAI V1 is contextual rather than a generic chatbot. Personal Profile improvement, Project Profile Copilot and Campaign Brief Assistant operate in their existing editing workflows. Partner Match Explanation appears in Project Partner Discovery and explains server-assembled identity, Community and Relationship Memory evidence without producing an opaque score. Growth Summary appears in Founder Growth Intelligence and narrates the same authoritative server-calculated metrics, provenance and missing-data rules used by the normal report.
+
+Owner, Admin and Marketing Manager roles may spend organization Usage Credits for Match Explanation and Growth Summary. Analyst and Viewer retain normal read access but cannot trigger paid generation. These two features in migration `0049_linkaryai_v1_completion.sql` must not be described as production/live until the implementation PR is merged, the forward-only migration is applied and customer acceptance passes.
 
 ## 17. UI and UX principles
 

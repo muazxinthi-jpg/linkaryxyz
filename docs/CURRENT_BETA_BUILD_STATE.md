@@ -36,7 +36,7 @@ The core Beta product is built and production-live:
 - Work Again
 - chain-aware NFT picker and bounded pagination for Ethereum, Base, BNB Chain, Solana and Robinhood Chain
 - Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
-- LinkaryAI AI-0 governance foundation
+- LinkaryAI governance plus contextual Personal Profile, Project Profile, Campaign Brief, Partner Match and Growth Summary product surfaces; the final two remain pending merge/deploy acceptance in their completion PR
 - hourly production app-shell/API health monitoring
 
 Current `main` regression, TypeScript and Wrangler verification are green. Treat the latest `main` CI run as the authoritative test count rather than hard-coding a count in planning documents.
@@ -71,7 +71,7 @@ with only the allowed V1 transitions enforced by the backend.
 
 ## Production D1 state
 
-Production D1 is current through `0034_project_growth_baselines.sql`.
+Production D1 is current through `0048_expand_alchemy_attribution_chains.sql`. Migration `0049_linkaryai_v1_completion.sql` is pending this focused PR and is not yet production/live.
 
 Relevant current migration history includes:
 
@@ -82,6 +82,7 @@ Relevant current migration history includes:
 - `0032_immutable_tracking_utm_context.sql`
 - `0033_ai0_governance_and_usage.sql`
 - `0034_project_growth_baselines.sql`
+- deployed migrations `0035` through `0048`, including LinkaryAI customer foundations and the five-network Alchemy attribution expansion
 
 The latest production migration-state check returned `No migrations to apply!`.
 
@@ -156,7 +157,7 @@ Live production facts already observed:
 
 Live acceptance still needs to verify more-than-one-page browsing, chain switching, Solana, provider-capability states, avatar save/reload/public rendering and NFT Showcase save/reload/public rendering.
 
-Issue #168 remains open because a Free Personal account can currently access paid NFT-aware profile functionality. The canonical Personal Pro / Collector boundary requires server-side enforcement. Free must retain normal image upload and reward-wallet destinations, but not wallet NFT discovery, NFT avatar, NFT Showcase, NFT collection presentation or NFT-labelled profile items.
+Issue #168 is closed. The canonical Personal Pro / Collector NFT-aware profile boundary is enforced while Free retains normal image upload and reward-wallet destinations.
 
 ## Growth Intelligence / attribution acceptance is the next critical gate
 
@@ -235,8 +236,7 @@ Before broad onboarding, run:
 11. Public Creator/Project profile acceptance on real mobile devices.
 12. Full issue #42 authenticated visual acceptance and P0/P1 bug fixing.
 13. NFT chain/pagination/persistence live acceptance.
-14. Fix Issue #168 before monetized Personal Pro onboarding.
-15. Resolve or disposition Issue #169 during landing-page UI/content QA.
+14. Keep Issue #168 and Issue #169 closed through regression and final acceptance.
 16. Explicitly verify direct-push/emergency-bypass release-control behavior.
 
 ## What to build next
@@ -248,7 +248,7 @@ The next work is:
 1. finish real attribution/end-to-end acceptance
 2. finish real-account auth/onboarding/role/invite acceptance
 3. finish issue #42 authenticated visual/device acceptance
-4. finish live NFT acceptance and fix Issue #168
+4. finish live NFT acceptance and confirm the closed Issue #168 entitlement boundary with real accounts
 5. fix every P0/P1 found
 6. verify the already protected `main` release path end to end
 7. keep documentation synchronized with `main`
@@ -261,8 +261,8 @@ Keep these deferred while acceptance blockers remain:
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
 - advanced Alchemy webhook attribution
-- user-facing AI expansion beyond the already deployed AI-0 foundation
-- AI partner recommendations / Linkary Score
+- generic user-facing AI expansion beyond contextual LinkaryAI V1
+- opaque AI partner rankings / Linkary Score
 - reputation voting/moderation
 - payments and payouts
 - referral revenue automation

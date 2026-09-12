@@ -22,14 +22,15 @@ for (const [name, doc] of [
 }
 
 test('status docs mark their current production D1 migration baselines', () => {
-  assert.equal(implementation.includes('Production schema includes deployed migration `0047_alchemy_chain_attribution.sql`'), true);
-  assert.equal(betaState.includes('Production D1 is current through `0034_project_growth_baselines.sql`'), true);
-  assert.equal(codex.includes('Production schema is current through `0034_project_growth_baselines.sql`'), true);
+  assert.equal(implementation.includes('Production migration `0048_expand_alchemy_attribution_chains.sql`'), true);
+  assert.equal(betaState.includes('Production D1 is current through `0048_expand_alchemy_attribution_chains.sql`'), true);
+  assert.equal(codex.includes('Production schema is current through `0048_expand_alchemy_attribution_chains.sql`'), true);
   for (const doc of [implementation, betaState, codex]) {
     assert.equal(doc.includes('0024_activity_measurement_evidence.sql'), true);
     assert.equal(doc.includes('0025_actual_spend_ledger.sql'), true);
     assert.equal(doc.includes('0032_immutable_tracking_utm_context.sql'), true);
     assert.equal(doc.includes('0033_ai0_governance_and_usage.sql'), true);
+    assert.equal(doc.includes('0049_linkaryai_v1_completion.sql'), true);
     assert.equal(doc.includes('No migrations to apply!'), true);
   }
 });

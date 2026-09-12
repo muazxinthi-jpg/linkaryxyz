@@ -15,7 +15,7 @@ The canonical product and architecture source of truth is `docs/LINKARY_TECHNICA
 - The latest production migration-state check returned `No migrations to apply!`.
 - Production readiness was observed at 34/34 required tables, 5/5 required automation checks and 9/9 production configuration checks after the Alchemy production secret was configured.
 - `main` is protected and requires the normal PR checks `verify-and-deploy` and `Workers Builds: linkary-xyz`. A merge was observed blocked while a required Worker build check was still pending, then allowed after the checks passed.
-- Scope boundary: Creator and Community Manager discovery are in Beta. KOL Manager portfolio discovery, Telegram automation, advanced onchain attribution, AI recommendations, payments/payouts and Linkary Score remain deferred unless the canonical technical paper is deliberately updated.
+- Scope boundary: Creator and Community Manager discovery are in Beta. Contextual LinkaryAI V1 is limited to its five governed product surfaces; generic AI chat, opaque rankings/Linkary Score, KOL Manager portfolio discovery, Telegram automation, attribution beyond the controlled five-network foundation, and payments/payouts remain deferred unless the canonical technical paper is deliberately updated.
 
 ## Evidence convention
 
@@ -31,8 +31,7 @@ For each row, record a dated result and a link to the issue, PR, screenshot, tes
 
 ## Known Beta acceptance findings
 
-- Issue #168: a Free Personal account can currently access paid NFT-aware profile functionality. The canonical commercial boundary requires server-side Personal Pro / Collector entitlement enforcement for wallet NFT discovery, NFT avatar, NFT Showcase, collection presentation and NFT-labelled profile items. This must be fixed without changing the billing architecture or adding a D1 migration unless a separately reviewed blocker proves that unavoidable.
-- Issue #169: the public landing page still uses execution-first campaign positioning that conflicts with the canonical tracking-first product position. This is a UI/content QA issue, not new product scope.
+- Issues #168 and #169 are closed. Their NFT entitlement and tracking-first landing-positioning fixes remain regression requirements, not open launch blockers.
 - NFT chain-aware pagination is deployed. Live acceptance must still confirm the complete real-wallet experience across the supported Beta chain set and public-profile persistence.
 
 ## Real-account acceptance
@@ -74,7 +73,7 @@ Use a real test wallet that owns known assets. Do not treat provider capability 
 - [ ] Robinhood Chain unsupported NFT-indexing behavior is explicit when unavailable.
 - [ ] NFT avatar selection saves, survives reload and renders correctly on the public profile for an entitled account.
 - [ ] NFT Showcase selection saves, survives reload and renders correctly on the public profile for an entitled account.
-- [ ] Free Personal account is blocked from wallet NFT discovery and NFT-aware publishing according to Issue #168, while normal image upload and reward-wallet destinations remain available.
+- [x] Free Personal account is blocked from wallet NFT discovery and NFT-aware publishing according to the closed Issue #168 contract, while normal image upload and reward-wallet destinations remain available.
 
 ## Attribution acceptance
 

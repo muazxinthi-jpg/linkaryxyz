@@ -26,6 +26,7 @@ import './ux-system.css';
 import './partner-discovery-stabilization.css';
 import './tracking-assignment.css';
 import './onchain-attribution.css';
+import './linkaryai-contextual.css';
 import './collaboration-inquiry.css';
 import './partner-relationship-memory.css';
 import './dashboard-polish.css';

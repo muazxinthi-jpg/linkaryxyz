@@ -38,8 +38,10 @@ Production D1 history relevant to the current acceptance phase includes:
 - `0032_immutable_tracking_utm_context.sql`, immutable effective destination and UTM attribution context for new tracking links.
 - `0033_ai0_governance_and_usage.sql`, LinkaryAI governance and Usage Credit accounting foundation.
 - `0034_project_growth_baselines.sql`, Project growth baseline persistence.
+- production migrations are current through `0048_expand_alchemy_attribution_chains.sql`.
+- `0049_linkaryai_v1_completion.sql` is the next forward-only migration in this branch and must not be described as deployed until merge and production migration acceptance.
 
-Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow. No new migration is part of the current Beta acceptance work.
+Do not rewrite deployed migrations and do not add automatic migration application to the normal deploy workflow.
 
 ## Authentication and access
 
@@ -77,7 +79,7 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Public campaign opportunities.
 - [x] Community Portfolio.
 - [x] Chain-aware NFT picker and pagination foundation for the Controlled Beta chain set: Ethereum, Base, BNB Chain, Solana and Robinhood Chain.
-- [ ] Issue #168: enforce the canonical Personal Pro / Collector entitlement server-side for NFT discovery, NFT avatar, NFT Showcase, collection presentation and NFT-labelled profile items. Free accounts must retain normal image upload and reward-wallet destinations.
+- [x] Issue #168 Personal Pro / Collector NFT entitlement boundary is closed; Free retains normal image upload and reward-wallet destinations.
 
 ## Project organization and permissions
 
@@ -200,7 +202,7 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Real Ethereum NFT artwork has been observed in the live profile editor.
 - [x] Chain-aware, bounded NFT discovery/pagination is deployed for the locked Beta chain set.
 - [ ] Live acceptance of more-than-one-page NFT browsing, chain selection, avatar persistence and NFT Showcase persistence.
-- [ ] Issue #168 paid NFT entitlement enforcement.
+- [x] Issue #168 paid NFT entitlement enforcement is closed.
 - [x] Reviewed Alchemy webhook/onchain attribution foundation for exactly Ethereum, Base, BNB Chain, Solana and Robinhood Chain; provider evidence requires explicit approval before conversion creation.
 - [x] Production migration `0048_expand_alchemy_attribution_chains.sql` and all five chain-specific Alchemy webhooks are configured.
 - [x] Campaign workspace exposes watched-wallet management and a review-gated On-chain Evidence Inbox without a second backend attribution system.
@@ -211,7 +213,10 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Cloudflare Workers AI primary routing with governed Gemini, Groq and OpenRouter fallback configuration.
 - [x] Versioned prompt registry, budget controls, Usage Credit reservation/debit and audit-safe telemetry.
 - [x] Evidence-first safeguards prevent AI from upgrading uncertain evidence into verified proof.
-- [ ] User-facing AI features remain outside the current acceptance-only work until the Beta gate is deliberately advanced.
+- [x] Personal Profile improvement, Project Profile Copilot and Campaign Brief Assistant.
+- [x] Partner Match Explanation uses server-assembled Partner Discovery and Relationship Memory evidence; generation costs 10 organization Usage Credits.
+- [x] Growth Summary narrates the existing authoritative Founder Growth Intelligence payload for the selected 7/30/90-day range; generation costs 15 organization Usage Credits.
+- [ ] The LinkaryAI V1 completion in this branch is not production/live until its PR is merged, migration `0049` is applied, and customer acceptance passes.
 
 ## Inbox and Superadmin
 
@@ -273,17 +278,16 @@ Static responsive coverage does not close Issue #42 by itself.
 9. Test Invite -> signup -> registration attribution.
 10. Test Opportunity -> application -> acceptance.
 11. Complete Issue #42 authenticated live visual/device acceptance and fix all P0/P1 findings.
-12. Resolve Issue #168 NFT commercial entitlement enforcement before monetized Personal Pro onboarding.
-13. Resolve or disposition Issue #169 landing-positioning mismatch during UI/content QA.
-14. Explicitly acceptance-test direct-push/emergency-bypass behavior for the already protected `main` branch.
-15. Final documentation/launch copy check.
-16. Open controlled Beta onboarding only after the above passes.
+12. Acceptance-test the five contextual LinkaryAI V1 features with real authorized and read-only Project accounts after merge and migration `0049`.
+13. Explicitly acceptance-test direct-push/emergency-bypass behavior for the already protected `main` branch.
+14. Final documentation/launch copy check.
+15. Open controlled Beta onboarding only after the above passes.
 
 ## Controlled Beta definition
 
 Do not call broad Beta onboarding ready until:
 
-- production D1 ledger is current through `0034_project_growth_baselines.sql`
+- production D1 ledger is current through every migration merged to `main`
 - latest production migration-state check reports `No migrations to apply!`
 - real attribution reassignment acceptance passes for Creator and exact Community
 - canonical tracking-domain/UTM acceptance passes
@@ -301,7 +305,7 @@ Do not delay Beta for:
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
 - broader automated Alchemy attribution beyond the controlled five-network, review-gated foundation
-- AI recommendations beyond the already deployed AI-0 foundation
+- generic AI chat, opaque partner ranking and AI recommendations beyond the contextual LinkaryAI V1 features
 - Linkary Score
 - public voting/reputation system
 - reviews/disputes

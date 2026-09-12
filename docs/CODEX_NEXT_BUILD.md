@@ -49,14 +49,14 @@ The core Beta product is built. Current production capabilities include:
 - campaign opportunities and Creator applications
 - Coinbase CDP wallet foundation plus optional EVM/Solana reward destinations
 - chain-aware Alchemy NFT discovery/pagination for Ethereum, Base, BNB Chain, Solana and Robinhood Chain
-- LinkaryAI AI-0 governance foundation
+- LinkaryAI V1 contextual product layer: Personal Profile, Project Profile, Campaign Brief, Partner Match Explanation and Growth Summary
 - hourly production app-shell/API health monitoring across the current Beta route surface
 
 Current `main` regression, authenticated-app TypeScript and Wrangler verification are green. Use the latest `main` CI run as the authoritative test count instead of copying a count into this handoff.
 
 ## Production database state
 
-Production schema is current through `0034_project_growth_baselines.sql`.
+Production schema is current through `0048_expand_alchemy_attribution_chains.sql`. Migration `0049_linkaryai_v1_completion.sql` remains pending until its focused PR is merged and explicitly migrated.
 
 Relevant current migration history includes:
 
@@ -181,10 +181,10 @@ Validate:
 - BNB/Robinhood unsupported provider capability is shown as unavailable, not as a fake empty wallet
 - NFT avatar saves, survives reload and renders on the public profile for an entitled account
 - NFT Showcase saves, survives reload and renders on the public profile for an entitled account
-- Free account is blocked server-side from NFT discovery and NFT-aware persistence according to Issue #168
+- The closed Issue #168 entitlement boundary still blocks Free accounts server-side from NFT discovery and NFT-aware persistence
 - Free normal image upload and EVM/Solana reward destinations still work
 
-Do not change billing architecture or add a migration to fix Issue #168.
+Do not change the billing architecture while regression-testing the closed Issue #168 boundary.
 
 ### 3. Issue #42, authenticated responsive acceptance
 
@@ -346,7 +346,7 @@ Test Creator and Project profiles for:
 
 Never add editable fake proof metrics.
 
-Also disposition Issue #169. The public landing must present the canonical tracking-first product position rather than making Linkary appear execution-first. This is UI/content QA, not new feature scope.
+Keep the closed Issue #169 tracking-first landing position intact during UI/content QA.
 
 ### 13. Repository release-control acceptance
 
@@ -361,8 +361,6 @@ Record the remaining acceptance evidence:
 
 ## Known acceptance issues
 
-- #168 Free Personal account can use paid NFT-aware profile functionality.
-- #169 public landing copy is execution-first and conflicts with the canonical tracking-first position.
 - #42 broad authenticated responsive/device acceptance remains open.
 
 Check existing issues before opening duplicates.
@@ -386,8 +384,8 @@ Do not start these until Beta stability:
 - Telegram TrackerBot automation
 - automatic Telegram join/leave verification
 - advanced Alchemy webhook attribution
-- user-facing AI expansion beyond the already deployed AI-0 foundation
-- AI partner recommendations
+- generic AI chat or expansion beyond contextual LinkaryAI V1
+- opaque AI partner recommendations or rankings
 - Linkary Score
 - reputation voting/moderation
 - payments and payouts
@@ -419,13 +417,13 @@ Do not start these until Beta stability:
 
 Do not call broad Creator/Project onboarding ready until all are true:
 
-1. production D1 ledger is current through `0034_project_growth_baselines.sql`
+1. production D1 ledger is current through every migration merged to `main`
 2. latest production migration-state check reports `No migrations to apply!`
 3. real Creator attribution reassignment acceptance passes
 4. real exact Community attribution reassignment acceptance passes
 5. canonical `l.linkary.xyz` tracking/UTM acceptance passes
 6. live NFT pagination/chain/persistence acceptance passes
-7. Issue #168 paid NFT entitlement enforcement is fixed
+7. the closed Issue #168 paid NFT entitlement boundary passes real-account regression
 8. Issue #42 authenticated live visual/device acceptance is clean
 9. Email, Google and X real-account sign-in acceptance passes
 10. Telegram Personal Profile linking acceptance passes separately
