@@ -27,6 +27,22 @@ type GovernanceState = {
   policies: ModelPolicy[];
 };
 
+type ProviderProbe = {
+  provider: AiProvider;
+  model: string;
+  healthy: boolean;
+  latencyMs: number;
+  providerStatus: number | null;
+  providerCode: string | null;
+  hint: string | null;
+};
+
+type ProbeResponse = {
+  ok: boolean;
+  explicitModelPolicy: boolean;
+  probes: ProviderProbe[];
+};
+
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   workers_ai: 'Cloudflare Workers AI',
   gemini: 'Google Gemini',
@@ -57,6 +73,8 @@ export default function AdminAiGovernanceExperience() {
   const [priority, setPriority] = useState('10');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeResults, setProbeResults] = useState<ProviderProbe[]>([]);
   const [message, setMessage] = useState('');
 
   async function load() {
@@ -77,9 +95,14 @@ export default function AdminAiGovernanceExperience() {
   useEffect(() => { void load(); }, []);
 
   const providerMap = useMemo(() => new Map((state?.providers || []).map((item) => [item.provider, item])), [state]);
+  const probeMap = useMemo(() => new Map(probeResults.map((item) => [item.provider, item])), [probeResults]);
   const runtimeReady = masterEnabled && (policies.length === 0
     ? (state?.providers || []).some((item) => item.configured && item.environmentModel)
     : policies.some((item) => item.isActive && providerMap.get(item.provider)?.configured));
+  const automaticChain = useMemo(() => (state?.providers || [])
+    .filter((item) => item.configured && item.environmentModel)
+    .map((item) => `${PROVIDER_LABELS[item.provider]} (${item.environmentModel})`)
+    .join(' → '), [state]);
 
   function toggle(index: number) {
     setPolicies((current) => current.map((item, i) => i === index ? { ...item, isActive: !item.isActive } : item));
@@ -99,7 +122,25 @@ export default function AdminAiGovernanceExperience() {
     setPolicies((current) => [...current, { provider, model: clean, isActive: true, priority: parsedPriority }]);
     setModel('');
     setPriority(String(parsedPriority + 10));
-    setMessage('Model added locally. Save changes to activate the policy.');
+    setMessage('Manual model override added locally. Save changes to activate it.');
+  }
+
+  async function runProviderProbe() {
+    const token = csrf();
+    if (!token) return setMessage('Security token is missing. Refresh the Superadmin console and try again.');
+    setProbing(true);
+    setMessage('');
+    try {
+      const result = await api<ProbeResponse>({ method: 'POST', headers: { 'x-csrf-token': token } });
+      setProbeResults(result.probes || []);
+      const healthy = (result.probes || []).filter((item) => item.healthy).length;
+      const total = (result.probes || []).length;
+      setMessage(total ? `Provider health test complete: ${healthy}/${total} active providers responded.` : 'No active AI providers are available to test.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'AI provider health test failed.');
+    } finally {
+      setProbing(false);
+    }
   }
 
   async function save() {
@@ -119,6 +160,7 @@ export default function AdminAiGovernanceExperience() {
       setState(result);
       setMasterEnabled(result.aiEnabled);
       setPolicies(result.policies || []);
+      setProbeResults([]);
       setMessage('LinkaryAI runtime governance saved. Changes take effect on the next AI request.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'AI governance could not be saved.');
@@ -133,7 +175,7 @@ export default function AdminAiGovernanceExperience() {
         <div>
           <span className="admin-ai-eyebrow">LINKARYAI CONTROL PLANE</span>
           <h1>AI runtime governance</h1>
-          <p>Control whether LinkaryAI can run, which provider/model combinations are allowed, and their fallback priority.</p>
+          <p>Control whether LinkaryAI can run, verify provider health, and optionally override the automatic fallback chain.</p>
         </div>
         <span className={`admin-ai-runtime ${runtimeReady ? 'ready' : 'stopped'}`}>{runtimeReady ? 'RUNTIME READY' : 'RUNTIME STOPPED'}</span>
       </header>
@@ -154,55 +196,86 @@ export default function AdminAiGovernanceExperience() {
 
           <section className="admin-ai-panel">
             <div className="admin-ai-section-heading">
-              <div><span className="admin-ai-label">PROVIDER READINESS</span><h2>Server configuration</h2></div>
-              <p>Secrets stay in Cloudflare. This console never returns or displays API keys.</p>
+              <div><span className="admin-ai-label">PROVIDER READINESS</span><h2>Server configuration and live health</h2></div>
+              <div className="admin-ai-provider-actions">
+                <p>Secrets stay in Cloudflare. Health tests return status only, never API keys or generated content.</p>
+                <button type="button" onClick={() => void runProviderProbe()} disabled={probing}>{probing ? 'Testing…' : 'Test active providers'}</button>
+              </div>
             </div>
             <div className="admin-ai-provider-grid">
-              {(state?.providers || []).map((item) => (
-                <article key={item.provider}>
-                  <strong>{PROVIDER_LABELS[item.provider]}</strong>
-                  <span className={item.configured ? 'configured' : 'missing'}>{item.configured ? 'Configured' : 'Secret/binding missing'}</span>
-                  <small>{item.environmentModel ? `Environment model: ${item.environmentModel}` : 'No environment model selected'}</small>
-                </article>
-              ))}
+              {(state?.providers || []).map((item) => {
+                const probe = probeMap.get(item.provider);
+                return (
+                  <article key={item.provider}>
+                    <strong>{PROVIDER_LABELS[item.provider]}</strong>
+                    <span className={item.configured ? 'configured' : 'missing'}>{item.configured ? 'Configured' : 'Secret/binding missing'}</span>
+                    <small>{item.environmentModel ? `Environment model: ${item.environmentModel}` : 'No environment model selected'}</small>
+                    {probe ? (
+                      <div className={`admin-ai-probe ${probe.healthy ? 'healthy' : 'unhealthy'}`}>
+                        <b>{probe.healthy ? 'Healthy' : 'Unavailable'}</b>
+                        <small>{probe.healthy ? `${probe.latencyMs} ms` : [probe.providerCode ? `Code ${probe.providerCode}` : null, probe.providerStatus ? `HTTP ${probe.providerStatus}` : null].filter(Boolean).join(' · ') || 'No provider response'}</small>
+                        {!probe.healthy && probe.hint ? <small>{probe.hint}</small> : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
+            {policies.length === 0 ? (
+              <div className="admin-ai-auto-route">
+                <span className="admin-ai-label">AUTOMATIC ROUTING ACTIVE</span>
+                <strong>{automaticChain || 'No configured provider chain available'}</strong>
+                <small>No manual model selection is required. Linkary tries the configured providers in this order and falls through when a provider is unavailable.</small>
+              </div>
+            ) : null}
           </section>
 
           <section className="admin-ai-panel">
             <div className="admin-ai-section-heading">
-              <div><span className="admin-ai-label">MODEL ALLOWLIST</span><h2>Active models and fallback order</h2></div>
-              <p>{policies.length ? 'Explicit model policy is active. Only enabled rows can run.' : 'No explicit model policy yet. Linkary uses the existing environment-configured fallback chain.'}</p>
+              <div><span className="admin-ai-label">MODEL ROUTING</span><h2>{policies.length ? 'Manual model policy' : 'Automatic model selection'}</h2></div>
+              <p>{policies.length ? 'Explicit model policy is active. Only enabled rows can run.' : 'Automatic selection is active. You do not need to select or add a model.'}</p>
             </div>
 
-            <div className="admin-ai-table-wrap">
-              <table className="admin-ai-table">
-                <thead><tr><th>Provider</th><th>Model</th><th>Configured</th><th>Priority</th><th>Active</th></tr></thead>
-                <tbody>
-                  {policies.length ? policies.map((item, index) => (
-                    <tr key={`${item.provider}:${item.model}`}>
-                      <td>{PROVIDER_LABELS[item.provider]}</td>
-                      <td><code>{item.model}</code></td>
-                      <td>{providerMap.get(item.provider)?.configured ? 'Yes' : 'No'}</td>
-                      <td><input aria-label={`Priority for ${item.model}`} type="number" min="1" max="9999" value={item.priority} onChange={(event) => changePriority(index, event.target.value)} /></td>
-                      <td><button type="button" className={`admin-ai-row-toggle ${item.isActive ? 'active' : ''}`} onClick={() => toggle(index)}>{item.isActive ? 'Enabled' : 'Disabled'}</button></td>
-                    </tr>
-                  )) : <tr><td colSpan={5}>No explicit model policies saved yet.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+            {policies.length ? (
+              <div className="admin-ai-table-wrap">
+                <table className="admin-ai-table">
+                  <thead><tr><th>Provider</th><th>Model</th><th>Configured</th><th>Priority</th><th>Active</th></tr></thead>
+                  <tbody>
+                    {policies.map((item, index) => (
+                      <tr key={`${item.provider}:${item.model}`}>
+                        <td>{PROVIDER_LABELS[item.provider]}</td>
+                        <td><code>{item.model}</code></td>
+                        <td>{providerMap.get(item.provider)?.configured ? 'Yes' : 'No'}</td>
+                        <td><input aria-label={`Priority for ${item.model}`} type="number" min="1" max="9999" value={item.priority} onChange={(event) => changePriority(index, event.target.value)} /></td>
+                        <td><button type="button" className={`admin-ai-row-toggle ${item.isActive ? 'active' : ''}`} onClick={() => toggle(index)}>{item.isActive ? 'Enabled' : 'Disabled'}</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="admin-ai-auto-policy">
+                <strong>Automatic provider/model routing is enabled.</strong>
+                <span>Linkary uses the server-configured models above. OpenRouter automatically uses <code>openrouter/free</code> when its key is configured.</span>
+              </div>
+            )}
 
-            <div className="admin-ai-add-model">
-              <select value={provider} onChange={(event) => setProvider(event.target.value as AiProvider)} aria-label="AI provider">
-                {(Object.keys(PROVIDER_LABELS) as AiProvider[]).map((key) => <option key={key} value={key}>{PROVIDER_LABELS[key]}</option>)}
-              </select>
-              <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Model ID, e.g. gemini-2.5-flash" aria-label="AI model ID" />
-              <input value={priority} onChange={(event) => setPriority(event.target.value)} type="number" min="1" max="9999" aria-label="AI model priority" />
-              <button type="button" onClick={addModel}>Add model</button>
-            </div>
+            <details className="admin-ai-advanced">
+              <summary>Advanced: pin or override a model</summary>
+              <p>Only use this when you intentionally want to replace automatic model selection with an explicit provider/model policy.</p>
+              <div className="admin-ai-add-model">
+                <select value={provider} onChange={(event) => setProvider(event.target.value as AiProvider)} aria-label="AI provider">
+                  {(Object.keys(PROVIDER_LABELS) as AiProvider[]).map((key) => <option key={key} value={key}>{PROVIDER_LABELS[key]}</option>)}
+                </select>
+                <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Model ID, e.g. gemini-2.5-flash" aria-label="AI model ID" />
+                <input value={priority} onChange={(event) => setPriority(event.target.value)} type="number" min="1" max="9999" aria-label="AI model priority" />
+                <button type="button" onClick={addModel}>Add override</button>
+              </div>
+            </details>
           </section>
 
           <footer className="admin-ai-actions">
-            <div><strong>Runtime changes require no application redeploy.</strong><span>Saving creates an auditable Superadmin governance event.</span></div>
+            <div><strong>Runtime governance changes require no application redeploy.</strong><span>Saving creates an auditable Superadmin governance event.</span></div>
             <button type="button" onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save AI governance'}</button>
           </footer>
         </>
