@@ -40,9 +40,10 @@ type GeminiPayload = {
 
 export class LinkaryAiProviderError extends Error {
   readonly code = 'ai_provider_unavailable';
+  readonly status = 503;
 
-  constructor(readonly provider: AiProvider, readonly status: number | null = null) {
-    super('Linkary AI provider is temporarily unavailable');
+  constructor(readonly provider: AiProvider, readonly providerStatus: number | null = null) {
+    super('LinkaryAI is temporarily unavailable. Please try again shortly.');
   }
 }
 
