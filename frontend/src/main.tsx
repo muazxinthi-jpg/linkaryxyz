@@ -47,7 +47,7 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
-const APP_RELEASE = '2026-09-09-private-network-v5';
+const APP_RELEASE = '2026-09-09-private-network-v7-fluid-map';
 const APP_SHELL_PATH = '/assets/linkary-app/index.html';
 const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
