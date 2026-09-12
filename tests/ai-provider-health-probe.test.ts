@@ -32,6 +32,27 @@ test('Workers AI probe distinguishes temporary capacity pressure', async () => {
   assert.match(result.hint || '', /temporary model capacity pressure/);
 });
 
+test('Workers AI accepts the current Cloudflare chat-completion response shape', async () => {
+  let requestPayload: any = null;
+  const result = await probeAiProvider({
+    AI: {
+      run: async (_model: string, payload: unknown) => {
+        requestPayload = payload;
+        return {
+          id: 'health-check',
+          object: 'chat.completion',
+          choices: [{ message: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 8, completion_tokens: 1 },
+        };
+      },
+    },
+  } as any, { provider: 'workers_ai', model: '@cf/google/gemma-4-26b-a4b-it' });
+
+  assert.equal(result.healthy, true);
+  assert.equal(requestPayload?.chat_template_kwargs?.enable_thinking, false);
+  assert.equal(requestPayload?.max_tokens, 64);
+});
+
 test('OpenRouter probe reports HTTP rate limiting safely', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 429, message: 'rate limited' } }), {
@@ -47,6 +68,75 @@ test('OpenRouter probe reports HTTP rate limiting safely', async () => {
     assert.equal(result.providerStatus, 429);
     assert.equal(result.providerCode, '429');
     assert.match(result.hint || '', /free-model rate limits/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenRouter accepts HTTP 200 chat completions and keeps reasoning minimal for the free router', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: any = null;
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body || '{}'));
+    return new Response(JSON.stringify({
+      choices: [{ message: { role: 'assistant', content: 'OK' } }],
+      usage: { prompt_tokens: 4, completion_tokens: 1 },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const result = await probeAiProvider({ OPENROUTER_API_KEY: 'server-secret' } as any, {
+      provider: 'openrouter',
+      model: 'openrouter/free',
+    });
+    assert.equal(result.healthy, true);
+    assert.equal(requestBody?.max_tokens, 64);
+    assert.equal(requestBody?.reasoning?.effort, 'minimal');
+    assert.equal(requestBody?.reasoning?.exclude, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenRouter HTTP 200 with no final text is not misdiagnosed as a bad API key', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    choices: [{ message: { role: 'assistant', content: '' } }],
+  }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  try {
+    const result = await probeAiProvider({ OPENROUTER_API_KEY: 'server-secret' } as any, {
+      provider: 'openrouter',
+      model: 'openrouter/free',
+    });
+    assert.equal(result.healthy, false);
+    assert.equal(result.providerStatus, 200);
+    assert.equal(result.providerCode, 'empty_response');
+    assert.match(result.hint || '', /not an API-key failure/i);
+    assert.doesNotMatch(result.hint || '', /verify the Linkary Production key/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenAI-compatible providers accept text content arrays as well as strings', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    choices: [{ message: { role: 'assistant', content: [{ type: 'text', text: 'OK' }] } }],
+  }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  try {
+    const result = await probeAiProvider({ OPENROUTER_API_KEY: 'server-secret' } as any, {
+      provider: 'openrouter',
+      model: 'openrouter/free',
+    });
+    assert.equal(result.healthy, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -76,4 +166,7 @@ test('Superadmin clearly presents automatic routing and keeps manual model entry
   assert.match(adminUi, /Advanced: pin or override a model/);
   assert.match(adminUi, /openrouter\/free/);
   assert.match(adapter, /providerErrorMeta\(error\)/);
+  assert.match(adapter, /openAiPayloadText\(payload\)/);
+  assert.match(adapter, /chat_template_kwargs: \{ enable_thinking: false \}/);
+  assert.match(adapter, /maxOutputTokens: 64/);
 });
