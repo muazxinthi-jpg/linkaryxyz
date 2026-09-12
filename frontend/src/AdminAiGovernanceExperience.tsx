@@ -238,7 +238,7 @@ export default function AdminAiGovernanceExperience() {
 
           <section className="admin-ai-panel">
             <div className="admin-ai-section-heading">
-              <div><span className="admin-ai-label">MODEL ROUTING</span><h2>{policies.length ? 'Manual model policy' : 'Automatic model selection'}</h2></div>
+              <div><span className="admin-ai-label">MODEL ALLOWLIST / ROUTING</span><h2>{policies.length ? 'Manual model policy' : 'Automatic model selection'}</h2></div>
               <p>{policies.length ? 'Explicit model policy is active. Only enabled rows can run.' : 'Automatic selection is active. You do not need to select or add a model.'}</p>
             </div>
 
