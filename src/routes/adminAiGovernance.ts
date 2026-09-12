@@ -3,8 +3,8 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { requireSuperadmin, verifyCsrf } from '../auth/session';
 import { HttpError, json, readJson } from '../http';
-import { aiProviderConfiguration, type AiProviderConfiguration } from '../ai/governance';
-import type { AiProvider } from '../ai/LinkaryAI';
+import { aiProviderConfiguration, loadAiRuntimeGovernance, type AiProviderConfiguration } from '../ai/governance';
+import { probeAiProvider, type AiProvider } from '../ai/LinkaryAI';
 
 const PROVIDERS = new Set<AiProvider>(['workers_ai', 'gemini', 'groq', 'openrouter']);
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -100,6 +100,18 @@ export async function adminAiGovernance(request: Request, env: Env): Promise<Res
 
   if (request.method === 'GET') {
     return json(await governanceState(db, env), { headers: noStore() });
+  }
+
+  if (request.method === 'POST') {
+    await verifyCsrf(request, env, auth);
+    const runtime = await loadAiRuntimeGovernance(db, env);
+    const probes = [];
+    for (const provider of runtime.providers) probes.push(await probeAiProvider(env, provider));
+    return json({
+      ok: true,
+      explicitModelPolicy: runtime.explicitModelPolicy,
+      probes,
+    }, { headers: noStore() });
   }
 
   if (request.method !== 'PATCH') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
