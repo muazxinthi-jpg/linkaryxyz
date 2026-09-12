@@ -215,7 +215,7 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [x] Evidence-first safeguards prevent AI from upgrading uncertain evidence into verified proof.
 - [x] Personal Profile improvement, Project Profile Copilot and Campaign Brief Assistant.
 - [x] Partner Match Explanation uses server-assembled Partner Discovery and Relationship Memory evidence; generation costs 10 organization Usage Credits.
-- [x] Growth Summary narrates the existing authoritative Founder Growth Intelligence payload for the selected 7/30/90-day range; generation costs 15 organization Usage Credits.
+- [x] Growth Summary uses the selected 7/30/90-day trend together with current authoritative Growth Intelligence aggregate and comparison rows; generation costs 15 organization Usage Credits.
 - [ ] The LinkaryAI V1 completion in this branch is not production/live until its PR is merged, migration `0049` is applied, and customer acceptance passes.
 
 ## Inbox and Superadmin
