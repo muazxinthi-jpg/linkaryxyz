@@ -6,6 +6,8 @@ const migration = readFileSync(new URL('../migrations/0026_immutable_tracked_lin
 const runtimeSchema = readFileSync(new URL('../src/db/attributionSchema.ts', import.meta.url), 'utf8');
 const tracking = readFileSync(new URL('../src/routes/tracking.ts', import.meta.url), 'utf8');
 const conversions = readFileSync(new URL('../src/routes/conversions.ts', import.meta.url), 'utf8');
+const activities = readFileSync(new URL('../src/routes/activities.ts', import.meta.url), 'utf8');
+const growth = readFileSync(new URL('../src/routes/growthIntelligence.ts', import.meta.url), 'utf8');
 const view = readFileSync(new URL('../frontend/src/TrackingExperience.tsx', import.meta.url), 'utf8');
 
 const squash = (value: string) => value.replace(/\s+/g, '').toLowerCase();
@@ -14,6 +16,14 @@ const runtimeView = squash(runtimeSchema);
 const trackingView = squash(tracking);
 const conversionView = squash(conversions);
 const frontendView = squash(view);
+
+function sourceSection(source: string, start: string, end: string) {
+  const startIndex = source.indexOf(start);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  assert.notEqual(startIndex, -1, `Missing source section start: ${start}`);
+  assert.notEqual(endIndex, -1, `Missing source section end: ${end}`);
+  return source.slice(startIndex, endIndex);
+}
 
 test('tracked links have a dedicated immutable exact-partner snapshot schema', () => {
   assert.equal(migrationView.includes('createtableifnotexiststracked_link_partner_snapshots'), true);
@@ -35,6 +45,21 @@ test('new tracking links snapshot the exact partner in the same write batch', ()
   assert.equal(trackingView.includes('partner_entity_id'), true);
   assert.equal(trackingView.includes('creator_profile_id'), true);
   assert.equal(trackingView.includes('partner_asset_id'), true);
+});
+
+test('activity reassignment cannot rewrite or delete historical tracking-link partner snapshots', () => {
+  const saveAssignment = sourceSection(activities, 'async function saveExistingActivityAssignment', 'async function clearExistingActivityAssignment');
+  const clearAssignment = sourceSection(activities, 'async function clearExistingActivityAssignment', 'export async function listActivities');
+
+  assert.match(saveAssignment, /campaign_activity_linkary_assignments/);
+  assert.match(saveAssignment, /ON CONFLICT\(activity_id\) DO UPDATE SET/);
+  assert.match(clearAssignment, /DELETE FROM campaign_activity_linkary_assignments WHERE activity_id = \?/);
+  assert.doesNotMatch(saveAssignment, /tracked_link_partner_snapshots/);
+  assert.doesNotMatch(clearAssignment, /tracked_link_partner_snapshots/);
+
+  assert.match(tracking, /INSERT INTO tracked_link_partner_snapshots/);
+  assert.match(growth, /LEFT JOIN tracked_link_partner_snapshots snap ON snap\.tracked_link_id = t\.id/);
+  assert.match(conversions, /LEFT JOIN tracked_link_partner_snapshots snap ON snap\.tracked_link_id = e\.tracked_link_id/);
 });
 
 test('tracking redirects and link reads prefer the immutable snapshot even when its partner is intentionally null', () => {
