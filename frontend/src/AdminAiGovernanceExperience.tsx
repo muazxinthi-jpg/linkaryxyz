@@ -117,7 +117,7 @@ export default function AdminAiGovernanceExperience() {
 
   function changePriority(index: number, value: string) {
     const parsed = Number(value);
-    setPolicies((current) => current.map((item, i) => i === index ? { ...item, priority: Number.isInteger(parsed) ? parsed : item.priority }));
+    setPolicies((current) => current.map((item, i) => i === index ? { ...item, priority: Number.isInteger(parsed) ? parsed : item.priority } : item));
   }
 
   function addModel() {
