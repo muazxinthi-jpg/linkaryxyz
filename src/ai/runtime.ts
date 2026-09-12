@@ -127,49 +127,58 @@ async function reserveUsage(
   const scopeOwnerId = input.ownerId;
   const budgetTask = budget.task_key;
 
-  await db.run(
-    `INSERT INTO ai_usage_events
-      (id, actor_user_id, owner_type, owner_id, profile_id, organization_id, task_key,
-       prompt_key, prompt_version, provider, model, status, usage_credits, input_units,
-       output_units, latency_ms, error_code, evidence_refs_json, idempotency_key, created_at, completed_at)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, NULL, NULL, NULL, NULL, ?, ?, ?, NULL
-      WHERE
-        (SELECT COUNT(*)
-           FROM ai_usage_events
-          WHERE created_at >= ?
-            AND (? = '*' OR task_key = ?)
-            AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
-            AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) < ?
-        AND
-        (SELECT COALESCE(SUM(usage_credits), 0)
-           FROM ai_usage_events
-          WHERE created_at >= ?
-            AND (? = '*' OR task_key = ?)
-            AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
-            AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) + ? <= ?
-        AND
-        (? = 1 OR
-          (SELECT COALESCE(SUM(amount), 0)
-             FROM usage_credit_ledger
-            WHERE owner_type = ? AND owner_id = ?)
-          -
+  const existing = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = ?`, [idempotencyKey]);
+  if (existing) throw new HttpError(409, 'This AI request has already been submitted', 'ai_duplicate_request');
+
+  try {
+    await db.run(
+      `INSERT INTO ai_usage_events
+        (id, actor_user_id, owner_type, owner_id, profile_id, organization_id, task_key,
+         prompt_key, prompt_version, provider, model, status, usage_credits, input_units,
+         output_units, latency_ms, error_code, evidence_refs_json, idempotency_key, created_at, completed_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, NULL, NULL, NULL, NULL, ?, ?, ?, NULL
+        WHERE
+          (SELECT COUNT(*)
+             FROM ai_usage_events
+            WHERE created_at >= ?
+              AND (? = '*' OR task_key = ?)
+              AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
+              AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) < ?
+          AND
           (SELECT COALESCE(SUM(usage_credits), 0)
              FROM ai_usage_events
-            WHERE owner_type = ? AND owner_id = ?
-              AND status = 'reserved' AND created_at >= ?) >= ?
-        )`,
-    [
-      eventId, input.actorUserId, input.ownerType, input.ownerId, input.profileId || null,
-      input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
-      input.taskKey, prompt.prompt_key, prompt.version, provider, model, credits,
-      JSON.stringify(evidenceRefs), idempotencyKey, createdAt,
-      periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, budget.max_calls,
-      periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, credits, budget.max_usage_credits,
-      usageCreditBalanceExempt ? 1 : 0,
-      input.ownerType, input.ownerId,
-      input.ownerType, input.ownerId, reservationFreshAfter, credits,
-    ],
-  );
+            WHERE created_at >= ?
+              AND (? = '*' OR task_key = ?)
+              AND (? = 'global' OR (owner_type = ? AND owner_id = ?))
+              AND (status = 'success' OR (status = 'reserved' AND created_at >= ?))) + ? <= ?
+          AND
+          (? = 1 OR
+            (SELECT COALESCE(SUM(amount), 0)
+               FROM usage_credit_ledger
+              WHERE owner_type = ? AND owner_id = ?)
+            -
+            (SELECT COALESCE(SUM(usage_credits), 0)
+               FROM ai_usage_events
+              WHERE owner_type = ? AND owner_id = ?
+                AND status = 'reserved' AND created_at >= ?) >= ?
+          )`,
+      [
+        eventId, input.actorUserId, input.ownerType, input.ownerId, input.profileId || null,
+        input.organizationId || (input.ownerType === 'organization' ? input.ownerId : null),
+        input.taskKey, prompt.prompt_key, prompt.version, provider, model, credits,
+        JSON.stringify(evidenceRefs), idempotencyKey, createdAt,
+        periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, budget.max_calls,
+        periodStart, budgetTask, input.taskKey, scopeType, scopeOwnerType, scopeOwnerId, reservationFreshAfter, credits, budget.max_usage_credits,
+        usageCreditBalanceExempt ? 1 : 0,
+        input.ownerType, input.ownerId,
+        input.ownerType, input.ownerId, reservationFreshAfter, credits,
+      ],
+    );
+  } catch (error) {
+    const duplicate = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE idempotency_key = ?`, [idempotencyKey]);
+    if (duplicate) throw new HttpError(409, 'This AI request has already been submitted', 'ai_duplicate_request');
+    throw error;
+  }
 
   const reserved = await db.first<UsageRow>(`SELECT id, status FROM ai_usage_events WHERE id = ?`, [eventId]);
   if (reserved) return eventId;
