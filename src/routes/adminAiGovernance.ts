@@ -94,24 +94,39 @@ async function governanceState(db: Db, env: Env) {
   };
 }
 
+async function providerHealth(db: Db, env: Env) {
+  const runtime = await loadAiRuntimeGovernance(db, env);
+  const probes = [];
+  for (const provider of runtime.providers) probes.push(await probeAiProvider(env, provider));
+  return {
+    ok: true,
+    explicitModelPolicy: runtime.explicitModelPolicy,
+    probes,
+  };
+}
+
 export async function adminAiGovernance(request: Request, env: Env): Promise<Response> {
   const auth = await requireSuperadmin(request, env);
   const db = new Db(requireDb(env));
+  const url = new URL(request.url);
 
   if (request.method === 'GET') {
     return json(await governanceState(db, env), { headers: noStore() });
   }
 
+  // The top-level API router historically permits GET/PATCH for this endpoint.
+  // Keep the health probe on PATCH with an explicit action so it reaches this
+  // handler without weakening CSRF protection or changing governance writes.
+  if (request.method === 'PATCH' && url.searchParams.get('action') === 'probe') {
+    await verifyCsrf(request, env, auth);
+    return json(await providerHealth(db, env), { headers: noStore() });
+  }
+
+  // Retain POST support inside this handler for direct/unit use and forward
+  // compatibility if the top-level router later permits POST.
   if (request.method === 'POST') {
     await verifyCsrf(request, env, auth);
-    const runtime = await loadAiRuntimeGovernance(db, env);
-    const probes = [];
-    for (const provider of runtime.providers) probes.push(await probeAiProvider(env, provider));
-    return json({
-      ok: true,
-      explicitModelPolicy: runtime.explicitModelPolicy,
-      probes,
-    }, { headers: noStore() });
+    return json(await providerHealth(db, env), { headers: noStore() });
   }
 
   if (request.method !== 'PATCH') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
