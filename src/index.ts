@@ -32,6 +32,7 @@ import {
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { personalProfileIdentity } from './routes/profileIdentity';
 import { adjustInviteCredits, adminHealth, listAdminUsers, listInviteCreditOwners, setAdminUserStatus } from './routes/admin';
+import { adminAiGovernance } from './routes/adminAiGovernance';
 import { adjustUsageCredits, listAdminBillingPlans, listPublicBillingPlans, updateAdminBillingPlan } from './routes/billing';
 import { currentBillingStatus } from './routes/billingCurrent';
 import { listContactRevealHistory, revealPartnerContact } from './routes/contactReveals';
@@ -214,6 +215,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (profileUnpublish) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return publishProfile(request, env, decodeURIComponent(profileUnpublish[1]), false); }
 
   if (path === '/api/admin/health') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return adminHealth(request, env); }
+  if (path === '/api/admin/ai-governance') { if (request.method !== 'GET' && request.method !== 'PATCH') return methodNotAllowed(['GET', 'PATCH']); return adminAiGovernance(request, env); }
   if (path === '/api/admin/users') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listAdminUsers(request, env); }
   if (path === '/api/admin/invite-credit-owners') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listInviteCreditOwners(request, env); }
   if (path === '/api/admin/invite-credits/adjust') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return adjustInviteCredits(request, env); }
