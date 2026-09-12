@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { json } from '../http';
 import { requireSuperadmin } from '../auth/session';
 import {
+  assessAlchemyAttributionConfiguration,
   assessBetaConfiguration,
   readBetaSchemaReadiness,
   type BetaSchemaReadiness,
@@ -34,8 +35,9 @@ export async function adminHealth(request: Request, env: Env): Promise<Response>
       })),
   ]);
   const configuration = assessBetaConfiguration(env);
+  const onchainAttribution = assessAlchemyAttributionConfiguration(env);
   const schemaReady = schemaResult.schema.ready && !schemaResult.inspectionError;
-  const ready = schemaReady && configuration.ready;
+  const ready = schemaReady && configuration.ready && onchainAttribution.ready;
 
   return json(
     {
@@ -51,12 +53,15 @@ export async function adminHealth(request: Request, env: Env): Promise<Response>
         ready,
         schema: schemaResult.schema,
         configuration,
+        onchainAttribution,
         inspectionError: schemaResult.inspectionError,
         nextAction: !schemaReady
           ? 'Apply the protected production D1 migrations, then refresh this check.'
           : !configuration.ready
             ? 'Configure the missing production requirements, then refresh this check.'
-            : 'Run the real-account Beta acceptance checklist.',
+            : !onchainAttribution.ready
+              ? 'Configure the missing Alchemy attribution webhooks, then run the Base live transaction acceptance.'
+              : 'Run the real-account Beta acceptance checklist.',
       },
     },
     { headers: { 'x-robots-tag': 'noindex, nofollow' } },
