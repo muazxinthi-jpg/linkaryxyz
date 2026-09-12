@@ -48,7 +48,7 @@ test('strict Growth Summary JSON parser rejects malformed, extra, and overlong o
   assert.throws(() => parseGrowthSummary(JSON.stringify({ ...JSON.parse(valid), executiveSummary: 'x'.repeat(501) })), /invalid growth summary/);
 });
 
-test('Growth Summary is explicit-only with no page-load generation or polling', () => {
+test('Growth Summary is explicit-only and its UI states the selected-trend versus current-aggregate scope', () => {
   assert.match(ui, /'Generate AI summary'/);
   assert.match(ui, /\/api\/ai\/growth-summary/);
   assert.match(ui, /onClick=\{\(\) => void generateAiSummary\(\)\}/);
@@ -56,8 +56,11 @@ test('Growth Summary is explicit-only with no page-load generation or polling', 
   assert.doesNotMatch(ui, /setInterval|setTimeout/);
   assert.match(ui, /data\.permissions\.can_generate_ai/);
   assert.match(ui, /idempotencyKey: `growth-summary:/);
+  assert.match(ui, /body: JSON\.stringify\(\{ organizationId, range,/);
+  assert.match(ui, /LINKARYAI · AI SUMMARY · 15 USAGE CREDITS/);
+  assert.doesNotMatch(ui, /\{range\}-DAY EVIDENCE/);
+  assert.match(ui, /Uses the selected \{range\}-day trend together with current Growth Intelligence aggregates and comparison evidence/);
   assert.match(service, /idempotencyKey: clean\(body\.idempotencyKey\)/);
-  assert.match(worker, /url\.pathname === '\/api\/ai\/growth-summary'/);
 });
 
 test('customer response and UI do not expose AI vendor details', () => {
