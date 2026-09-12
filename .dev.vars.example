@@ -18,6 +18,19 @@ BILLING_TREASURY_EVM_ADDRESS=
 TELEGRAM_CLIENT_ID=
 TELEGRAM_CLIENT_SECRET=
 
+# LinkaryAI provider configuration.
+# Workers AI is primary when the AI binding is present. External providers are
+# attempted in order as configured fallbacks: Gemini, Groq, then OpenRouter.
+# API keys are server-only secrets. In production, store them with Cloudflare
+# secret bindings rather than plaintext vars or committed files.
+AI_WORKERS_MODEL=@cf/google/gemma-4-26b-a4b-it
+GEMINI_API_KEY=
+AI_GEMINI_MODEL=
+GROQ_API_KEY=
+AI_GROQ_MODEL=
+OPENROUTER_API_KEY=
+AI_OPENROUTER_MODEL=
+
 # Legacy direct X OAuth. Keep only until CDP auth cutover is verified.
 X_CLIENT_ID=
 X_CLIENT_SECRET=

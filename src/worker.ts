@@ -9,6 +9,8 @@ import { enhancePublicHomepage } from './homepagePricing';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 import { founderGrowthIntelligence } from './routes/growthIntelligence';
+import { generateGrowthSummary } from './ai/growthSummary';
+import { explainPartnerMatch } from './ai/matchExplanation';
 import { listGrowthBaselines, saveGrowthBaseline } from './routes/growthBaseline';
 import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 import { renderInviteLanding } from './routes/invites';
@@ -274,6 +276,18 @@ export default {
       try {
         if (request.method === 'GET') return await founderGrowthIntelligence(request, env);
         return methodNotAllowed(['GET']);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/ai/growth-summary') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await generateGrowthSummary(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/ai/partner-match-explanation') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await explainPartnerMatch(request, env);
       } catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/growth-baselines') {

@@ -94,8 +94,17 @@ type IntelligenceResponse = {
   };
   trend: TrendPoint[];
   trend_range_days: number;
+  permissions: { can_generate_ai: boolean };
 };
 type GrowthBaseline = { id: string; metric_key: string; metric_value: number; observed_at: string; provenance: string; source_url: string | null; notes: string | null };
+type GrowthAiSummary = {
+  executiveSummary: string;
+  whatWorked: string[];
+  needsAttention: string[];
+  evidenceQuality: string[];
+  nextActions: string[];
+  dataGaps: string[];
+};
 
 type Tab = 'campaigns' | 'activities' | 'partners' | 'channels';
 
@@ -224,12 +233,17 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [aiSummary, setAiSummary] = useState<GrowthAiSummary | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [baselineForm, setBaselineForm] = useState({ metricKey: 'x_followers', metricValue: '', observedAt: new Date().toISOString().slice(0, 10), provenance: 'founder_manual' });
 
   async function load() {
     if (!organizationId) return;
     setLoading(true);
     setMessage('');
+    setAiSummary(null);
+    setAiError('');
     try {
       const [response, baselineResponse] = await Promise.all([
         fetch(`/api/growth-intelligence?organizationId=${encodeURIComponent(organizationId)}&range=${range}`, { credentials: 'same-origin' }),
@@ -282,6 +296,37 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
     await load();
   }
 
+  async function generateAiSummary() {
+    const token = csrfToken();
+    if (!token || !data?.permissions.can_generate_ai) return;
+    setAiLoading(true);
+    setAiError('');
+    setAiSummary(null);
+    try {
+      const response = await fetch('/api/ai/growth-summary', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': token },
+        body: JSON.stringify({ organizationId, range, idempotencyKey: `growth-summary:${organizationId}:${range}:${crypto.randomUUID()}` }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { summary?: GrowthAiSummary; error?: string };
+      if (!response.ok || !payload.summary) {
+        const code = payload.error || 'request_failed';
+        throw new Error(code);
+      }
+      setAiSummary(payload.summary);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'request_failed';
+      setAiError(code === 'usage_credits_insufficient' ? 'This Project does not have enough Usage Credits for a Growth Summary.'
+        : code === 'ai_evidence_insufficient' ? 'Add more Project growth evidence before generating a summary.'
+          : code === 'forbidden' ? 'Your Project role cannot spend Usage Credits.'
+            : code === 'ai_output_invalid' ? 'LinkaryAI could not produce a safe summary. Please try again.'
+              : 'LinkaryAI is temporarily unavailable. Please try again shortly.');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   if (variant === 'overview') return <section className="fgi-shell fgi-overview" aria-label="Project growth overview">
     <header className="fgi-header">
       <div><span className="fgi-kicker">PROJECT HEALTH</span><h2>Growth snapshot</h2><p>Thirty-day movement from recorded Linkary evidence. Open Growth for campaign, partner, channel and methodology detail.</p></div>
@@ -300,8 +345,13 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
     <header className="fgi-header">
       <div><span className="fgi-kicker">FOUNDER GROWTH INTELLIGENCE</span><h2>See what actually produced results</h2><p>Compare social performance, Linkary first-party traffic, outcomes, actual spend and attributed value without treating manual evidence as verified.</p></div>
-      <div className="fgi-actions"><div className="fgi-range" aria-label="Trend range">{([7, 30, 90] as const).map((days) => <button type="button" key={days} className={range === days ? 'active' : ''} onClick={() => setRange(days)}>{days}d</button>)}</div><button type="button" onClick={() => void load()}>Refresh</button></div>
+      <div className="fgi-actions"><div className="fgi-range" aria-label="Trend range">{([7, 30, 90] as const).map((days) => <button type="button" key={days} className={range === days ? 'active' : ''} onClick={() => setRange(days)}>{days}d</button>)}</div>{data.permissions.can_generate_ai && <button className="linkaryai-trigger" type="button" disabled={aiLoading} onClick={() => void generateAiSummary()}>{aiLoading ? 'Reviewing evidence...' : 'Generate AI summary'}</button>}<button type="button" onClick={() => void load()}>Refresh</button></div>
     </header>
+
+    {(aiLoading || aiError || aiSummary) && <section className="linkaryai-result linkaryai-growth" aria-live="polite">
+      <div className="linkaryai-result-header"><div><span className="ops-kicker">LINKARYAI · AI SUMMARY · 15 USAGE CREDITS</span><h3>Growth Summary</h3></div>{!aiLoading && <button type="button" aria-label="Close AI summary" onClick={() => { setAiSummary(null); setAiError(''); }}>×</button>}</div>
+      {aiLoading ? <div className="linkaryai-loading">LinkaryAI is reviewing the available evidence...</div> : aiError ? <div className="linkaryai-error"><strong>Summary unavailable</strong><p>{aiError}</p><button className="ops-button secondary" type="button" onClick={() => void generateAiSummary()}>Try again</button></div> : aiSummary ? <><p className="linkaryai-executive">{aiSummary.executiveSummary}</p><div className="linkaryai-sections"><section><h4>What appears to be working</h4><ul>{aiSummary.whatWorked.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h4>What needs attention</h4><ul>{aiSummary.needsAttention.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h4>Evidence quality</h4><ul>{aiSummary.evidenceQuality.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h4>Next actions</h4><ul>{aiSummary.nextActions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h4>Data gaps</h4><ul>{aiSummary.dataGaps.map((item) => <li key={item}>{item}</li>)}</ul></section></div><p className="linkaryai-disclaimer">Uses the selected {range}-day trend together with current Growth Intelligence aggregates and comparison evidence. LinkaryAI narrates recorded Project evidence and does not replace the calculations or evidence labels above.</p></> : null}
+    </section>}
 
     <div className="fgi-summary">
       <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>Recorded incurred cost</small></article>

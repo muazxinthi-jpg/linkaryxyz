@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { configuredAiProviders, selectedAiProvider } from '../src/ai/LinkaryAI';
+import { LinkaryAI, configuredAiProviders, selectedAiProvider } from '../src/ai/LinkaryAI';
 import { AI_TASKS } from '../src/ai/tasks';
 import { assessBetaConfiguration } from '../src/betaReadiness';
 
@@ -9,6 +9,7 @@ const migration = readFileSync(new URL('../migrations/0033_ai0_governance_and_us
 const runtime = readFileSync(new URL('../src/ai/runtime.ts', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../src/ai/LinkaryAI.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+const devVars = readFileSync(new URL('../.dev.vars.example', import.meta.url), 'utf8');
 
 test('AI-0 has immutable prompt, budget and usage governance tables', () => {
   for (const table of ['ai_prompt_versions', 'ai_budget_policies', 'ai_usage_events']) {
@@ -60,11 +61,49 @@ test('external fallback providers require both a secret and explicit model', () 
   assert.equal(configuredAiProviders({ GEMINI_API_KEY: 'secret', AI_GEMINI_MODEL: 'model' } as any)[0]?.provider, 'gemini');
 });
 
+test('LinkaryAI falls through provider outages and can complete through OpenRouter', async () => {
+  const originalFetch = globalThis.fetch;
+  const endpoints: string[] = [];
+  globalThis.fetch = async (input) => {
+    endpoints.push(String(input));
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: 'fallback ok' } }],
+      usage: { prompt_tokens: 12, completion_tokens: 4 },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const ai = new LinkaryAI({
+      AI: { run: async () => { throw new Error('Workers AI unavailable'); } },
+      OPENROUTER_API_KEY: 'openrouter-secret',
+      AI_OPENROUTER_MODEL: 'openrouter-model',
+    } as any);
+    const result = await ai.generate({ system: 'system', user: 'user', maxOutputTokens: 100 });
+    assert.equal(result.provider, 'openrouter');
+    assert.equal(result.model, 'openrouter-model');
+    assert.equal(result.text, 'fallback ok');
+    assert.equal(result.inputUnits, 12);
+    assert.equal(result.outputUnits, 4);
+    assert.deepEqual(endpoints, ['https://openrouter.ai/api/v1/chat/completions']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('Cloudflare Workers AI is bound server-side with a current explicit model', () => {
   assert.match(wrangler, /"ai"\s*:\s*\{\s*"binding"\s*:\s*"AI"/s);
   assert.match(wrangler, /"AI_WORKERS_MODEL"\s*:\s*"@cf\/google\/gemma-4-26b-a4b-it"/);
   assert.match(adapter, /env\.AI\.run\(model/);
   assert.match(adapter, /max_tokens: prompt\.maxOutputTokens/);
+});
+
+test('OpenRouter configuration is documented without committing a secret', () => {
+  assert.match(devVars, /OPENROUTER_API_KEY=/);
+  assert.match(devVars, /AI_OPENROUTER_MODEL=/);
+  assert.doesNotMatch(devVars, /OPENROUTER_API_KEY=\S+/);
 });
 
 test('AI runtime reserves budget and credits before provider invocation and charges only the success path', () => {
@@ -79,6 +118,10 @@ test('AI runtime reserves budget and credits before provider invocation and char
   assert.match(runtime, /-credits/);
   assert.match(migration, /trg_usage_credit_no_negative_ai_usage_before_insert/);
   assert.match(migration, /RAISE\(ABORT, 'usage_credit_balance_insufficient'\)/);
+});
+
+test('AI success telemetry records the provider that actually completed after failover', () => {
+  assert.match(runtime, /SET provider = \?, model = \?, status = 'success'/);
 });
 
 test('AI telemetry stores operational metadata, not prompt or generated output bodies', () => {
