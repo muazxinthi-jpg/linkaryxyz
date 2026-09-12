@@ -202,7 +202,8 @@ Do not rewrite deployed migrations and do not add automatic migration applicatio
 - [ ] Live acceptance of more-than-one-page NFT browsing, chain selection, avatar persistence and NFT Showcase persistence.
 - [ ] Issue #168 paid NFT entitlement enforcement.
 - [x] Reviewed Alchemy webhook/onchain attribution foundation for exactly Ethereum, Base, BNB Chain, Solana and Robinhood Chain; provider evidence requires explicit approval before conversion creation.
-- [ ] Production application of forward-only migration `0048_expand_alchemy_attribution_chains.sql` and configuration of the four additional chain-specific webhooks require separate approval and operations work.
+- [x] Production migration `0048_expand_alchemy_attribution_chains.sql` and all five chain-specific Alchemy webhooks are configured.
+- [x] Campaign workspace exposes watched-wallet management and a review-gated On-chain Evidence Inbox without a second backend attribution system.
 
 ## LinkaryAI foundation
 

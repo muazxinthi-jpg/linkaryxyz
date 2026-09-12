@@ -93,3 +93,7 @@ Linkary remains first-party and event-driven wherever possible.
 For campaigns, Linkary tracking/UTM links remain the primary low-cost attribution signal. Onchain attribution is activated only for the relevant Project, campaign, activity or wallet scope. Webhooks and any future Transfers API, Token API or Prices API use should be introduced only where they materially improve a real Beta workflow.
 
 The platform must not scan every Linkary wallet, user or campaign on a timer. Database growth should not make normal requests proportionally more expensive.
+
+## Campaign workspace
+
+Project teams use On-chain Attribution inside the existing campaign evidence workspace. They can add or disable watched wallets, retry provider synchronization, filter evidence, and explicitly confirm or ignore events without accessing Alchemy or Cloudflare directly. Owner, Admin and Marketing Manager roles may mutate attribution state; Analyst and Viewer roles are read-only. Confirmed evidence enters the existing Outcome Ledger as `provider_verified` with `verified` confidence. Reorged evidence remains auditable and cannot be confirmed.
