@@ -4,6 +4,7 @@ import test from 'node:test';
 import { probeAiProvider } from '../src/ai/LinkaryAI';
 
 const adminRoute = readFileSync(new URL('../src/routes/adminAiGovernance.ts', import.meta.url), 'utf8');
+const appRouter = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const adminUi = readFileSync(new URL('../frontend/src/AdminAiGovernanceExperience.tsx', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../src/ai/LinkaryAI.ts', import.meta.url), 'utf8');
 
@@ -52,17 +53,26 @@ test('OpenRouter probe reports HTTP rate limiting safely', async () => {
 });
 
 test('Superadmin provider probe is CSRF protected and follows the active governed provider chain', () => {
-  assert.match(adminRoute, /request\.method === 'POST'/);
+  assert.match(adminRoute, /request\.method === 'PATCH' && url\.searchParams\.get\('action'\) === 'probe'/);
   assert.match(adminRoute, /await verifyCsrf\(request, env, auth\)/);
   assert.match(adminRoute, /loadAiRuntimeGovernance\(db, env\)/);
   assert.match(adminRoute, /probeAiProvider\(env, provider\)/);
   assert.doesNotMatch(adminRoute, /OPENROUTER_API_KEY|GEMINI_API_KEY|GROQ_API_KEY/);
 });
 
+test('health probe uses a method accepted by the top-level API router', () => {
+  assert.match(appRouter, /\/api\/admin\/ai-governance'[\s\S]*request\.method !== 'GET' && request\.method !== 'PATCH'/);
+  assert.match(adminUi, /method: 'PATCH'/);
+  assert.match(adminUi, /\/api\/admin\/ai-governance\?action=probe/);
+  assert.doesNotMatch(adminUi, /api<ProbeResponse>\(\{ method: 'POST'/);
+});
+
 test('Superadmin clearly presents automatic routing and keeps manual model entry advanced-only', () => {
   assert.match(adminUi, /AUTOMATIC ROUTING ACTIVE/);
   assert.match(adminUi, /No manual model selection is required/);
   assert.match(adminUi, /Test active providers/);
+  assert.match(adminUi, /Provider health test complete/);
+  assert.match(adminUi, /admin-ai-provider-status/);
   assert.match(adminUi, /Advanced: pin or override a model/);
   assert.match(adminUi, /openrouter\/free/);
   assert.match(adapter, /providerErrorMeta\(error\)/);
