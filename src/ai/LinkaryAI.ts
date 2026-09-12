@@ -18,7 +18,7 @@ export type LinkaryAiResult = {
   latencyMs: number;
 };
 
-type ProviderChoice = { provider: AiProvider; model: string };
+export type ProviderChoice = { provider: AiProvider; model: string };
 
 type OpenAiLikePayload = {
   choices?: Array<{ message?: { content?: string | null } }>;
@@ -212,20 +212,25 @@ async function runProvider(
 }
 
 export class LinkaryAI {
-  constructor(private readonly env: Env) {}
+  private readonly providers: ProviderChoice[];
+
+  constructor(private readonly env: Env, providers?: ProviderChoice[]) {
+    this.providers = providers ? providers.map((item) => ({ ...item })) : configuredAiProviders(env);
+  }
 
   provider(): ProviderChoice {
-    return selectedAiProvider(this.env);
+    const provider = this.providers[0];
+    if (!provider) throw new ServiceConfigurationError('No active Linkary AI model is configured');
+    return provider;
   }
 
   async generate(prompt: LinkaryAiPrompt): Promise<LinkaryAiResult> {
-    const providers = configuredAiProviders(this.env);
-    if (!providers.length) throw new ServiceConfigurationError('No Linkary AI provider is configured');
+    if (!this.providers.length) throw new ServiceConfigurationError('No active Linkary AI model is configured');
 
     const started = Date.now();
     let lastProviderError: LinkaryAiProviderError | null = null;
 
-    for (const selected of providers) {
+    for (const selected of this.providers) {
       try {
         const result = await runProvider(this.env, selected, prompt);
         return {
@@ -242,6 +247,6 @@ export class LinkaryAI {
       }
     }
 
-    throw lastProviderError || new ServiceConfigurationError('No Linkary AI provider is configured');
+    throw lastProviderError || new ServiceConfigurationError('No active Linkary AI model is configured');
   }
 }
