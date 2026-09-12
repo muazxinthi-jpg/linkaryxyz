@@ -138,6 +138,7 @@ export async function generateGrowthSummary(request: Request, env: Env): Promise
       `partners:${intelligence.partners.length}`,
       `growth_baselines:${baselines.length}`,
     ],
+    validateOutput: (text) => { parseGrowthSummary(text); },
     idempotencyKey: clean(body.idempotencyKey) || `growth-summary:${organizationId}:${range}:${crypto.randomUUID()}`,
   });
 
