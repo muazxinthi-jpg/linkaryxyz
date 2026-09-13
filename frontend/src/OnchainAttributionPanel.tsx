@@ -40,6 +40,14 @@ type OnchainEvent = {
   linked_conversion_id: string | null;
   occurred_at: string;
 };
+type VerifiedConversion = {
+  id: string;
+  event_type: string;
+  value_usd: number | null;
+  source: string;
+  attribution_confidence: string;
+  occurred_at: string;
+};
 
 export const ATTRIBUTION_CHAIN_OPTIONS: readonly { value: AttributionChain; label: string }[] = [
   { value: 'ethereum', label: 'Ethereum' },
@@ -115,6 +123,19 @@ function syncLabel(status: WatchTarget['provider_sync_status']) {
   return status === 'active' ? 'Monitoring' : status === 'pending_config' ? 'Configuration pending' : status === 'syncing' ? 'Syncing' : status === 'error' ? 'Sync error' : 'Disabled';
 }
 
+function walletIdentity(event: OnchainEvent): string {
+  const address = event.chain === 'solana' ? event.watched_address : event.watched_address.toLowerCase();
+  return `${event.chain}:${address}`;
+}
+
+function human(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function usd(value: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+}
+
 export default function OnchainAttributionPanel({
   campaignId,
   campaignName,
@@ -132,6 +153,8 @@ export default function OnchainAttributionPanel({
 }) {
   const [targets, setTargets] = useState<WatchTarget[]>([]);
   const [events, setEvents] = useState<OnchainEvent[]>([]);
+  const [allEvents, setAllEvents] = useState<OnchainEvent[]>([]);
+  const [verifiedConversions, setVerifiedConversions] = useState<VerifiedConversion[]>([]);
   const [filter, setFilter] = useState<EvidenceFilter>('pending');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -143,18 +166,49 @@ export default function OnchainAttributionPanel({
 
   const activitiesById = useMemo(() => new Map(activities.map((activity) => [activity.id, activity])), [activities]);
   const linksById = useMemo(() => new Map(links.map((link) => [link.id, link])), [links]);
+  const walletIntelligence = useMemo(() => {
+    const confirmedEvents = allEvents.filter((item) => item.review_status === 'confirmed' && Boolean(item.linked_conversion_id));
+    const conversionIds = new Set(confirmedEvents.flatMap((item) => item.linked_conversion_id ? [item.linked_conversion_id] : []));
+    const confirmedConversions = verifiedConversions.filter((item) => conversionIds.has(item.id));
+    const attributedWallets = new Set(confirmedEvents.map(walletIdentity));
+    const chains = new Map<string, number>();
+    const actions = new Map<string, number>();
+    const outcomes = new Map<string, number>();
+    for (const item of confirmedEvents) {
+      chains.set(item.chain, (chains.get(item.chain) || 0) + 1);
+      const action = item.category || 'uncategorized';
+      actions.set(action, (actions.get(action) || 0) + 1);
+    }
+    for (const item of confirmedConversions) outcomes.set(item.event_type, (outcomes.get(item.event_type) || 0) + 1);
+    return {
+      watchedWallets: targets.filter((target) => target.status === 'active').length,
+      liveMonitors: targets.filter((target) => target.status === 'active' && target.provider_sync_status === 'active').length,
+      attributedWallets: attributedWallets.size,
+      confirmedEvents: confirmedEvents.length,
+      confirmedOutcomes: confirmedConversions.length,
+      verifiedValueUsd: confirmedConversions.reduce((total, item) => total + Number(item.value_usd || 0), 0),
+      pendingReview: allEvents.filter((item) => item.review_status === 'pending').length,
+      chains: Array.from(chains.entries()).sort((a, b) => b[1] - a[1]),
+      actions: Array.from(actions.entries()).sort((a, b) => b[1] - a[1]),
+      outcomes: Array.from(outcomes.entries()).sort((a, b) => b[1] - a[1]),
+    };
+  }, [allEvents, targets, verifiedConversions]);
 
   async function load() {
     setLoading(true);
     try {
       const eventQuery = new URLSearchParams({ campaignId });
       if (filter !== 'all') eventQuery.set('status', filter);
-      const [targetResult, eventResult] = await Promise.all([
+      const [targetResult, eventResult, allEventResult, conversionResult] = await Promise.all([
         api<{ watchTargets: WatchTarget[] }>(`/api/onchain/watch-targets?campaignId=${encodeURIComponent(campaignId)}`),
         api<{ events: OnchainEvent[] }>(`/api/onchain/events?${eventQuery.toString()}`),
+        api<{ events: OnchainEvent[] }>(`/api/onchain/events?campaignId=${encodeURIComponent(campaignId)}`),
+        api<{ conversions: VerifiedConversion[] }>(`/api/conversions?campaignId=${encodeURIComponent(campaignId)}&source=provider_verified&confidence=verified`),
       ]);
       setTargets(targetResult.watchTargets);
       setEvents(eventResult.events);
+      setAllEvents(allEventResult.events);
+      setVerifiedConversions(conversionResult.conversions);
     } catch (error) {
       setMessage({ text: onchainErrorMessage(error, 'On-chain attribution is temporarily unavailable.'), error: true });
     } finally { setLoading(false); }
@@ -236,6 +290,25 @@ export default function OnchainAttributionPanel({
   const filteredLinks = form.activityId ? links.filter((link) => !link.activity_id || link.activity_id === form.activityId) : links;
 
   return <div className="onchain-workspace">
+    <section className="ops-section onchain-intelligence" aria-label="Campaign wallet intelligence">
+      <div className="ops-section-title"><div><span className="ops-kicker">CAMPAIGN WALLET INTELLIGENCE</span><h2>From attributed traffic to verified on-chain action</h2><p>Confirmed provider evidence only. Pending, ignored and reorged evidence is excluded from attributed wallet and verified outcome metrics.</p></div></div>
+      {loading ? <div className="ops-loading">Building wallet intelligence from campaign evidence...</div> : <>
+        <div className="onchain-wallet-grid">
+          <article className="onchain-wallet-card"><div className="onchain-card-head"><div><span className="onchain-chain">WATCHED</span><h3>{walletIntelligence.watchedWallets}</h3></div></div><p>Active campaign wallet targets</p><small>{walletIntelligence.liveMonitors} currently synced and monitoring</small></article>
+          <article className="onchain-wallet-card"><div className="onchain-card-head"><div><span className="onchain-chain">ATTRIBUTED WALLETS</span><h3>{walletIntelligence.attributedWallets}</h3></div></div><p>Distinct watched wallets with confirmed linked evidence</p></article>
+          <article className="onchain-wallet-card"><div className="onchain-card-head"><div><span className="onchain-chain">VERIFIED OUTCOMES</span><h3>{walletIntelligence.confirmedOutcomes}</h3></div></div><p>Provider Verified outcomes linked to confirmed on-chain evidence</p></article>
+          <article className="onchain-wallet-card"><div className="onchain-card-head"><div><span className="onchain-chain">ATTRIBUTED VALUE</span><h3>{usd(walletIntelligence.verifiedValueUsd)}</h3></div></div><p>USD value recorded on linked Provider Verified outcomes</p></article>
+          <article className="onchain-wallet-card"><div className="onchain-card-head"><div><span className="onchain-chain">PENDING REVIEW</span><h3>{walletIntelligence.pendingReview}</h3></div></div><p>Provider evidence awaiting an operator decision</p></article>
+        </div>
+        <div className="ops-field-grid two">
+          <article className="onchain-evidence-card"><div className="onchain-evidence-head"><div><span className="onchain-chain">CHAIN MIX</span><h3>Confirmed activity</h3></div><span className="onchain-review review-confirmed">{walletIntelligence.confirmedEvents} events</span></div>{walletIntelligence.chains.length ? <dl className="onchain-evidence-meta">{walletIntelligence.chains.map(([chain, count]) => <div key={chain}><dt>{chainLabel(chain as AttributionChain)}</dt><dd>{count}</dd></div>)}</dl> : <p>No confirmed on-chain evidence yet.</p>}</article>
+          <article className="onchain-evidence-card"><div className="onchain-evidence-head"><div><span className="onchain-chain">ACTION MIX</span><h3>What happened on-chain</h3></div></div>{walletIntelligence.actions.length ? <dl className="onchain-evidence-meta">{walletIntelligence.actions.slice(0, 8).map(([action, count]) => <div key={action}><dt>{human(action)}</dt><dd>{count}</dd></div>)}</dl> : <p>No confirmed provider actions yet.</p>}</article>
+          <article className="onchain-evidence-card"><div className="onchain-evidence-head"><div><span className="onchain-chain">OUTCOME MIX</span><h3>What the Project confirmed</h3></div></div>{walletIntelligence.outcomes.length ? <dl className="onchain-evidence-meta">{walletIntelligence.outcomes.slice(0, 8).map(([outcome, count]) => <div key={outcome}><dt>{human(outcome)}</dt><dd>{count}</dd></div>)}</dl> : <p>No Provider Verified campaign outcomes yet.</p>}</article>
+        </div>
+        <p className="onchain-confirm-note">Attributed wallets are distinct monitored wallet addresses with <strong>confirmed, non-reorged provider evidence</strong> linked to a verified outcome. EVM addresses are normalized case-insensitively; Solana public keys remain case-sensitive. This is wallet-level evidence, not a person-level identity count.</p>
+      </>}
+    </section>
+
     <section className="ops-section onchain-wallets">
       <div className="ops-section-title"><div><span className="ops-kicker">MONITORING</span><h2>Watched wallets</h2><p>Match activity from selected wallets to {campaignName}.</p></div><div className="onchain-title-actions"><button type="button" className="ops-button secondary" onClick={() => void load()}>Refresh</button>{writable && <button type="button" className="ops-button primary" onClick={() => setShowAdd(true)}>+ Add wallet</button>}</div></div>
       {message && <div className={`onchain-message ${message.error ? 'error' : 'success'}`}>{message.text}</div>}
