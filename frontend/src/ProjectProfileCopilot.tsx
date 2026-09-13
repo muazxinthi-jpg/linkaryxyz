@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ProfileSocialConnections from './ProfileSocialConnections';
 import type { ProductProfile, ProductStatus } from './ProductWorkspace';
 
 type ProjectSuggestions = {
@@ -40,6 +41,18 @@ function currentProfile(status: ProductStatus): ProductProfile | undefined {
     if (selected) return selected;
   }
   return status.profiles.find((profile) => profile.profile_type === 'creator') || status.profiles[0];
+}
+
+function refreshPublicPreview(): void {
+  const iframe = document.querySelector<HTMLIFrameElement>('.profile-beta-public-preview iframe');
+  if (!iframe?.src) return;
+  try {
+    const preview = new URL(iframe.src);
+    preview.searchParams.set('editorPreview', String(Date.now()));
+    iframe.src = preview.toString();
+  } catch {
+    // Profile changes must still succeed if the optional embedded preview is unavailable.
+  }
 }
 
 function aiError(code: string | undefined, fallback: string): string {
@@ -164,52 +177,55 @@ export default function ProjectProfileCopilot({ status }: { status: ProductStatu
   if (!target || !profile || !isProject) return null;
 
   return createPortal(
-    <div className="wide profile-ai-v1" data-linkary-ai-project-profile-copilot>
-      <div className="profile-ai-v1-head">
-        <div>
-          <span>LINKARYAI</span>
-          <strong>Project Profile Copilot</strong>
-          <small>Uses only this Project's current Linkary profile evidence. It cannot invent traction, funding, partnerships, token claims or verification.</small>
-        </div>
-        <button type="button" className="ops-button secondary" disabled={busy || applyBusy} onClick={() => void improveWithAi()}>{busy ? 'Improving...' : '✦ Improve Project profile'}</button>
-      </div>
-
-      {message && <div className="profile-ai-v1-message" role="status">{message}</div>}
-
-      {suggestions && <div className="profile-ai-v1-results">
-        <div className="profile-ai-v1-apply">
-          <div><strong>Ready to use these suggestions?</strong><small>Review the draft first. Apply updates only the Project bio and SEO fields. Project name, logo, verification, permissions, team, wallets, billing and campaign evidence are untouched.</small></div>
-          <button type="button" className="ops-button primary" disabled={applyBusy || busy} onClick={() => void applyAllProfileText()}>{applyBusy ? 'Applying...' : 'Apply bio + SEO'}</button>
+    <>
+      <ProfileSocialConnections profileId={profile.id} onChanged={refreshPublicPreview} />
+      <div className="wide profile-ai-v1" data-linkary-ai-project-profile-copilot>
+        <div className="profile-ai-v1-head">
+          <div>
+            <span>LINKARYAI</span>
+            <strong>Project Profile Copilot</strong>
+            <small>Uses only this Project's current Linkary profile evidence. It cannot invent traction, funding, partnerships, token claims or verification.</small>
+          </div>
+          <button type="button" className="ops-button secondary" disabled={busy || applyBusy} onClick={() => void improveWithAi()}>{busy ? 'Improving...' : '✦ Improve Project profile'}</button>
         </div>
 
-        <article>
-          <div><strong>Project bio</strong><span>500 characters max</span></div>
-          <p>{suggestions.bio || 'No grounded improvement suggested.'}</p>
-          {suggestions.bio && <button type="button" onClick={() => void copySuggestion(suggestions.bio, 'Project bio')}>Copy bio</button>}
-        </article>
-        <article>
-          <div><strong>SEO title</strong><span>70 characters max</span></div>
-          <p>{suggestions.seoTitle || 'No grounded improvement suggested.'}</p>
-          {suggestions.seoTitle && <button type="button" onClick={() => void copySuggestion(suggestions.seoTitle, 'SEO title')}>Copy SEO title</button>}
-        </article>
-        <article>
-          <div><strong>SEO description</strong><span>180 characters max</span></div>
-          <p>{suggestions.seoDescription || 'No grounded improvement suggested.'}</p>
-          {suggestions.seoDescription && <button type="button" onClick={() => void copySuggestion(suggestions.seoDescription, 'SEO description')}>Copy SEO description</button>}
-        </article>
-        <article>
-          <div><strong>Positioning suggestion</strong><span>Advice only</span></div>
-          <p>{suggestions.positioningTip || 'No additional grounded positioning suggestion.'}</p>
-        </article>
+        {message && <div className="profile-ai-v1-message" role="status">{message}</div>}
 
-        {(suggestions.completenessTips.length > 0 || suggestions.socialTips.length > 0) && <div className="profile-ai-v1-tips">
-          {suggestions.completenessTips.length > 0 && <div><strong>Profile completeness</strong><ul>{suggestions.completenessTips.map((tip, index) => <li key={`complete-${index}`}>{tip}</li>)}</ul></div>}
-          {suggestions.socialTips.length > 0 && <div><strong>Social presence</strong><ul>{suggestions.socialTips.map((tip, index) => <li key={`social-${index}`}>{tip}</li>)}</ul></div>}
+        {suggestions && <div className="profile-ai-v1-results">
+          <div className="profile-ai-v1-apply">
+            <div><strong>Ready to use these suggestions?</strong><small>Review the draft first. Apply updates only the Project bio and SEO fields. Project name, logo, verification, permissions, team, wallets, billing and campaign evidence are untouched.</small></div>
+            <button type="button" className="ops-button primary" disabled={applyBusy || busy} onClick={() => void applyAllProfileText()}>{applyBusy ? 'Applying...' : 'Apply bio + SEO'}</button>
+          </div>
+
+          <article>
+            <div><strong>Project bio</strong><span>500 characters max</span></div>
+            <p>{suggestions.bio || 'No grounded improvement suggested.'}</p>
+            {suggestions.bio && <button type="button" onClick={() => void copySuggestion(suggestions.bio, 'Project bio')}>Copy bio</button>}
+          </article>
+          <article>
+            <div><strong>SEO title</strong><span>70 characters max</span></div>
+            <p>{suggestions.seoTitle || 'No grounded improvement suggested.'}</p>
+            {suggestions.seoTitle && <button type="button" onClick={() => void copySuggestion(suggestions.seoTitle, 'SEO title')}>Copy SEO title</button>}
+          </article>
+          <article>
+            <div><strong>SEO description</strong><span>180 characters max</span></div>
+            <p>{suggestions.seoDescription || 'No grounded improvement suggested.'}</p>
+            {suggestions.seoDescription && <button type="button" onClick={() => void copySuggestion(suggestions.seoDescription, 'SEO description')}>Copy SEO description</button>}
+          </article>
+          <article>
+            <div><strong>Positioning suggestion</strong><span>Advice only</span></div>
+            <p>{suggestions.positioningTip || 'No additional grounded positioning suggestion.'}</p>
+          </article>
+
+          {(suggestions.completenessTips.length > 0 || suggestions.socialTips.length > 0) && <div className="profile-ai-v1-tips">
+            {suggestions.completenessTips.length > 0 && <div><strong>Profile completeness</strong><ul>{suggestions.completenessTips.map((tip, index) => <li key={`complete-${index}`}>{tip}</li>)}</ul></div>}
+            {suggestions.socialTips.length > 0 && <div><strong>Social presence</strong><ul>{suggestions.socialTips.map((tip, index) => <li key={`social-${index}`}>{tip}</li>)}</ul></div>}
+          </div>}
+
+          {aiMeta && <div className="profile-ai-v1-meta">{aiMeta.provider} · {aiMeta.model} · {aiMeta.usageCredits} Usage Credits · {(aiMeta.latencyMs / 1000).toFixed(1)}s</div>}
         </div>}
-
-        {aiMeta && <div className="profile-ai-v1-meta">{aiMeta.provider} · {aiMeta.model} · {aiMeta.usageCredits} Usage Credits · {(aiMeta.latencyMs / 1000).toFixed(1)}s</div>}
-      </div>}
-    </div>,
+      </div>
+    </>,
     target,
   );
 }
