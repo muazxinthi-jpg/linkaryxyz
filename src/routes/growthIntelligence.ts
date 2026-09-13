@@ -60,12 +60,13 @@ type PartnerAttributionRow = {
 };
 
 type PartnerVisitorRow = {
-  campaign_id: string;
   partner_kind: 'creator' | 'community' | null;
   partner_key: string | null;
   identified_clicks: number;
   estimated_unique_clicks: number;
 };
+
+type CampaignPartnerVisitorRow = PartnerVisitorRow & { campaign_id: string };
 
 type DeliverableRow = {
   id: string;
@@ -273,7 +274,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
 
   await ensureAttributionSchema(db);
 
-  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution, partnerVisitors, clickTrend, outcomeTrend, spendTrend] = await Promise.all([
+  const [campaigns, activities, deliverables, rawMetrics, outcomeEvidence, projectClicks, partnerAttribution, partnerVisitors, campaignPartnerVisitors, clickTrend, outcomeTrend, spendTrend] = await Promise.all([
     db.all<CampaignRow>(
       `SELECT c.id, c.name, c.starts_at, COALESCE(c.source_type, 'external') AS source_type,
               COALESCE(c.execution_mode, 'tracked_elsewhere') AS execution_mode, c.status, c.budget_usd,
@@ -377,6 +378,28 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
       [organizationId],
     ),
     db.all<PartnerVisitorRow>(
+      `SELECT partner_kind,
+              partner_key,
+              COUNT(visitor_id_hash) AS identified_clicks,
+              COUNT(DISTINCT visitor_id_hash) AS estimated_unique_clicks
+         FROM (
+           SELECT CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
+                  CASE
+                    WHEN snap.tracked_link_id IS NOT NULL THEN CASE WHEN snap.assignment_kind = 'creator' THEN snap.creator_profile_id ELSE snap.partner_asset_id END
+                    ELSE CASE WHEN la.assignment_kind = 'creator' THEN la.creator_profile_id ELSE la.partner_asset_id END
+                  END AS partner_key,
+                  click.visitor_id_hash
+             FROM tracked_links t
+             JOIN tracked_link_clicks click ON click.tracked_link_id = t.id
+             LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = t.id
+             LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = t.activity_id
+            WHERE t.organization_id = ? AND click.visitor_id_hash IS NOT NULL
+         ) resolved_partner_clicks
+        WHERE partner_kind IS NOT NULL AND partner_key IS NOT NULL
+        GROUP BY partner_kind, partner_key`,
+      [organizationId],
+    ),
+    db.all<CampaignPartnerVisitorRow>(
       `SELECT campaign_id,
               partner_kind,
               partner_key,
@@ -395,7 +418,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
              LEFT JOIN tracked_link_partner_snapshots snap ON snap.tracked_link_id = t.id
              LEFT JOIN campaign_activity_linkary_assignments la ON la.activity_id = t.activity_id
             WHERE t.organization_id = ? AND click.visitor_id_hash IS NOT NULL
-         ) resolved_partner_clicks
+         ) resolved_campaign_partner_clicks
         WHERE partner_kind IS NOT NULL AND partner_key IS NOT NULL
         GROUP BY campaign_id, partner_kind, partner_key`,
       [organizationId],
@@ -513,17 +536,17 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
 
   for (const row of partnerVisitors) {
     if (!row.partner_kind || !row.partner_key) continue;
-    const key = `${row.partner_kind}:${row.partner_key}`;
-    const group = partnerGroups.get(key);
-    if (group) {
-      group.identifiedClicks += number(row.identified_clicks);
-      group.uniqueClicks = (group.uniqueClicks || 0) + number(row.estimated_unique_clicks);
-    }
-    const campaignGroup = campaignPartnerGroups.get(`${row.campaign_id}:${key}`);
-    if (campaignGroup) {
-      campaignGroup.identifiedClicks = number(row.identified_clicks);
-      campaignGroup.uniqueClicks = campaignGroup.identifiedClicks > 0 ? number(row.estimated_unique_clicks) : null;
-    }
+    const group = partnerGroups.get(`${row.partner_kind}:${row.partner_key}`);
+    if (!group) continue;
+    group.identifiedClicks = number(row.identified_clicks);
+    group.uniqueClicks = group.identifiedClicks > 0 ? number(row.estimated_unique_clicks) : null;
+  }
+  for (const row of campaignPartnerVisitors) {
+    if (!row.partner_kind || !row.partner_key) continue;
+    const campaignGroup = campaignPartnerGroups.get(`${row.campaign_id}:${row.partner_kind}:${row.partner_key}`);
+    if (!campaignGroup) continue;
+    campaignGroup.identifiedClicks = number(row.identified_clicks);
+    campaignGroup.uniqueClicks = campaignGroup.identifiedClicks > 0 ? number(row.estimated_unique_clicks) : null;
   }
 
   type ChannelGroup = SocialStats & { key: string; label: string; spend: number; clicks: number; outcomes: number; value: number; activities: number };
@@ -619,7 +642,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     channels: Array.from(channelGroups.values()).map(channelResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks),
     methodology: {
       manual_social_metrics: 'Uses the strongest available provenance per deliverable metric key. Rejected deliverables are excluded.',
-      unique_clicks: projectUnique === null ? 'Not measured because no privacy-conscious visitor hashes are available.' : 'Estimated from privacy-conscious Linkary visitor hashes. Project, campaign, activity and campaign-contributor estimates deduplicate the same available visitor hash within each reporting scope and are not person-level identity counts.',
+      unique_clicks: projectUnique === null ? 'Not measured because no privacy-conscious visitor hashes are available.' : 'Estimated from privacy-conscious Linkary visitor hashes. Project, campaign, activity, partner and campaign-contributor estimates deduplicate the same available visitor hash within each reporting scope and are not person-level identity counts.',
       partner_channel_spend: 'Partner comparison uses tracking-link partner provenance only. Activity-level spend and social metrics are not automatically reassigned to historical partners. Channel cost metrics use only actual costs attached directly to activities, and campaign-level overhead is not allocated automatically.',
       partner_attribution: partnerAttributionCoverage.current_fallback > 0
         ? 'Some older tracking links do not yet have an immutable snapshot row, so those links are explicitly marked as current-assignment fallback until the protected D1 backfill migration is applied.'
