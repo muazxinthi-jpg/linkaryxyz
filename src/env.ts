@@ -36,6 +36,11 @@ export interface Env {
   ALCHEMY_WEBHOOK_ID_ROBINHOOD?: string;
   ALCHEMY_WEBHOOK_SIGNING_KEY_ROBINHOOD?: string;
 
+  // Server-only provider key for selective X deliverable measurement sync.
+  // Linkary never exposes this credential to the browser and does not scan the
+  // full social graph. It is used only for exact campaign deliverables.
+  TWITTERAPI_IO_KEY?: string;
+
   // LinkaryAI provider configuration. Workers AI is the primary provider.
   // External provider keys are server-only Cloudflare secret bindings and are
   // considered configured only when an explicit model is also selected.
