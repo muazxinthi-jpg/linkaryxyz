@@ -20,6 +20,7 @@ import AdminCouponsExperience from './AdminCouponsExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import CommunityManagerSessionGate from './CommunityManagerSessionGate';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
+import PromotionAuctionExperience from './PromotionAuctionExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
 class RequestError extends Error {
@@ -79,6 +80,7 @@ type Experience =
   | 'billing'
   | 'projects'
   | 'team-invites'
+  | 'promotion-auction'
   | 'admin-readiness'
   | 'admin-community-verifications'
   | 'admin-commercial'
@@ -117,9 +119,7 @@ function ProductGate({ experience }: { experience: Experience }) {
         setState(requestGateState(error));
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [retryKey]);
 
   if (state === 'legacy') return <AppV2 />;
@@ -139,6 +139,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'billing') return <BillingExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
+    if (experience === 'promotion-auction') return <PromotionAuctionExperience me={me} status={status} />;
     if (experience === 'admin-readiness' || experience === 'admin-community-verifications' || experience === 'admin-commercial' || experience === 'admin-coupons') {
       if (!me.user?.superadmin) return <ForbiddenScreen />;
       if (experience === 'admin-community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
@@ -148,29 +149,20 @@ function ProductGate({ experience }: { experience: Experience }) {
     }
     return <TrackingExperience me={me} status={status} />;
   }
-  return (
-    <main className="loading-screen">
-      <div className="spinner" />
-      <p>Opening Linkary</p>
-    </main>
-  );
+  return <main className="loading-screen"><div className="spinner" /><p>Opening Linkary</p></main>;
 }
 
 function TeamInviteGate() {
   const [state, setState] = useState<GateState>('loading');
   const [retryKey, setRetryKey] = useState(0);
-
   useEffect(() => {
     let cancelled = false;
     setState('loading');
     void getJson<ProductMe>('/api/auth/me')
       .then((result) => { if (!cancelled) setState(result.authenticated ? 'ready' : 'legacy'); })
-      .catch((error: unknown) => {
-        if (!cancelled) setState(requestGateState(error));
-      });
+      .catch((error: unknown) => { if (!cancelled) setState(requestGateState(error)); });
     return () => { cancelled = true; };
   }, [retryKey]);
-
   if (state === 'legacy') return <AppV2 />;
   if (state === 'forbidden') return <ForbiddenScreen />;
   if (state === 'unavailable') return <UnavailableScreen onRetry={() => setRetryKey((value) => value + 1)} />;
@@ -183,6 +175,7 @@ export default function AppV3() {
   const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
   if (location.pathname.startsWith('/admin') && !isSuperadminHost) return <Navigate to="/dashboard" replace />;
   if (location.pathname === '/team-invite') return <TeamInviteGate />;
+  if (location.pathname.startsWith('/promotion-auction/')) return <ProductGate experience="promotion-auction" />;
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
   if (location.pathname === '/opportunities') return <ProductGate experience="opportunities" />;
