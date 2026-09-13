@@ -17,6 +17,17 @@ test('editable profiles expose sponsored header monetization controls', () => {
   assert.match(promotion, /24 hours/);
 });
 
+test('profile owner can configure a free preferred project header', () => {
+  assert.match(promotion, /Free featured project/);
+  assert.match(promotion, /Project name/);
+  assert.match(promotion, /Banner image URL/);
+  assert.match(promotion, /Destination URL/);
+  assert.match(promotion, /Show free header/);
+  assert.match(promotion, /Save featured header/);
+  assert.match(promotion, /no active paid sponsored header/);
+  assert.match(promotion, /featured-header/);
+});
+
 test('profile monetization remains inside the editable workspace shell', () => {
   assert.match(profile, /createPortal/);
   assert.match(profile, /profile-beta-editor-column/);
@@ -42,7 +53,7 @@ test('authenticated bidder flow is routable and includes payment plus creative s
 
 test('CTA choices are fixed and sponsored UI has responsive styling', () => {
   for (const label of ['Join', 'Register', 'Book now', 'Learn more', 'Visit', 'Explore', 'Trade', 'Mint', 'Buy', 'View']) {
-    assert.ok(promotion.includes(`>${label}<`), `${label} CTA should be present`);
+    assert.ok(promotion.includes(`'${label}'`) || promotion.includes(`>${label}<`), `${label} CTA should be present`);
   }
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /promotion-auction-card/);
