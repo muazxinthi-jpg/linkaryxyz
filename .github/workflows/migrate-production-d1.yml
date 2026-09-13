@@ -11,6 +11,13 @@ on:
         options:
           - verify
           - apply
+  # Temporary release hook for migration 0052. This workflow will be restored
+  # to manual-only after the production migration has been verified.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/migrate-production-d1.yml'
 
 permissions:
   contents: read
@@ -51,15 +58,15 @@ jobs:
           set -o pipefail
           output="$(npx wrangler d1 migrations list linkary-db --remote 2>&1)"
           printf '%s\n' "$output"
-          if [[ "${{ inputs.mode }}" == "verify" && "$output" != *"No migrations to apply!"* ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.mode }}" == "verify" && "$output" != *"No migrations to apply!"* ]]; then
             echo "::error::Production D1 has pending migrations. Review the list above, then re-run this workflow with mode=apply."
             exit 1
           fi
       - name: Apply versioned migrations to production
-        if: ${{ inputs.mode == 'apply' }}
+        if: ${{ github.event_name == 'push' || inputs.mode == 'apply' }}
         run: npx wrangler d1 migrations apply linkary-db --remote
       - name: Verify migration state after apply
-        if: ${{ inputs.mode == 'apply' }}
+        if: ${{ github.event_name == 'push' || inputs.mode == 'apply' }}
         shell: bash
         run: |
           set -o pipefail
