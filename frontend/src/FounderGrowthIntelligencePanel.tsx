@@ -170,6 +170,7 @@ function PartnerMetricStrip({ value }: { value: GroupPerformance }) {
     <span><small>TRACKING LINKS</small><strong>{number(value.tracking_links || 0)}</strong></span>
     <span><small>ACTIVITIES</small><strong>{number(value.activities)}</strong></span>
     <span><small>CLICKS</small><strong>{compact(value.tracked_clicks)}</strong></span>
+    <span><small>UNIQUE VISITORS</small><strong>{value.estimated_unique_clicks === null ? 'N/A' : compact(value.estimated_unique_clicks)}</strong></span>
     <span><small>OUTCOMES</small><strong>{number(value.outcomes)}</strong></span>
     <span><small>CONVERSION</small><strong>{percent(value.conversion_rate)}</strong></span>
     <span><small>ATTRIBUTED VALUE</small><strong>{money(value.attributed_value_usd)}</strong></span>
@@ -364,7 +365,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
 
     <div className="fgi-signal-grid">
       <article><span>STRONGEST CAMPAIGN</span><strong>{strongestCampaign?.name || 'Not enough ROI evidence'}</strong><small>{strongestCampaign?.roas === null || !strongestCampaign ? 'Record actual spend and value to compare ROAS.' : `${multiple(strongestCampaign.roas)} return on recorded spend`}</small></article>
-      <article><span>STRONGEST PARTNER</span><strong>{strongestPartner?.label || 'Not enough partner evidence'}</strong><small>{strongestPartner ? `${compact(strongestPartner.tracked_clicks)} clicks · ${compact(strongestPartner.outcomes)} outcomes · ${partnerCoverageLabel(strongestPartner.snapshot_coverage)}` : 'Create partner-bound tracking links to build comparable partner evidence.'}</small></article>
+      <article><span>STRONGEST PARTNER</span><strong>{strongestPartner?.label || 'Not enough partner evidence'}</strong><small>{strongestPartner ? `${compact(strongestPartner.tracked_clicks)} clicks${strongestPartner.estimated_unique_clicks === null ? '' : ` · ${compact(strongestPartner.estimated_unique_clicks)} unique`} · ${compact(strongestPartner.outcomes)} outcomes · ${partnerCoverageLabel(strongestPartner.snapshot_coverage)}` : 'Create partner-bound tracking links to build comparable partner evidence.'}</small></article>
       <article><span>STRONGEST CHANNEL</span><strong>{strongestChannel ? human(strongestChannel.label) : 'Not enough channel evidence'}</strong><small>{strongestChannel ? `${compact(strongestChannel.tracked_clicks)} clicks · ${money(strongestChannel.attributed_value_usd)} value` : 'Channel intelligence builds from measured activities.'}</small></article>
     </div>
 
