@@ -1,3 +1,27 @@
+@media (min-width:901px){
+  /* Desktop workspace owns the viewport. The navigation stays in place while
+     only the content column scrolls, including long profile monetization flows. */
+  .ops-shell{
+    height:100dvh;
+    min-height:100dvh;
+    overflow:hidden;
+  }
+  .ops-sidebar{
+    position:sticky;
+    top:0;
+    height:100dvh;
+    min-height:100dvh;
+    overflow:hidden;
+  }
+  .ops-main{
+    min-height:0;
+    height:100dvh;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-gutter:stable;
+  }
+}
+
 @media (max-width:640px){
   /* Keep phone primary navigation focused. Evidence, Partners and Wallets remain
      reachable from the relevant workspace flows instead of crowding the nav. */
