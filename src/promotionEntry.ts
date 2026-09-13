@@ -12,6 +12,20 @@ import {
   submitPromotionCreative,
 } from './routes/profilePromotions';
 import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
+import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
+
+function publicProfileUsername(request: Request, env: Env): string | null {
+  const url = new URL(request.url);
+  let publicHost = 'linkary.xyz';
+  try { publicHost = new URL(env.PUBLIC_SITE_URL || 'https://linkary.xyz').hostname.toLowerCase(); } catch { /* keep fallback */ }
+  if (url.hostname.toLowerCase() !== publicHost) return null;
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts.length !== 1) return null;
+  const candidate = decodeURIComponent(parts[0]).trim().toLowerCase();
+  const reserved = new Set(['api','app','admin','pricing','about','blog','privacy','terms','support','help','status','security','login','signup','dashboard','campaigns','creators','communities','tracking','profile','invites','settings','wallets','partners','opportunities','robots.txt','sitemap.xml']);
+  if (!candidate || candidate.includes('.') || reserved.has(candidate)) return null;
+  return candidate;
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
@@ -71,7 +85,21 @@ export default {
         return await getLiveProfilePromotion(request, env, decodeURIComponent(live[1]));
       }
 
-      return await baseWorker.fetch(request, env, ctx);
+      const impression = path.match(/^\/api\/public\/promotion-impressions\/([^/]+)$/);
+      if (impression) {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await recordPromotionImpression(request, env, decodeURIComponent(impression[1]));
+      }
+
+      const click = path.match(/^\/p\/([^/]+)$/);
+      if (click) {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await redirectPromotionClick(request, env, decodeURIComponent(click[1]));
+      }
+
+      const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
+      const response = await baseWorker.fetch(request, env, ctx);
+      return username ? await enhancePublicProfileWithPromotion(response, request, env, username) : response;
     } catch (error) {
       return errorResponse(error);
     }
