@@ -68,6 +68,13 @@ type GroupPerformance = Performance & {
   snapshot_coverage?: SnapshotCoverage;
 };
 
+type CampaignContributorPerformance = GroupPerformance & {
+  campaign_id: string;
+  click_share: number | null;
+  outcome_share: number | null;
+  value_share: number | null;
+};
+
 type PartnerAttributionCoverage = SnapshotCoverage & {
   tracking_links: number;
   assigned_links: number;
@@ -81,6 +88,7 @@ type IntelligenceResponse = {
     evidence_mix: { manual: number; tracked: number; verified: number; estimated: number };
   };
   campaigns: CampaignPerformance[];
+  campaign_contributors?: Record<string, CampaignContributorPerformance[]>;
   activities: ActivityPerformance[];
   partners: GroupPerformance[];
   partner_attribution: PartnerAttributionCoverage;
@@ -175,6 +183,14 @@ function PartnerMetricStrip({ value }: { value: GroupPerformance }) {
     <span><small>CONVERSION</small><strong>{percent(value.conversion_rate)}</strong></span>
     <span><small>ATTRIBUTED VALUE</small><strong>{money(value.attributed_value_usd)}</strong></span>
     <span><small>VALUE / CLICK</small><strong>{money(value.value_per_click)}</strong></span>
+  </div>;
+}
+
+function CampaignContributorRanking({ contributors }: { contributors: CampaignContributorPerformance[] }) {
+  if (!contributors.length) return null;
+  return <div className="fgi-evidence">
+    <div><strong>TOP CONTRIBUTORS</strong>{contributors.slice(0, 5).map((item, index) => <span key={`${item.campaign_id}:${item.key}`}><b>#{index + 1} {item.label}</b> · {compact(item.tracked_clicks)} clicks ({percent(item.click_share)}) · {item.estimated_unique_clicks === null ? 'N/A' : compact(item.estimated_unique_clicks)} unique · {number(item.outcomes)} outcomes ({percent(item.conversion_rate)}) · {money(item.attributed_value_usd)} value ({percent(item.value_share)})</span>)}</div>
+    <p>Ranked by attributed value, then outcomes, then clicks. Shares are calculated only against this campaign and preserve tracking-link partner provenance.</p>
   </div>;
 }
 
@@ -389,10 +405,11 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
         const activity = 'title' in row ? row as ActivityPerformance : null;
         const group = 'label' in row ? row as GroupPerformance : null;
         const partnerGroup = tab === 'partners' && group ? group : null;
+        const contributors = campaign ? data.campaign_contributors?.[campaign.id] || [] : [];
         const key = campaign?.id || activity?.id || group?.key || Math.random().toString();
         const title = campaign?.name || activity?.title || group?.label || 'Growth record';
         const meta = campaign ? `${human(campaign.source_type)} · ${human(campaign.status)} · Budget ${campaign.budget_usd === null ? 'not set' : money(campaign.budget_usd)}` : activity ? `${activity.campaign_name} · ${human(activity.channel)} · ${activity.partner_display_name || 'Unassigned'}` : partnerGroup ? `${partnerGroup.tracking_links || 0} tracking link${partnerGroup.tracking_links === 1 ? '' : 's'} · ${partnerGroup.activities} activit${partnerGroup.activities === 1 ? 'y' : 'ies'}${partnerGroup.handle ? ` · @${partnerGroup.handle.replace(/^@/, '')}` : ''}` : group ? `${group.activities} activit${group.activities === 1 ? 'y' : 'ies'}${group.handle ? ` · @${group.handle.replace(/^@/, '')}` : ''}` : '';
-        return <article className="fgi-row" key={key}><div className="fgi-row-head"><div><strong>{title}</strong><span>{meta}</span></div>{partnerGroup ? <small>{partnerCoverageLabel(partnerGroup.snapshot_coverage)} · Spend/social metrics not reassigned</small> : group ? <small>Spend: activity-attached only</small> : null}</div>{partnerGroup ? <PartnerMetricStrip value={partnerGroup} /> : <MetricStrip value={row as Performance} />}</article>;
+        return <article className="fgi-row" key={key}><div className="fgi-row-head"><div><strong>{title}</strong><span>{meta}</span></div>{partnerGroup ? <small>{partnerCoverageLabel(partnerGroup.snapshot_coverage)} · Spend/social metrics not reassigned</small> : group ? <small>Spend: activity-attached only</small> : null}</div>{partnerGroup ? <PartnerMetricStrip value={partnerGroup} /> : <MetricStrip value={row as Performance} />}{campaign && <CampaignContributorRanking contributors={contributors} />}</article>;
       })}
     </div>}
 
