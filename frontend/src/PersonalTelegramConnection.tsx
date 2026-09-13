@@ -41,24 +41,25 @@ export default function PersonalTelegramConnection() {
     }
     let cancelled = false;
     void (async () => {
-      try {
-        const [telegramResponse, statusResponse] = await Promise.all([
-          fetch('/api/auth/telegram-identity', { credentials: 'same-origin' }),
-          fetch('/api/onboarding/status', { credentials: 'same-origin' }),
-        ]);
-        if (!telegramResponse.ok) throw new Error();
-        const result = await telegramResponse.json() as { connected: boolean; identity: Identity | null };
-        if (!cancelled) setIdentity(result.connected ? result.identity : null);
-        if (statusResponse.ok) {
-          const status = await statusResponse.json() as { profiles?: StatusProfile[] };
+      const statusPromise = fetch('/api/onboarding/status', { credentials: 'same-origin' })
+        .then(async (response) => response.ok ? response.json() as Promise<{ profiles?: StatusProfile[] }> : null)
+        .then((status) => {
+          if (cancelled || !status) return;
           const saved = window.localStorage.getItem('linkary.active.profile');
           const active = status.profiles?.find((profile) => profile.id === saved && profile.profile_type === 'creator')
             || status.profiles?.find((profile) => profile.profile_type === 'creator');
-          if (!cancelled && active?.id) setProfileId(active.id);
-        }
-      } catch {
-        if (!cancelled) setMessage('Telegram connection status could not be loaded. Please refresh to try again.');
-      } finally { if (!cancelled) setLoading(false); }
+          if (active?.id) setProfileId(active.id);
+        })
+        .catch(() => undefined);
+      const telegramPromise = fetch('/api/auth/telegram-identity', { credentials: 'same-origin' })
+        .then(async (response) => {
+          if (!response.ok) throw new Error();
+          return response.json() as Promise<{ connected: boolean; identity: Identity | null }>;
+        })
+        .then((result) => { if (!cancelled) setIdentity(result.connected ? result.identity : null); })
+        .catch(() => { if (!cancelled) setMessage('Telegram connection status could not be loaded. Please refresh to try again.'); });
+      await Promise.allSettled([statusPromise, telegramPromise]);
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
