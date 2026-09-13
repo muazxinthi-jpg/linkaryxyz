@@ -87,6 +87,7 @@ export default function ProfileSocialConnections({ profileId, onChanged }: { pro
   useEffect(() => { void load(); }, [profileId]);
 
   const connected = useMemo(() => new Map(PLATFORMS.map((platform) => [platform.key, blocks.find((block) => socialKey(block) === platform.key && block.enabled)])), [blocks]);
+  const connectedCount = useMemo(() => Array.from(connected.values()).filter(Boolean).length, [connected]);
 
   async function save(platform: Platform) {
     const token = csrfToken();
@@ -148,7 +149,7 @@ export default function ProfileSocialConnections({ profileId, onChanged }: { pro
   return <section className="wide profile-social-connections" data-profile-social-connections>
     <div className="psc-heading">
       <div><strong>Social connections</strong><small>Connect the public channels you want people to discover from your Linkary profile.</small></div>
-      <span>{connected.size ? `${Array.from(connected.values()).filter(Boolean).length} connected` : 'Profile links'}</span>
+      <span>{connectedCount ? `${connectedCount} connected` : 'Profile links'}</span>
     </div>
     <p className="psc-boundary">These connections publish a validated profile link and enable Linkary outbound-click measurement. They are not provider verification. X and Telegram use their separate identity connection flows.</p>
     <div className="psc-grid">
