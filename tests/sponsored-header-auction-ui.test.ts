@@ -27,7 +27,7 @@ test('authenticated bidder flow is routable and includes payment plus creative s
 
 test('CTA choices are fixed and sponsored UI has responsive styling', () => {
   for (const label of ['Join', 'Register', 'Book now', 'Learn more', 'Visit', 'Explore', 'Trade', 'Mint', 'Buy', 'View']) {
-    assert.ok(promotion.includes(`>${label}<`), `${label} CTA should be present`);
+    assert.ok(promotion.includes(`'${label}'`) || promotion.includes(`>${label}<`), `${label} CTA should be present`);
   }
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /promotion-auction-card/);

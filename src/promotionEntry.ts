@@ -31,6 +31,13 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const path = new URL(request.url).pathname;
     try {
+      const featuredHeader = path.match(/^\/api\/profiles\/([^/]+)\/featured-header$/);
+      if (featuredHeader) {
+        const profileId = decodeURIComponent(featuredHeader[1]);
+        if (request.method === 'GET') return await getFeaturedHeader(request, env, profileId);
+        if (request.method === 'PUT') return await upsertFeaturedHeader(request, env, profileId);
+        return methodNotAllowed(['GET', 'PUT']);
+      }
       const slot = path.match(/^\/api\/profiles\/([^/]+)\/promotion-slot$/);
       if (slot) {
         if (request.method !== 'PUT') return methodNotAllowed(['PUT']);
@@ -81,10 +88,20 @@ export default {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
         return await getLiveProfilePromotion(request, env, decodeURIComponent(live[1]));
       }
+      const featuredImpression = path.match(/^\/api\/public\/featured-header-impressions\/([^/]+)$/);
+      if (featuredImpression) {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await recordFeaturedHeaderImpression(request, env, decodeURIComponent(featuredImpression[1]));
+      }
       const impression = path.match(/^\/api\/public\/promotion-impressions\/([^/]+)$/);
       if (impression) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await recordPromotionImpression(request, env, decodeURIComponent(impression[1]));
+      }
+      const featuredClick = path.match(/^\/f\/([^/]+)$/);
+      if (featuredClick) {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await redirectFeaturedHeaderClick(request, env, decodeURIComponent(featuredClick[1]));
       }
       const click = path.match(/^\/p\/([^/]+)$/);
       if (click) {

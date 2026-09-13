@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const migration = readFileSync(new URL('../migrations/0051_sponsored_header_auction_v1.sql', import.meta.url), 'utf8');
+const featuredMigration = readFileSync(new URL('../migrations/0052_free_featured_header.sql', import.meta.url), 'utf8');
 const lifecycle = readFileSync(new URL('../src/routes/profilePromotions.ts', import.meta.url), 'utf8');
 const payments = readFileSync(new URL('../src/routes/profilePromotionPayments.ts', import.meta.url), 'utf8');
+const featured = readFileSync(new URL('../src/routes/profileFeaturedHeaders.ts', import.meta.url), 'utf8');
+const delivery = readFileSync(new URL('../src/routes/profilePromotionDelivery.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/promotionEntry.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const publicWrangler = readFileSync(new URL('../wrangler.public.jsonc', import.meta.url), 'utf8');
@@ -38,6 +41,28 @@ test('creative cannot become live before verified payment and superadmin moderat
   assert.match(payments, /requireSuperadmin/);
   assert.match(payments, /Promotion payment is not verified/);
   assert.match(payments, /SET status = 'live'/);
+});
+
+test('owner free featured header is independently stored and manager controlled', () => {
+  assert.match(featuredMigration, /CREATE TABLE IF NOT EXISTS profile_featured_headers/);
+  assert.match(featuredMigration, /profile_id TEXT NOT NULL UNIQUE/);
+  assert.match(featuredMigration, /impressions_count/);
+  assert.match(featuredMigration, /banner_clicks_count/);
+  assert.match(featuredMigration, /cta_clicks_count/);
+  assert.match(featured, /requireProfileManager/);
+  assert.match(featured, /upsertFeaturedHeader/);
+  assert.match(featured, /preferredProjectProfileId/);
+  assert.match(featured, /trackingCode/);
+});
+
+test('paid live promotion has priority and free header is the public fallback', () => {
+  assert.match(delivery, /creative = await liveCreativeByUsername/);
+  assert.match(delivery, /if \(!creative\) featured = await featuredHeaderByUsername/);
+  assert.match(delivery, /Featured/);
+  assert.match(delivery, /featured_profile/);
+  assert.match(entry, /featured-header/);
+  assert.match(entry, /featured-header-impressions/);
+  assert.match(entry, /redirectFeaturedHeaderClick/);
 });
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
