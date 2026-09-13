@@ -93,14 +93,20 @@ function trackingBase(request: Request, env: Env): string {
 function injectHeader(response: Response, markup: string, styles: string): Promise<Response> {
   return response.text().then((html) => {
     let enhanced = html.includes('</head>') ? html.replace('</head>', `${styles}</head>`) : `${styles}${html}`;
-    const mainOpen = enhanced.match(/<main\b[^>]*>/i);
-    if (mainOpen?.index !== undefined) {
-      const at = mainOpen.index + mainOpen[0].length;
-      enhanced = `${enhanced.slice(0, at)}${markup}${enhanced.slice(at)}`;
-    } else if (enhanced.includes('<body>')) {
-      enhanced = enhanced.replace('<body>', `<body>${markup}`);
+    const hero = enhanced.match(/<(section|div)\s+class=(['"])hero\2[^>]*>/i);
+    if (hero?.index !== undefined) {
+      const heroOpen = hero[0].replace(/class=(['"])hero\1/i, 'class=$1hero linkary-promotion-hero$1');
+      enhanced = `${enhanced.slice(0, hero.index)}${markup}${heroOpen}${enhanced.slice(hero.index + hero[0].length)}`;
     } else {
-      return response;
+      const mainOpen = enhanced.match(/<main\b[^>]*>/i);
+      if (mainOpen?.index !== undefined) {
+        const at = mainOpen.index + mainOpen[0].length;
+        enhanced = `${enhanced.slice(0, at)}${markup}${enhanced.slice(at)}`;
+      } else if (enhanced.includes('<body>')) {
+        enhanced = enhanced.replace('<body>', `<body>${markup}`);
+      } else {
+        return response;
+      }
     }
     const headers = new Headers(response.headers);
     headers.delete('content-length');
@@ -109,7 +115,17 @@ function injectHeader(response: Response, markup: string, styles: string): Promi
   });
 }
 
-const HEADER_STYLES = `<style id="linkary-sponsored-header-style">.linkary-sponsored-header{position:relative;width:min(1120px,calc(100% - 24px));margin:12px auto 44px;border-radius:24px;overflow:visible;isolation:isolate}.linkary-sponsored-banner{display:block;width:100%;height:clamp(150px,22vw,260px);border-radius:24px;overflow:hidden;background:#f2f2f2;box-shadow:0 14px 40px rgba(17,17,17,.12)}.linkary-sponsored-banner img{width:100%;height:100%;display:block;object-fit:cover}.linkary-sponsored-cta{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);z-index:3;display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 22px;border-radius:999px;background:#ff5500;color:#fff!important;text-decoration:none!important;font:700 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 10px 26px rgba(255,85,0,.28);border:3px solid #fff}.linkary-sponsored-label{position:absolute;top:12px;right:12px;z-index:2;padding:5px 9px;border-radius:999px;background:rgba(17,17,17,.72);color:#fff;font:600 10px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.04em;text-transform:uppercase}.linkary-featured-project{position:absolute;left:14px;top:14px;z-index:2;max-width:55%;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.9);color:#111;font:700 11px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:640px){.linkary-sponsored-header{width:calc(100% - 16px);margin-top:8px;border-radius:18px}.linkary-sponsored-banner{height:150px;border-radius:18px}.linkary-sponsored-cta{height:40px;bottom:-20px;min-width:112px}.linkary-featured-project{max-width:62%;font-size:10px}}</style>`;
+const HEADER_STYLES = `<style id="linkary-sponsored-header-style">
+.linkary-sponsored-header{position:relative;z-index:5;width:100%;margin:22px auto 0;border-radius:24px;overflow:visible;isolation:isolate}
+.linkary-sponsored-banner{display:block;width:100%;height:clamp(180px,26vw,330px);border-radius:24px;overflow:hidden;background:#f2f2f2;border:1px solid rgba(255,85,0,.18);box-shadow:0 18px 44px rgba(38,24,17,.14)}
+.linkary-sponsored-banner img{width:100%;height:100%;display:block;object-fit:cover}
+.linkary-sponsored-cta{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 24px;border-radius:999px;background:#ff5500;color:#fff!important;text-decoration:none!important;font:750 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 10px 26px rgba(255,85,0,.3);border:3px solid #fff}
+.linkary-sponsored-label{position:absolute;top:14px;right:14px;z-index:7;padding:6px 10px;border-radius:999px;background:rgba(17,17,17,.72);backdrop-filter:blur(8px);color:#fff;font:700 10px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.linkary-featured-project{position:absolute;left:14px;top:14px;z-index:7;max-width:55%;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);color:#111;font:750 11px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(17,17,17,.08)}
+.linkary-sponsored-header + script + .linkary-promotion-hero,.linkary-sponsored-header + .linkary-promotion-hero{margin-top:-64px!important;padding-top:0!important;position:relative!important;z-index:9!important}
+.linkary-promotion-hero .avatar{position:relative!important;z-index:10!important;border:4px solid #fff!important;box-shadow:0 14px 38px rgba(42,28,20,.16)!important}
+@media(max-width:640px){.linkary-sponsored-header{margin-top:14px;border-radius:18px}.linkary-sponsored-banner{height:180px;border-radius:18px}.linkary-sponsored-cta{height:40px;bottom:14px;min-width:112px;padding:0 18px}.linkary-featured-project{max-width:62%;font-size:10px}.linkary-sponsored-header + script + .linkary-promotion-hero,.linkary-sponsored-header + .linkary-promotion-hero{margin-top:-52px!important}}
+</style>`;
 
 export async function enhancePublicProfileWithPromotion(response: Response, request: Request, env: Env, username: string): Promise<Response> {
   if (!env.DB || !response.ok || !(response.headers.get('content-type') || '').includes('text/html')) return response;
