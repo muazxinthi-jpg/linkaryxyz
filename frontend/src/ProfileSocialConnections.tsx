@@ -151,7 +151,11 @@ export default function ProfileSocialConnections({ profileId, onChanged }: { pro
       <div><strong>Social connections</strong><small>Connect the public channels you want people to discover from your Linkary profile.</small></div>
       <span>{connectedCount ? `${connectedCount} connected` : 'Profile links'}</span>
     </div>
-    <p className="psc-boundary">These connections publish a validated profile link and enable Linkary outbound-click measurement. They are not provider verification. X and Telegram use their separate identity connection flows.</p>
+    <div className="psc-publish-gate" role="note" aria-label="X publishing requirement">
+      <b>𝕏</b>
+      <div><strong>X is required to publish</strong><span>Only a verified X identity can unlock public profile publishing. Other social connections are optional and do not unlock publishing.</span></div>
+    </div>
+    <p className="psc-boundary">Instagram, TikTok, YouTube, Facebook and other connected profiles are optional public links. They enable Linkary outbound-click measurement, but they are not provider verification and cannot replace X for publishing. Telegram uses its separate identity connection flow.</p>
     <div className="psc-grid">
       {PLATFORMS.map((platform) => {
         const block = connected.get(platform.key);
