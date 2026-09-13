@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ProfileExperienceIdentityV1 from './ProfileExperienceIdentityV1';
 import ProjectProfileCopilot from './ProjectProfileCopilot';
+import { PromotionOwnerPanel } from './PromotionAuctionExperience';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 
 type ProjectRole = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
@@ -65,7 +66,7 @@ export default function ProfileAccessExperience({ me, status }: { me: ProductMe;
         const membership = (result.organizations || []).find((item) => item.id === profile.organization_id);
         const nextRole = membership?.role || null;
         setRole(nextRole);
-        setState(nextRole === 'owner' || nextRole === 'admin' ? 'editable' : 'readonly');
+        setState(nextRole === 'owner' || nextRole === 'admin' || nextRole === 'marketing_manager' ? 'editable' : 'readonly');
       })
       .catch(() => {
         if (!cancelled) {
@@ -77,7 +78,7 @@ export default function ProfileAccessExperience({ me, status }: { me: ProductMe;
   }, [profile?.id, profile?.organization_id, profile?.profile_type]);
 
   if (!profile) return null;
-  if (state === 'editable') return <><ProfileExperienceIdentityV1 me={me} status={status} /><ProjectProfileCopilot status={status} /></>;
+  if (state === 'editable') return <><ProfileExperienceIdentityV1 me={me} status={status} /><PromotionOwnerPanel profile={profile} />{profile.profile_type === 'project' && <ProjectProfileCopilot status={status} />}</>;
 
   return (
     <ProductWorkspace me={me} status={status} profile={profile} onProfileChange={changeProfile}>
