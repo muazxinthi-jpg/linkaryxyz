@@ -11,7 +11,7 @@ import {
   placePromotionBid,
   submitPromotionCreative,
 } from './routes/profilePromotions';
-import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
+import { getMyPromotionPayment, reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
@@ -59,6 +59,12 @@ export default {
       if (finalize) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await finalizePromotionAuction(request, env, decodeURIComponent(finalize[1]));
+      }
+
+      const paymentStatus = path.match(/^\/api\/promotion-auctions\/([^/]+)\/payment$/);
+      if (paymentStatus) {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await getMyPromotionPayment(request, env, decodeURIComponent(paymentStatus[1]));
       }
 
       const payment = path.match(/^\/api\/promotion-auctions\/([^/]+)\/payment\/verify$/);
