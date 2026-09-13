@@ -433,7 +433,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     const unique = identified > 0 ? number(campaign.estimated_unique_clicks) : null;
     return {
       id: campaign.id,
-      name: campaign.id,
+      name: campaign.name,
       source_type: campaign.source_type,
       execution_mode: campaign.execution_mode,
       status: campaign.status,
