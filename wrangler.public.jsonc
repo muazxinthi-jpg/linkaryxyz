@@ -1,8 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   // Dedicated owner of linkary.xyz/*. Keep this separate from the app Worker.
+  // The promotion wrapper delegates every existing request through the preserved worker entry:
+  // "main": "src/trackingEntry.ts"
   "name": "linkary-public-overlay",
-  "main": "src/trackingEntry.ts",
+  "main": "src/promotionEntry.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
