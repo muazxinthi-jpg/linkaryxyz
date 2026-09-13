@@ -47,6 +47,7 @@ type ActivityRow = {
 
 type PartnerAttributionRow = {
   tracked_link_id: string;
+  campaign_id: string;
   activity_id: string | null;
   partner_kind: 'creator' | 'community' | null;
   partner_key: string | null;
@@ -59,6 +60,7 @@ type PartnerAttributionRow = {
 };
 
 type PartnerVisitorRow = {
+  campaign_id: string;
   partner_kind: 'creator' | 'community' | null;
   partner_key: string | null;
   identified_clicks: number;
@@ -111,6 +113,8 @@ type PartnerGroup = {
   legacyBackfillLinks: number;
   currentFallbackLinks: number;
 };
+
+type CampaignPartnerGroup = PartnerGroup & { campaignId: string };
 
 const PROVENANCE_PRIORITY: Provenance[] = [
   'provider_verified',
@@ -197,6 +201,36 @@ function partnerPerformance(group: PartnerGroup) {
     roas: null,
     value_per_click: group.clicks > 0 ? group.value / group.clicks : null,
   };
+}
+
+function newPartnerGroup(key: string, label: string, kind: string, handle: string | null): PartnerGroup {
+  return {
+    key,
+    label,
+    kind,
+    handle,
+    activityIds: new Set<string>(),
+    trackingLinks: 0,
+    clicks: 0,
+    identifiedClicks: 0,
+    uniqueClicks: null,
+    outcomes: 0,
+    value: 0,
+    linkCreationLinks: 0,
+    legacyBackfillLinks: 0,
+    currentFallbackLinks: 0,
+  };
+}
+
+function addPartnerAttribution(group: PartnerGroup, row: PartnerAttributionRow) {
+  if (row.activity_id) group.activityIds.add(row.activity_id);
+  group.trackingLinks += 1;
+  group.clicks += number(row.clicks);
+  group.outcomes += number(row.outcomes);
+  group.value += number(row.attributed_value_usd);
+  if (row.attribution_source === 'link_creation') group.linkCreationLinks += 1;
+  else if (row.attribution_source === 'legacy_backfill') group.legacyBackfillLinks += 1;
+  else group.currentFallbackLinks += 1;
 }
 
 function evidenceBucket(provenance: Provenance | string): keyof EvidenceMix {
@@ -317,6 +351,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     db.all<PartnerAttributionRow>(
       `SELECT
           t.id AS tracked_link_id,
+          t.campaign_id,
           t.activity_id,
           CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
           CASE
@@ -342,12 +377,14 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
       [organizationId],
     ),
     db.all<PartnerVisitorRow>(
-      `SELECT partner_kind,
+      `SELECT campaign_id,
+              partner_kind,
               partner_key,
               COUNT(visitor_id_hash) AS identified_clicks,
               COUNT(DISTINCT visitor_id_hash) AS estimated_unique_clicks
          FROM (
-           SELECT CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
+           SELECT t.campaign_id,
+                  CASE WHEN snap.tracked_link_id IS NOT NULL THEN snap.assignment_kind ELSE la.assignment_kind END AS partner_kind,
                   CASE
                     WHEN snap.tracked_link_id IS NOT NULL THEN CASE WHEN snap.assignment_kind = 'creator' THEN snap.creator_profile_id ELSE snap.partner_asset_id END
                     ELSE CASE WHEN la.assignment_kind = 'creator' THEN la.creator_profile_id ELSE la.partner_asset_id END
@@ -360,7 +397,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
             WHERE t.organization_id = ? AND click.visitor_id_hash IS NOT NULL
          ) resolved_partner_clicks
         WHERE partner_kind IS NOT NULL AND partner_key IS NOT NULL
-        GROUP BY partner_kind, partner_key`,
+        GROUP BY campaign_id, partner_kind, partner_key`,
       [organizationId],
     ),
     db.all<TrendRow>(`SELECT substr(click.occurred_at, 1, 10) AS day, COUNT(*) AS clicks FROM tracked_link_clicks click JOIN tracked_links t ON t.id = click.tracked_link_id WHERE t.organization_id = ? AND click.occurred_at >= date('now', ?) GROUP BY substr(click.occurred_at, 1, 10)`, [organizationId, since]),
@@ -438,11 +475,13 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
       execution_mode: campaign.execution_mode,
       status: campaign.status,
       budget_usd: campaign.budget_usd,
+      starts_at: campaign.starts_at,
       ...performance({ ...social, spend: number(campaign.actual_spend_usd), clicks: number(campaign.clicks), uniqueClicks: unique, outcomes: number(campaign.outcomes), value: number(campaign.attributed_value_usd) }),
     };
   });
 
   const partnerGroups = new Map<string, PartnerGroup>();
+  const campaignPartnerGroups = new Map<string, CampaignPartnerGroup>();
   const partnerAttributionCoverage = {
     tracking_links: partnerAttribution.length,
     assigned_links: 0,
@@ -459,39 +498,32 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     }
     partnerAttributionCoverage.assigned_links += 1;
     const key = `${row.partner_kind}:${row.partner_key}`;
-    const current = partnerGroups.get(key) || {
-      key,
-      label: row.partner_display_name,
-      kind: row.partner_kind,
-      handle: row.partner_handle,
-      activityIds: new Set<string>(),
-      trackingLinks: 0,
-      clicks: 0,
-      identifiedClicks: 0,
-      uniqueClicks: null,
-      outcomes: 0,
-      value: 0,
-      linkCreationLinks: 0,
-      legacyBackfillLinks: 0,
-      currentFallbackLinks: 0,
-    };
-    if (row.activity_id) current.activityIds.add(row.activity_id);
-    current.trackingLinks += 1;
-    current.clicks += number(row.clicks);
-    current.outcomes += number(row.outcomes);
-    current.value += number(row.attributed_value_usd);
-    if (row.attribution_source === 'link_creation') current.linkCreationLinks += 1;
-    else if (row.attribution_source === 'legacy_backfill') current.legacyBackfillLinks += 1;
-    else current.currentFallbackLinks += 1;
+    const current = partnerGroups.get(key) || newPartnerGroup(key, row.partner_display_name, row.partner_kind, row.partner_handle);
+    addPartnerAttribution(current, row);
     partnerGroups.set(key, current);
+
+    const campaignKey = `${row.campaign_id}:${key}`;
+    const campaignCurrent = campaignPartnerGroups.get(campaignKey) || {
+      ...newPartnerGroup(key, row.partner_display_name, row.partner_kind, row.partner_handle),
+      campaignId: row.campaign_id,
+    };
+    addPartnerAttribution(campaignCurrent, row);
+    campaignPartnerGroups.set(campaignKey, campaignCurrent);
   }
 
   for (const row of partnerVisitors) {
     if (!row.partner_kind || !row.partner_key) continue;
-    const group = partnerGroups.get(`${row.partner_kind}:${row.partner_key}`);
-    if (!group) continue;
-    group.identifiedClicks = number(row.identified_clicks);
-    group.uniqueClicks = group.identifiedClicks > 0 ? number(row.estimated_unique_clicks) : null;
+    const key = `${row.partner_kind}:${row.partner_key}`;
+    const group = partnerGroups.get(key);
+    if (group) {
+      group.identifiedClicks += number(row.identified_clicks);
+      group.uniqueClicks = (group.uniqueClicks || 0) + number(row.estimated_unique_clicks);
+    }
+    const campaignGroup = campaignPartnerGroups.get(`${row.campaign_id}:${key}`);
+    if (campaignGroup) {
+      campaignGroup.identifiedClicks = number(row.identified_clicks);
+      campaignGroup.uniqueClicks = campaignGroup.identifiedClicks > 0 ? number(row.estimated_unique_clicks) : null;
+    }
   }
 
   type ChannelGroup = SocialStats & { key: string; label: string; spend: number; clicks: number; outcomes: number; value: number; activities: number };
@@ -539,6 +571,32 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     .map(partnerPerformance)
     .sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks)
     .slice(0, 100);
+
+  const campaignTotals = new Map(campaignResults.map((campaign) => [campaign.id, campaign]));
+  const campaignContributors: Record<string, Array<ReturnType<typeof partnerPerformance> & {
+    campaign_id: string;
+    click_share: number | null;
+    outcome_share: number | null;
+    value_share: number | null;
+  }>> = {};
+  for (const group of campaignPartnerGroups.values()) {
+    const total = campaignTotals.get(group.campaignId);
+    if (!total) continue;
+    const contributor = {
+      ...partnerPerformance(group),
+      campaign_id: group.campaignId,
+      click_share: total.tracked_clicks > 0 ? group.clicks / total.tracked_clicks : null,
+      outcome_share: total.outcomes > 0 ? group.outcomes / total.outcomes : null,
+      value_share: total.attributed_value_usd > 0 ? group.value / total.attributed_value_usd : null,
+    };
+    const list = campaignContributors[group.campaignId] || [];
+    list.push(contributor);
+    campaignContributors[group.campaignId] = list;
+  }
+  for (const list of Object.values(campaignContributors)) {
+    list.sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks);
+  }
+
   const trend = new Map(trendDays(rangeDays).map((day) => [day, { day, clicks: 0, outcomes: 0, value: 0, spend: 0 }]));
   for (const row of clickTrend) { const point = trend.get(row.day); if (point) point.clicks += number(row.clicks); }
   for (const row of outcomeTrend) { const point = trend.get(row.day); if (point) { point.outcomes += number(row.outcomes); point.value += number(row.value); } }
@@ -552,6 +610,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
       ...performance({ ...projectSocial, spend: projectSpend, clicks: projectClickCount, uniqueClicks: projectUnique, outcomes: projectOutcomes, value: projectValue }),
     },
     campaigns: campaignResults,
+    campaign_contributors: campaignContributors,
     activities: activityResults,
     partners: partnerResults,
     trend: Array.from(trend.values()),
@@ -560,7 +619,7 @@ export async function loadGrowthIntelligenceData(db: Db, organizationId: string,
     channels: Array.from(channelGroups.values()).map(channelResult).sort((a, b) => b.attributed_value_usd - a.attributed_value_usd || b.outcomes - a.outcomes || b.tracked_clicks - a.tracked_clicks),
     methodology: {
       manual_social_metrics: 'Uses the strongest available provenance per deliverable metric key. Rejected deliverables are excluded.',
-      unique_clicks: projectUnique === null ? 'Not measured because no privacy-conscious visitor hashes are available.' : 'Estimated from privacy-conscious Linkary visitor hashes. Project, campaign, activity and partner estimates deduplicate the same available visitor hash within each reporting scope and are not person-level identity counts.',
+      unique_clicks: projectUnique === null ? 'Not measured because no privacy-conscious visitor hashes are available.' : 'Estimated from privacy-conscious Linkary visitor hashes. Project, campaign, activity and campaign-contributor estimates deduplicate the same available visitor hash within each reporting scope and are not person-level identity counts.',
       partner_channel_spend: 'Partner comparison uses tracking-link partner provenance only. Activity-level spend and social metrics are not automatically reassigned to historical partners. Channel cost metrics use only actual costs attached directly to activities, and campaign-level overhead is not allocated automatically.',
       partner_attribution: partnerAttributionCoverage.current_fallback > 0
         ? 'Some older tracking links do not yet have an immutable snapshot row, so those links are explicitly marked as current-assignment fallback until the protected D1 backfill migration is applied.'
