@@ -162,14 +162,14 @@ function partnerCoverageLabel(coverage?: SnapshotCoverage): string {
 
 function MetricStrip({ value }: { value: Performance }) {
   return <div className="fgi-row-metrics">
-    <span><small>SPEND</small><strong>{money(value.actual_spend_usd)}</strong></span>
     <span><small>VIEWS</small><strong>{compact(value.views)}</strong></span>
+    <span><small>ENGAGEMENTS</small><strong>{compact(value.engagements)}</strong></span>
+    <span><small>ENG. RATE</small><strong>{percent(value.engagement_rate)}</strong></span>
     <span><small>CLICKS</small><strong>{compact(value.tracked_clicks)}</strong></span>
+    <span><small>UNIQUE VISITORS</small><strong>{value.estimated_unique_clicks === null ? 'N/A' : compact(value.estimated_unique_clicks)}</strong></span>
     <span><small>OUTCOMES</small><strong>{number(value.outcomes)}</strong></span>
-    <span><small>CTR</small><strong>{percent(value.ctr)}</strong></span>
-    <span><small>CPC</small><strong>{money(value.cpc)}</strong></span>
-    <span><small>CPA</small><strong>{money(value.cpa)}</strong></span>
-    <span><small>ROAS</small><strong>{multiple(value.roas)}</strong></span>
+    <span><small>CONVERSION</small><strong>{percent(value.conversion_rate)}</strong></span>
+    <span><small>ATTRIBUTED VALUE</small><strong>{money(value.attributed_value_usd)}</strong></span>
   </div>;
 }
 
@@ -219,9 +219,19 @@ function MomentumChart({ points }: { points: TrendPoint[] }) {
 }
 
 function FunnelChart({ value }: { value: Performance }) {
-  const rows = [['Reported views', value.views, 'manual'], ['Linkary clicks', value.tracked_clicks, 'tracked'], ['Outcomes', value.outcomes, 'outcomes']] as const;
-  const max = Math.max(1, ...rows.map((row) => row[1]));
-  return <article className="fgi-chart funnel-chart"><header><div><span>GROWTH FUNNEL</span><strong>From reach to outcomes</strong></div><small>Not a verification ladder</small></header>{rows.map(([label, amount, tone]) => <div className={`fgi-funnel-row ${tone}`} key={label}><div><span>{label}</span><strong>{compact(amount)}</strong></div><i style={{ width: `${Math.max(5, (amount / max) * 100)}%` }} /></div>)}</article>;
+  const countRows: Array<{ label: string; amount: number | null; tone: string }> = [
+    { label: 'Reported views', amount: value.views, tone: 'manual' },
+    { label: 'Social engagements', amount: value.engagements, tone: 'manual' },
+    { label: 'Linkary clicks', amount: value.tracked_clicks, tone: 'tracked' },
+    { label: 'Estimated unique visitors', amount: value.estimated_unique_clicks, tone: 'tracked' },
+    { label: 'Outcomes', amount: value.outcomes, tone: 'outcomes' },
+  ];
+  const max = Math.max(1, ...countRows.flatMap((row) => row.amount === null ? [] : [row.amount]));
+  return <article className="fgi-chart funnel-chart">
+    <header><div><span>SOCIAL → OUTCOME FUNNEL</span><strong>From published reach to attributed results</strong></div><small>Signals, not unique people</small></header>
+    {countRows.map((row) => <div className={`fgi-funnel-row ${row.tone}`} key={row.label}><div><span>{row.label}</span><strong>{row.amount === null ? 'N/A' : compact(row.amount)}</strong></div><i style={{ width: row.amount === null ? '5%' : `${Math.max(5, (row.amount / max) * 100)}%` }} /></div>)}
+    <div className="fgi-evidence"><div><strong>ATTRIBUTED VALUE</strong><span>{money(value.attributed_value_usd)}</span><span>Engagement rate {percent(value.engagement_rate)}</span><span>CTR {percent(value.ctr)}</span><span>Click → outcome {percent(value.conversion_rate)}</span></div><p>Reported social metrics can be manual or provider-verified. Linkary clicks and estimated unique visitors are first-party. Unique visitors use privacy-conscious visitor hashes when available, and Linkary does not treat engagement actions as unique people.</p></div>
+  </article>;
 }
 
 function ChannelChart({ channels }: { channels: GroupPerformance[] }) {
@@ -361,7 +371,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
 
   return <section className="fgi-shell" aria-label="Founder Growth Intelligence">
     <header className="fgi-header">
-      <div><span className="fgi-kicker">FOUNDER GROWTH INTELLIGENCE</span><h2>See what actually produced results</h2><p>Compare social performance, Linkary first-party traffic, outcomes, actual spend and attributed value without treating manual evidence as verified.</p></div>
+      <div><span className="fgi-kicker">FOUNDER GROWTH INTELLIGENCE</span><h2>See what actually produced results</h2><p>Compare social reach and engagement with Linkary first-party clicks, estimated unique visitors, outcomes, actual spend and attributed value without treating manual evidence as verified.</p></div>
       <div className="fgi-actions"><div className="fgi-range" aria-label="Trend range">{([7, 30, 90] as const).map((days) => <button type="button" key={days} className={range === days ? 'active' : ''} onClick={() => setRange(days)}>{days}d</button>)}</div>{data.permissions.can_generate_ai && <button className="linkaryai-trigger" type="button" disabled={aiLoading} onClick={() => void generateAiSummary()}>{aiLoading ? 'Reviewing evidence...' : 'Generate AI summary'}</button>}<button type="button" onClick={() => void load()}>Refresh</button></div>
     </header>
 
@@ -371,12 +381,14 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
     </section>}
 
     <div className="fgi-summary">
-      <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>Recorded incurred cost</small></article>
       <article><span>REPORTED VIEWS</span><strong>{compact(summary.views)}</strong><small>{summary.deliverables} measured deliverables</small></article>
+      <article><span>SOCIAL ENGAGEMENTS</span><strong>{compact(summary.engagements)}</strong><small>{percent(summary.engagement_rate)} engagement rate</small></article>
       <article><span>LINKARY CLICKS</span><strong>{compact(summary.tracked_clicks)}</strong><Delta value={change(recent.clicks, earlier.clicks)} /></article>
+      <article><span>UNIQUE VISITORS</span><strong>{summary.estimated_unique_clicks === null ? 'N/A' : compact(summary.estimated_unique_clicks)}</strong><small>{summary.estimated_unique_clicks === null ? 'Privacy-conscious visitor hashes unavailable' : 'Estimated from privacy-conscious visitor hashes'}</small></article>
       <article><span>OUTCOMES</span><strong>{compact(summary.outcomes)}</strong><Delta value={change(recent.outcomes, earlier.outcomes)} /></article>
       <article><span>ATTRIBUTED VALUE</span><strong>{money(summary.attributed_value_usd)}</strong><Delta value={change(recent.value, earlier.value)} /></article>
-      <article><span>COST / OUTCOME</span><strong>{money(summary.cpa)}</strong><small>{money(summary.cpc)} per Linkary click</small></article>
+      <article><span>ACTUAL SPEND</span><strong>{money(summary.actual_spend_usd)}</strong><small>Recorded incurred cost</small></article>
+      <article><span>CONVERSION</span><strong>{percent(summary.conversion_rate)}</strong><small>{money(summary.cpa)} cost per outcome</small></article>
     </div>
 
     <div className="fgi-signal-grid">
@@ -391,7 +403,7 @@ export default function FounderGrowthIntelligencePanel({ organizationId, variant
 
     <div className="fgi-evidence">
       <div><strong>Evidence mix</strong><span>Manual {summary.evidence_mix.manual}</span><span>Tracked {summary.evidence_mix.tracked}</span><span>Verified {summary.evidence_mix.verified}</span><span>Estimated {summary.evidence_mix.estimated}</span></div>
-      <p>Reported views and engagement can be manual. Linkary clicks are first-party. Provider and Telegram verified evidence stays separately labeled.</p>
+      <p>Reported views and engagement can be manual or provider-verified. Linkary clicks and estimated unique visitors are first-party signals. Engagement totals count actions, not unique people.</p>
       <p>Partner comparison uses tracking-link provenance. {data.partner_attribution.link_creation} link{data.partner_attribution.link_creation === 1 ? '' : 's'} have creation-time snapshots, {data.partner_attribution.legacy_backfill} are legacy backfills{fallbackLinks > 0 ? `, and ${fallbackLinks} still use current-assignment fallback until the protected database migration is applied` : ''}.</p>
     </div>
 
