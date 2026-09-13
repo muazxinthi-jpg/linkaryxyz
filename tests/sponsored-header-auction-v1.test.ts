@@ -72,13 +72,13 @@ test('paid live promotion has priority and free header is the public fallback', 
 });
 
 test('public promotion header sits below top controls and overlaps the profile hero', () => {
-  assert.match(delivery, /class=\(\['"\\]\)hero/);
-  assert.match(delivery, /hero linkary-promotion-hero/);
-  assert.match(delivery, /linkary-sponsored-header \+ script \+ \.linkary-promotion-hero/);
-  assert.match(delivery, /margin-top:-64px!important/);
-  assert.match(delivery, /\.linkary-promotion-hero \.avatar/);
-  assert.match(delivery, /height:clamp\(180px,26vw,330px\)/);
-  assert.match(delivery, /bottom:18px/);
+  assert.ok(delivery.includes("enhanced.match(/<(section|div)\\s+class=(['\"])hero"));
+  assert.ok(delivery.includes('hero linkary-promotion-hero'));
+  assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
+  assert.ok(delivery.includes('margin-top:-64px!important'));
+  assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
+  assert.ok(delivery.includes('height:clamp(180px,26vw,330px)'));
+  assert.ok(delivery.includes('bottom:18px'));
 });
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
