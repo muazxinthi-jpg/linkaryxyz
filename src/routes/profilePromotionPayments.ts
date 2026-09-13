@@ -65,6 +65,19 @@ function receiptContainsExactUsdcTransfer(receipt: Receipt, payers: Set<string>,
   });
 }
 
+export async function getMyPromotionPayment(request: Request, env: Env, auctionId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  const payment = await db.first<PaymentRow & { verified_at: string | null }>(
+    `SELECT id, auction_id, payer_user_id, recipient_wallet_address, required_amount_atomic, tx_hash, status, verified_at
+       FROM profile_promotion_payments WHERE auction_id = ? AND payer_user_id = ? LIMIT 1`,
+    [auctionId, auth.user.id],
+  );
+  if (!payment) return json({ payment: null });
+  const auction = await db.first<{ payment_due_at: string | null; status: string }>(`SELECT payment_due_at, status FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
+  return json({ payment: { ...payment, payment_due_at: auction?.payment_due_at || null, auction_status: auction?.status || null } });
+}
+
 export async function verifyPromotionPayment(request: Request, env: Env, auctionId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
@@ -79,10 +92,19 @@ export async function verifyPromotionPayment(request: Request, env: Env, auction
   if (!['pending', 'submitted'].includes(payment.status)) throw new HttpError(409, 'Promotion payment is no longer payable', 'promotion_payment_closed');
   if (payment.tx_hash && payment.tx_hash !== txHash) throw new HttpError(409, 'A different transaction is already attached to this payment', 'promotion_payment_tx_conflict');
 
+  const auctionDeadline = await db.first<{ payment_due_at: string | null }>(`SELECT payment_due_at FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
+  const timestamp = now();
+  if (auctionDeadline?.payment_due_at && auctionDeadline.payment_due_at <= timestamp) {
+    await db.batch([
+      db.statement(`UPDATE profile_promotion_payments SET status = 'expired', updated_at = ? WHERE id = ? AND status IN ('pending','submitted')`, [timestamp, payment.id]),
+      db.statement(`UPDATE profile_promotion_auctions SET status = 'payment_expired', updated_at = ? WHERE id = ? AND status IN ('payment_pending','payment_detected')`, [timestamp, auctionId]),
+    ]);
+    throw new HttpError(409, 'Promotion payment deadline has expired', 'promotion_payment_expired');
+  }
+
   const duplicate = await db.first<{ auction_id: string }>(`SELECT auction_id FROM profile_promotion_payments WHERE tx_hash = ? AND auction_id <> ? LIMIT 1`, [txHash, auctionId]);
   if (duplicate) throw new HttpError(409, 'This transaction has already been used for another promotion', 'promotion_payment_tx_reused');
 
-  const timestamp = now();
   if (payment.status === 'pending') await db.run(`UPDATE profile_promotion_payments SET status = 'submitted', tx_hash = ?, updated_at = ? WHERE id = ? AND status = 'pending'`, [txHash, timestamp, payment.id]);
 
   const receipt = await alchemyRpc<Receipt | null>(env, 'eth_getTransactionReceipt', [txHash]);
