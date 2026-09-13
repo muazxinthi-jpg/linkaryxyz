@@ -17,7 +17,7 @@ test('Growth charts aggregate Project-scoped time series without changing eviden
 });
 
 test('Growth UI renders selectable, evidence-aware visual comparisons responsively', () => {
-  for (const token of ['TRACTION TIMELINE', 'GROWTH FUNNEL', 'CHANNEL COMPARISON', 'DATA CONFIDENCE', 'Evidence composition', 'Not a verification ladder', 'Trust guardrail · not a growth KPI']) assert.match(panel, new RegExp(token));
+  for (const token of ['TRACTION TIMELINE', 'SOCIAL → OUTCOME FUNNEL', 'CHANNEL COMPARISON', 'DATA CONFIDENCE', 'Evidence composition', 'Trust guardrail · not a growth KPI']) assert.match(panel, new RegExp(token));
   assert.match(panel, /role="img" aria-label="Interactive daily Linkary clicks and outcomes trend"/);
   assert.match(panel, /aria-label=\{`Evidence composition:/);
   assert.match(panel, /\[7, 30, 90\]/);
