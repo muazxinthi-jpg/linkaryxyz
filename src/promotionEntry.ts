@@ -36,25 +36,21 @@ export default {
         if (request.method !== 'PUT') return methodNotAllowed(['PUT']);
         return await configurePromotionSlot(request, env, decodeURIComponent(slot[1]));
       }
-
       const createAuction = path.match(/^\/api\/profiles\/([^/]+)\/promotion-auctions$/);
       if (createAuction) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await createPromotionAuction(request, env, decodeURIComponent(createAuction[1]));
       }
-
       const auction = path.match(/^\/api\/promotion-auctions\/([^/]+)$/);
       if (auction) {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
         return await getPromotionAuction(request, env, decodeURIComponent(auction[1]));
       }
-
       const bid = path.match(/^\/api\/promotion-auctions\/([^/]+)\/bids$/);
       if (bid) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await placePromotionBid(request, env, decodeURIComponent(bid[1]));
       }
-
       const finalize = path.match(/^\/api\/promotion-auctions\/([^/]+)\/finalize$/);
       if (finalize) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
@@ -66,37 +62,35 @@ export default {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await verifyPromotionPayment(request, env, decodeURIComponent(payment[1]));
       }
-
       const creative = path.match(/^\/api\/promotion-auctions\/([^/]+)\/creative$/);
       if (creative) {
         if (request.method !== 'PUT') return methodNotAllowed(['PUT']);
         return await submitPromotionCreative(request, env, decodeURIComponent(creative[1]));
       }
-
+      if (path === '/api/admin/promotion-creatives') {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await listPromotionCreativeQueue(request, env);
+      }
       const creativeReview = path.match(/^\/api\/admin\/promotion-creatives\/([^/]+)\/review$/);
       if (creativeReview) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await reviewPromotionCreative(request, env, decodeURIComponent(creativeReview[1]));
       }
-
       const live = path.match(/^\/api\/public\/profiles\/([^/]+)\/promotion$/);
       if (live) {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
         return await getLiveProfilePromotion(request, env, decodeURIComponent(live[1]));
       }
-
       const impression = path.match(/^\/api\/public\/promotion-impressions\/([^/]+)$/);
       if (impression) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await recordPromotionImpression(request, env, decodeURIComponent(impression[1]));
       }
-
       const click = path.match(/^\/p\/([^/]+)$/);
       if (click) {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
         return await redirectPromotionClick(request, env, decodeURIComponent(click[1]));
       }
-
       const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
       const response = await baseWorker.fetch(request, env, ctx);
       return username ? await enhancePublicProfileWithPromotion(response, request, env, username) : response;
