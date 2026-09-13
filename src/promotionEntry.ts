@@ -11,6 +11,7 @@ import {
   placePromotionBid,
   submitPromotionCreative,
 } from './routes/profilePromotions';
+import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
@@ -46,10 +47,22 @@ export default {
         return await finalizePromotionAuction(request, env, decodeURIComponent(finalize[1]));
       }
 
+      const payment = path.match(/^\/api\/promotion-auctions\/([^/]+)\/payment\/verify$/);
+      if (payment) {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await verifyPromotionPayment(request, env, decodeURIComponent(payment[1]));
+      }
+
       const creative = path.match(/^\/api\/promotion-auctions\/([^/]+)\/creative$/);
       if (creative) {
         if (request.method !== 'PUT') return methodNotAllowed(['PUT']);
         return await submitPromotionCreative(request, env, decodeURIComponent(creative[1]));
+      }
+
+      const creativeReview = path.match(/^\/api\/admin\/promotion-creatives\/([^/]+)\/review$/);
+      if (creativeReview) {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await reviewPromotionCreative(request, env, decodeURIComponent(creativeReview[1]));
       }
 
       const live = path.match(/^\/api\/public\/profiles\/([^/]+)\/promotion$/);
