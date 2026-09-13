@@ -78,7 +78,22 @@ test('public promotion header sits below top controls and overlaps the profile h
   assert.ok(delivery.includes('margin-top:-64px!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
   assert.ok(delivery.includes('height:clamp(180px,26vw,330px)'));
-  assert.ok(delivery.includes('bottom:18px'));
+});
+
+test('public promotion CTA stays centered above the protected avatar overlap zone', () => {
+  const desktop = delivery.match(/--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:clamp\((\d+)px,[^,]+,(\d+)px\)/);
+  const mobile = delivery.match(/@media\(max-width:640px\)[\s\S]*?--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:(\d+)px/);
+  assert.ok(delivery.includes('--linkary-avatar-overlap:64px'));
+  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(20px,2.35vw,24px)'));
+  assert.ok(delivery.includes('bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap))'));
+  assert.ok(delivery.includes('left:50%'));
+  assert.ok(delivery.includes('transform:translateX(-50%)'));
+  assert.ok(desktop);
+  assert.ok(mobile);
+  assert.doesNotMatch(delivery, /\.linkary-sponsored-cta\{[^}]*bottom:(?:1[48]|-\d+)px/);
+  assert.ok(Number(desktop[1]) + Number(desktop[2]) >= 70);
+  assert.ok(Number(desktop[1]) + Number(desktop[3]) <= 90);
+  assert.ok(Number(mobile[2]) >= 20);
 });
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
