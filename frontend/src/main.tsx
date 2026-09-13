@@ -40,6 +40,7 @@ import './network-beta-acceptance.css';
 import './admin-readiness-beta-acceptance.css';
 import './admin-commercial.css';
 import './admin-ai-governance.css';
+import './promotion-auction.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
@@ -49,7 +50,7 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
-const APP_RELEASE = '2026-09-09-private-network-v5';
+const APP_RELEASE = '2026-09-13-sponsored-header-auction-v1';
 const APP_SHELL_PATH = '/assets/linkary-app/index.html';
 const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
