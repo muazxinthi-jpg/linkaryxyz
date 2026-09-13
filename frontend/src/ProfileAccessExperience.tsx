@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ProfileExperienceIdentityV1 from './ProfileExperienceIdentityV1';
 import ProjectProfileCopilot from './ProjectProfileCopilot';
 import { PromotionOwnerPanel } from './PromotionAuctionExperience';
@@ -25,6 +26,30 @@ function roleLabel(role: ProjectRole | null): string {
   if (role === 'admin') return 'Admin';
   if (role === 'owner') return 'Owner';
   return 'Project member';
+}
+
+function EditableProfileExtensions({ profile, status }: { profile: ProductProfile; status: ProductStatus }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const sync = () => {
+      const nextTarget = document.querySelector<HTMLElement>('.profile-beta .profile-beta-editor-column');
+      setTarget((current) => current === nextTarget ? current : nextTarget);
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [profile.id]);
+
+  if (!target) return null;
+  return createPortal(
+    <>
+      <PromotionOwnerPanel profile={profile} />
+      {profile.profile_type === 'project' && <ProjectProfileCopilot status={status} />}
+    </>,
+    target,
+  );
 }
 
 export default function ProfileAccessExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
@@ -78,7 +103,7 @@ export default function ProfileAccessExperience({ me, status }: { me: ProductMe;
   }, [profile?.id, profile?.organization_id, profile?.profile_type]);
 
   if (!profile) return null;
-  if (state === 'editable') return <><ProfileExperienceIdentityV1 me={me} status={status} /><PromotionOwnerPanel profile={profile} />{profile.profile_type === 'project' && <ProjectProfileCopilot status={status} />}</>;
+  if (state === 'editable') return <><ProfileExperienceIdentityV1 me={me} status={status} /><EditableProfileExtensions profile={profile} status={status} /></>;
 
   return (
     <ProductWorkspace me={me} status={status} profile={profile} onProfileChange={changeProfile}>
