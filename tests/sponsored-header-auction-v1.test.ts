@@ -43,8 +43,8 @@ test('creative cannot become live before verified payment and superadmin moderat
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
   assert.match(entry, /import baseWorker from '\.\/trackingEntry'/);
   assert.match(entry, /return await baseWorker\.fetch\(request, env, ctx\)/);
-  assert.match(entry, /promotion-auctions/);
-  assert.match(entry, /payment\\\/verify/);
+  assert.ok(entry.includes('/api/promotion-auctions/'));
+  assert.ok(entry.includes('/payment\\/verify'));
   assert.match(wrangler, /"main": "src\/promotionEntry\.ts"/);
   assert.match(publicWrangler, /"main": "src\/promotionEntry\.ts"/);
 });
