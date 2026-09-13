@@ -58,8 +58,23 @@ function evmAddress(value: unknown): string {
 
 function integerCents(value: unknown, field: string): number {
   const amount = Number(value);
-  if (!Number.isInteger(amount) || amount <= 0) throw new HttpError(400, `${field} must be a positive integer`, 'invalid_amount');
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 900_000_000_000) throw new HttpError(400, `${field} must be a positive integer`, 'invalid_amount');
   return amount;
+}
+
+async function isProfileOwnerOrMember(db: Db, profileId: string, userId: string): Promise<boolean> {
+  const profile = await db.first<ProfileAccessRow>(
+    `SELECT id, profile_type, owner_user_id, organization_id FROM profiles WHERE id = ?`,
+    [profileId],
+  );
+  if (!profile) throw new HttpError(404, 'Profile not found', 'profile_not_found');
+  if (profile.owner_user_id === userId) return true;
+  if (!profile.organization_id) return false;
+  const membership = await db.first<{ id: string }>(
+    `SELECT id FROM organization_memberships WHERE organization_id = ? AND user_id = ? AND status = 'active' LIMIT 1`,
+    [profile.organization_id, userId],
+  );
+  return Boolean(membership);
 }
 
 export async function configurePromotionSlot(request: Request, env: Env, profileId: string): Promise<Response> {
@@ -93,6 +108,12 @@ export async function createPromotionAuction(request: Request, env: Env, profile
   const body = await readJson<{ startingBidCents?: number; durationHours?: number }>(request);
   const db = new Db(requireDb(env));
   await requireProfileManager(db, profileId, auth.user.id);
+  const timestamp = now();
+  await db.batch([
+    db.statement(`UPDATE profile_promotion_payments SET status = 'expired', updated_at = ? WHERE status IN ('pending','submitted','detected') AND auction_id IN (SELECT id FROM profile_promotion_auctions WHERE profile_id = ? AND payment_due_at IS NOT NULL AND payment_due_at <= ?)`, [timestamp, profileId, timestamp]),
+    db.statement(`UPDATE profile_promotion_auctions SET status = 'payment_expired', updated_at = ? WHERE profile_id = ? AND status IN ('payment_pending','payment_detected') AND payment_due_at IS NOT NULL AND payment_due_at <= ?`, [timestamp, profileId, timestamp]),
+    db.statement(`UPDATE profile_promotion_auctions SET status = 'expired', updated_at = ? WHERE profile_id = ? AND status = 'live' AND promotion_ends_at IS NOT NULL AND promotion_ends_at <= ?`, [timestamp, profileId, timestamp]),
+  ]);
   const slot = await db.first<{ id: string; enabled: number; payout_wallet_address: string }>(`SELECT id, enabled, payout_wallet_address FROM profile_promotion_slots WHERE profile_id = ?`, [profileId]);
   if (!slot || slot.enabled !== 1) throw new HttpError(409, 'Profile promotion monetization is not enabled', 'promotion_slot_disabled');
   const existing = await db.first<{ id: string }>(`SELECT id FROM profile_promotion_auctions WHERE profile_id = ? AND status IN ${ACTIVE_STATUSES} LIMIT 1`, [profileId]);
@@ -110,12 +131,17 @@ export async function createPromotionAuction(request: Request, env: Env, profile
   return json({ auctionId, status: 'open', opensAt: opens.toISOString(), expiresAt: expires.toISOString(), startingBidCents }, { status: 201 });
 }
 
-export async function getPromotionAuction(_request: Request, env: Env, auctionId: string): Promise<Response> {
+export async function getPromotionAuction(request: Request, env: Env, auctionId: string): Promise<Response> {
+  await requireAuth(request, env);
   const db = new Db(requireDb(env));
   const auction = await db.first<AuctionRow>(`SELECT * FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
   if (!auction) throw new HttpError(404, 'Auction not found', 'auction_not_found');
+  const profile = await db.first<{ id: string; username: string; display_name: string | null }>(
+    `SELECT id, username, display_name FROM profiles WHERE id = ?`,
+    [auction.profile_id],
+  );
   const bids = await db.all<{ id: string; amount_cents: number; created_at: string }>(`SELECT id, amount_cents, created_at FROM profile_promotion_bids WHERE auction_id = ? ORDER BY amount_cents DESC, created_at ASC, id ASC LIMIT 50`, [auctionId]);
-  return json({ auction, bids });
+  return json({ auction, profile, bids });
 }
 
 export async function placePromotionBid(request: Request, env: Env, auctionId: string): Promise<Response> {
@@ -128,12 +154,12 @@ export async function placePromotionBid(request: Request, env: Env, auctionId: s
   if (!auction) throw new HttpError(404, 'Auction not found', 'auction_not_found');
   const timestamp = now();
   if (auction.status !== 'open' || auction.expires_at <= timestamp) throw new HttpError(409, 'Auction is closed', 'auction_closed');
-  if (auction.owner_user_id === auth.user.id) throw new HttpError(409, 'Profile owner cannot bid on their own auction', 'self_bid_forbidden');
+  if (await isProfileOwnerOrMember(db, auction.profile_id, auth.user.id)) throw new HttpError(409, 'Profile owner or organization member cannot bid on their own auction', 'self_bid_forbidden');
   const minimum = Math.max(auction.starting_bid_cents, (auction.highest_bid_cents || 0) + 1);
   if (amountCents < minimum) throw new HttpError(409, `Bid must be at least ${minimum} cents`, 'bid_too_low');
   const idem = String(body.idempotencyKey || request.headers.get('idempotency-key') || '').trim() || null;
   if (idem) {
-    const existing = await db.first<{ id: string; amount_cents: number }>(`SELECT id, amount_cents FROM profile_promotion_bids WHERE auction_id = ? AND idempotency_key = ?`, [auctionId, idem]);
+    const existing = await db.first<{ id: string; amount_cents: number }>(`SELECT id, amount_cents FROM profile_promotion_bids WHERE auction_id = ? AND bidder_user_id = ? AND idempotency_key = ?`, [auctionId, auth.user.id, idem]);
     if (existing) return json({ bidId: existing.id, amountCents: existing.amount_cents, idempotent: true });
   }
   if (body.organizationId) {
@@ -162,7 +188,7 @@ export async function finalizePromotionAuction(request: Request, env: Env, aucti
   const db = new Db(requireDb(env));
   const auction = await db.first<AuctionRow>(`SELECT * FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
   if (!auction) throw new HttpError(404, 'Auction not found', 'auction_not_found');
-  if (auction.owner_user_id !== auth.user.id && !auth.isSuperadmin) throw new HttpError(403, 'Auction owner access required', 'auction_forbidden');
+  if (!auth.isSuperadmin) await requireProfileManager(db, auction.profile_id, auth.user.id);
   if (auction.winner_bid_id && ['winner_selected','payment_pending','payment_detected','creative_pending','ready','live'].includes(auction.status)) return json({ auctionId, winnerBidId: auction.winner_bid_id, winnerUserId: auction.winner_user_id, status: auction.status, idempotent: true });
   const timestamp = now();
   if (auction.expires_at > timestamp && !auth.isSuperadmin) throw new HttpError(409, 'Auction has not ended yet', 'auction_not_ended');
@@ -173,7 +199,7 @@ export async function finalizePromotionAuction(request: Request, env: Env, aucti
   }
   const slot = await db.first<{ payout_wallet_address: string }>(`SELECT payout_wallet_address FROM profile_promotion_slots WHERE id = ?`, [auction.slot_id]);
   if (!slot) throw new HttpError(409, 'Promotion slot missing', 'promotion_slot_missing');
-  const paymentDueAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const paymentDueAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   const paymentId = id('ppm');
   const amountAtomic = winner.amount_cents * 10000;
   await db.batch([

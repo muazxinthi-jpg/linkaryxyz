@@ -18,9 +18,15 @@ test('promotion schema keeps bids immutable and one active auction per profile',
 
 test('auction lifecycle has profile authorization, self-bid prevention and deterministic winner ordering', () => {
   assert.match(lifecycle, /requireProfileManager/);
-  assert.match(lifecycle, /Profile owner cannot bid on their own auction/);
+  assert.match(lifecycle, /isProfileOwnerOrMember/);
+  assert.match(lifecycle, /organization_memberships[\s\S]*status = 'active' LIMIT 1/);
+  assert.match(lifecycle, /if \(!auth\.isSuperadmin\) await requireProfileManager\(db, auction\.profile_id, auth\.user\.id\)/);
+  assert.match(lifecycle, /Profile owner or organization member cannot bid on their own auction/);
   assert.match(lifecycle, /ORDER BY amount_cents DESC, created_at ASC, id ASC LIMIT 1/);
   assert.match(lifecycle, /idempotency-key/);
+  assert.match(lifecycle, /30 \* 60 \* 1000/);
+  assert.match(lifecycle, /SET status = 'payment_expired'/);
+  assert.match(lifecycle, /SET status = 'expired'[\s\S]*status = 'live'/);
   assert.match(lifecycle, /bid_race_lost/);
 });
 
@@ -42,7 +48,8 @@ test('creative cannot become live before verified payment and superadmin moderat
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
   assert.match(entry, /import baseWorker from '\.\/trackingEntry'/);
-  assert.match(entry, /return await baseWorker\.fetch\(request, env, ctx\)/);
+  assert.match(entry, /const response = await baseWorker\.fetch\(request, env, ctx\)/);
+  assert.match(entry, /return username \? await enhancePublicProfileWithPromotion\(response, request, env, username\) : response/);
   assert.ok(entry.includes('promotion-auctions'));
   assert.ok(entry.includes('verifyPromotionPayment'));
   assert.match(wrangler, /"main": "src\/promotionEntry\.ts"/);

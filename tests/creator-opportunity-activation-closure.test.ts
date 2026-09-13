@@ -23,7 +23,7 @@ test('application acceptance is idempotent for an already assigned Creator', () 
   assert.notEqual(existingAssignmentLookup, -1);
   assert.notEqual(createActivityCall, -1);
   assert.equal(existingAssignmentLookup < createActivityCall, true);
-  assert.equal(route.includes('if (existingActivity) {\n        activityId = existingActivity.id;\n      } else {'), true);
+  assert.match(route, /if \(existingActivity\) \{\r?\n        activityId = existingActivity\.id;\r?\n      \} else \{/);
 });
 
 test('accepted opportunity does not manufacture tracking or outcome evidence', () => {
@@ -43,7 +43,7 @@ test('Community Manager acceptance does not guess an exact Community', () => {
 
   assert.equal(route.includes('if (application.manager_id)'), true);
   assert.equal(route.includes('requiresCommunitySelection = true'), true);
-  assert.equal(route.includes('Acceptance alone\n      // cannot choose which Community should own the evidence'), true);
+  assert.match(route, /Acceptance alone\r?\n      \/\/ cannot choose which Community should own the evidence/);
 });
 
 test('Creator My Work supports assigned work before a Project creates the tracking link', () => {

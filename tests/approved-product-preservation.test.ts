@@ -64,7 +64,7 @@ test('tracking-first public positioning uses the dedicated source-controlled ove
   assert.doesNotMatch(appWrangler, /"pattern": "linkary\.xyz\/\*"/);
   assert.match(appWrangler, /"pattern": "app\.linkary\.xyz\/\*"/);
   assert.match(publicWrangler, /"name": "linkary-public-overlay"/);
-  assert.match(publicWrangler, /"main": "src\/trackingEntry\.ts"/);
+  assert.match(publicWrangler, /"main": "src\/promotionEntry\.ts"/);
   assert.match(publicWrangler, /"pattern": "linkary\.xyz\/\*"/);
 
   assert.match(packageJson, /"deploy:public": "npm run app:build && wrangler deploy --config wrangler\.public\.jsonc"/);

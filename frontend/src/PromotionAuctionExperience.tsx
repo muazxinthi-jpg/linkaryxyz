@@ -29,7 +29,7 @@ type Auction = {
   payment_due_at: string | null;
 };
 
-type AuctionResponse = { auction: Auction; bids: Array<{ id: string; amount_cents: number; created_at: string }> };
+type AuctionResponse = { auction: Auction; profile: { id: string; username: string; display_name: string | null } | null; bids: Array<{ id: string; amount_cents: number; created_at: string }> };
 type Payment = { recipient_wallet_address: string; required_amount_atomic: number; tx_hash: string | null; status: string; payment_due_at: string | null; auction_status: string | null };
 
 function dollars(cents: number | null | undefined) {
@@ -132,8 +132,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
     finally { setBusy(false); }
   }
 
-  const profile = status.profiles.find((item) => item.id === data?.auction.profile_id) || status.profiles[0];
-  if (!profile) return null;
+  const profile = data?.profile || status.profiles.find((item) => item.id === data?.auction.profile_id) || status.profiles[0];
   const auction = data?.auction;
   const minimumCents = auction ? Math.max(auction.starting_bid_cents, (auction.highest_bid_cents || 0) + 1) : 0;
   return (
@@ -141,7 +140,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
       <a className="promotion-back" href="/dashboard">← Back to Linkary</a>
       <section className="promotion-auction-card">
         <span className="ops-kicker">SPONSORED HEADER AUCTION</span>
-        <h1>{profile.display_name || profile.username}</h1>
+        <h1>{profile?.display_name || profile?.username || 'Sponsored profile'}</h1>
         {!auction && <p>Loading auction...</p>}
         {auction && <>
           <div className="promotion-auction-stats"><div><span>Status</span><strong>{auction.status.replaceAll('_', ' ')}</strong></div><div><span>Highest bid</span><strong>{auction.highest_bid_cents ? dollars(auction.highest_bid_cents) : 'No bids yet'}</strong></div><div><span>Closes</span><strong>{new Date(auction.expires_at).toLocaleString()}</strong></div></div>

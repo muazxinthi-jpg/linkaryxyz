@@ -100,15 +100,6 @@ async function visitorHash(request: Request, env: Env): Promise<string | null> {
   return sha256(`${salt}|${ip}|${ua}`);
 }
 
-async function recordEvent(db: Db, creative: LiveCreative, eventType: 'impression' | 'banner_click' | 'cta_click', request: Request): Promise<void> {
-  const timestamp = now();
-  const hash = await visitorHash(request, { TRACKING_HASH_SALT: undefined } as Env).catch(() => null);
-  await db.batch([
-    db.statement(`INSERT INTO profile_promotion_events (id, auction_id, creative_id, profile_id, advertiser_user_id, event_type, occurred_at, visitor_hash, referrer, utm_source, utm_medium, utm_campaign) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'linkary', 'sponsored_profile', ?)`, [id('pev'), creative.auction_id, creative.creative_id, creative.profile_id, creative.advertiser_user_id, eventType, timestamp, hash, request.headers.get('referer'), creative.auction_id]),
-    db.statement(`UPDATE profile_promotion_creatives SET impressions_count = impressions_count + ?, banner_clicks_count = banner_clicks_count + ?, cta_clicks_count = cta_clicks_count + ?, updated_at = ? WHERE id = ?`, [eventType === 'impression' ? 1 : 0, eventType === 'banner_click' ? 1 : 0, eventType === 'cta_click' ? 1 : 0, timestamp, creative.creative_id]),
-  ]);
-}
-
 export async function recordPromotionImpression(request: Request, env: Env, code: string): Promise<Response> {
   const db = new Db(requireDb(env));
   const creative = await liveCreativeByCode(db, code);

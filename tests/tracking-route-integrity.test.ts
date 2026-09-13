@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const worker = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/trackingEntry.ts', import.meta.url), 'utf8');
+const promotionEntry = readFileSync(new URL('../src/promotionEntry.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 test('invite handling remains before the app SPA fallback', () => {
@@ -25,7 +26,8 @@ test('tracking entry intercepts redirects and passes the Worker execution contex
 });
 
 test('new links use the l.linkary.xyz custom domain while the app stays routed', () => {
-  assert.equal(wrangler.includes('"main": "src/trackingEntry.ts"'), true);
+  assert.equal(wrangler.includes('"main": "src/promotionEntry.ts"'), true);
+  assert.equal(promotionEntry.includes("import baseWorker from './trackingEntry'"), true);
   assert.equal(wrangler.includes('"TRACKING_BASE_URL": "https://l.linkary.xyz"'), true);
   assert.equal(wrangler.includes('"pattern": "l.linkary.xyz/r/*"'), false);
   assert.equal(wrangler.includes('"pattern": "app.linkary.xyz/*"'), true);

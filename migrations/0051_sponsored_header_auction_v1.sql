@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS profile_promotion_auctions (
   duration_hours INTEGER NOT NULL CHECK (duration_hours IN (6,12,24)),
   starting_bid_cents INTEGER NOT NULL CHECK (starting_bid_cents > 0),
   highest_bid_cents INTEGER,
-  highest_bid_id TEXT,
-  winner_bid_id TEXT,
+  highest_bid_id TEXT REFERENCES profile_promotion_bids(id),
+  winner_bid_id TEXT REFERENCES profile_promotion_bids(id),
   winner_user_id TEXT REFERENCES users(id),
   opens_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS profile_promotion_bids (
   amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
   idempotency_key TEXT,
   created_at TEXT NOT NULL,
-  UNIQUE(auction_id, idempotency_key)
+  UNIQUE(auction_id, bidder_user_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS idx_promotion_bids_auction_amount ON profile_promotion_bids(auction_id, amount_cents DESC, created_at ASC, id ASC);
 CREATE INDEX IF NOT EXISTS idx_promotion_bids_bidder ON profile_promotion_bids(bidder_user_id, created_at DESC);
