@@ -131,7 +131,12 @@ export default {
       const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
       const response = await baseWorker.fetch(request, env, ctx);
       if (!username) return response;
-      ctx.waitUntil(recordPublicProfileView(env, username));
+      // The authenticated profile editor embeds the public page with this flag.
+      // It is a rendering preview, not a visitor impression, so it must not affect
+      // the marketplace's public-view ranking.
+      if (!new URL(request.url).searchParams.has('editorPreview')) {
+        ctx.waitUntil(recordPublicProfileView(env, username));
+      }
       const enhanced = await enhancePublicProfileWithPromotion(response, request, env, username);
       return await refinePublicProfilePromotionLayout(enhanced);
     } catch (error) {
