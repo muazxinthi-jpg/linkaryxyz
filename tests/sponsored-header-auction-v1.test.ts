@@ -81,9 +81,8 @@ test('public promotion header has a wide curved holder behind the centered avata
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
   assert.ok(delivery.includes('width:min(1230px,calc(100vw - 48px))'));
   assert.ok(delivery.includes('height:clamp(330px,34vw,420px)'));
-  assert.ok(delivery.includes('linkary-sponsored-curve'));
-  assert.ok(delivery.includes('M0 0Q500 94 1000 0V94H0Z'));
-  assert.ok(delivery.includes('pointer-events:none'));
+  assert.ok(delivery.includes('clip-path:ellipse(100% 100% at 50% 0)'));
+  assert.ok(!delivery.includes('linkary-sponsored-curve'));
   assert.ok(delivery.includes('width:clamp(180px,18.75vw,240px)!important'));
 });
 
