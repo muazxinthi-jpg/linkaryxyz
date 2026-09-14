@@ -71,43 +71,43 @@ test('paid live promotion has priority and free header is the public fallback', 
   assert.match(entry, /redirectFeaturedHeaderClick/);
 });
 
-test('public promotion header overlays top controls and uses a wide curved holder', () => {
+test('public promotion header overlays top controls and uses a compact curved holder', () => {
   assert.ok(delivery.includes("enhanced.match(/<(section|div)\\s+class=(['\"])hero"));
   assert.ok(delivery.includes('hero linkary-promotion-hero'));
   assert.ok(delivery.includes('linkary-promotion-page'));
   assert.ok(delivery.includes('linkary-promotion-top'));
   assert.ok(delivery.includes('.page.linkary-promotion-page{position:relative!important;overflow:visible!important}'));
   assert.ok(delivery.includes('.linkary-promotion-top{position:absolute!important'));
-  assert.ok(delivery.includes('width:min(1500px,calc(100vw - 48px))'));
-  assert.ok(delivery.includes('height:clamp(350px,32vw,430px)'));
+  assert.ok(delivery.includes('width:min(1120px,calc(100vw - 40px))'));
+  assert.ok(delivery.includes('height:clamp(310px,26vw,360px)'));
   assert.ok(delivery.includes('clip-path:ellipse(100% 100% at 50% 0)'));
   assert.ok(!delivery.includes('linkary-sponsored-curve'));
 });
 
-test('public promotion avatar is a centered rounded square overlapping the banner', () => {
+test('public promotion avatar is a smaller rounded square with stronger banner overlap', () => {
   assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
   assert.ok(delivery.includes('margin-top:calc(var(--linkary-avatar-overlap) * -1)!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
-  assert.ok(delivery.includes('width:clamp(184px,15vw,224px)!important'));
-  assert.ok(delivery.includes('height:clamp(184px,15vw,224px)!important'));
-  assert.ok(delivery.includes('border-radius:30px!important'));
+  assert.ok(delivery.includes('width:clamp(156px,12vw,184px)!important'));
+  assert.ok(delivery.includes('height:clamp(156px,12vw,184px)!important'));
+  assert.ok(delivery.includes('border-radius:26px!important'));
   assert.ok(!delivery.includes('border-radius:50%!important'));
 });
 
-test('public promotion CTA stays centered above the protected avatar overlap zone', () => {
+test('public promotion CTA stays centered higher above the protected avatar overlap zone', () => {
   const desktop = delivery.match(/--linkary-avatar-overlap:clamp\((\d+)px,[^,]+,(\d+)px\);--linkary-cta-avatar-gap:clamp\((\d+)px,[^,]+,(\d+)px\)/);
   const mobile = delivery.match(/@media\(max-width:640px\)[\s\S]*?--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:(\d+)px/);
-  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(92px,7.6vw,116px)'));
-  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(24px,2.2vw,32px)'));
+  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(88px,6.8vw,104px)'));
+  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(44px,3.4vw,52px)'));
   assert.ok(delivery.includes('bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap))'));
   assert.ok(delivery.includes('left:50%'));
   assert.ok(delivery.includes('transform:translateX(-50%)'));
   assert.ok(desktop);
   assert.ok(mobile);
   assert.doesNotMatch(delivery, /\.linkary-sponsored-cta\{[^}]*bottom:(?:1[48]|-\d+)px/);
-  assert.ok(Number(desktop[1]) + Number(desktop[3]) >= 116);
-  assert.ok(Number(desktop[2]) + Number(desktop[4]) <= 148);
-  assert.ok(Number(mobile[2]) >= 20);
+  assert.ok(Number(desktop[1]) + Number(desktop[3]) >= 132);
+  assert.ok(Number(desktop[2]) + Number(desktop[4]) <= 156);
+  assert.ok(Number(mobile[2]) >= 30);
 });
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
