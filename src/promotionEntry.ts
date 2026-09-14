@@ -22,7 +22,7 @@ function publicProfileUsername(request: Request, env: Env): string | null {
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length !== 1) return null;
   const candidate = decodeURIComponent(parts[0]).trim().toLowerCase();
-  const reserved = new Set(['api','app','admin','pricing','about','blog','privacy','terms','support','help','status','security','login','signup','dashboard','campaigns','creators','communities','tracking','profile','invites','settings','wallets','partners','opportunities','robots.txt','sitemap.xml']);
+  const reserved = new Set(['api','app','admin','pricing','about','blog','privacy','terms','support','help','status','security','login','signup','dashboard','campaigns','creators','communities','tracking','profile','invites','settings','wallets','partners','opportunities','bids','robots.txt','sitemap.xml']);
   if (!candidate || candidate.includes('.') || reserved.has(candidate)) return null;
   return candidate;
 }
@@ -31,6 +31,10 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const path = new URL(request.url).pathname;
     try {
+      if (path === '/api/bid-marketplace') {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await getBidMarketplace(request, env);
+      }
       const featuredHeader = path.match(/^\/api\/profiles\/([^/]+)\/featured-header$/);
       if (featuredHeader) {
         const profileId = decodeURIComponent(featuredHeader[1]);
