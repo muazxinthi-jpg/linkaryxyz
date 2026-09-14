@@ -77,7 +77,7 @@ test('public promotion header has a wide curved holder behind the centered avata
   assert.ok(delivery.includes('linkary-promotion-page'));
   assert.ok(delivery.includes('.page.linkary-promotion-page{overflow:visible!important}'));
   assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
-  assert.ok(delivery.includes('margin-top:calc(0px - var(--linkary-avatar-overlap))!important'));
+  assert.ok(delivery.includes('margin-top:clamp(-120px,-9.4vw,-96px)!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
   assert.ok(delivery.includes('width:min(1230px,calc(100vw - 48px))'));
   assert.ok(delivery.includes('height:clamp(330px,34vw,420px)'));
