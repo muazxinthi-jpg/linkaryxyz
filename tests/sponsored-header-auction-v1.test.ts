@@ -71,47 +71,50 @@ test('paid live promotion has priority and free header is the public fallback', 
   assert.match(entry, /redirectFeaturedHeaderClick/);
 });
 
-test('public promotion header overlays top controls and uses a narrower lifted holder', () => {
+test('public promotion header is structurally integrated with the native profile shell', () => {
   assert.ok(delivery.includes("enhanced.match(/<(section|div)\\s+class=(['\"])hero"));
   assert.ok(delivery.includes('hero linkary-promotion-hero'));
   assert.ok(delivery.includes('linkary-promotion-page'));
   assert.ok(delivery.includes('linkary-promotion-top'));
+  assert.ok(delivery.includes('linkary-promotion-shell'));
+  assert.ok(delivery.includes('The public renderer already owns the profile shell'));
   assert.ok(delivery.includes('.page.linkary-promotion-page{position:relative!important;overflow:visible!important}'));
-  assert.ok(delivery.includes('.linkary-promotion-top{position:absolute!important;top:-6px!important'));
-  assert.ok(delivery.includes('width:min(980px,calc(100vw - 56px))'));
-  assert.ok(delivery.includes('margin:-20px 50% 0'));
+  assert.ok(delivery.includes('.linkary-promotion-shell .linkary-promotion-top{position:relative!important'));
+  assert.ok(delivery.includes('.linkary-sponsored-header{position:relative;z-index:1;width:100%!important;margin:0!important;transform:none!important'));
+  assert.doesNotMatch(delivery, /\.linkary-sponsored-header\{[^}]*width:min\(/);
+  assert.doesNotMatch(delivery, /\.linkary-promotion-top\{position:absolute/);
   assert.ok(delivery.includes('height:clamp(300px,28vw,340px)'));
   assert.ok(delivery.includes('clip-path:ellipse(100% 100% at 50% 0)'));
   assert.ok(delivery.includes('@media(min-width:641px) and (max-width:1024px)'));
   assert.ok(!delivery.includes('linkary-sponsored-curve'));
 });
 
-test('public promotion avatar is a rounded square pulled further into the banner', () => {
-  assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
-  assert.ok(delivery.includes('margin-top:calc(var(--linkary-avatar-overlap) * -1)!important'));
+test('public promotion avatar overlaps from the structural header shell', () => {
+  assert.ok(delivery.includes('.linkary-promotion-shell>.linkary-promotion-hero'));
+  assert.ok(delivery.includes('margin:calc(var(--linkary-avatar-overlap) * -1) 0 28px!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
-  assert.ok(delivery.includes('width:clamp(156px,12vw,184px)!important'));
-  assert.ok(delivery.includes('height:clamp(156px,12vw,184px)!important'));
+  assert.ok(delivery.includes('width:clamp(160px,14vw,184px)!important'));
+  assert.ok(delivery.includes('height:clamp(160px,14vw,184px)!important'));
   assert.ok(delivery.includes('border-radius:26px!important'));
-  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(112px,8.5vw,128px)'));
+  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(80px,7vw,88px)'));
   assert.ok(!delivery.includes('border-radius:50%!important'));
 });
 
-test('public promotion CTA stays centered higher above the protected avatar overlap zone', () => {
+test('public promotion CTA stays centered above the protected avatar overlap zone', () => {
   const desktop = delivery.match(/--linkary-avatar-overlap:clamp\((\d+)px,[^,]+,(\d+)px\);--linkary-cta-avatar-gap:clamp\((\d+)px,[^,]+,(\d+)px\)/);
   const mobile = delivery.match(/@media\(max-width:640px\)[\s\S]*?--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:(\d+)px/);
-  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(112px,8.5vw,128px)'));
-  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(58px,4.2vw,68px)'));
+  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(80px,7vw,88px)'));
+  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(20px,2vw,24px)'));
   assert.ok(delivery.includes('bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap))'));
   assert.ok(delivery.includes('left:50%'));
   assert.ok(delivery.includes('transform:translateX(-50%)'));
   assert.ok(desktop);
   assert.ok(mobile);
   assert.doesNotMatch(delivery, /\.linkary-sponsored-cta\{[^}]*bottom:(?:1[48]|-\d+)px/);
-  assert.ok(Number(desktop[1]) + Number(desktop[3]) >= 170);
-  assert.ok(Number(desktop[2]) + Number(desktop[4]) <= 196);
-  assert.ok(Number(mobile[1]) >= 78);
-  assert.ok(Number(mobile[2]) >= 34);
+  assert.ok(Number(desktop[1]) + Number(desktop[3]) >= 100);
+  assert.ok(Number(desktop[2]) + Number(desktop[4]) <= 116);
+  assert.ok(Number(mobile[1]) >= 64);
+  assert.ok(Number(mobile[2]) >= 20);
 });
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {

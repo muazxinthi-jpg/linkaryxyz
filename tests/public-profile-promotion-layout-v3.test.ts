@@ -2,31 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+const delivery = readFileSync(new URL('../src/routes/profilePromotionDelivery.ts', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('../src/routes/profilePromotionLayout.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/promotionEntry.ts', import.meta.url), 'utf8');
 
-test('public promotion holder follows the profile shell and sits lower', () => {
-  assert.ok(layout.includes('.page.linkary-promotion-page .linkary-sponsored-header'));
-  assert.ok(layout.includes('width:100%!important;margin:0!important;transform:none!important'));
-  assert.ok(layout.includes('.linkary-promotion-top{top:14px!important;width:100%!important'));
-  assert.ok(layout.includes('height:clamp(285px,25vw,320px)!important'));
-  assert.ok(layout.includes('@media(min-width:641px) and (max-width:1024px)'));
-  assert.ok(layout.includes('@media(max-width:640px)'));
-  assert.ok(!layout.includes('width:min(900px'));
-  assert.ok(!layout.includes('margin-top:-44px!important'));
+test('public promotion holder is one native profile-shell header', () => {
+  assert.ok(delivery.includes('linkary-promotion-shell'));
+  assert.ok(delivery.includes('.linkary-promotion-shell .linkary-promotion-top{position:relative!important'));
+  assert.ok(delivery.includes('.linkary-sponsored-header{position:relative;z-index:1;width:100%!important;margin:0!important;transform:none!important'));
+  assert.ok(delivery.includes('height:clamp(300px,28vw,340px)'));
+  assert.ok(delivery.includes('@media(min-width:641px) and (max-width:1024px)'));
+  assert.ok(delivery.includes('@media(max-width:640px)'));
+  assert.ok(!delivery.includes('width:min(900px'));
+  assert.ok(!delivery.includes('margin-top:-44px!important'));
 });
 
-test('avatar is pulled further into the holder and CTA has a larger protected gap', () => {
-  assert.ok(layout.includes('--linkary-cta-avatar-gap:clamp(68px,4.8vw,78px)'));
-  assert.ok(layout.includes('transform:translateY(-24px)!important'));
-  assert.ok(layout.includes('transform:translateY(-18px)!important'));
-  assert.ok(layout.includes('transform:translateY(-12px)!important'));
+test('avatar and CTA use one responsive protected overlap zone', () => {
+  assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(20px,2vw,24px)'));
+  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(80px,7vw,88px)'));
+  assert.ok(delivery.includes('bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap))'));
+  assert.ok(delivery.includes('margin:calc(var(--linkary-avatar-overlap) * -1) 0 28px!important'));
 });
 
-test('layout refinement is applied only after the existing promotion enhancer', () => {
+test('worker chain retains the layout compatibility boundary without competing CSS', () => {
   assert.ok(entry.includes("import { refinePublicProfilePromotionLayout } from './routes/profilePromotionLayout'"));
   assert.ok(entry.includes('const enhanced = await enhancePublicProfileWithPromotion(response, request, env, username)'));
   assert.ok(entry.includes('return await refinePublicProfilePromotionLayout(enhanced)'));
-  assert.ok(layout.includes('hasPromotionHolder'));
-  assert.ok(layout.includes('linkary-sponsored-header-style'));
+  assert.ok(layout.includes('return response'));
+  assert.ok(!layout.includes('<style'));
 });
