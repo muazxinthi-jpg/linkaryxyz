@@ -21,6 +21,7 @@ import {
   redirectFeaturedHeaderClick,
   redirectPromotionClick,
 } from './routes/profilePromotionDelivery';
+import { refinePublicProfilePromotionLayout } from './routes/profilePromotionLayout';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
   const url = new URL(request.url);
@@ -122,7 +123,9 @@ export default {
       }
       const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
       const response = await baseWorker.fetch(request, env, ctx);
-      return username ? await enhancePublicProfileWithPromotion(response, request, env, username) : response;
+      if (!username) return response;
+      const enhanced = await enhancePublicProfileWithPromotion(response, request, env, username);
+      return await refinePublicProfilePromotionLayout(enhanced);
     } catch (error) {
       return errorResponse(error);
     }
