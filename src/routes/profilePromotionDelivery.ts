@@ -93,27 +93,20 @@ function trackingBase(request: Request, env: Env): string {
 function injectHeader(response: Response, markup: string, styles: string): Promise<Response> {
   return response.text().then((html) => {
     let enhanced = html.includes('</head>') ? html.replace('</head>', `${styles}</head>`) : `${styles}${html}`;
-    let inserted = false;
     const hero = enhanced.match(/<(section|div)\s+class=(['"])hero\2[^>]*>/i);
     if (hero?.index !== undefined) {
       const heroOpen = hero[0].replace(/class=(['"])hero\1/i, 'class=$1hero linkary-promotion-hero$1');
       enhanced = `${enhanced.slice(0, hero.index)}${markup}${heroOpen}${enhanced.slice(hero.index + hero[0].length)}`;
-      inserted = true;
     } else {
       const mainOpen = enhanced.match(/<main\b[^>]*>/i);
       if (mainOpen?.index !== undefined) {
         const at = mainOpen.index + mainOpen[0].length;
         enhanced = `${enhanced.slice(0, at)}${markup}${enhanced.slice(at)}`;
-        inserted = true;
       } else if (enhanced.includes('<body>')) {
         enhanced = enhanced.replace('<body>', `<body>${markup}`);
-        inserted = true;
       } else {
         return response;
       }
-    }
-    if (inserted) {
-      enhanced = enhanced.replace(/<main\b([^>]*?)\bclass=(['"])([^'"]*)\2([^>]*)>/i, (_match, before, quote, classNames, after) => `<main${before}class=${quote}${classNames} linkary-promotion-page${quote}${after}>`);
     }
     const headers = new Headers(response.headers);
     headers.delete('content-length');
@@ -123,16 +116,15 @@ function injectHeader(response: Response, markup: string, styles: string): Promi
 }
 
 const HEADER_STYLES = `<style id="linkary-sponsored-header-style">
-.page.linkary-promotion-page{overflow:visible!important}
-.linkary-sponsored-header{--linkary-avatar-overlap:64px;--linkary-cta-avatar-gap:clamp(20px,2.35vw,24px);position:relative;z-index:5;width:min(1230px,calc(100vw - 48px));margin:22px 50% 0;transform:translateX(-50%);border-radius:28px;overflow:visible;isolation:isolate}
-.linkary-sponsored-banner{display:block;width:100%;height:clamp(270px,29vw,360px);border-radius:28px;overflow:hidden;background:#f2f2f2;border:1px solid rgba(255,85,0,.18);box-shadow:0 18px 44px rgba(38,24,17,.14)}
+.linkary-sponsored-header{--linkary-avatar-overlap:64px;--linkary-cta-avatar-gap:clamp(20px,2.35vw,24px);position:relative;z-index:5;width:100%;margin:22px auto 0;border-radius:24px;overflow:visible;isolation:isolate}
+.linkary-sponsored-banner{display:block;width:100%;height:clamp(180px,26vw,330px);border-radius:24px;overflow:hidden;background:#f2f2f2;border:1px solid rgba(255,85,0,.18);box-shadow:0 18px 44px rgba(38,24,17,.14)}
 .linkary-sponsored-banner img{width:100%;height:100%;display:block;object-fit:cover}
 .linkary-sponsored-cta{position:absolute;left:50%;bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap));transform:translateX(-50%);z-index:8;display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 24px;border-radius:999px;background:#ff5500;color:#fff!important;text-decoration:none!important;font:750 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 10px 26px rgba(255,85,0,.3);border:3px solid #fff}
 .linkary-sponsored-label{position:absolute;top:14px;right:14px;z-index:7;padding:6px 10px;border-radius:999px;background:rgba(17,17,17,.72);backdrop-filter:blur(8px);color:#fff;font:700 10px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.05em;text-transform:uppercase}
 .linkary-featured-project{position:absolute;left:14px;top:14px;z-index:7;max-width:55%;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);color:#111;font:750 11px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(17,17,17,.08)}
 .linkary-sponsored-header + script + .linkary-promotion-hero,.linkary-sponsored-header + .linkary-promotion-hero{margin-top:-64px!important;padding-top:0!important;position:relative!important;z-index:9!important}
-.linkary-promotion-hero .avatar{width:clamp(160px,17vw,220px)!important;height:clamp(160px,17vw,220px)!important;position:relative!important;z-index:10!important;border:5px solid #fff!important;border-radius:50%!important;box-shadow:0 14px 38px rgba(42,28,20,.16)!important}
-@media(max-width:640px){.linkary-sponsored-header{--linkary-avatar-overlap:52px;--linkary-cta-avatar-gap:20px;width:calc(100vw - 24px);margin-top:14px;border-radius:20px}.linkary-sponsored-banner{height:240px;border-radius:20px}.linkary-sponsored-cta{height:40px;min-width:112px;padding:0 18px}.linkary-featured-project{max-width:62%;font-size:10px}.linkary-promotion-hero .avatar{width:clamp(124px,38vw,160px)!important;height:clamp(124px,38vw,160px)!important;border-width:4px!important}.linkary-sponsored-header + script + .linkary-promotion-hero,.linkary-sponsored-header + .linkary-promotion-hero{margin-top:-52px!important}}
+.linkary-promotion-hero .avatar{position:relative!important;z-index:10!important;border:4px solid #fff!important;box-shadow:0 14px 38px rgba(42,28,20,.16)!important}
+@media(max-width:640px){.linkary-sponsored-header{--linkary-avatar-overlap:52px;--linkary-cta-avatar-gap:20px;margin-top:14px;border-radius:18px}.linkary-sponsored-banner{height:180px;border-radius:18px}.linkary-sponsored-cta{height:40px;min-width:112px;padding:0 18px}.linkary-featured-project{max-width:62%;font-size:10px}.linkary-sponsored-header + script + .linkary-promotion-hero,.linkary-sponsored-header + .linkary-promotion-hero{margin-top:-52px!important}}
 </style>`;
 
 export async function enhancePublicProfileWithPromotion(response: Response, request: Request, env: Env, username: string): Promise<Response> {
