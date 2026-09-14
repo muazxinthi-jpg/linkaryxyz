@@ -49,7 +49,7 @@ test('marketplace exposes operational discovery and personal auction views', () 
   assert.match(ui, /Search profiles, creators or projects/);
   assert.match(ui, /Minimum profile views/);
   assert.match(ui, /Minimum current bid/);
-  assert.match(ui, /Profiles available/);
+  assert.match(ui, /PROFILES AVAILABLE/);
   assert.match(ui, /setInterval\(\(\) => void refresh\(true\), 30000\)/);
 });
 
