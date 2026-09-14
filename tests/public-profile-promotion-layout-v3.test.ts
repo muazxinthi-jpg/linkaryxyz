@@ -10,6 +10,9 @@ test('public promotion holder is one native profile-shell header', () => {
   assert.ok(delivery.includes('linkary-promotion-shell'));
   assert.ok(delivery.includes('.linkary-promotion-shell .linkary-promotion-top{position:relative!important'));
   assert.ok(delivery.includes('.linkary-sponsored-header{position:relative;z-index:1;width:100%!important;margin:0!important;transform:none!important'));
+  assert.ok(delivery.includes('--linkary-profile-shell-inset:46px'));
+  assert.ok(delivery.includes('width:calc(100% + (var(--linkary-profile-shell-inset) * 2))'));
+  assert.ok(delivery.includes('@media(max-width:899px){.page.linkary-promotion-page{--linkary-profile-shell-inset:20px}}'));
   assert.ok(delivery.includes('height:clamp(300px,28vw,340px)'));
   assert.ok(delivery.includes('@media(min-width:641px) and (max-width:1024px)'));
   assert.ok(delivery.includes('@media(max-width:640px)'));

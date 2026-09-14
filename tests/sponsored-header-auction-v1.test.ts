@@ -78,7 +78,10 @@ test('public promotion header is structurally integrated with the native profile
   assert.ok(delivery.includes('linkary-promotion-top'));
   assert.ok(delivery.includes('linkary-promotion-shell'));
   assert.ok(delivery.includes('The public renderer already owns the profile shell'));
-  assert.ok(delivery.includes('.page.linkary-promotion-page{position:relative!important;overflow:visible!important}'));
+  assert.ok(delivery.includes('.page.linkary-promotion-page{--linkary-profile-shell-inset:46px;position:relative!important;overflow:visible!important}'));
+  assert.ok(delivery.includes('--linkary-profile-shell-inset:46px'));
+  assert.ok(delivery.includes('width:calc(100% + (var(--linkary-profile-shell-inset) * 2))'));
+  assert.ok(delivery.includes('margin-inline:calc(var(--linkary-profile-shell-inset) * -1)'));
   assert.ok(delivery.includes('.linkary-promotion-shell .linkary-promotion-top{position:relative!important'));
   assert.ok(delivery.includes('.linkary-sponsored-header{position:relative;z-index:1;width:100%!important;margin:0!important;transform:none!important'));
   assert.doesNotMatch(delivery, /\.linkary-sponsored-header\{[^}]*width:min\(/);
