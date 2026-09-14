@@ -27,6 +27,7 @@ test('public-profile leaderboard periods, ties, zero views, and auction enrichme
   assert.match(ui, /24H/);
   assert.match(ui, /30D/);
   assert.match(ui, /All Time/);
+  assert.match(ui, /useState<Tab>\('views'\)/);
 });
 
 test('leaderboard navigation uses server-side pagination and preserves auction CTAs', () => {
