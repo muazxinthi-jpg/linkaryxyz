@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const wallet = readFileSync(new URL('../frontend/src/WalletExperience.tsx', import.meta.url), 'utf8');
 const send = readFileSync(new URL('../frontend/src/WalletSendPanel.tsx', import.meta.url), 'utf8');
+const balances = readFileSync(new URL('../frontend/src/LinkaryBaseBalances.tsx', import.meta.url), 'utf8');
+const balanceRoute = readFileSync(new URL('../src/routes/baseWalletBalances.ts', import.meta.url), 'utf8');
 const recipients = readFileSync(new URL('../src/routes/walletRecipients.ts', import.meta.url), 'utf8');
 const walletRoute = readFileSync(new URL('../src/routes/wallets.ts', import.meta.url), 'utf8');
 
@@ -13,6 +15,21 @@ test('Linkary wallet exposes a real Send flow without weakening private-key expo
   assert.equal(wallet.includes('Secure wallet sending is not available yet'), false);
   assert.equal(wallet.includes('ExportWalletModal'), true);
   assert.equal(wallet.includes('Set up 2-step verification'), true);
+});
+
+test('Linkary wallet shows Base ETH and USDC and explains the shared receive address', () => {
+  assert.equal(wallet.includes("import LinkaryBaseBalances from './LinkaryBaseBalances'"), true);
+  assert.equal(wallet.includes('<LinkaryBaseBalances profileId={profile.id} />'), true);
+  assert.equal(wallet.includes('Receive ETH or USDC on Base'), true);
+  assert.equal(wallet.includes('Both assets use the same address below.'), true);
+  assert.equal(balances.includes('BASE BALANCES'), true);
+  assert.equal(balances.includes('Network gas'), true);
+  assert.equal(balances.includes('Payments'), true);
+  assert.equal(walletRoute.includes('includeBaseBalances'), true);
+  assert.equal(balanceRoute.includes("eth_getBalance"), true);
+  assert.equal(balanceRoute.includes("eth_call"), true);
+  assert.equal(balanceRoute.includes("0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"), true);
+  assert.equal(balanceRoute.includes('CACHE_TTL_MS = 30_000'), true);
 });
 
 test('Send flow supports Linkary-handle recipient selection and manual Base address fallback', () => {

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const app = readFileSync(new URL('../frontend/src/AppV3.tsx', import.meta.url), 'utf8');
 const profile = readFileSync(new URL('../frontend/src/ProfileAccessExperience.tsx', import.meta.url), 'utf8');
 const promotion = readFileSync(new URL('../frontend/src/PromotionAuctionExperience.tsx', import.meta.url), 'utf8');
+const paymentPanel = readFileSync(new URL('../frontend/src/PromotionAuctionPaymentPanel.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/promotion-auction.css', import.meta.url), 'utf8');
 const workspaceCss = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
 
@@ -42,13 +43,20 @@ test('desktop workspace keeps sidebar stationary and scrolls only main content',
   assert.match(workspaceCss, /\.ops-main\{[\s\S]*?height:100dvh;[\s\S]*?overflow-y:auto;/);
 });
 
-test('authenticated bidder flow is routable and includes payment plus creative steps', () => {
+test('authenticated bidder flow pays from Linkary Wallet and then unlocks creative submission', () => {
   assert.match(app, /\/promotion-auction\//);
   assert.match(app, /PromotionAuctionExperience/);
   assert.match(promotion, /Place bid/);
-  assert.match(promotion, /Verify payment/);
+  assert.match(promotion, /PromotionAuctionPaymentPanel/);
   assert.match(promotion, /Submit banner/);
-  assert.match(promotion, /Transaction hash/);
+  assert.doesNotMatch(promotion, /Transaction hash/);
+  assert.match(paymentPanel, /useSendUsdc/);
+  assert.match(paymentPanel, /network: 'base'/);
+  assert.match(paymentPanel, /ETH for gas/);
+  assert.match(paymentPanel, /USDC available/);
+  assert.match(paymentPanel, /Pay \$\{requiredUsdc\} USDC/);
+  assert.match(paymentPanel, /payment\/verify/);
+  assert.match(paymentPanel, /Check confirmation/);
 });
 
 test('CTA choices are fixed and sponsored UI has responsive styling', () => {
@@ -57,4 +65,5 @@ test('CTA choices are fixed and sponsored UI has responsive styling', () => {
   }
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /promotion-auction-card/);
+  assert.match(css, /promotion-wallet-checkout/);
 });
