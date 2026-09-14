@@ -1,0 +1,65 @@
+.bid-marketplace{--bid-orange:#ff5500;--bid-live:#ff4b37;--bid-ink:#121416;--bid-soft:#f5f4f1}
+
+/* Marketplace density and hierarchy inspired by the approved visual direction. */
+.bid-market-hero{padding-top:2px}
+.bid-market-heading h1{font-size:clamp(30px,3vw,42px);font-weight:850}
+.bid-market-heading p{font-size:13px}
+
+.bid-market-controls{position:sticky;top:0;z-index:12;padding:8px 0;background:linear-gradient(180deg,var(--workspace-bg,#f7f5f0) 72%,rgba(247,245,240,0));backdrop-filter:blur(8px)}
+.bid-market-tabs{gap:14px}
+.bid-market-tabs button{padding-inline:4px;font-size:13px;font-weight:750}
+.bid-market-tabs button.active:after{left:0;right:0;height:3px;background:var(--bid-orange)}
+
+.bid-auction-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.bid-auction-card{border-radius:11px;border-color:rgba(16,18,20,.12);box-shadow:0 1px 1px rgba(0,0,0,.02);background:#fff}
+.bid-auction-card:hover{transform:translateY(-2px);border-color:rgba(255,85,0,.45);box-shadow:0 10px 24px rgba(18,20,22,.09)}
+
+.bid-card-cover{height:142px;background:#dedbd5}
+.bid-card-cover>img{inset:0;width:100%;height:100%;filter:none;transform:none;opacity:1;object-fit:cover}
+.bid-cover-scrim{background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.04) 50%,rgba(0,0,0,.2))}
+.bid-cover-fallback{background:linear-gradient(135deg,#e8e2da,#c8c0b6);color:rgba(18,20,22,.28)}
+
+.bid-card-cover>.bid-status{left:9px;right:auto;top:9px;border-radius:6px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.bid-card-cover>.bid-status-live{background:var(--bid-live);color:#fff}
+.bid-card-cover>.bid-status-live>span{display:none}
+.bid-card-cover>.bid-status-live{font-size:10px;letter-spacing:.025em}
+.bid-card-cover>.bid-status-live::before{content:'LIVE'}
+.bid-card-cover>.bid-status-live{font-size:0}
+.bid-card-cover>.bid-status-live::before{font-size:10px}
+
+.bid-cover-clock{left:auto;right:9px;top:9px;bottom:auto;display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:7px;background:rgba(17,18,20,.86);color:#fff;backdrop-filter:blur(5px)}
+.bid-cover-clock span{display:none}
+.bid-cover-clock:before{content:'◷';font-size:11px;opacity:.92}
+.bid-cover-clock .bid-countdown{font-size:10px;letter-spacing:0;font-weight:800;color:#fff;animation:none}
+.bid-cover-clock .bid-countdown.urgent{color:#fff}
+
+.bid-card-rank{left:auto;right:9px;top:auto;bottom:9px;min-width:30px;height:25px;border-radius:6px;font-size:10px}
+
+.bid-card-body{padding:0 10px 10px}
+.bid-card-person{grid-template-columns:42px minmax(0,1fr) auto;gap:8px;margin-top:-18px;align-items:end}
+.bid-card-avatar{width:42px;height:42px;border-width:3px;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+.bid-card-name{padding-top:22px}
+.bid-card-name strong{font-size:14px;line-height:1.05}
+.bid-card-name span{font-size:10px}
+.bid-card-type{margin-bottom:0;padding:3px 6px;border-radius:6px;font-size:8px;background:#f0efec}
+
+.bid-card-metrics{grid-template-columns:1.35fr .8fr .7fr;gap:7px;margin-top:10px;padding:9px 0 7px;border-top:0;border-bottom:0}
+.bid-card-metrics span{font-size:8px;letter-spacing:.02em;text-transform:none;color:#888}
+.bid-card-metrics strong{font-size:12px}
+.bid-card-metrics>div:first-child strong{font-size:19px;font-weight:850;letter-spacing:-.045em;color:var(--bid-ink)}
+
+.bid-attention-row{min-height:28px;gap:8px;border-top:1px solid rgba(16,18,20,.07);padding-top:7px;font-size:9px}
+.bid-card-actions{grid-template-columns:.8fr 1.2fr;gap:6px;margin-top:4px}
+.bid-secondary-action,.bid-primary-action{min-height:34px;border-radius:7px;padding:7px 8px;font-size:10px}
+.bid-primary-action{background:var(--bid-ink);border-color:var(--bid-ink)}
+.bid-primary-action:hover{background:#000}
+
+.bid-market-summary{border-radius:12px}
+.bid-market-summary article{padding:13px 14px}
+.bid-market-summary strong{font-size:21px}
+
+@media(max-width:1180px){.bid-auction-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.bid-auction-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bid-market-controls{position:static;background:none;backdrop-filter:none}}
+@media(max-width:620px){.bid-auction-grid{grid-template-columns:1fr}.bid-card-cover{height:180px}.bid-card-body{padding:0 12px 12px}.bid-card-actions{grid-template-columns:1fr 1.15fr}}
+
+@media(prefers-reduced-motion:reduce){.bid-auction-card{transition:none}.bid-auction-card:hover{transform:none}}
