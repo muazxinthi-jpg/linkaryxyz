@@ -117,7 +117,10 @@ test('public promotion CTA stays centered higher above the protected avatar over
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
   assert.match(entry, /import baseWorker from '\.\/trackingEntry'/);
   assert.match(entry, /const response = await baseWorker\.fetch\(request, env, ctx\)/);
-  assert.match(entry, /return username \? await enhancePublicProfileWithPromotion\(response, request, env, username\) : response/);
+  assert.match(entry, /if \(!username\) return response/);
+  assert.match(entry, /const enhanced = await enhancePublicProfileWithPromotion\(response, request, env, username\)/);
+  assert.match(entry, /return await refinePublicProfilePromotionLayout\(enhanced\)/);
+  assert.match(entry, /import \{ refinePublicProfilePromotionLayout \} from '\.\/routes\/profilePromotionLayout'/);
   assert.ok(entry.includes('promotion-auctions'));
   assert.ok(entry.includes('verifyPromotionPayment'));
   assert.match(wrangler, /"main": "src\/promotionEntry\.ts"/);
