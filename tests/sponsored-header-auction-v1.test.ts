@@ -71,13 +71,18 @@ test('paid live promotion has priority and free header is the public fallback', 
   assert.match(entry, /redirectFeaturedHeaderClick/);
 });
 
-test('public promotion header sits below top controls and overlaps the profile hero', () => {
+test('public promotion header uses the reference-style wide banner and centered avatar composition', () => {
   assert.ok(delivery.includes("enhanced.match(/<(section|div)\\s+class=(['\"])hero"));
   assert.ok(delivery.includes('hero linkary-promotion-hero'));
+  assert.ok(delivery.includes('linkary-promotion-page'));
+  assert.ok(delivery.includes('.page.linkary-promotion-page{overflow:visible!important}'));
   assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
   assert.ok(delivery.includes('margin-top:-64px!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
-  assert.ok(delivery.includes('height:clamp(180px,26vw,330px)'));
+  assert.ok(delivery.includes('width:min(1230px,calc(100vw - 48px))'));
+  assert.ok(delivery.includes('height:clamp(270px,29vw,360px)'));
+  assert.ok(delivery.includes('width:clamp(160px,17vw,220px)!important'));
+  assert.ok(delivery.includes('border-radius:50%!important'));
 });
 
 test('public promotion CTA stays centered above the protected avatar overlap zone', () => {
