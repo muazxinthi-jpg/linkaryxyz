@@ -31,6 +31,7 @@ interface AuctionRow {
   expires_at: string;
   payment_due_at: string | null;
   promotion_ends_at: string | null;
+  seller_payout_wallet_address: string | null;
 }
 
 async function requireProfileManager(db: Db, profileId: string, userId: string): Promise<ProfileAccessRow> {
@@ -125,8 +126,8 @@ export async function createPromotionAuction(request: Request, env: Env, profile
   const expires = new Date(opens.getTime() + durationHours * 60 * 60 * 1000);
   const auctionId = id('pau');
   await db.run(
-    `INSERT INTO profile_promotion_auctions (id, slot_id, profile_id, owner_user_id, status, duration_hours, starting_bid_cents, opens_at, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
-    [auctionId, slot.id, profileId, auth.user.id, durationHours, startingBidCents, opens.toISOString(), expires.toISOString(), opens.toISOString(), opens.toISOString()],
+    `INSERT INTO profile_promotion_auctions (id, slot_id, profile_id, owner_user_id, seller_payout_wallet_address, status, duration_hours, starting_bid_cents, opens_at, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
+    [auctionId, slot.id, profileId, auth.user.id, slot.payout_wallet_address, durationHours, startingBidCents, opens.toISOString(), expires.toISOString(), opens.toISOString(), opens.toISOString()],
   );
   return json({ auctionId, status: 'open', opensAt: opens.toISOString(), expiresAt: expires.toISOString(), startingBidCents }, { status: 201 });
 }
@@ -197,16 +198,16 @@ export async function finalizePromotionAuction(request: Request, env: Env, aucti
     await db.run(`UPDATE profile_promotion_auctions SET status = 'ended', updated_at = ? WHERE id = ?`, [timestamp, auctionId]);
     return json({ auctionId, status: 'ended', winner: null });
   }
-  const slot = await db.first<{ payout_wallet_address: string }>(`SELECT payout_wallet_address FROM profile_promotion_slots WHERE id = ?`, [auction.slot_id]);
-  if (!slot) throw new HttpError(409, 'Promotion slot missing', 'promotion_slot_missing');
+  const recipientWalletAddress = auction.seller_payout_wallet_address;
+  if (!recipientWalletAddress) throw new HttpError(409, 'Auction seller payout wallet is missing', 'promotion_payout_snapshot_missing');
   const paymentDueAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   const paymentId = id('ppm');
   const amountAtomic = winner.amount_cents * 10000;
   await db.batch([
     db.statement(`UPDATE profile_promotion_auctions SET status = 'payment_pending', winner_bid_id = ?, winner_user_id = ?, highest_bid_id = ?, highest_bid_cents = ?, payment_due_at = ?, updated_at = ? WHERE id = ? AND winner_bid_id IS NULL`, [winner.id, winner.bidder_user_id, winner.id, winner.amount_cents, paymentDueAt, timestamp, auctionId]),
-    db.statement(`INSERT OR IGNORE INTO profile_promotion_payments (id, auction_id, winning_bid_id, payer_user_id, recipient_wallet_address, network, asset, required_amount_atomic, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'base', 'USDC', ?, 'pending', ?, ?)`, [paymentId, auctionId, winner.id, winner.bidder_user_id, slot.payout_wallet_address, amountAtomic, timestamp, timestamp]),
+    db.statement(`INSERT OR IGNORE INTO profile_promotion_payments (id, auction_id, winning_bid_id, payer_user_id, recipient_wallet_address, network, asset, required_amount_atomic, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'base', 'USDC', ?, 'pending', ?, ?)`, [paymentId, auctionId, winner.id, winner.bidder_user_id, recipientWalletAddress, amountAtomic, timestamp, timestamp]),
   ]);
-  return json({ auctionId, status: 'payment_pending', winnerBidId: winner.id, winnerUserId: winner.bidder_user_id, amountCents: winner.amount_cents, amountAtomic, recipientWalletAddress: slot.payout_wallet_address, paymentDueAt });
+  return json({ auctionId, status: 'payment_pending', winnerBidId: winner.id, winnerUserId: winner.bidder_user_id, amountCents: winner.amount_cents, amountAtomic, recipientWalletAddress, paymentDueAt });
 }
 
 export async function submitPromotionCreative(request: Request, env: Env, auctionId: string): Promise<Response> {
