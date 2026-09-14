@@ -58,6 +58,8 @@ function eth(value: string | null | undefined) { try { const raw = BigInt(value 
 
 export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
   const [wallet, setWallet] = useState('');
+  const [monetizationEnabled, setMonetizationEnabled] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(true);
   const [startingBid, setStartingBid] = useState('10');
   const [duration, setDuration] = useState('24');
   const [auctionId, setAuctionId] = useState('');
@@ -88,12 +90,30 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
     return () => { cancelled = true; };
   }, [profile.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      api<{ destinations: Array<{ chain_family: string; address: string }>; embeddedWallets: Array<{ chain_family: string; address: string; is_primary: number }> }>(`/api/profile-wallets?profileId=${encodeURIComponent(profile.id)}`),
+      api<{ slot: { enabled: boolean; payoutWalletAddress: string } | null }>(`/api/profiles/${encodeURIComponent(profile.id)}/promotion-slot`),
+    ]).then(([wallets, promotion]) => {
+      if (cancelled) return;
+      const savedEvm = wallets.destinations.find((item) => item.chain_family === 'evm')?.address
+        || wallets.embeddedWallets.find((item) => item.chain_family === 'evm' && item.is_primary === 1)?.address
+        || wallets.embeddedWallets.find((item) => item.chain_family === 'evm')?.address
+        || '';
+      setWallet((current) => promotion.slot?.payoutWalletAddress || current || savedEvm);
+      setMonetizationEnabled(Boolean(promotion.slot?.enabled));
+    }).catch(() => {}).finally(() => { if (!cancelled) setWalletLoading(false); });
+    return () => { cancelled = true; };
+  }, [profile.id]);
+
   async function enable() {
     setBusy(true); setMessage('');
     try {
       await api(`/api/profiles/${encodeURIComponent(profile.id)}/promotion-slot`, {
         method: 'PUT', body: JSON.stringify({ enabled: true, payoutWalletAddress: wallet }),
       });
+      setMonetizationEnabled(true);
       setMessage('Sponsored header monetization is enabled for this profile.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not enable monetization.'); }
     finally { setBusy(false); }
@@ -136,10 +156,10 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
         <div className="ops-section-title"><div><span className="ops-kicker">PUBLIC PROFILE MONETIZATION</span><h2>Sponsored header auction</h2><p>Rent the header banner on your public profile. The winning project pays you directly in USDC on Base.</p></div></div>
         <div className="promotion-grid">
           <label><span>Payout wallet</span><input value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="0x..." /></label>
-          <button type="button" className="ops-button secondary" disabled={busy || !wallet} onClick={enable}>Enable monetization</button>
+          <button type="button" className="ops-button secondary" disabled={busy || walletLoading || !wallet} onClick={enable}>{walletLoading ? 'Loading wallet…' : monetizationEnabled ? 'Monetization enabled' : 'Enable monetization'}</button>
           <label><span>Starting bid (USD)</span><input inputMode="decimal" value={startingBid} onChange={(e) => setStartingBid(e.target.value)} /></label>
           <label><span>Auction window</span><select value={duration} onChange={(e) => setDuration(e.target.value)}><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">24 hours</option></select></label>
-          <button type="button" className="ops-button primary" disabled={busy || Number(startingBid) <= 0} onClick={createAuction}>Start auction</button>
+          <button type="button" className="ops-button primary" disabled={busy || !monetizationEnabled || Number(startingBid) <= 0} onClick={createAuction}>Start auction</button>
         </div>
         {auctionId && <div className="promotion-share"><strong>Bidder link</strong><input readOnly value={bidderUrl} /><button type="button" className="ops-button secondary" onClick={() => navigator.clipboard?.writeText(bidderUrl)}>Copy</button></div>}
         {message && <div className="ops-message">{message}</div>}

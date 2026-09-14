@@ -88,6 +88,14 @@ export async function configurePromotionSlot(request: Request, env: Env, profile
   return json({ ok: true });
 }
 
+export async function getPromotionSlot(request: Request, env: Env, profileId: string): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  const db = new Db(requireDb(env));
+  await requireProfileManager(db, profileId, auth.user.id);
+  const slot = await db.first<{ enabled: number; payout_wallet_address: string }>(`SELECT enabled, payout_wallet_address FROM profile_promotion_slots WHERE profile_id = ? LIMIT 1`, [profileId]);
+  return json({ slot: slot ? { enabled: slot.enabled === 1, payoutWalletAddress: slot.payout_wallet_address } : null });
+}
+
 export async function createPromotionAuction(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);

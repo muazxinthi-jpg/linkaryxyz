@@ -6,6 +6,7 @@ import {
   configurePromotionSlot,
   createPromotionAuction,
   finalizePromotionAuction,
+  getPromotionSlot,
   getLiveProfilePromotion,
   getPromotionAuction,
   placePromotionBid,
@@ -44,7 +45,8 @@ export default {
       }
       const slot = path.match(/^\/api\/profiles\/([^/]+)\/promotion-slot$/);
       if (slot) {
-        if (request.method !== 'PUT') return methodNotAllowed(['PUT']);
+        if (request.method === 'GET') return await getPromotionSlot(request, env, decodeURIComponent(slot[1]));
+        if (request.method !== 'PUT') return methodNotAllowed(['GET', 'PUT']);
         return await configurePromotionSlot(request, env, decodeURIComponent(slot[1]));
       }
       const createAuction = path.match(/^\/api\/profiles\/([^/]+)\/promotion-auctions$/);
