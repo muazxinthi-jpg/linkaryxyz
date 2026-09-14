@@ -61,7 +61,7 @@ test('embedded wallet receive panel remains contained while Send opens the revie
   assert.equal(send.includes('SearchLinkaryhandle'), true);
   assert.equal(send.includes('Reviewsend'), true);
   assert.equal(send.includes('Confirmandsend'), true);
-  assert.equal(view.includes('OnlysendsupportedassetsontheBasenetworktothisaddress.'), true);
+  assert.equal(view.includes('OnlysendETHorUSDCusingtheBasenetwork.'), true);
 });
 
 test('320-class wallet warnings and card badges can collapse to one column', () => {
