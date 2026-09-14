@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
+import './bid-marketplace.css';
 
 type AuctionCard = {
   auction_id: string;
