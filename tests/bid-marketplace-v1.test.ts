@@ -26,6 +26,12 @@ test('public profile views are aggregated daily and fail open', () => {
   assert.match(entry, /ctx\.waitUntil\(recordPublicProfileView\(env, username\)\)/);
 });
 
+test('the authenticated editor preview does not inflate public marketplace views', () => {
+  const entry = read('src/promotionEntry.ts');
+  assert.match(entry, /searchParams\.has\('editorPreview'\)/);
+  assert.match(entry, /if \(!new URL\(request\.url\)\.searchParams\.has\('editorPreview'\)\) \{\s*ctx\.waitUntil\(recordPublicProfileView\(env, username\)\)/s);
+});
+
 test('Bids is a first-class workspace route for creator and project workspaces', () => {
   const workspace = read('frontend/src/ProductWorkspace.tsx');
   const app = read('frontend/src/AppV3.tsx');
