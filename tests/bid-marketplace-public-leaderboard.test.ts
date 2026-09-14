@@ -11,7 +11,8 @@ test('Most Viewed ranks eligible public profiles even with zero live auctions', 
   assert.match(route, /p\.visibility = 'published'/);
   assert.match(route, /owner\.status = 'active'/);
   assert.match(route, /organization\.status = 'active'/);
-  assert.match(route, /grant\.role = 'superadmin'/);
+  assert.doesNotMatch(route, /grant\.role = 'superadmin'/);
+  assert.match(route, /every published profile backed by an active owner or project/);
   assert.match(route, /ORDER BY \$\{order\} LIMIT \? OFFSET \?/);
 });
 
