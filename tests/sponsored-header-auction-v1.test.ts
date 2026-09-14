@@ -77,20 +77,20 @@ test('public promotion header has a wide curved holder behind the centered avata
   assert.ok(delivery.includes('linkary-promotion-page'));
   assert.ok(delivery.includes('.page.linkary-promotion-page{overflow:visible!important}'));
   assert.ok(delivery.includes('linkary-sponsored-header + script + .linkary-promotion-hero'));
-  assert.ok(delivery.includes('margin-top:-64px!important'));
+  assert.ok(delivery.includes('margin-top:calc(0px - var(--linkary-avatar-overlap))!important'));
   assert.ok(delivery.includes('.linkary-promotion-hero .avatar'));
   assert.ok(delivery.includes('width:min(1230px,calc(100vw - 48px))'));
-  assert.ok(delivery.includes('height:clamp(270px,29vw,360px)'));
+  assert.ok(delivery.includes('height:clamp(330px,34vw,420px)'));
   assert.ok(delivery.includes('linkary-sponsored-curve'));
   assert.ok(delivery.includes('M0 0Q500 94 1000 0V94H0Z'));
   assert.ok(delivery.includes('pointer-events:none'));
-  assert.ok(delivery.includes('width:clamp(160px,17vw,220px)!important'));
+  assert.ok(delivery.includes('width:clamp(180px,18.75vw,240px)!important'));
 });
 
 test('public promotion CTA stays centered above the protected avatar overlap zone', () => {
-  const desktop = delivery.match(/--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:clamp\((\d+)px,[^,]+,(\d+)px\)/);
+  const desktop = delivery.match(/--linkary-avatar-overlap:clamp\((\d+)px,[^,]+,(\d+)px\);--linkary-cta-avatar-gap:clamp\((\d+)px,[^,]+,(\d+)px\)/);
   const mobile = delivery.match(/@media\(max-width:640px\)[\s\S]*?--linkary-avatar-overlap:(\d+)px;--linkary-cta-avatar-gap:(\d+)px/);
-  assert.ok(delivery.includes('--linkary-avatar-overlap:64px'));
+  assert.ok(delivery.includes('--linkary-avatar-overlap:clamp(96px,9.4vw,120px)'));
   assert.ok(delivery.includes('--linkary-cta-avatar-gap:clamp(20px,2.35vw,24px)'));
   assert.ok(delivery.includes('bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap))'));
   assert.ok(delivery.includes('left:50%'));
@@ -98,8 +98,8 @@ test('public promotion CTA stays centered above the protected avatar overlap zon
   assert.ok(desktop);
   assert.ok(mobile);
   assert.doesNotMatch(delivery, /\.linkary-sponsored-cta\{[^}]*bottom:(?:1[48]|-\d+)px/);
-  assert.ok(Number(desktop[1]) + Number(desktop[2]) >= 70);
-  assert.ok(Number(desktop[1]) + Number(desktop[3]) <= 90);
+  assert.ok(Number(desktop[1]) + Number(desktop[3]) >= 116);
+  assert.ok(Number(desktop[2]) + Number(desktop[4]) <= 144);
   assert.ok(Number(mobile[2]) >= 20);
 });
 
