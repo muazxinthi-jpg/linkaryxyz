@@ -55,6 +55,7 @@ export function ProductWorkspace({
   const creatorNav = [
     ['/dashboard', 'Overview'],
     ['/dashboard/inbox', 'Inbox'],
+    ['/bids', 'Bids'],
     ['/opportunities', 'Opportunities'],
     ['/communities', 'Communities'],
     ['/partners', 'Partners'],
@@ -66,6 +67,7 @@ export function ProductWorkspace({
   const projectNav = [
     ['/dashboard', 'Overview'],
     ['/dashboard/inbox', 'Inbox'],
+    ['/bids', 'Bids'],
     ['/campaigns', 'Growth'],
     ['/tracking', 'Evidence'],
     ['/partners', 'Partners'],
@@ -79,17 +81,17 @@ export function ProductWorkspace({
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
   const navSections = profile.profile_type === 'creator'
     ? [
-      ['WORKSPACE', creatorNav.slice(0, 2)],
-      ['NETWORK', creatorNav.slice(2, 5)],
-      ['IDENTITY', creatorNav.slice(5, 8)],
-      ['MANAGE', creatorNav.slice(8)],
+      ['WORKSPACE', creatorNav.slice(0, 3)],
+      ['NETWORK', creatorNav.slice(3, 6)],
+      ['IDENTITY', creatorNav.slice(6, 9)],
+      ['MANAGE', creatorNav.slice(9)],
     ] as const
     : [
-      ['WORKSPACE', projectNav.slice(0, 2)],
-      ['GROWTH', projectNav.slice(2, 4)],
-      ['NETWORK', projectNav.slice(4, 6)],
-      ['IDENTITY', projectNav.slice(6, 9)],
-      ['MANAGE', projectNav.slice(9)],
+      ['WORKSPACE', projectNav.slice(0, 3)],
+      ['GROWTH', projectNav.slice(3, 5)],
+      ['NETWORK', projectNav.slice(5, 7)],
+      ['IDENTITY', projectNav.slice(7, 10)],
+      ['MANAGE', projectNav.slice(10)],
     ] as const;
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
   const showGrowthIntelligence = profile.profile_type === 'project' && currentPath === '/campaigns' && Boolean(profile.organization_id);

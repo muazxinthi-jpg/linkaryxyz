@@ -7,6 +7,7 @@ import InviteExperience from './InviteExperience';
 import WalletExperience from './WalletExperience';
 import BillingExperience from './BillingExperience';
 import DashboardExperience from './DashboardExperience';
+import BidMarketplaceExperience from './BidMarketplaceExperience';
 import GrowthExperience from './GrowthExperience';
 import CampaignBriefAssistant from './CampaignBriefAssistant';
 import PartnerDiscoveryExperience from './PartnerDiscoveryExperience';
@@ -68,6 +69,7 @@ function ForbiddenScreen() {
 type Experience =
   | 'dashboard'
   | 'inbox'
+  | 'bids'
   | 'opportunities'
   | 'communities'
   | 'growth'
@@ -128,6 +130,7 @@ function ProductGate({ experience }: { experience: Experience }) {
   if (state === 'ready' && me && status) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
+    if (experience === 'bids') return <BidMarketplaceExperience me={me} status={status} />;
     if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
     if (experience === 'communities') return <CommunityManagerSessionGate me={me} status={status} />;
     if (experience === 'growth') return <><GrowthExperience me={me} status={status} /><CampaignBriefAssistant status={status} /></>;
@@ -178,6 +181,7 @@ export default function AppV3() {
   if (location.pathname.startsWith('/promotion-auction/')) return <ProductGate experience="promotion-auction" />;
   if (location.pathname === '/dashboard' || location.pathname === '/') return <ProductGate experience="dashboard" />;
   if (location.pathname === '/dashboard/inbox') return <ProductGate experience="inbox" />;
+  if (location.pathname === '/bids') return <ProductGate experience="bids" />;
   if (location.pathname === '/opportunities') return <ProductGate experience="opportunities" />;
   if (location.pathname === '/communities') return <ProductGate experience="communities" />;
   if (location.pathname === '/campaigns') return <ProductGate experience="growth" />;
