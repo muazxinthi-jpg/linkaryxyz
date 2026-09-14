@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import {
   AuctionCard,
@@ -97,7 +97,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
   const minViews = Math.max(0, Number(minimumViews || '0'));
   const minPriceCents = Math.max(0, Number(minimumPrice || '0') * 100);
   const maxPriceCents = maximumPrice ? Math.max(0, Number(maximumPrice) * 100) : Infinity;
-  const visibleItems = useMemo(() => (source?.items || []).filter((item) => {
+  const visibleItems = (source?.items || []).filter((item) => {
     if (Number.isFinite(minViews) && item.views < minViews) return false;
     if (item.auction_id) {
       const price = item.highest_bid_cents ?? item.starting_bid_cents ?? 0;
@@ -107,7 +107,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
       return false;
     }
     return true;
-  }), [source, minViews, minPriceCents, maxPriceCents, minimumPrice, maximumPrice]);
+  });
 
   const activeFilterCount = [profileType, minimumViews, minimumPrice, maximumPrice].filter(Boolean).length;
   const switchTab = (next: MarketplaceTab) => { setTab(next); setPage(1); };
