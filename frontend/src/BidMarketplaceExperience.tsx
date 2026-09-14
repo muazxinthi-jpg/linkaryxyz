@@ -42,7 +42,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
   const stored = window.localStorage.getItem('linkary.active.profile');
   const [profileId, setProfileId] = useState(stored && status.profiles.some((item) => item.id === stored) ? stored : creatorFirst?.id || '');
   const profile = status.profiles.find((item) => item.id === profileId) || creatorFirst;
-  const [tab, setTab] = useState<Tab>('active');
+  const [tab, setTab] = useState<Tab>('views');
   const [period, setPeriod] = useState<Period>('30d');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Marketplace | null>(null);
