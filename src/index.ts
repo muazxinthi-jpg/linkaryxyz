@@ -51,6 +51,7 @@ import { communityVerificationStatus, listCommunityVerificationReviews, reviewCo
 import { partnerManagerReputation, recordPartnerManagerCollaboration } from './routes/partnerReputation';
 import { applyToCampaignOpportunity, listCampaignOpportunities, listCampaignOpportunityApplications, reviewCampaignOpportunityApplication, saveCampaignOpportunity } from './routes/opportunities';
 import { listProfileWalletDestinations, saveProfileWalletDestination } from './routes/wallets';
+import { getMyBaseWalletBalances } from './routes/baseWalletBalances';
 import { addProjectMember, cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchEligibleProjectMembers, searchRegisteredProjects, transferProjectOwnership, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
@@ -82,6 +83,7 @@ function withNoIndex(response: Response): Response {
 
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if (path === '/api/wallets/base-balances') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return getMyBaseWalletBalances(request, env); }
   if (path === '/api/health') {
     return json({
       ok: true,

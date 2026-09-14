@@ -3,6 +3,7 @@ import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { requireAuth, requireSuperadmin, verifyCsrf } from '../auth/session';
 import { HttpError, json, readJson } from '../http';
+import { primaryBaseWalletBalances } from './baseWalletBalances';
 
 const BASE_USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 const ERC20_TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -73,7 +74,7 @@ export async function getMyPromotionPayment(request: Request, env: Env, auctionI
        FROM profile_promotion_payments WHERE auction_id = ? AND payer_user_id = ? LIMIT 1`,
     [auctionId, auth.user.id],
   );
-  if (!payment) return json({ payment: null });
+  if (!payment) return json({ payment: null, walletBalances: null });
   const auction = await db.first<{ payment_due_at: string | null; status: string }>(`SELECT payment_due_at, status FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
   return json({ payment: { ...payment, payment_due_at: auction?.payment_due_at || null, auction_status: auction?.status || null } });
 }

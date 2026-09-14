@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useEvmAddress, useSendUsdc } from '@coinbase/cdp-hooks';
 import type { ProductMe, ProductProfile, ProductStatus } from './ProductWorkspace';
 
 function csrfToken(): string {
@@ -31,6 +32,7 @@ type Auction = {
 
 type AuctionResponse = { auction: Auction; bids: Array<{ id: string; amount_cents: number; created_at: string }> };
 type Payment = { recipient_wallet_address: string; required_amount_atomic: number; tx_hash: string | null; status: string; payment_due_at: string | null; auction_status: string | null };
+type WalletBalances = { walletAddress: string; ethWei: string; usdcAtomic: string; gasPriceWei: string | null; estimatedUsdcTransferFeeWei: string | null };
 type FeaturedHeader = {
   id: string;
   project_name: string;
@@ -51,6 +53,8 @@ const CTA_OPTIONS = [
 function dollars(cents: number | null | undefined) {
   return `$${((cents || 0) / 100).toFixed(2)}`;
 }
+function transactionHash(result: unknown): string | null { if (!result || typeof result !== 'object') return null; const value = result as Record<string, unknown>; for (const key of ['transactionHash','txHash','hash']) { const hash = value[key]; if (typeof hash === 'string' && /^0x[a-fA-F0-9]{64}$/.test(hash)) return hash; } return null; }
+function eth(value: string | null | undefined) { try { const raw = BigInt(value || '0'); const whole = raw / BigInt(10) ** BigInt(18); const fraction = (raw % (BigInt(10) ** BigInt(18))).toString().padStart(18, '0').slice(0, 5).replace(/0+$/, ''); return `${whole}${fraction ? `.${fraction}` : ''}`; } catch { return '0'; } }
 
 export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
   const [wallet, setWallet] = useState('');
@@ -163,6 +167,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
   const auctionId = useMemo(() => location.pathname.split('/').filter(Boolean)[1] || '', [location.pathname]);
   const [data, setData] = useState<AuctionResponse | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
+  const [walletBalances, setWalletBalances] = useState<WalletBalances | null>(null);
   const [bidUsd, setBidUsd] = useState('');
   const [txHash, setTxHash] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
@@ -170,12 +175,15 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
   const [ctaType, setCtaType] = useState('join');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const { evmAddress } = useEvmAddress();
+  const { sendUsdc } = useSendUsdc();
 
   async function refresh() {
     const next = await api<AuctionResponse>(`/api/promotion-auctions/${encodeURIComponent(auctionId)}`);
     setData(next);
-    const mine = await api<{ payment: Payment | null }>(`/api/promotion-auctions/${encodeURIComponent(auctionId)}/payment`);
+    const mine = await api<{ payment: Payment | null; walletBalances: WalletBalances | null }>(`/api/promotion-auctions/${encodeURIComponent(auctionId)}/payment`);
     setPayment(mine.payment);
+    setWalletBalances(mine.walletBalances);
   }
   useEffect(() => { void refresh().catch((error) => setMessage(error instanceof Error ? error.message : 'Auction unavailable.')); }, [auctionId]);
 
@@ -197,6 +205,21 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
     finally { setBusy(false); }
   }
 
+  async function payWithLinkaryWallet() {
+    if (!payment || !walletBalances || !evmAddress || busy) return;
+    setBusy(true); setMessage('');
+    try {
+      const result = await sendUsdc({ from: evmAddress, to: payment.recipient_wallet_address as `0x${string}`, amount: String(payment.required_amount_atomic), network: 'base' });
+      const hash = transactionHash(result);
+      if (!hash) throw new Error('The wallet did not return a Base transaction hash.');
+      setTxHash(hash);
+      const verified = await api<{ status: string }>(`/api/promotion-auctions/${encodeURIComponent(auctionId)}/payment/verify`, { method: 'POST', body: JSON.stringify({ txHash: hash }) });
+      setMessage(verified.status === 'verified' ? 'Payment confirmed. You can now submit the banner.' : 'USDC transfer submitted. Linkary is waiting for Base confirmation.');
+      await refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Payment could not be submitted. Check your Base ETH and USDC balances.'); }
+    finally { setBusy(false); }
+  }
+
   async function submitCreative() {
     setBusy(true); setMessage('');
     try {
@@ -210,6 +233,9 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
   if (!profile) return null;
   const auction = data?.auction;
   const minimumCents = auction ? Math.max(auction.starting_bid_cents, (auction.highest_bid_cents || 0) + 1) : 0;
+  const senderMatches = Boolean(walletBalances && evmAddress && walletBalances.walletAddress.toLowerCase() === evmAddress.toLowerCase());
+  const hasUsdc = Boolean(payment && walletBalances && BigInt(walletBalances.usdcAtomic) >= BigInt(payment.required_amount_atomic));
+  const hasEth = Boolean(walletBalances && walletBalances.estimatedUsdcTransferFeeWei && BigInt(walletBalances.ethWei) >= BigInt(walletBalances.estimatedUsdcTransferFeeWei));
   return (
     <main className="promotion-auction-page">
       <a className="promotion-back" href="/dashboard">← Back to Linkary</a>
@@ -220,7 +246,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
         {auction && <>
           <div className="promotion-auction-stats"><div><span>Status</span><strong>{auction.status.replaceAll('_', ' ')}</strong></div><div><span>Highest bid</span><strong>{auction.highest_bid_cents ? dollars(auction.highest_bid_cents) : 'No bids yet'}</strong></div><div><span>Closes</span><strong>{new Date(auction.expires_at).toLocaleString()}</strong></div></div>
           {auction.status === 'open' && <div className="promotion-bid-box"><label><span>Your bid (USD), minimum {dollars(minimumCents)}</span><input inputMode="decimal" value={bidUsd} onChange={(e) => setBidUsd(e.target.value)} placeholder={(minimumCents / 100).toFixed(2)} /></label><button type="button" className="ops-button primary" disabled={busy || Number(bidUsd) * 100 < minimumCents} onClick={bid}>Place bid</button></div>}
-          {payment && <section className="promotion-payment-box"><h2>You won this auction</h2><p>Send exactly <strong>{(payment.required_amount_atomic / 1_000_000).toFixed(2)} USDC</strong> on Base to:</p><code>{payment.recipient_wallet_address}</code>{payment.status !== 'verified' && <><label><span>Transaction hash</span><input value={txHash} onChange={(e) => setTxHash(e.target.value)} placeholder="0x..." /></label><button type="button" className="ops-button primary" disabled={busy || !txHash} onClick={verifyPayment}>Verify payment</button></>}{payment.status === 'verified' && <div className="promotion-creative-form"><label><span>Banner image URL</span><input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." /></label><label><span>Destination URL</span><input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..." /></label><label><span>CTA</span><select value={ctaType} onChange={(e) => setCtaType(e.target.value)}>{CTA_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button type="button" className="ops-button primary" disabled={busy || !bannerUrl || !destinationUrl} onClick={submitCreative}>Submit banner</button></div>}</section>}
+          {payment && <section className="promotion-payment-box"><h2>You won this auction</h2><p>Pay exactly <strong>{(payment.required_amount_atomic / 1_000_000).toFixed(2)} USDC</strong> on Base to:</p><code>{payment.recipient_wallet_address}</code>{payment.status !== 'verified' && <><div className="promotion-wallet-payment"><strong>Your Linkary Wallet</strong>{walletBalances ? <><span>USDC available: {(Number(walletBalances.usdcAtomic) / 1_000_000).toFixed(2)} USDC</span><span>ETH available for gas: {eth(walletBalances.ethWei)} ETH</span><small>Estimated network fee: ~{eth(walletBalances.estimatedUsdcTransferFeeWei)} ETH</small></> : <span>Loading your Base balances…</span>}</div>{!hasUsdc && walletBalances && <div className="ops-message">You need more USDC to complete this payment. <a href="/wallets">Add USDC</a></div>}{!hasEth && walletBalances && <div className="ops-message">You need a small amount of ETH on Base for network fees. <a href="/wallets">Add ETH</a></div>} {!senderMatches && walletBalances && <div className="ops-message">Your active Coinbase CDP wallet does not match your Linkary wallet. Sign in again before paying.</div>}<button type="button" className="ops-button primary" disabled={busy || !walletBalances || !hasUsdc || !hasEth || !senderMatches} onClick={() => void payWithLinkaryWallet()}>{busy ? 'Processing payment…' : `Pay ${(payment.required_amount_atomic / 1_000_000).toFixed(2)} USDC`}</button><label><span>Already paid externally? Transaction hash</span><input value={txHash} onChange={(e) => setTxHash(e.target.value)} placeholder="0x..." /></label><button type="button" className="ops-button secondary" disabled={busy || !txHash} onClick={verifyPayment}>Verify existing payment</button></>}{payment.status === 'verified' && <div className="promotion-creative-form"><label><span>Banner image URL</span><input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." /></label><label><span>Destination URL</span><input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..." /></label><label><span>CTA</span><select value={ctaType} onChange={(e) => setCtaType(e.target.value)}>{CTA_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button type="button" className="ops-button primary" disabled={busy || !bannerUrl || !destinationUrl} onClick={submitCreative}>Submit banner</button></div>}</section>}
         </>}
         {message && <div className="ops-message">{message}</div>}
       </section>

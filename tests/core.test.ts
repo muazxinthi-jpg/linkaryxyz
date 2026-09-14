@@ -208,7 +208,7 @@ test('dashboard team surfaces use public usernames instead of account emails', (
 test('wallet actions expose working Receive and reviewed Send flows', () => {
   const wallet = readFileSync(new URL('../frontend/src/WalletExperience.tsx', import.meta.url), 'utf8');
   const send = readFileSync(new URL('../frontend/src/WalletSendPanel.tsx', import.meta.url), 'utf8');
-  assert.equal(wallet.includes('Copy receive address'), true);
+  assert.equal(wallet.includes('Copy address'), true);
   assert.equal(wallet.includes('Send <span>Coming soon</span>'), false);
   assert.equal(wallet.includes('Secure wallet sending is not available yet'), false);
   assert.equal(wallet.includes('WalletSendPanel'), true);

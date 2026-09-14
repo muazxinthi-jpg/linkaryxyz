@@ -20,7 +20,7 @@ test('authenticated bidder flow is routable and includes payment plus creative s
   assert.match(app, /\/promotion-auction\//);
   assert.match(app, /PromotionAuctionExperience/);
   assert.match(promotion, /Place bid/);
-  assert.match(promotion, /Verify payment/);
+  assert.match(promotion, /Verify existing payment/);
   assert.match(promotion, /Submit banner/);
   assert.match(promotion, /Transaction hash/);
 });
