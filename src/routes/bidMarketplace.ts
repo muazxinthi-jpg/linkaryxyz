@@ -58,7 +58,7 @@ export async function recordPublicProfileView(env: Env, username: string): Promi
   }
 }
 
-type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
+type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; banner_url: string | null; banner_ends_at: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
 type Paged<T> = { items: T[]; total: number };
 
 async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views' | 'bids' | 'active'): Promise<Paged<ProfileRow>> {
@@ -78,7 +78,10 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
       : 'views DESC, lower(p.display_name) ASC, p.id ASC';
   const [items, total] = await Promise.all([
     db.all<ProfileRow>(
-      `SELECT p.id AS profile_id, p.username, p.display_name, p.avatar_url, p.profile_type,
+      `SELECT p.id AS profile_id, p.username, p.display_name, p.avatar_url,
+        (SELECT c.banner_url FROM profile_promotion_creatives c JOIN profile_promotion_auctions la ON la.id = c.auction_id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1) AS banner_url,
+        (SELECT la.promotion_ends_at FROM profile_promotion_auctions la JOIN profile_promotion_creatives c ON c.auction_id = la.id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1) AS banner_ends_at,
+        p.profile_type,
         COALESCE((SELECT SUM(v.views) FROM public_profile_daily_views v WHERE v.profile_id = p.id ${views.sql}), 0) AS views,
         (SELECT COUNT(*) FROM profile_promotion_bids received JOIN profile_promotion_auctions received_auction ON received_auction.id = received.auction_id WHERE received_auction.profile_id = p.id) AS bid_count,
         (SELECT live.id FROM profile_promotion_auctions live WHERE live.profile_id = p.id AND live.status = 'open' AND live.expires_at > ? ORDER BY live.expires_at ASC, live.id ASC LIMIT 1) AS auction_id,
@@ -88,7 +91,7 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
        ${eligibleProfiles}
        ${additionalWhere}
        ORDER BY ${order} LIMIT ? OFFSET ?`,
-      [...views.params, activeAt, activeAt, activeAt, activeAt, ...additionalParams, PAGE_SIZE, offset],
+      [...views.params, activeAt, activeAt, activeAt, activeAt, activeAt, activeAt, ...additionalParams, PAGE_SIZE, offset],
     ),
     db.first<{ count: number }>(`SELECT COUNT(*) AS count ${eligibleProfiles} ${additionalWhere}`, additionalParams),
   ]);
