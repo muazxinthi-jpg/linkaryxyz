@@ -1,0 +1,18 @@
+/* Avatar media must overlay the text fallback. Without absolute positioning,
+   the grid creates separate rows and squeezes otherwise-valid images. */
+.bid-card-avatar > span{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+}
+
+.bid-card-avatar > img{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+}

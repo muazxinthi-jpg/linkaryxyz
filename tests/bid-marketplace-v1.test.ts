@@ -67,11 +67,16 @@ test('auction cards and detail panel preserve real bid actions', () => {
 test('marketplace UI is responsive and scoped', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
   const css = read('frontend/src/bid-marketplace.css');
+  const avatarCss = read('frontend/src/bid-marketplace-avatar-fix.css');
   assert.match(ui, /import '\.\/bid-marketplace\.css'/);
+  assert.match(ui, /import '\.\/bid-marketplace-avatar-fix\.css'/);
   assert.match(css, /@media\(max-width:820px\)/);
   assert.match(css, /@media\(max-width:620px\)/);
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
   assert.match(css, /\.bid-marketplace/);
   assert.match(css, /\.bid-auction-grid/);
   assert.match(css, /\.bid-detail-panel/);
+  assert.match(avatarCss, /\.bid-card-avatar > img/);
+  assert.match(avatarCss, /position:absolute/);
+  assert.match(avatarCss, /object-fit:cover/);
 });

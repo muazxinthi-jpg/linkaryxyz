@@ -11,6 +11,7 @@ import {
   type ProfileRow,
 } from './bidMarketplaceComponents';
 import './bid-marketplace.css';
+import './bid-marketplace-avatar-fix.css';
 
 function Pagination({ page, total, pageSize, onPage }: { page: number; total: number; pageSize: number; onPage: (page: number) => void }) {
   if (total <= pageSize) return null;
