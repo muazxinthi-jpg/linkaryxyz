@@ -67,7 +67,7 @@ test('paid live promotion has priority and free header is the public fallback', 
 
 test('promotion entry is active for app and public workers while preserving the existing worker chain', () => {
   assert.match(entry, /import baseWorker from '\.\/trackingEntry'/);
-  assert.match(entry, /return await baseWorker\.fetch\(request, env, ctx\)/);
+  assert.match(entry, /baseWorker\.fetch\(request, env, ctx\)/);
   assert.match(entry, /promotion-auctions/);
   assert.match(entry, /payment\\\/verify/);
   assert.match(wrangler, /"main": "src\/promotionEntry\.ts"/);

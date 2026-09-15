@@ -182,6 +182,8 @@ export async function finalizePromotionAuction(request: Request, env: Env, aucti
   }
   const slot = await db.first<{ payout_wallet_address: string }>(`SELECT payout_wallet_address FROM profile_promotion_slots WHERE id = ?`, [auction.slot_id]);
   if (!slot) throw new HttpError(409, 'Promotion slot missing', 'promotion_slot_missing');
+  const recipientWalletAddress = auction.seller_payout_wallet_address;
+  if (!recipientWalletAddress) throw new HttpError(409, 'Auction payout wallet snapshot is missing', 'promotion_payout_snapshot_missing');
   const paymentDueAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
   const paymentId = id('ppm');
   const amountAtomic = winner.amount_cents * 10000;

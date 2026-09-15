@@ -8,7 +8,7 @@ import { createAdminCoupon100 } from './routes/adminCouponCreate100';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
 import { redirectTrackedLink } from './routes/tracking';
 
-const APP_SHELL_RELEASE = '2026-09-09-private-network-v5';
+const APP_SHELL_RELEASE = '2026-09-15-bid-marketplace-recovery';
 const APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v5';
 
 function configuredHost(value: string | undefined, fallback: string): string {

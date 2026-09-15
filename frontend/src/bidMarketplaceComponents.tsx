@@ -217,6 +217,7 @@ export function AuctionDetailPanel({ item, onClose, onUpdated }: { item: Profile
   }, [item, onClose]);
 
   if (!item) return null;
+  const activeItem = item;
   const auction = detail?.auction;
   const current = auction?.highest_bid_cents ?? item.highest_bid_cents ?? auction?.starting_bid_cents ?? item.starting_bid_cents ?? 0;
   const starting = auction?.starting_bid_cents ?? item.starting_bid_cents ?? 0;
@@ -226,10 +227,10 @@ export function AuctionDetailPanel({ item, onClose, onUpdated }: { item: Profile
   const alreadyLeading = item.my_bid_cents != null && item.my_bid_cents === (item.highest_bid_cents ?? item.starting_bid_cents);
 
   async function placeBid() {
-    if (!item.auction_id || !valid || busy) return;
+    if (!activeItem.auction_id || !valid || busy) return;
     setBusy(true); setMessage('');
     try {
-      await api(`/api/promotion-auctions/${encodeURIComponent(item.auction_id)}/bids`, {
+      await api(`/api/promotion-auctions/${encodeURIComponent(activeItem.auction_id)}/bids`, {
         method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ amountCents: enteredCents }),
       });
       setMessage('You are now the leading bidder.');

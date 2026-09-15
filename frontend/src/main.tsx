@@ -44,7 +44,7 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
-const APP_RELEASE = '2026-09-13-sponsored-header-auction-v1';
+const APP_RELEASE = '2026-09-15-bid-marketplace-recovery';
 const APP_SHELL_PATH = '/assets/linkary-app/index.html';
 const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const RELEASE_RECOVERY_STORAGE = 'linkary.release-recovery.v1';

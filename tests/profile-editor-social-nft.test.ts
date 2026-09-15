@@ -79,7 +79,7 @@ test('public profile enhancement supports WhatsApp and Farcaster beneath the Per
   assert.equal(identity.includes("import { renderPublicProfileEnhanced } from './publicProfileEnhancer'"), true);
   assert.equal(identity.includes('renderPublicProfileEnhanced(request, env, username)'), true);
   assert.equal(worker.includes('renderPublicProfileWithIdentity'), true);
-  assert.equal(wrangler.includes('"main": "src/trackingEntry.ts"'), true);
+  assert.equal(wrangler.includes('"main": "src/promotionEntry.ts"'), true);
   assert.equal(trackingEntry.includes("import worker from './worker'"), true);
   assert.equal(trackingEntry.includes('return worker.fetch(request, env, ctx)'), true);
 });

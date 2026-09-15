@@ -14,6 +14,7 @@ import {
 } from './routes/profilePromotions';
 import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
+import { recordPublicProfileView } from './routes/bidMarketplace';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
   const url = new URL(request.url);
@@ -116,7 +117,11 @@ export default {
       }
       const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
       const response = await baseWorker.fetch(request, env, ctx);
-      return username ? await enhancePublicProfileWithPromotion(response, request, env, username) : response;
+      if (!username) return response;
+      if (!new URL(request.url).searchParams.has('editorPreview')) {
+        ctx.waitUntil(recordPublicProfileView(env, username));
+      }
+      return await enhancePublicProfileWithPromotion(response, request, env, username);
     } catch (error) {
       return errorResponse(error);
     }

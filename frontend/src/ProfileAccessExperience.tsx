@@ -66,7 +66,7 @@ export default function ProfileAccessExperience({ me, status }: { me: ProductMe;
         const membership = (result.organizations || []).find((item) => item.id === profile.organization_id);
         const nextRole = membership?.role || null;
         setRole(nextRole);
-        setState(nextRole === 'owner' || nextRole === 'admin' || nextRole === 'marketing_manager' ? 'editable' : 'readonly');
+        setState(nextRole === 'owner' || nextRole === 'admin' ? 'editable' : 'readonly');
       })
       .catch(() => {
         if (!cancelled) {

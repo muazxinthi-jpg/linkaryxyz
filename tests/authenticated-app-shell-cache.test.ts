@@ -8,7 +8,7 @@ const read = (path: string) => readFile(new URL(path, repo), 'utf8');
 test('authenticated app HTML and auth traffic recover stale pre-v5 bundles without deleting user state', async () => {
   const entry = await read('src/trackingEntry.ts');
 
-  assert.match(entry, /APP_SHELL_RELEASE = '2026-09-09-private-network-v5'/);
+  assert.match(entry, /APP_SHELL_RELEASE = '2026-09-15-bid-marketplace-recovery'/);
   assert.match(entry, /APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v5'/);
   assert.match(entry, /function appShellResponse\(request: Request, response: Response\)/);
   assert.match(entry, /function appApiCacheRecoveryResponse\(request: Request, response: Response\)/);
@@ -25,7 +25,7 @@ test('authenticated app HTML and auth traffic recover stale pre-v5 bundles witho
 test('authenticated app self-heals when its running hashed bundle is older than the current app shell', async () => {
   const main = await read('frontend/src/main.tsx');
 
-  assert.match(main, /APP_RELEASE = '2026-09-09-private-network-v5'/);
+  assert.match(main, /APP_RELEASE = '2026-09-15-bid-marketplace-recovery'/);
   assert.match(main, /APP_SHELL_PATH = '\/assets\/linkary-app\/index\.html'/);
   assert.match(main, /function ReleaseFreshnessGuard\(\)/);
   assert.match(main, /cache: 'no-store'/);
@@ -44,7 +44,7 @@ test('private network UI remains in the authenticated release bundle', async () 
   const main = await read('frontend/src/main.tsx');
   const invites = await read('frontend/src/InviteExperience.tsx');
 
-  assert.match(main, /APP_RELEASE = '2026-09-09-private-network-v5'/);
+  assert.match(main, /APP_RELEASE = '2026-09-15-bid-marketplace-recovery'/);
   assert.match(main, /document\.documentElement\.dataset\.linkaryRelease = APP_RELEASE/);
   assert.match(invites, /useState<PrivateNetworkView>\(personalProfile \? 'network' : 'invites'\)/);
   assert.match(invites, />Invitations<\/button>/);

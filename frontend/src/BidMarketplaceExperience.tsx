@@ -31,7 +31,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
   const stored = window.localStorage.getItem('linkary.active.profile');
   const [profileId, setProfileId] = useState(stored && status.profiles.some((item) => item.id === stored) ? stored : creatorFirst?.id || '');
   const profile = status.profiles.find((item) => item.id === profileId) || creatorFirst;
-  const [tab, setTab] = useState<Tab>('active');
+  const [tab, setTab] = useState<MarketplaceTab>('active');
   const [period, setPeriod] = useState<Period>('30d');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Marketplace | null>(null);
@@ -139,7 +139,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
       <section className="bid-market-controls" aria-label="Marketplace controls">
         <div className="bid-search-wrap"><span aria-hidden="true">⌕</span><input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search profiles, creators or projects" aria-label="Search marketplace" />{searchInput ? <button type="button" onClick={() => setSearchInput('')} aria-label="Clear search">×</button> : null}</div>
         <button type="button" className={filtersOpen || activeFilterCount ? 'bid-filter-button active' : 'bid-filter-button'} onClick={() => setFiltersOpen((value) => !value)}>Filters{activeFilterCount ? <b>{activeFilterCount}</b> : null}</button>
-        <div className="bid-period-control" aria-label="Analytics period">{([['24h', '24H'], ['7d', '7D'], ['30d', '30D'], ['all', 'All time']] as Array<[Period, string]>).map(([value, label]) => <button key={value} type="button" className={period === value ? 'active' : ''} onClick={() => switchPeriod(value)}>{label}</button>)}</div>
+        <div className="bid-period-control" aria-label="Analytics period">{([['24h', '24H'], ['7d', '7D'], ['30d', '30D'], ['all', 'All Time']] as Array<[Period, string]>).map(([value, label]) => <button key={value} type="button" className={period === value ? 'active' : ''} onClick={() => switchPeriod(value)}>{label}</button>)}</div>
       </section>
 
       {filtersOpen ? <section className="bid-filter-panel" aria-label="Marketplace filters">
