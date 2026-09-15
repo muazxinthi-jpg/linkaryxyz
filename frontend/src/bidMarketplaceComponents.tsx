@@ -9,6 +9,8 @@ export type ProfileRow = {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  banner_url: string | null;
+  banner_ends_at: string | null;
   profile_type: string;
   views: number;
   bid_count: number;
@@ -127,11 +129,11 @@ export function AuctionCard({ item, rank, onSelect }: { item: ProfileRow; rank?:
   return <article className={`bid-auction-card ${item.auction_id ? 'has-auction' : 'profile-only'}`}>
     <button className="bid-card-cover" type="button" onClick={() => item.auction_id ? onSelect(item) : window.open(`https://linkary.xyz/${item.username}`, '_blank')} aria-label={`${item.display_name} ${item.auction_id ? 'auction details' : 'profile'}`}>
       <div className="bid-cover-fallback" aria-hidden="true">{initials(item.display_name)}</div>
-      {item.avatar_url ? <img src={item.avatar_url} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : null}
+      {(item.banner_url || item.avatar_url) ? <img src={item.banner_url || item.avatar_url || ''} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : null}
       <div className="bid-cover-scrim" />
       {rank ? <span className="bid-card-rank">#{rank}</span> : null}
       <AuctionStatusBadge label={status.label} tone={status.tone} />
-      {item.auction_id ? <div className="bid-cover-clock"><span>ENDS IN</span><CountdownTimer expiresAt={item.expires_at} /></div> : null}
+      {item.auction_id ? <div className="bid-cover-clock"><span>{item.banner_url ? 'BANNER ENDS' : 'ENDS IN'}</span><CountdownTimer expiresAt={item.banner_url && item.banner_ends_at ? item.banner_ends_at : item.expires_at} /></div> : null}
     </button>
 
     <div className="bid-card-body">

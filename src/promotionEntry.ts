@@ -13,7 +13,9 @@ import {
   submitPromotionCreative,
 } from './routes/profilePromotions';
 import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
-import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
+import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick, recordFeaturedHeaderImpression, redirectFeaturedHeaderClick } from './routes/profilePromotionDelivery';
+import { getFeaturedHeader, upsertFeaturedHeader } from './routes/profileFeaturedHeaders';
+import { listPromotionCreativeQueue } from './routes/adminProfilePromotions';
 import { getBidMarketplace, recordPublicProfileView } from './routes/bidMarketplace';
 import { getAuthContext } from './auth/session';
 

@@ -1,4 +1,5 @@
 .promotion-owner-panel{margin:24px auto;max-width:1180px}
+.promotion-live-banner{display:flex;align-items:center;gap:12px;margin:0 20px 16px;padding:10px;border:1px solid #ffd2c2;border-radius:12px;background:#fff7f3}.promotion-live-banner img{width:112px;height:48px;object-fit:cover;border-radius:8px;background:#eee}.promotion-live-banner div{display:grid;gap:3px}.promotion-live-banner span{font-size:12px;color:#777}
 .promotion-grid,.promotion-share,.promotion-bid-box,.promotion-creative-form{display:grid;gap:14px}
 .promotion-owner-panel .promotion-grid{grid-template-columns:minmax(0,1.4fr) minmax(170px,.65fr) minmax(150px,.55fr) auto auto;align-items:end}
 .promotion-grid label,.promotion-bid-box label,.promotion-creative-form label,.promotion-payment-box label{display:grid;gap:7px;min-width:0}

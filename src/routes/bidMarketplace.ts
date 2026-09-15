@@ -88,6 +88,8 @@ type ProfileRow = {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  banner_url: string | null;
+  banner_ends_at: string | null;
   profile_type: string;
   views: number;
   bid_count: number;
@@ -187,15 +189,19 @@ async function rankedProfiles(
         (SELECT MAX(mine.amount_cents) FROM profile_promotion_bids mine JOIN profile_promotion_auctions mine_auction ON mine_auction.id = mine.auction_id WHERE mine_auction.profile_id = p.id AND mine_auction.status = 'open' AND mine_auction.expires_at > ? AND mine.bidder_user_id = ?) AS my_bid_cents,
         (SELECT live.expires_at FROM profile_promotion_auctions live WHERE live.profile_id = p.id AND live.status = 'open' AND live.expires_at > ? ORDER BY live.expires_at ASC, live.id ASC LIMIT 1) AS expires_at`;
 
+  const selectWithBanner = `${select},
+        (SELECT creative.banner_url FROM profile_promotion_creatives creative JOIN profile_promotion_auctions banner_auction ON banner_auction.id = creative.auction_id WHERE banner_auction.profile_id = p.id AND banner_auction.status = 'live' AND creative.moderation_status = 'approved' AND (banner_auction.promotion_ends_at IS NULL OR banner_auction.promotion_ends_at > ?) ORDER BY banner_auction.live_at DESC, creative.id DESC LIMIT 1) AS banner_url,
+        (SELECT banner_auction.promotion_ends_at FROM profile_promotion_auctions banner_auction JOIN profile_promotion_creatives creative ON creative.auction_id = banner_auction.id WHERE banner_auction.profile_id = p.id AND banner_auction.status = 'live' AND creative.moderation_status = 'approved' AND (banner_auction.promotion_ends_at IS NULL OR banner_auction.promotion_ends_at > ?) ORDER BY banner_auction.live_at DESC, creative.id DESC LIMIT 1) AS banner_ends_at`;
+
   const selectParams = [...views.params, activeAt, activeAt, activeAt, activeAt, activeAt, userId, activeAt];
   const [items, total] = await Promise.all([
     db.all<ProfileRow>(
-      `${select}
+      `${selectWithBanner}
        ${eligibleProfiles}
        ${discovery.sql}
        ${additionalWhere}
        ORDER BY ${order} LIMIT ? OFFSET ?`,
-      [...selectParams, ...discovery.params, ...additionalParams, PAGE_SIZE, offset],
+      [...selectParams, activeAt, activeAt, ...discovery.params, ...additionalParams, PAGE_SIZE, offset],
     ),
     db.first<{ count: number }>(`SELECT COUNT(*) AS count ${eligibleProfiles} ${discovery.sql} ${additionalWhere}`, [...discovery.params, ...additionalParams]),
   ]);

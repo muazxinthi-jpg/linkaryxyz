@@ -55,6 +55,22 @@ test('owner free featured header is independently stored and manager controlled'
   assert.match(featured, /trackingCode/);
 });
 
+test('profile owners can choose live banner duration and see the current live creative', () => {
+  const migration = readFileSync(new URL('../migrations/0054_profile_promotion_live_duration.sql', import.meta.url), 'utf8');
+  const route = readFileSync(new URL('../src/routes/profilePromotions.ts', import.meta.url), 'utf8');
+  const paymentRoute = readFileSync(new URL('../src/routes/profilePromotionPayments.ts', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../frontend/src/PromotionAuctionExperience.tsx', import.meta.url), 'utf8');
+  assert.match(migration, /live_duration_hours/);
+  assert.match(migration, /24, 72, 168/);
+  assert.match(route, /liveDurationHours/);
+  assert.match(route, /liveBanner/);
+  assert.match(paymentRoute, /s\.live_duration_hours/);
+  assert.match(ui, /Live banner duration/);
+  assert.match(ui, /3 days/);
+  assert.match(ui, /7 days/);
+  assert.match(ui, /Current live banner/);
+});
+
 test('paid live promotion has priority and free header is the public fallback', () => {
   assert.match(delivery, /creative = await liveCreativeByUsername/);
   assert.match(delivery, /if \(!creative\) featured = await featuredHeaderByUsername/);
