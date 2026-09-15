@@ -14,7 +14,7 @@ import {
 } from './routes/profilePromotions';
 import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
-import { recordPublicProfileView } from './routes/bidMarketplace';
+import { getBidMarketplace, recordPublicProfileView } from './routes/bidMarketplace';
 import { getAuthContext } from './auth/session';
 
 function publicProfileUsername(request: Request, env: Env): string | null {

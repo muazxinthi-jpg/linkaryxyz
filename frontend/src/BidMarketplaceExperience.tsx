@@ -69,7 +69,8 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
       if (minimumPrice) params.set('minBid', minimumPrice);
       if (maximumPrice) params.set('maxBid', maximumPrice);
       const response = await fetch(`/api/bid-marketplace?${params.toString()}`, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error('Could not load the bid marketplace.');
+      if (response.status === 401) throw new Error('Your Linkary session expired. Please sign in again.');
+      if (!response.ok) throw new Error('The marketplace is temporarily unavailable. Please try again.');
       setData(await response.json() as Marketplace);
       setError('');
     } catch (cause) {
@@ -132,11 +133,11 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
       </header>
 
       <section className="bid-market-summary" aria-label="Marketplace overview">
-        <article><span>LIVE AUCTIONS</span><strong>{data?.summary.active_count ?? 0}</strong><small>Open now</small></article>
-        <article><span>ACTIVE VALUE</span><strong>{money(data?.summary.active_value_cents || 0)}</strong><small>Current auction value</small></article>
-        <article><span>BIDS PLACED</span><strong>{data?.summary.bids_placed?.toLocaleString() ?? '0'}</strong><small>Across banner auctions</small></article>
-        <article><span>PROFILES AVAILABLE</span><strong>{data?.summary.profiles_available?.toLocaleString() ?? '0'}</strong><small>Published profiles</small></article>
-        <article className={data?.summary.ending_soon_count ? 'attention' : ''}><span>ENDING SOON</span><strong>{data?.summary.ending_soon_count ?? 0}</strong><small>Within 2 hours</small></article>
+        <article><span>LIVE AUCTIONS</span><strong>{data ? data.summary.active_count : '—'}</strong><small>Open now</small></article>
+        <article><span>ACTIVE VALUE</span><strong>{data ? money(data.summary.active_value_cents || 0) : '—'}</strong><small>Current auction value</small></article>
+        <article><span>BIDS PLACED</span><strong>{data ? data.summary.bids_placed?.toLocaleString() ?? '0' : '—'}</strong><small>Across banner auctions</small></article>
+        <article><span>PROFILES AVAILABLE</span><strong>{data ? data.summary.profiles_available?.toLocaleString() ?? '0' : '—'}</strong><small>Published profiles</small></article>
+        <article className={data?.summary.ending_soon_count ? 'attention' : ''}><span>ENDING SOON</span><strong>{data ? data.summary.ending_soon_count : '—'}</strong><small>Within 2 hours</small></article>
       </section>
 
       <section className="bid-market-controls" aria-label="Marketplace controls">

@@ -1,0 +1,8 @@
+.ops-shell>.ops-sidebar{position:sticky;top:0;align-self:start;height:100vh;min-height:100vh;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain}
+.ops-main{min-width:0;min-height:100vh}
+.promotion-owner-panel{width:min(100%,1180px);box-sizing:border-box}
+.promotion-owner-panel>.promotion-grid{padding:20px;border:1px solid #e2e2de;border-radius:0 0 12px 12px;background:#fff}
+.promotion-owner-panel>header,.promotion-owner-panel>.promotion-panel-heading{padding:20px 20px 0}
+.promotion-owner-panel button{min-height:44px}
+@media(max-width:900px){.ops-shell>.ops-sidebar{position:sticky;top:0;height:auto;min-height:0;overflow:visible}}
+@media(max-width:640px){.ops-shell>.ops-sidebar{position:fixed;top:auto;bottom:0;height:62px;min-height:62px;overflow:visible}.promotion-owner-panel{margin:16px 0}.promotion-owner-panel>.promotion-grid{padding:14px}}
