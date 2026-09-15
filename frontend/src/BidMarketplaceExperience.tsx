@@ -65,6 +65,9 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
       const params = new URLSearchParams({ period, page: String(page) });
       if (search) params.set('q', search);
       if (profileType) params.set('profileType', profileType);
+      if (minimumViews) params.set('minViews', minimumViews);
+      if (minimumPrice) params.set('minBid', minimumPrice);
+      if (maximumPrice) params.set('maxBid', maximumPrice);
       const response = await fetch(`/api/bid-marketplace?${params.toString()}`, { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) throw new Error('Could not load the bid marketplace.');
       setData(await response.json() as Marketplace);
@@ -80,7 +83,7 @@ export default function BidMarketplaceExperience({ me, status }: { me: ProductMe
     void refresh();
     const interval = window.setInterval(() => void refresh(true), 30000);
     return () => window.clearInterval(interval);
-  }, [period, page, search, profileType]);
+  }, [period, page, search, profileType, minimumViews, minimumPrice, maximumPrice]);
 
   if (!profile) return null;
 

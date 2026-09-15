@@ -31,6 +31,20 @@ function profileTypeFrom(request: Request): string {
   return value === 'creator' || value === 'project' ? value : '';
 }
 
+function moneyFilterFrom(request: Request, key: string): number | null {
+  const raw = new URL(request.url).searchParams.get(key);
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : null;
+}
+
+function viewsFilterFrom(request: Request): number | null {
+  const raw = new URL(request.url).searchParams.get('minViews');
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+}
+
 function viewStartDate(period: Period): string | null {
   if (period === 'all') return null;
   const date = new Date();
@@ -105,7 +119,7 @@ type MyAuctionRow = {
   payment_status: string | null;
 };
 
-function discoveryWhere(search: string, profileType: string): { sql: string; params: string[] } {
+function discoveryWhere(search: string, profileType: string, minViews: number | null = null, minBidCents: number | null = null, maxBidCents: number | null = null): { sql: string; params: string[] } {
   const clauses: string[] = [];
   const params: string[] = [];
   if (search) {
@@ -116,6 +130,15 @@ function discoveryWhere(search: string, profileType: string): { sql: string; par
   if (profileType) {
     clauses.push('AND p.profile_type = ?');
     params.push(profileType);
+  }
+  if (minViews !== null) {
+    clauses.push(`AND COALESCE((SELECT SUM(view_count.views) FROM public_profile_daily_views view_count WHERE view_count.profile_id = p.id), 0) >= ?`);
+    params.push(String(minViews));
+  }
+  if (minBidCents !== null || maxBidCents !== null) {
+    clauses.push(`AND EXISTS (SELECT 1 FROM profile_promotion_auctions filter_auction WHERE filter_auction.profile_id = p.id AND filter_auction.status = 'open' AND filter_auction.expires_at > ? AND COALESCE(filter_auction.highest_bid_cents, filter_auction.starting_bid_cents) >= ?${maxBidCents !== null ? ' AND COALESCE(filter_auction.highest_bid_cents, filter_auction.starting_bid_cents) <= ?' : ''})`);
+    params.push(nowIso(), String(minBidCents ?? 0));
+    if (maxBidCents !== null) params.push(String(maxBidCents));
   }
   return { sql: clauses.join('\n'), params };
 }
@@ -128,12 +151,15 @@ async function rankedProfiles(
   userId: string,
   search: string,
   profileType: string,
+  minViews: number | null,
+  minBidCents: number | null,
+  maxBidCents: number | null,
 ): Promise<Paged<ProfileRow>> {
   const views = viewFilter(period);
   const offset = (page - 1) * PAGE_SIZE;
   const activeAt = nowIso();
   const endingAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-  const discovery = discoveryWhere(search, profileType);
+  const discovery = discoveryWhere(search, profileType, minViews, minBidCents, maxBidCents);
   const additionalWhere = mode === 'active'
     ? `AND EXISTS (SELECT 1 FROM profile_promotion_auctions active WHERE active.profile_id = p.id AND active.status = 'open' AND active.expires_at > ?)`
     : mode === 'ending'
@@ -184,17 +210,20 @@ export async function getBidMarketplace(request: Request, env: Env): Promise<Res
   const page = pageFrom(request);
   const search = searchFrom(request);
   const profileType = profileTypeFrom(request);
+  const minViews = viewsFilterFrom(request);
+  const minBidCents = moneyFilterFrom(request, 'minBid');
+  const maxBidCents = moneyFilterFrom(request, 'maxBid');
   const views = viewFilter(period);
   const offset = (page - 1) * PAGE_SIZE;
   const activeAt = nowIso();
   const endingAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-  const discovery = discoveryWhere(search, profileType);
+  const discovery = discoveryWhere(search, profileType, minViews, minBidCents, maxBidCents);
 
   const [active, endingSoon, mostViewed, mostBidOn, topBidders, topWinners, myBids, wonAuctions, summary] = await Promise.all([
-    rankedProfiles(db, period, page, 'active', auth.user.id, search, profileType),
-    rankedProfiles(db, period, page, 'ending', auth.user.id, search, profileType),
-    rankedProfiles(db, period, page, 'views', auth.user.id, search, profileType),
-    rankedProfiles(db, period, page, 'bids', auth.user.id, search, profileType),
+    rankedProfiles(db, period, page, 'active', auth.user.id, search, profileType, minViews, minBidCents, maxBidCents),
+    rankedProfiles(db, period, page, 'ending', auth.user.id, search, profileType, minViews, minBidCents, maxBidCents),
+    rankedProfiles(db, period, page, 'views', auth.user.id, search, profileType, minViews, minBidCents, maxBidCents),
+    rankedProfiles(db, period, page, 'bids', auth.user.id, search, profileType, minViews, minBidCents, maxBidCents),
     db.all<{ label: string; bidder_type: string; bid_count: number; total_bid_cents: number; wins: number }>(
       `SELECT CASE WHEN b.bidder_organization_id IS NOT NULL THEN COALESCE(o.name, 'Linkary Project') ELSE COALESCE(NULLIF(u.display_name, ''), 'Linkary bidder') END AS label,
         CASE WHEN b.bidder_organization_id IS NOT NULL THEN 'project' ELSE 'user' END AS bidder_type, COUNT(*) AS bid_count, SUM(b.amount_cents) AS total_bid_cents, SUM(CASE WHEN a.winner_bid_id = b.id THEN 1 ELSE 0 END) AS wins
