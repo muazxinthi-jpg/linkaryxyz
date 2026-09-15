@@ -15,6 +15,7 @@ import {
 import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick } from './routes/profilePromotionDelivery';
 import { recordPublicProfileView } from './routes/bidMarketplace';
+import { getAuthContext } from './auth/session';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
   const url = new URL(request.url);
@@ -40,6 +41,15 @@ export default {
         status: 401,
         headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
       });
+    }
+    if (path === '/api/bid-marketplace' && request.method === 'GET' && request.headers.get('cookie')) {
+      const auth = await getAuthContext(request, env);
+      if (!auth) {
+        return new Response(JSON.stringify({ error: 'unauthorized', message: 'Authentication required' }), {
+          status: 401,
+          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+        });
+      }
     }
     try {
       if (path === '/api/bid-marketplace') {
