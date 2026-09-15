@@ -177,6 +177,7 @@ async function rankedProfiles(
 }
 
 export async function getBidMarketplace(request: Request, env: Env): Promise<Response> {
+  if (!request.headers.get('cookie')) return json({ error: 'unauthorized', message: 'Authentication required' }, { status: 401 });
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
   const period = periodFrom(request);
