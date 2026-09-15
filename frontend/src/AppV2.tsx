@@ -80,6 +80,7 @@ class ApiError extends Error {
 const ACCESS_STORAGE = 'linkary.access.v1';
 const SIGNUP_INTENT_STORAGE = 'linkary.signup.intent.v1';
 const CLAIM_TOKEN_STORAGE = 'linkary.creator.claim.v1';
+const CDP_INIT_TIMEOUT_MS = 15_000;
 
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -149,6 +150,21 @@ function Logo() {
 
 function LoadingScreen({ message = 'Preparing Linkary' }: { message?: string }) {
   return <main className="loading-screen"><Logo /><div className="spinner" /><p>{message}</p></main>;
+}
+
+function InitializationFailureScreen() {
+  return (
+    <main className="access-denied-page" role="alert">
+      <div className="denied-card">
+        <Logo />
+        <span className="section-label">SIGN-IN SETUP</span>
+        <h1>Linkary could not finish loading.</h1>
+        <p>Your invitation is still safe. Check your connection or browser privacy settings, then try again.</p>
+        <button className="button primary full" type="button" onClick={() => window.location.reload()}>Try again</button>
+        <p className="security-note clean-note">If this keeps happening in Safari, temporarily disable content blockers for app.linkary.xyz or try another browser.</p>
+      </div>
+    </main>
+  );
 }
 
 function AuthMethods() {
@@ -684,7 +700,17 @@ export default function AppV2() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [claim, setClaim] = useState<CreatorClaim | null>(null);
   const [deniedMessage, setDeniedMessage] = useState('');
+  const [initTimedOut, setInitTimedOut] = useState(false);
   const bridgeAttempted = useRef(false);
+
+  useEffect(() => {
+    if (isInitialized) {
+      setInitTimedOut(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setInitTimedOut(true), CDP_INIT_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [isInitialized]);
 
   async function loadAuthenticated() {
     const nextMe = await apiJson<MeResponse>('/api/auth/me');
@@ -815,6 +841,7 @@ export default function AppV2() {
     bridgeAttempted.current = false; setMe({ authenticated: false, user: null }); setStatus(null); setClaim(null); setDeniedMessage(''); setPhase('auth'); setCleanPath('/login');
   }
 
+  if (!isInitialized && initTimedOut) return <InitializationFailureScreen />;
   if (!isInitialized || phase === 'loading') return <LoadingScreen />;
   if (phase === 'bridging') return <LoadingScreen message="Securing your Linkary session" />;
   if (phase === 'auth') return <AuthScreen deniedMessage={deniedMessage || undefined} />;

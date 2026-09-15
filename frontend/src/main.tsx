@@ -47,6 +47,7 @@ const cdpConfig: Config = {
 const APP_RELEASE = '2026-09-09-private-network-v5';
 const APP_SHELL_PATH = '/assets/linkary-app/index.html';
 const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const RELEASE_RECOVERY_STORAGE = 'linkary.release-recovery.v1';
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 if (typeof document !== 'undefined') document.documentElement.dataset.linkaryRelease = APP_RELEASE;
@@ -66,6 +67,14 @@ function ReleaseFreshnessGuard() {
     let stopped = false;
     let reloading = false;
 
+    function recoveryAlreadyAttempted() {
+      try { return sessionStorage.getItem(RELEASE_RECOVERY_STORAGE) === APP_RELEASE; } catch { return false; }
+    }
+
+    function markRecoveryAttempted() {
+      try { sessionStorage.setItem(RELEASE_RECOVERY_STORAGE, APP_RELEASE); } catch { /* Storage may be blocked. */ }
+    }
+
     async function verifyCurrentBundle() {
       if (stopped || reloading) return;
       try {
@@ -81,8 +90,12 @@ function ReleaseFreshnessGuard() {
         const latestBundle = moduleBundlePath(latestDocument);
         const runningBundle = moduleBundlePath(document);
         if (!latestBundle || !runningBundle || latestBundle === runningBundle) return;
+        // A recovery URL is deliberately one-shot. Without this check, a browser
+        // that keeps serving the stale hashed bundle can redirect on every reload.
+        if (new URL(window.location.href).searchParams.get('_linkary_release') === APP_RELEASE || recoveryAlreadyAttempted()) return;
 
         reloading = true;
+        markRecoveryAttempted();
         const next = new URL(window.location.href);
         next.searchParams.set('_linkary_release', APP_RELEASE);
         window.location.replace(next.toString());

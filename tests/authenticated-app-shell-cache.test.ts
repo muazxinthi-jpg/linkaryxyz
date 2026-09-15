@@ -32,6 +32,10 @@ test('authenticated app self-heals when its running hashed bundle is older than 
   assert.match(main, /latestBundle === runningBundle/);
   assert.match(main, /searchParams\.set\('_linkary_release', APP_RELEASE\)/);
   assert.match(main, /window\.location\.replace\(next\.toString\(\)\)/);
+  assert.match(main, /RELEASE_RECOVERY_STORAGE = 'linkary\.release-recovery\.v1'/);
+  assert.match(main, /searchParams\.get\('_linkary_release'\) === APP_RELEASE/);
+  assert.match(main, /recoveryAlreadyAttempted\(\)/);
+  assert.match(main, /markRecoveryAttempted\(\)/);
   assert.match(main, /document\.addEventListener\('visibilitychange', onVisibility\)/);
   assert.match(main, /RELEASE_CHECK_INTERVAL_MS = 5 \* 60 \* 1000/);
 });

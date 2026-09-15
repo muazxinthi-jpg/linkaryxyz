@@ -59,6 +59,7 @@ class ApiError extends Error {
 }
 
 const ACCESS_STORAGE = 'linkary.access.v1';
+const CDP_INIT_TIMEOUT_MS = 15_000;
 
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -114,6 +115,21 @@ function LoadingScreen({ message = 'Preparing Linkary' }: { message?: string }) 
       <Logo />
       <div className="spinner" />
       <p>{message}</p>
+    </main>
+  );
+}
+
+function InitializationFailureScreen() {
+  return (
+    <main className="access-denied-page" role="alert">
+      <div className="denied-card">
+        <Logo />
+        <span className="section-label">SIGN-IN SETUP</span>
+        <h1>Linkary could not finish loading.</h1>
+        <p>Your invitation is still safe. Check your connection or browser privacy settings, then try again.</p>
+        <button className="button primary full" type="button" onClick={() => window.location.reload()}>Try again</button>
+        <p className="security-note clean-note">If this keeps happening in Safari, temporarily disable content blockers for app.linkary.xyz or try another browser.</p>
+      </div>
     </main>
   );
 }
@@ -524,6 +540,16 @@ export default function App() {
   const [me, setMe] = useState<MeResponse>({ authenticated: false, user: null });
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [deniedMessage, setDeniedMessage] = useState('');
+  const [initTimedOut, setInitTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (isInitialized) {
+      setInitTimedOut(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setInitTimedOut(true), CDP_INIT_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [isInitialized]);
   const bridgeAttempted = useRef(false);
 
   async function loadAuthenticated(): Promise<void> {
@@ -601,6 +627,7 @@ export default function App() {
     window.history.replaceState(null, '', '/');
   }
 
+  if (!isInitialized && initTimedOut) return <InitializationFailureScreen />;
   if (!isInitialized || phase === 'loading') return <LoadingScreen />;
   if (phase === 'bridging') return <LoadingScreen message="Securing your Linkary session" />;
   if (phase === 'auth') return <AuthScreen deniedMessage={deniedMessage || undefined} />;

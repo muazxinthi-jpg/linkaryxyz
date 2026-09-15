@@ -37,6 +37,14 @@ test('signed-in users recover the Linkary session before being routed into the p
   assert.match(continuity, /window\.location\.replace\(status\.data\.profiles\?\.length \? '\/dashboard' : '\/onboarding'\)/);
 });
 
+test('CDP initialization cannot leave invite users on an infinite loading screen', () => {
+  const appV2 = readFileSync(new URL('../frontend/src/AppV2.tsx', import.meta.url), 'utf8');
+  assert.match(appV2, /const CDP_INIT_TIMEOUT_MS = 15_000/);
+  assert.match(appV2, /setInitTimedOut\(true\)/);
+  assert.match(appV2, /InitializationFailureScreen/);
+  assert.match(appV2, /window\.location\.reload\(\)/);
+});
+
 test('returning Creator Earn users resume an existing claim even after browser signup intent is gone', () => {
   assert.match(continuity, /if \(bridged\.data\.error === 'access_required'\)/);
   assert.match(continuity, /const creatorEarnIntent = sessionStorage\.getItem\(SIGNUP_INTENT_STORAGE\) === 'creator_earn'/);
