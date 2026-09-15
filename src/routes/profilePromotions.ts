@@ -86,7 +86,7 @@ export async function configurePromotionSlot(request: Request, env: Env, profile
   await requireProfileManager(db, profileId, auth.user.id);
   const timestamp = now();
   const liveDurationHours = body.liveDurationHours === undefined ? null : Number(body.liveDurationHours);
-  if (liveDurationHours !== null && ![24, 72, 168].includes(liveDurationHours)) throw new HttpError(400, 'Live banner duration must be 24 hours, 3 days, or 7 days', 'invalid_live_duration');
+  if (liveDurationHours !== null && ![24, 72, 168, 720].includes(liveDurationHours)) throw new HttpError(400, 'Live banner duration must be 24 hours, 3 days, 7 days, or 30 days', 'invalid_live_duration');
   const existing = await db.first<{ id: string }>(`SELECT id FROM profile_promotion_slots WHERE profile_id = ?`, [profileId]);
   const payout = body.payoutWalletAddress ? evmAddress(body.payoutWalletAddress) : null;
   if (!existing && !payout) throw new HttpError(400, 'Payout wallet is required to enable monetization', 'payout_wallet_required');

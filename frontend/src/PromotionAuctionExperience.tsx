@@ -164,7 +164,7 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
           <button type="button" className="ops-button secondary" disabled={busy || walletLoading || !wallet} onClick={enable}>{walletLoading ? 'Loading wallet…' : monetizationEnabled ? 'Monetization enabled' : 'Enable monetization'}</button>
           <label><span>Starting bid (USD)</span><input inputMode="decimal" value={startingBid} onChange={(e) => setStartingBid(e.target.value)} /></label>
           <label><span>Auction window</span><select value={duration} onChange={(e) => setDuration(e.target.value)}><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">24 hours</option></select></label>
-          <label><span>Live banner duration</span><select value={liveDuration} onChange={(e) => setLiveDuration(e.target.value)}><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></label>
+          <label><span>Live banner duration</span><select value={liveDuration} onChange={(e) => setLiveDuration(e.target.value)}><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option><option value="720">30 days</option></select></label>
           <button type="button" className="ops-button primary" disabled={busy || !monetizationEnabled || Number(startingBid) <= 0} onClick={createAuction}>Start auction</button>
         </div>
         {auctionId && <div className="promotion-share"><strong>Bidder link</strong><input readOnly value={bidderUrl} /><button type="button" className="ops-button secondary" onClick={() => navigator.clipboard?.writeText(bidderUrl)}>Copy</button></div>}
