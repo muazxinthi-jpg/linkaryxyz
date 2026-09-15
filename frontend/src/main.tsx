@@ -38,6 +38,7 @@ import './admin-commercial.css';
 import './promotion-auction.css';
 import './bid-marketplace-reference.css';
 import './workspace-optimization.css';
+import './workspace-density.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',

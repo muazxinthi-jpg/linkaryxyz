@@ -1,0 +1,72 @@
+/* Final shared workspace geometry. Keep this last in main.tsx so legacy page
+   styles cannot silently restore the old narrow desktop canvas. */
+.ops-shell{
+  --workspace-sidebar-width:208px;
+  --workspace-max-width:1720px;
+  --workspace-gutter:clamp(20px,2.2vw,40px);
+  grid-template-columns:var(--workspace-sidebar-width) minmax(0,1fr);
+}
+
+.ops-shell>.ops-sidebar{
+  width:var(--workspace-sidebar-width);
+  height:100vh;
+  height:100dvh;
+}
+
+.ops-shell .ops-page{
+  width:100%;
+  max-width:var(--workspace-max-width);
+  min-width:0;
+  margin-inline:auto;
+  padding:clamp(28px,2.6vw,42px) var(--workspace-gutter) 64px;
+}
+
+.ops-shell .ops-heading-row p,
+.ops-shell .dashboard-next-hero p,
+.ops-shell .bid-market-heading p{
+  max-width:760px;
+}
+
+@media(min-width:1500px){
+  .ops-shell .bid-auction-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .ops-shell .partner-grid,
+  .ops-shell .network-grid,
+  .ops-shell .ops-campaign-grid,
+  .ops-shell .ops-link-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(max-width:1024px){
+  .ops-shell .ops-page{max-width:none;padding:28px 24px 64px}
+}
+
+@media(min-width:641px) and (max-width:900px){
+  .ops-shell{display:block}
+  .ops-shell>.ops-sidebar{
+    position:relative;
+    top:auto;
+    width:100%;
+    height:auto;
+    min-height:0;
+    overflow:visible;
+  }
+}
+
+@media(max-width:640px){
+  .ops-shell{display:block}
+  .ops-shell>.ops-sidebar{
+    position:fixed;
+    inset:auto 0 0;
+    width:100%;
+    height:calc(62px + env(safe-area-inset-bottom));
+    min-height:calc(62px + env(safe-area-inset-bottom));
+    overflow:visible;
+  }
+  .ops-shell .ops-page{
+    max-width:none;
+    padding:22px 14px calc(104px + env(safe-area-inset-bottom));
+  }
+}
+
+@media(max-width:430px){
+  .ops-shell .ops-page{padding-inline:12px}
+}
