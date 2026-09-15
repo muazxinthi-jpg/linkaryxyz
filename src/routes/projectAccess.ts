@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { organizationMembership } from './organizations';
+import { createNotification } from './notifications';
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
 const now = () => new Date().toISOString();
@@ -68,8 +69,12 @@ export async function requestProjectAccess(request: Request, env: Env, organizat
     if (concurrent) return json({ ok: true, id: concurrent.id, duplicate: true });
     throw error;
   }
+  const recipients = await db.all<{ user_id: string }>(`SELECT user_id FROM organization_memberships WHERE organization_id = ? AND status = 'active' AND role IN ('owner','admin') AND user_id != ?`, [organizationId, auth.user.id]);
+  await Promise.all(recipients.map((recipient) => createNotification(db, { userId: recipient.user_id, type: 'project_access_request', title: 'New Project access request', body: `A member requested ${humanRole(body.role)} access to your Project.`, href: '/inbox', entityType: 'project_access_request', entityId: requestId, dedupeKey: `project_access_request:${requestId}:${recipient.user_id}` })));
   return json({ ok: true, id: requestId, duplicate: false }, { status: 201 });
 }
+
+function humanRole(role?: string): string { return (role || 'viewer').replace(/_/g, ' '); }
 
 export async function listMyProjectAccessRequests(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
