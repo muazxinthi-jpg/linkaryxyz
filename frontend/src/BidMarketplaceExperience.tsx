@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import './bid-marketplace.css';
+import './bid-marketplace-cards.css';
 
 type Period = '24h' | '7d' | '30d' | 'all';
 type Tab = 'active' | 'bidders' | 'winners' | 'views' | 'bids';
@@ -17,19 +18,13 @@ function rank(index: number, page: number, pageSize: number): string { const val
 
 function ProfileList({ items, page, pageSize, empty }: { items: ProfileRow[]; page: number; pageSize: number; empty: string }) {
   if (!items.length) return <div className="bid-market-empty"><strong>{empty}</strong><span>Published profiles remain discoverable here even without a banner auction.</span></div>;
-  return <div className="bid-market-auctions">{items.map((item, index) => {
+  return <div className="bid-market-auctions bid-market-card-grid">{items.map((item, index) => {
     const current = item.highest_bid_cents ?? item.starting_bid_cents;
     const cover = item.banner_url || item.avatar_url;
     const endsAt = item.banner_url && item.banner_ends_at ? item.banner_ends_at : item.expires_at;
-    return <article className="bid-market-card" key={item.profile_id}>
-      <div className="bid-market-rank">{rank(index, page, pageSize)}</div>
-      <div className="bid-market-identity">{cover ? <img src={cover} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <div className="bid-market-avatar-fallback">{item.display_name.slice(0, 1).toUpperCase()}</div>}<div><strong>{item.display_name}</strong><span>@{item.username} · {item.profile_type}</span></div></div>
-      <div className="bid-market-stat"><span>Profile views</span><strong>{item.views.toLocaleString()}</strong></div>
-      <div className="bid-market-stat"><span>Total bids</span><strong>{item.bid_count.toLocaleString()}</strong></div>
-      <div className="bid-market-stat"><span>Auction</span><strong>{item.auction_id ? `Live · ${money(current)}` : 'Banner not available'}</strong></div>
-      <div className="bid-market-stat"><span>{item.banner_url ? 'Banner ends' : item.auction_id ? 'Ends in' : 'Banner'}</span><strong>{item.auction_id ? timeLeft(endsAt) : item.banner_url ? timeLeft(item.banner_ends_at) : 'Not available'}</strong></div>
-      {item.auction_id && <div className="bid-market-highlight">LIVE AUCTION</div>}
-      <div className="bid-market-actions"><a className="ops-button secondary" href={`https://linkary.xyz/${item.username}`} target="_blank" rel="noreferrer">View profile ↗</a>{item.auction_id ? <NavLink className="ops-button primary" to={`/promotion-auction/${item.auction_id}`}>Place bid</NavLink> : null}</div>
+    return <article className="bid-market-card bid-market-visual-card" key={item.profile_id}>
+      <div className="bid-card-cover">{cover ? <img src={cover} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <div className="bid-card-cover-fallback">{item.display_name.slice(0, 1).toUpperCase()}</div>}<span className={item.auction_id ? 'bid-card-status live' : 'bid-card-status'}>{item.auction_id ? 'LIVE' : 'PROFILE'}</span><span className="bid-card-rank">{rank(index, page, pageSize)}</span>{item.auction_id && <span className="bid-card-countdown">{item.banner_url ? 'Banner ends' : 'Ends'} {timeLeft(endsAt)}</span>}</div>
+      <div className="bid-card-body"><div className="bid-card-identity"><div className="bid-card-avatar">{item.avatar_url ? <img src={item.avatar_url} alt="" /> : item.display_name.slice(0, 1).toUpperCase()}</div><div><strong>{item.display_name}</strong><span>@{item.username}</span></div><em>{item.profile_type}</em></div><div className="bid-card-tags"><span>{item.views.toLocaleString()} views</span><span>{item.bid_count.toLocaleString()} bids</span></div><div className="bid-card-price"><small>{item.auction_id ? 'Current bid' : 'Auction'}</small><strong>{item.auction_id ? money(current) : 'Banner not available'}</strong></div><div className="bid-market-actions"><a className="ops-button secondary" href={`https://linkary.xyz/${item.username}`} target="_blank" rel="noreferrer">View profile ↗</a>{item.auction_id ? <NavLink className="ops-button primary" to={`/promotion-auction/${item.auction_id}`}>Place bid</NavLink> : null}</div></div>
     </article>;
   })}</div>;
 }
