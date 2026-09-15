@@ -55,6 +55,7 @@ type Action =
   | { id: string; kind: 'project_access'; project: Project; request: AccessRequest; occurredAt: string; ownerRequired: boolean }
   | { id: string; kind: 'opportunity_application'; project: Project; opportunity: Opportunity; application: Application; occurredAt: string; ownerRequired: false }
   | { id: string; kind: 'collaboration_inquiry'; inquiry: CollaborationInquiry; occurredAt: string; ownerRequired: false };
+type Notification = { id: string; type: string; title: string; body: string; href: string | null; read_at: string | null; created_at: string };
 
 type ActivationForm = {
   campaignId: string;
@@ -94,6 +95,8 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const [activationTarget, setActivationTarget] = useState<CollaborationInquiry | null>(null);
   const [activationCampaigns, setActivationCampaigns] = useState<Campaign[]>([]);
@@ -108,12 +111,14 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   async function load() {
     setLoading(true); setMessage('');
     try {
-      const [projectResult, myRequestResult, incomingInquiryResult, outgoingInquiryResult] = await Promise.all([
+      const [projectResult, myRequestResult, incomingInquiryResult, outgoingInquiryResult, notificationResult] = await Promise.all([
         api<{ organizations: Project[] }>('/api/organizations'),
         api<{ requests: MyAccessRequest[] }>('/api/projects/access-requests/mine').catch(() => ({ requests: [] })),
         api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => ({ inquiries: [] })),
         api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => ({ inquiries: [] })),
+        api<{ notifications: Notification[]; unreadCount: number }>('/api/notifications').catch(() => ({ notifications: [], unreadCount: 0 })),
       ]);
+      setNotifications(notificationResult.notifications); setUnreadNotifications(notificationResult.unreadCount);
       const projectList = projectResult.organizations;
       setProjects(projectList);
       const actionItems: Action[] = [];
@@ -144,6 +149,9 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
     } catch { setMessage('Inbox is temporarily unavailable. Please try again shortly.'); }
     finally { setLoading(false); }
   }
+
+  async function markNotification(id: string) { const token = csrf(); if (!token) return; await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item)); setUnreadNotifications((count) => Math.max(0, count - 1)); }
+  async function markAllNotifications() { const token = csrf(); if (!token) return; await api('/api/notifications/read-all', { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); setUnreadNotifications(0); }
 
   useEffect(() => { void load(); }, []);
 
@@ -341,6 +349,8 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
       <div className="ops-heading-row"><div><span className="ops-kicker">INBOX</span><h1>What needs your attention</h1><p>Project access, campaign decisions and collaboration inquiries that affect your next action. Linkary keeps this focused instead of turning it into another noisy chat feed.</p></div><button className="ops-button secondary" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing...' : 'Refresh'}</button></div>
       {message && <div className="ops-message">{message}</div>}
       <section className="inbox-summary"><article><span>ACTION REQUIRED</span><strong>{actionable.length}</strong><small>Decisions you can make now</small></article><article><span>OWNER REQUIRED</span><strong>{ownerRequired.length}</strong><small>Restricted Project Admin requests</small></article><article><span>SENT INQUIRIES</span><strong>{pendingSent}</strong><small>Pending partner responses</small></article></section>
+
+      <section className="ops-section inbox-notifications"><div className="ops-section-title"><div><h2>Notifications {unreadNotifications > 0 && <span className="inbox-unread-count">{unreadNotifications}</span>}</h2><p>Updates from your projects, campaigns and collaboration activity.</p></div>{unreadNotifications > 0 && <button className="ops-button secondary" onClick={() => void markAllNotifications()}>Mark all read</button>}</div>{!notifications.length ? <div className="ops-empty compact"><p>No notifications yet.</p></div> : <div className="inbox-notification-list">{notifications.map((item) => <article key={item.id} className={item.read_at ? '' : 'unread'} onClick={() => { if (!item.read_at) void markNotification(item.id); }}>{item.href ? <NavLink to={item.href}><strong>{item.title}</strong></NavLink> : <strong>{item.title}</strong>}<p>{item.body}</p><time>{date(item.created_at)}</time></article>)}</div>}</section>
 
       <section className="ops-section"><div className="ops-section-title"><div><h2>Needs attention</h2><p>Oldest pending decisions appear first.</p></div></div>{loading ? <div className="ops-loading">Checking Project, campaign and collaboration activity...</div> : !actions.length ? <div className="ops-empty"><div className="ops-empty-icon">✓</div><h3>Nothing waiting on you</h3><p>New Project access requests, campaign applications and collaboration inquiries will appear here when they need a decision.</p></div> : <div className="inbox-list">{actions.map(renderAction)}</div>}</section>
 
