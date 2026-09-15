@@ -1,0 +1,14 @@
+:root{--workspace-sidebar-width:208px;--workspace-max-width:1720px;--linkary-orange:#ff4f0a}
+@media(min-width:901px){
+  .ops-shell{grid-template-columns:var(--workspace-sidebar-width) minmax(0,1fr)}
+  .ops-sidebar{position:sticky;top:0;height:100vh}
+  .ops-page{width:100%;max-width:var(--workspace-max-width);margin:0 auto;padding:34px clamp(28px,4vw,68px) 76px}
+  .bid-marketplace,.ops-heading-row{width:100%}
+  .bid-market-hero,.ops-heading-row{border-left:4px solid var(--linkary-orange);padding-left:18px}
+  .bid-market-card{box-shadow:0 5px 18px rgba(16,18,20,.05)}
+}
+@media(max-width:900px){.ops-page{width:100%;box-sizing:border-box}}
+@media(max-width:640px){.ops-sidebar{position:fixed;bottom:0;top:auto}.ops-page{padding-bottom:96px}.bid-market-hero{border-left:3px solid var(--linkary-orange);padding-left:12px}}
+.bid-market-card{transition:box-shadow .18s ease,transform .18s ease}
+.bid-market-card:hover{box-shadow:0 8px 24px rgba(16,18,20,.09);transform:translateY(-1px)}
+.bid-market-highlight{background:var(--linkary-orange)}
