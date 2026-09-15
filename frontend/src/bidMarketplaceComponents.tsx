@@ -126,7 +126,8 @@ export function AuctionCard({ item, rank, onSelect }: { item: ProfileRow; rank?:
   const status = statusFor(item);
   return <article className={`bid-auction-card ${item.auction_id ? 'has-auction' : 'profile-only'}`}>
     <button className="bid-card-cover" type="button" onClick={() => item.auction_id ? onSelect(item) : window.open(`https://linkary.xyz/${item.username}`, '_blank')} aria-label={`${item.display_name} ${item.auction_id ? 'auction details' : 'profile'}`}>
-      {item.avatar_url ? <img src={item.avatar_url} alt="" /> : <div className="bid-cover-fallback" aria-hidden="true">{initials(item.display_name)}</div>}
+      <div className="bid-cover-fallback" aria-hidden="true">{initials(item.display_name)}</div>
+      {item.avatar_url ? <img src={item.avatar_url} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : null}
       <div className="bid-cover-scrim" />
       {rank ? <span className="bid-card-rank">#{rank}</span> : null}
       <AuctionStatusBadge label={status.label} tone={status.tone} />
@@ -135,7 +136,7 @@ export function AuctionCard({ item, rank, onSelect }: { item: ProfileRow; rank?:
 
     <div className="bid-card-body">
       <div className="bid-card-person">
-        <div className="bid-card-avatar">{item.avatar_url ? <img src={item.avatar_url} alt="" /> : <span>{initials(item.display_name)}</span>}</div>
+        <div className="bid-card-avatar"><span>{initials(item.display_name)}</span>{item.avatar_url ? <img src={item.avatar_url} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : null}</div>
         <div className="bid-card-name"><strong>{item.display_name}</strong><span>@{item.username}</span></div>
         <span className="bid-card-type">{item.profile_type}</span>
       </div>
