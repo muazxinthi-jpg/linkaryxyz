@@ -60,3 +60,12 @@ test('marketplace UI is responsive and scoped', () => {
   assert.match(css, /@media\(max-width:520px\)/);
   assert.match(css, /\.bid-marketplace/);
 });
+
+test('workspace density keeps Bids and Profile full-width and regression-proof', () => {
+  const density = read('frontend/src/workspace-density.css');
+  const app = read('frontend/src/main.tsx');
+  assert.match(app, /import '\.\/workspace-density\.css'/);
+  assert.match(density, /\.ops-page\{width:100%;max-width:none;margin:0/);
+  assert.match(density, /\.bid-market-card-grid\{grid-template-columns:repeat\(auto-fit,minmax\(250px,1fr\)\)/);
+  assert.match(density, /\.ops-sidebar\{position:sticky/);
+});
