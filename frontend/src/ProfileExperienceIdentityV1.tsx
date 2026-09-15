@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ProfileExperienceBeta from './ProfileExperienceBeta';
 import PersonalTelegramConnection from './PersonalTelegramConnection';
@@ -315,6 +315,6 @@ function PersonalIdentityEditor({ status }: { status: ProductStatus }) {
   );
 }
 
-export default function ProfileExperienceIdentityV1({ me, status }: { me: ProductMe; status: ProductStatus }) {
-  return <><ProfileExperienceBeta me={me} status={status} /><PersonalIdentityEditor status={status} /></>;
+export default function ProfileExperienceIdentityV1({ me, status, footer }: { me: ProductMe; status: ProductStatus; footer?: ReactNode }) {
+  return <><ProfileExperienceBeta me={me} status={status} footer={footer} /><PersonalIdentityEditor status={status} /></>;
 }

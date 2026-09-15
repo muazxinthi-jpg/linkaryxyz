@@ -57,15 +57,15 @@ function viewFilter(period: Period, alias = 'v'): { sql: string; params: string[
   return start ? { sql: `AND ${alias}.view_date >= ?`, params: [start] } : { sql: '', params: [] };
 }
 
-// The marketplace lists only public profiles backed by active owners/projects and never internal Superadmin identities.
+// Every published public profile backed by an active owner or Project is discoverable.
+// Administrative privileges do not make an otherwise-public Linkary identity disappear.
 const eligibleProfiles = `
   FROM profiles p
   LEFT JOIN users owner ON owner.id = p.owner_user_id
   LEFT JOIN organizations organization ON organization.id = p.organization_id
   WHERE p.visibility = 'published'
     AND (p.owner_user_id IS NULL OR owner.status = 'active')
-    AND (p.organization_id IS NULL OR organization.status = 'active')
-    AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active')`;
+    AND (p.organization_id IS NULL OR organization.status = 'active')`;
 
 export async function recordPublicProfileView(env: Env, username: string): Promise<void> {
   try {
@@ -253,12 +253,12 @@ export async function getBidMarketplace(request: Request, env: Env): Promise<Res
        ORDER BY COALESCE(a.payment_due_at, a.expires_at) DESC LIMIT ? OFFSET ?`, [auth.user.id, PAGE_SIZE, offset]),
     db.first<{ active_count: number; active_value_cents: number; bids_placed: number; profile_views: number; profiles_available: number; ending_soon_count: number }>(
       `SELECT
-        (SELECT COUNT(*) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_count,
-        (SELECT COALESCE(SUM(COALESCE(a.highest_bid_cents, a.starting_bid_cents)), 0) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_value_cents,
+        (SELECT COUNT(*) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_count,
+        (SELECT COALESCE(SUM(COALESCE(a.highest_bid_cents, a.starting_bid_cents)), 0) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_value_cents,
         (SELECT COUNT(*) FROM profile_promotion_bids) AS bids_placed,
-        (SELECT COALESCE(SUM(v.views), 0) FROM public_profile_daily_views v JOIN profiles p ON p.id = v.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active') ${views.sql}) AS profile_views,
-        (SELECT COUNT(*) FROM profiles p LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active')) AS profiles_available,
-        (SELECT COUNT(*) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND NOT EXISTS (SELECT 1 FROM admin_grants grant WHERE grant.user_id = p.owner_user_id AND grant.role = 'superadmin' AND grant.status = 'active') AND a.status = 'open' AND a.expires_at > ? AND a.expires_at <= ?) AS ending_soon_count`,
+        (SELECT COALESCE(SUM(v.views), 0) FROM public_profile_daily_views v JOIN profiles p ON p.id = v.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') ${views.sql}) AS profile_views,
+        (SELECT COUNT(*) FROM profiles p LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active')) AS profiles_available,
+        (SELECT COUNT(*) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND a.status = 'open' AND a.expires_at > ? AND a.expires_at <= ?) AS ending_soon_count`,
       [activeAt, activeAt, ...views.params, activeAt, endingAt],
     ),
   ]);

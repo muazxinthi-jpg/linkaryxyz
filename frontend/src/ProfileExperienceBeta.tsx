@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import NftWalletGallery, { type WalletOwnedNft } from './NftWalletGallery';
 import './profile-beta.css';
@@ -159,7 +159,7 @@ type ProfileCardAnalytics = {
   proof?: { metrics: Array<{ label: string; value: string }> } | null;
 };
 
-export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; status: ProductStatus }) {
+export default function ProfileExperienceBeta({ me, status, footer }: { me: ProductMe; status: ProductStatus; footer?: ReactNode }) {
   const creatorFirst = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
   const saved = window.localStorage.getItem('linkary.active.profile');
   const [profileId, setProfileId] = useState(saved && status.profiles.some((item) => item.id === saved) ? saved : creatorFirst?.id || '');
@@ -434,6 +434,7 @@ export default function ProfileExperienceBeta({ me, status }: { me: ProductMe; s
 
           <aside className="profile-beta-preview-column"><div className="profile-beta-preview-sticky"><div className="profile-beta-preview-heading"><span className="ops-kicker">PUBLIC PROFILE PREVIEW</span><small>{data.visibility === 'published' ? 'Save changes to refresh' : 'Publish to preview'}</small></div>{data.visibility === 'published' ? <div className="profile-beta-phone profile-beta-public-preview"><iframe key={previewRevision} title="Public profile preview" src={`https://linkary.xyz/${profile.username}?editorPreview=${previewRevision}`} /></div> : <div className="profile-beta-preview-unpublished"><strong>Exact public preview appears after publishing</strong><span>Publish this profile once, then this panel will render the same public UI visitors see on linkary.xyz.</span></div>}<ProfileSocialCard key={profile.id} profile={profile} data={data} analytics={analytics} completionPercent={completionPercent} /></div></aside>
         </div>
+        {footer ? <div className="profile-beta-footer">{footer}</div> : null}
       </div>
 
       {showEditor && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) closeEditor(); }}><form className="ops-modal profile-beta-modal" onSubmit={saveBlock}>

@@ -27,6 +27,32 @@
   max-width:760px;
 }
 
+/* Give primary workspace headers a recognizable Linkary accent without adding
+   decorative weight to every card and control. */
+.ops-shell .ops-heading-row,
+.ops-shell .dashboard-next-hero,
+.ops-shell .bid-market-hero{
+  position:relative;
+  padding:18px 20px;
+  border:1px solid rgba(255,79,10,.14);
+  border-radius:16px;
+  background:linear-gradient(112deg,rgba(255,79,10,.10),rgba(255,253,248,.72) 34%,rgba(255,255,255,0) 76%);
+  box-shadow:inset 4px 0 #ff4f0a;
+}
+
+.ops-shell .ops-heading-row .ops-kicker,
+.ops-shell .dashboard-next-hero .ops-kicker,
+.ops-shell .bid-market-hero .ops-kicker{color:#b74412}
+
+/* Monetization belongs to the profile page shell. Keeping it inside the same
+   content column prevents the detached full-viewport panels seen previously. */
+.ops-shell .profile-beta-footer{display:grid;gap:14px;min-width:0}
+.ops-shell .profile-beta-footer .promotion-owner-panel{
+  width:100%;
+  max-width:none;
+  margin:0;
+}
+
 @media(min-width:1500px){
   .ops-shell .bid-auction-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   .ops-shell .partner-grid,
@@ -37,6 +63,9 @@
 
 @media(max-width:1024px){
   .ops-shell .ops-page{max-width:none;padding:28px 24px 64px}
+  .ops-shell .ops-heading-row,
+  .ops-shell .dashboard-next-hero,
+  .ops-shell .bid-market-hero{padding:16px}
 }
 
 @media(min-width:641px) and (max-width:900px){

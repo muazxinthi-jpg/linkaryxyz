@@ -78,7 +78,7 @@ export default function ProfileAccessExperience({ me, status }: { me: ProductMe;
   }, [profile?.id, profile?.organization_id, profile?.profile_type]);
 
   if (!profile) return null;
-  if (state === 'editable') return <><ProfileExperienceIdentityV1 me={me} status={status} /><PromotionOwnerPanel profile={profile} />{profile.profile_type === 'project' && <ProjectProfileCopilot status={status} />}</>;
+  if (state === 'editable') return <ProfileExperienceIdentityV1 me={me} status={status} footer={<><PromotionOwnerPanel profile={profile} />{profile.profile_type === 'project' && <ProjectProfileCopilot status={status} />}</>} />;
 
   return (
     <ProductWorkspace me={me} status={status} profile={profile} onProfileChange={changeProfile}>
