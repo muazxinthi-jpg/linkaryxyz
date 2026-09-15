@@ -32,6 +32,15 @@ function publicProfileUsername(request: Request, env: Env): string | null {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const path = new URL(request.url).pathname;
+    // Keep unauthenticated marketplace probes explicit at the outer route boundary.
+    // This also prevents stale auth adapters from turning a normal signed-out
+    // request into a generic 500 before the marketplace handler can respond.
+    if (path === '/api/bid-marketplace' && request.method === 'GET' && !request.headers.get('cookie')) {
+      return new Response(JSON.stringify({ error: 'unauthorized', message: 'Authentication required' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      });
+    }
     try {
       if (path === '/api/bid-marketplace') {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
