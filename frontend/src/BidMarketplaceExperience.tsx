@@ -5,7 +5,7 @@ import './bid-marketplace.css';
 
 type Period = '24h' | '7d' | '30d' | 'all';
 type Tab = 'active' | 'bidders' | 'winners' | 'views' | 'bids';
-type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
+type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; banner_url: string | null; banner_ends_at: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
 type Paged<T> = { items: T[]; total: number };
 type BidderRow = { label: string; bidder_type: string; bid_count: number; total_bid_cents: number; wins: number };
 type WinnerRow = { label: string; bidder_type: string; wins: number; winning_value_cents: number };
@@ -19,13 +19,15 @@ function ProfileList({ items, page, pageSize, empty }: { items: ProfileRow[]; pa
   if (!items.length) return <div className="bid-market-empty"><strong>{empty}</strong><span>Published profiles remain discoverable here even without a banner auction.</span></div>;
   return <div className="bid-market-auctions">{items.map((item, index) => {
     const current = item.highest_bid_cents ?? item.starting_bid_cents;
+    const cover = item.banner_url || item.avatar_url;
+    const endsAt = item.banner_url && item.banner_ends_at ? item.banner_ends_at : item.expires_at;
     return <article className="bid-market-card" key={item.profile_id}>
       <div className="bid-market-rank">{rank(index, page, pageSize)}</div>
-      <div className="bid-market-identity">{item.avatar_url ? <img src={item.avatar_url} alt="" /> : <div className="bid-market-avatar-fallback">{item.display_name.slice(0, 1).toUpperCase()}</div>}<div><strong>{item.display_name}</strong><span>@{item.username} · {item.profile_type}</span></div></div>
+      <div className="bid-market-identity">{cover ? <img src={cover} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <div className="bid-market-avatar-fallback">{item.display_name.slice(0, 1).toUpperCase()}</div>}<div><strong>{item.display_name}</strong><span>@{item.username} · {item.profile_type}</span></div></div>
       <div className="bid-market-stat"><span>Profile views</span><strong>{item.views.toLocaleString()}</strong></div>
       <div className="bid-market-stat"><span>Total bids</span><strong>{item.bid_count.toLocaleString()}</strong></div>
       <div className="bid-market-stat"><span>Auction</span><strong>{item.auction_id ? `Live · ${money(current)}` : 'Banner not available'}</strong></div>
-      <div className="bid-market-stat"><span>{item.auction_id ? 'Ends in' : 'Banner'}</span><strong>{item.auction_id ? timeLeft(item.expires_at) : 'Not available'}</strong></div>
+      <div className="bid-market-stat"><span>{item.banner_url ? 'Banner ends' : item.auction_id ? 'Ends in' : 'Banner'}</span><strong>{item.auction_id ? timeLeft(endsAt) : item.banner_url ? timeLeft(item.banner_ends_at) : 'Not available'}</strong></div>
       {item.auction_id && <div className="bid-market-highlight">LIVE AUCTION</div>}
       <div className="bid-market-actions"><a className="ops-button secondary" href={`https://linkary.xyz/${item.username}`} target="_blank" rel="noreferrer">View profile ↗</a>{item.auction_id ? <NavLink className="ops-button primary" to={`/promotion-auction/${item.auction_id}`}>Place bid</NavLink> : null}</div>
     </article>;
