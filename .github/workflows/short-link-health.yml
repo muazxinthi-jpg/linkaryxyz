@@ -41,10 +41,34 @@ jobs:
               healthy=true
               break
             fi
-            echo "Short-link check failed: attempt ${attempt}, HTTP ${status}"
+            echo "Short-link invite check failed: attempt ${attempt}, HTTP ${status}"
             sleep 5
           done
           if [[ "$healthy" != "true" ]]; then
             echo "::error::l.linkary.xyz is not resolving to the Linkary Worker invite route"
+            exit 1
+          fi
+
+      - name: Check l.linkary.xyz tracking redirect route
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in 1 2 3; do
+            body="/tmp/linkary-tracking-${attempt}.json"
+            headers="/tmp/linkary-tracking-${attempt}.headers"
+            status="$(curl --max-time 20 -sS -D "$headers" -o "$body" -w '%{http_code}' "https://l.linkary.xyz/r/__linkary_tracking_health_${GITHUB_RUN_ID}_${attempt}__")" || status=000
+            if [[ "$status" == "404" ]] \
+              && grep -Fq '"error":"tracking_not_found"' "$body" \
+              && grep -qi '^x-content-type-options: nosniff' "$headers"; then
+              echo "Healthy Linkary tracking route and D1 lookup on l.linkary.xyz"
+              healthy=true
+              break
+            fi
+            echo "Tracking route check failed: attempt ${attempt}, HTTP ${status}"
+            sleep 5
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::l.linkary.xyz tracking redirect route is not resolving through the production Worker"
             exit 1
           fi

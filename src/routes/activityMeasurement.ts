@@ -79,6 +79,25 @@ type AssignedActivityRow = {
   created_at: string;
 };
 
+type XProviderTweet = {
+  id: string;
+  viewCount?: number | string | null;
+  likeCount?: number | string | null;
+  replyCount?: number | string | null;
+  retweetCount?: number | string | null;
+  quoteCount?: number | string | null;
+  bookmarkCount?: number | string | null;
+};
+
+type XProviderSync = {
+  provider: 'twitterapi.io';
+  status: 'not_applicable' | 'not_configured' | 'invalid_url' | 'synced' | 'failed';
+  tweetId?: string;
+  metricCount?: number;
+  observedAt?: string;
+  message?: string;
+};
+
 async function accessForActivity(db: Db, userId: string, activityId: string): Promise<ActivityAccess> {
   await ensureAttributionSchema(db);
   const row = await db.first<{
@@ -159,6 +178,76 @@ function normalizeTimestamp(value: unknown): string | null {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) throw new HttpError(400, 'Choose a valid publication time', 'invalid_published_at');
   return parsed.toISOString();
+}
+
+function xTweetId(contentUrl: string): string | null {
+  try {
+    const url = new URL(contentUrl);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (!['x.com', 'twitter.com', 'mobile.twitter.com'].includes(hostname)) return null;
+    const match = url.pathname.match(/\/status\/(\d+)/);
+    return match?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+function providerMetric(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+async function syncXProviderMetrics(db: Db, env: Env, deliverable: DeliverableRow): Promise<XProviderSync> {
+  if (deliverable.platform !== 'x') return { provider: 'twitterapi.io', status: 'not_applicable' };
+  const tweetId = xTweetId(deliverable.content_url);
+  if (!tweetId) return { provider: 'twitterapi.io', status: 'invalid_url', message: 'Use a direct X or Twitter status URL to enable provider sync.' };
+  if (!env.TWITTERAPI_IO_KEY) return { provider: 'twitterapi.io', status: 'not_configured', tweetId };
+
+  let payload: { tweets?: XProviderTweet[]; status?: string; message?: string };
+  try {
+    const endpoint = new URL('https://api.twitterapi.io/twitter/tweets');
+    endpoint.searchParams.set('tweet_ids', tweetId);
+    const response = await fetch(endpoint.toString(), {
+      method: 'GET',
+      headers: { 'X-API-Key': env.TWITTERAPI_IO_KEY, accept: 'application/json' },
+    });
+    if (!response.ok) {
+      return { provider: 'twitterapi.io', status: 'failed', tweetId, message: `Provider returned HTTP ${response.status}.` };
+    }
+    payload = await response.json() as { tweets?: XProviderTweet[]; status?: string; message?: string };
+  } catch {
+    return { provider: 'twitterapi.io', status: 'failed', tweetId, message: 'Provider request failed.' };
+  }
+
+  const tweet = payload.tweets?.find((item) => String(item.id) === tweetId);
+  if (!tweet) return { provider: 'twitterapi.io', status: 'failed', tweetId, message: payload.message || 'Tweet was not returned by provider.' };
+
+  const observedAt = now();
+  const metrics: Record<string, number> = {
+    views: providerMetric(tweet.viewCount),
+    likes: providerMetric(tweet.likeCount),
+    comments: providerMetric(tweet.replyCount),
+    reposts: providerMetric(tweet.retweetCount),
+    quotes: providerMetric(tweet.quoteCount),
+    bookmarks: providerMetric(tweet.bookmarkCount),
+  };
+  try {
+    await db.batch(Object.entries(metrics).map(([metricKey, metricValue]) => db.statement(
+      `INSERT INTO campaign_activity_metrics
+        (id, organization_id, campaign_id, activity_id, deliverable_id, metric_key, metric_value, provenance, observed_at, created_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'provider_verified', ?, NULL, ?, ?)
+       ON CONFLICT(deliverable_id, metric_key, provenance) DO UPDATE SET
+         metric_value = excluded.metric_value,
+         observed_at = excluded.observed_at,
+         created_by_user_id = NULL,
+         updated_at = excluded.updated_at`,
+      [id('met'), deliverable.organization_id, deliverable.campaign_id, deliverable.activity_id, deliverable.id, metricKey, metricValue, observedAt, observedAt, observedAt],
+    )));
+  } catch {
+    return { provider: 'twitterapi.io', status: 'failed', tweetId, message: 'Provider metrics could not be saved.' };
+  }
+
+  return { provider: 'twitterapi.io', status: 'synced', tweetId, metricCount: Object.keys(metrics).length, observedAt };
 }
 
 async function campaignReadAccess(db: Db, userId: string, campaignId: string): Promise<string> {
@@ -369,7 +458,21 @@ export async function createActivityDeliverable(request: Request, env: Env): Pro
     }
     throw error;
   }
-  return json({ id: deliverableId, evidenceState: 'submitted' }, { status: 201 });
+
+  const providerSync = await syncXProviderMetrics(db, env, {
+    id: deliverableId,
+    organization_id: access.organizationId,
+    campaign_id: access.campaignId,
+    activity_id: access.activityId,
+    platform,
+    content_url: contentUrl,
+    published_at: publishedAt,
+    evidence_state: 'submitted',
+    submitted_by_user_id: auth.user.id,
+    created_at: timestamp,
+    updated_at: timestamp,
+  });
+  return json({ id: deliverableId, evidenceState: 'submitted', providerSync }, { status: 201 });
 }
 
 export async function reviewActivityDeliverable(request: Request, env: Env, deliverableId: string): Promise<Response> {
@@ -381,14 +484,21 @@ export async function reviewActivityDeliverable(request: Request, env: Env, deli
 
   const db = new Db(requireDb(env));
   await ensureAttributionSchema(db);
-  const deliverable = await db.first<{ activity_id: string }>('SELECT activity_id FROM campaign_activity_deliverables WHERE id = ?', [deliverableId]);
+  const deliverable = await db.first<DeliverableRow>(
+    `SELECT id, organization_id, campaign_id, activity_id, platform, content_url, published_at, evidence_state,
+            submitted_by_user_id, created_at, updated_at
+       FROM campaign_activity_deliverables
+      WHERE id = ?`,
+    [deliverableId],
+  );
   if (!deliverable) throw new HttpError(404, 'Published deliverable not found', 'deliverable_not_found');
   const access = await accessForActivity(db, auth.user.id, deliverable.activity_id);
   if (!access.projectWrite) throw new HttpError(403, 'Only the Project team can review submitted deliverables', 'forbidden');
 
   const timestamp = now();
   await db.run('UPDATE campaign_activity_deliverables SET evidence_state = ?, updated_at = ? WHERE id = ?', [evidenceState, timestamp, deliverableId]);
-  return json({ ok: true, id: deliverableId, evidenceState, updatedAt: timestamp });
+  const providerSync = evidenceState === 'accepted' ? await syncXProviderMetrics(db, env, { ...deliverable, evidence_state: evidenceState, updated_at: timestamp }) : null;
+  return json({ ok: true, id: deliverableId, evidenceState, updatedAt: timestamp, providerSync });
 }
 
 export async function saveActivityMetrics(request: Request, env: Env, deliverableId: string): Promise<Response> {

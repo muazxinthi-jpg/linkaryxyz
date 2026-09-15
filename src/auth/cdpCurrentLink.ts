@@ -3,6 +3,7 @@ import type { Env } from '../env';
 import { requireDb, ServiceConfigurationError } from '../env';
 import { Db } from '../db/client';
 import { upsertPlatformIdentityForUser } from '../db/identity';
+import type { PlatformIdentityRow } from '../db/models';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from './session';
 
@@ -12,6 +13,16 @@ type TelegramIdentityRow = {
   current_handle: string | null;
   current_display_name: string | null;
   ownership_verified_at: string | null;
+};
+type PersonalProfileIdentityRow = {
+  id: string;
+  primary_platform_identity_id: string | null;
+  verification_status: string;
+};
+type PersonalProfilePromotion = {
+  profileId: string | null;
+  promoted: boolean;
+  verified: boolean;
 };
 
 const CDP_API_HOST = 'api.cdp.coinbase.com';
@@ -67,20 +78,32 @@ async function validateCdpAccessToken(accessToken: string, config: { apiKeyId: s
   return result;
 }
 
-async function syncPlatformIdentities(db: Db, userId: string, methods: UnknownRecord[]): Promise<void> {
+async function syncPlatformIdentities(db: Db, userId: string, methods: UnknownRecord[]): Promise<PlatformIdentityRow | null> {
+  let xIdentity: PlatformIdentityRow | null = null;
   for (const method of methods) {
     const type = stringValue(method.type)?.toLowerCase();
     if (type === 'x') {
       const providerUserId = identifierValue(method.sub);
       if (!providerUserId) continue;
-      await upsertPlatformIdentityForUser(db, userId, {
-        platform: 'x',
-        providerUserId,
-        username: stringValue(method.username),
-        displayName: stringValue(method.name) || stringValue(method.displayName) || stringValue(method.username),
-        raw: method,
-        source: 'cdp_oauth',
-      });
+      try {
+        xIdentity = await upsertPlatformIdentityForUser(db, userId, {
+          platform: 'x',
+          providerUserId,
+          username: stringValue(method.username),
+          displayName: stringValue(method.name) || stringValue(method.displayName) || stringValue(method.username),
+          raw: method,
+          source: 'cdp_oauth',
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Stable x identity is already linked to another Linkary user')) {
+          throw new HttpError(
+            409,
+            'That X account is already connected to another Linkary account. Use account recovery to resolve the identity before trying again.',
+            'x_identity_conflict',
+          );
+        }
+        throw error;
+      }
       continue;
     }
     if (type === 'telegram') {
@@ -97,6 +120,54 @@ async function syncPlatformIdentities(db: Db, userId: string, methods: UnknownRe
       });
     }
   }
+  return xIdentity;
+}
+
+async function promotePendingPersonalProfileXIdentity(
+  db: Db,
+  userId: string,
+  xIdentity: PlatformIdentityRow | null,
+): Promise<PersonalProfilePromotion> {
+  if (!xIdentity) return { profileId: null, promoted: false, verified: false };
+  const profile = await db.first<PersonalProfileIdentityRow>(
+    `SELECT id, primary_platform_identity_id, verification_status
+       FROM profiles
+      WHERE owner_user_id = ? AND profile_type = 'creator'
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [userId],
+  );
+  if (!profile) return { profileId: null, promoted: false, verified: false };
+
+  if (profile.primary_platform_identity_id && profile.primary_platform_identity_id !== xIdentity.id) {
+    throw new HttpError(
+      409,
+      'This Personal Profile is already anchored to a different X identity. Use account recovery to resolve the identity before changing it.',
+      'personal_x_identity_mismatch',
+    );
+  }
+
+  const timestamp = new Date().toISOString();
+  const promoted = profile.verification_status !== 'verified_x' || profile.primary_platform_identity_id !== xIdentity.id;
+  if (promoted) {
+    await db.run(
+      `UPDATE profiles
+          SET primary_platform_identity_id = ?, verification_status = 'verified_x', updated_at = ?
+        WHERE id = ? AND owner_user_id = ? AND profile_type = 'creator'`,
+      [xIdentity.id, timestamp, profile.id, userId],
+    );
+  }
+  await db.run(
+    `UPDATE platform_identity_links
+        SET profile_id = ?
+      WHERE platform_identity_id = ?
+        AND user_id = ?
+        AND link_type = 'owns'
+        AND ended_at IS NULL`,
+    [profile.id, xIdentity.id, userId],
+  );
+
+  return { profileId: profile.id, promoted, verified: true };
 }
 
 async function telegramIdentityForUser(db: Db, userId: string): Promise<TelegramIdentityRow | null> {
@@ -169,13 +240,18 @@ export async function refreshCurrentCdpLink(request: Request, env: Env): Promise
     `UPDATE auth_identities SET metadata_json = ?, updated_at = ? WHERE user_id = ? AND provider = 'coinbase_cdp' AND provider_user_id = ?`,
     [JSON.stringify({ authenticationMethods: methods }), timestamp, auth.user.id, cdpUserId],
   );
-  await syncPlatformIdentities(db, auth.user.id, methods);
+  const xIdentity = await syncPlatformIdentities(db, auth.user.id, methods);
+  const personalProfile = await promotePendingPersonalProfileXIdentity(db, auth.user.id, xIdentity);
   const telegramIdentity = await telegramIdentityForUser(db, auth.user.id);
 
   return json({
     ok: true,
     currentLinkaryUserId: auth.user.id,
     authenticationMethods: methods.map((method) => stringValue(method.type)).filter(Boolean),
+    xLinked: Boolean(xIdentity),
+    personalProfileId: personalProfile.profileId,
+    personalProfilePromoted: personalProfile.promoted,
+    personalProfileVerified: personalProfile.verified,
     telegramLinked: Boolean(telegramIdentity),
     telegramIdentity: telegramIdentity ? {
       currentHandle: telegramIdentity.current_handle,

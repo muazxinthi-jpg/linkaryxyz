@@ -13,7 +13,8 @@
     "TRACKING_BASE_URL": "https://l.linkary.xyz",
     "APP_ENV": "production",
     "BILLING_TREASURY_EVM_ADDRESS": "0x4364C060d63B86903ADb850838aaEc338cc4890D",
-    "AI_WORKERS_MODEL": "@cf/google/gemma-4-26b-a4b-it"
+    "AI_WORKERS_MODEL": "@cf/google/gemma-4-26b-a4b-it",
+    "AI_OPENROUTER_MODEL": "openrouter/free"
   },
   "routes": [
     {

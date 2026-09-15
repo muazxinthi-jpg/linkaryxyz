@@ -19,6 +19,8 @@ type CouponRow = {
   max_redemptions_per_account: number;
   starts_at: string | null;
   ends_at: string | null;
+  access_until?: string | null;
+  access_duration_months?: number | null;
   is_active: number;
   stackable: number;
   created_by_user_id: string | null;
@@ -98,6 +100,16 @@ async function paidPlans(db: Db): Promise<PlanRow[]> {
   );
 }
 
+async function supportsCouponAccessUntil(db: Db): Promise<boolean> {
+  const columns = await db.all<{ name: string }>('PRAGMA table_info(discount_coupons)');
+  return columns.some((column) => column.name === 'access_until');
+}
+
+async function supportsCouponAccessDuration(db: Db): Promise<boolean> {
+  const columns = await db.all<{ name: string }>('PRAGMA table_info(discount_coupons)');
+  return columns.some((column) => column.name === 'access_duration_months');
+}
+
 function validateDiscount(discountType: DiscountType, discountValue: number, plans: PlanRow[]): void {
   if (discountType === 'percent') {
     if (discountValue > 99) throw new HttpError(400, 'Percentage coupons must be between 1% and 99%. Use a Superadmin comped plan grant for free access.', 'coupon_zero_price_not_allowed');
@@ -127,7 +139,7 @@ export async function listAdminCoupons(request: Request, env: Env): Promise<Resp
   await requireSuperadmin(request, env);
   const db = new Db(requireDb(env));
   const timestamp = now();
-  const [plans, rows] = await Promise.all([
+  const [plans, rows, accessUntilSupported, accessDurationSupported] = await Promise.all([
     paidPlans(db),
     db.all<CouponRow>(
       `SELECT dc.*,
@@ -141,10 +153,14 @@ export async function listAdminCoupons(request: Request, env: Env): Promise<Resp
         LIMIT 250`,
       [timestamp],
     ),
+    supportsCouponAccessUntil(db),
+    supportsCouponAccessDuration(db),
   ]);
 
   return json({
     plans,
+    supportsAccessUntil: accessUntilSupported,
+    supportsAccessDuration: accessDurationSupported,
     coupons: rows.map((row) => ({
       id: row.id,
       code: row.code,
@@ -156,6 +172,8 @@ export async function listAdminCoupons(request: Request, env: Env): Promise<Resp
       maxRedemptionsPerAccount: row.max_redemptions_per_account,
       startsAt: row.starts_at,
       endsAt: row.ends_at,
+      accessUntil: accessUntilSupported ? row.access_until || null : null,
+      accessDurationMonths: accessDurationSupported ? row.access_duration_months || null : null,
       active: Boolean(row.is_active),
       stackable: Boolean(row.stackable),
       redeemedCount: Number(row.redeemed_count || 0),

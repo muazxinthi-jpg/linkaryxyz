@@ -93,14 +93,45 @@ function trackingBase(request: Request, env: Env): string {
 function injectHeader(response: Response, markup: string, styles: string): Promise<Response> {
   return response.text().then((html) => {
     let enhanced = html.includes('</head>') ? html.replace('</head>', `${styles}</head>`) : `${styles}${html}`;
-    const mainOpen = enhanced.match(/<main\b[^>]*>/i);
-    if (mainOpen?.index !== undefined) {
-      const at = mainOpen.index + mainOpen[0].length;
-      enhanced = `${enhanced.slice(0, at)}${markup}${enhanced.slice(at)}`;
-    } else if (enhanced.includes('<body>')) {
-      enhanced = enhanced.replace('<body>', `<body>${markup}`);
+    let inserted = false;
+    const hero = enhanced.match(/<(section|div)\s+class=(['"])hero\2[^>]*>/i);
+    if (hero?.index !== undefined) {
+      const heroOpen = hero[0].replace(/class=(['"])hero\1/i, 'class=$1hero linkary-promotion-hero$1');
+      const heroBodyStart = hero.index + hero[0].length;
+      const heroClose = enhanced.slice(heroBodyStart).match(new RegExp(`</${hero[1]}>`, 'i'));
+      const beforeHero = enhanced.slice(0, hero.index);
+      const top = beforeHero.match(/<header\b(?=[^>]*\bclass=(['"])[^'"]*\btop\b[^'"]*\1)[^>]*>[\s\S]*?<\/header>\s*/i);
+
+      // The public renderer already owns the profile shell and its top controls.
+      // Keep those controls with the promotion cover, instead of laying a second
+      // independent card on top of the page.
+      if (top?.index !== undefined && heroClose?.index !== undefined) {
+        const topStart = top.index;
+        const topEnd = topStart + top[0].length;
+        const heroEnd = heroBodyStart + heroClose.index + heroClose[0].length;
+        const topMarkup = top[0].replace(/class=(['"])([^'"]*)\1/i, (_match, quote, classNames) => `class=${quote}${classNames} linkary-promotion-top${quote}`);
+        const heroMarkup = `${heroOpen}${enhanced.slice(heroBodyStart, heroEnd)}`;
+        enhanced = `${enhanced.slice(0, topStart)}<section class="linkary-promotion-shell">${topMarkup}${enhanced.slice(topEnd, hero.index)}${markup}${heroMarkup}</section>${enhanced.slice(heroEnd)}`;
+        inserted = true;
+      } else {
+        enhanced = `${enhanced.slice(0, hero.index)}${markup}${heroOpen}${enhanced.slice(heroBodyStart)}`;
+        inserted = true;
+      }
     } else {
-      return response;
+      const mainOpen = enhanced.match(/<main\b[^>]*>/i);
+      if (mainOpen?.index !== undefined) {
+        const at = mainOpen.index + mainOpen[0].length;
+        enhanced = `${enhanced.slice(0, at)}${markup}${enhanced.slice(at)}`;
+        inserted = true;
+      } else if (enhanced.includes('<body>')) {
+        enhanced = enhanced.replace('<body>', `<body>${markup}`);
+        inserted = true;
+      } else {
+        return response;
+      }
+    }
+    if (inserted) {
+      enhanced = enhanced.replace(/<main\b([^>]*?)\bclass=(['"])([^'"]*)\2([^>]*)>/i, (_match, before, quote, classNames, after) => `<main${before}class=${quote}${classNames} linkary-promotion-page${quote}${after}>`);
     }
     const headers = new Headers(response.headers);
     headers.delete('content-length');
@@ -109,7 +140,23 @@ function injectHeader(response: Response, markup: string, styles: string): Promi
   });
 }
 
-const HEADER_STYLES = `<style id="linkary-sponsored-header-style">.linkary-sponsored-header{position:relative;width:min(1120px,calc(100% - 24px));margin:12px auto 44px;border-radius:24px;overflow:visible;isolation:isolate}.linkary-sponsored-banner{display:block;width:100%;height:clamp(150px,22vw,260px);border-radius:24px;overflow:hidden;background:#f2f2f2;box-shadow:0 14px 40px rgba(17,17,17,.12)}.linkary-sponsored-banner img{width:100%;height:100%;display:block;object-fit:cover}.linkary-sponsored-cta{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);z-index:3;display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 22px;border-radius:999px;background:#ff5500;color:#fff!important;text-decoration:none!important;font:700 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 10px 26px rgba(255,85,0,.28);border:3px solid #fff}.linkary-sponsored-label{position:absolute;top:12px;right:12px;z-index:2;padding:5px 9px;border-radius:999px;background:rgba(17,17,17,.72);color:#fff;font:600 10px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.04em;text-transform:uppercase}.linkary-featured-project{position:absolute;left:14px;top:14px;z-index:2;max-width:55%;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.9);color:#111;font:700 11px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:640px){.linkary-sponsored-header{width:calc(100% - 16px);margin-top:8px;border-radius:18px}.linkary-sponsored-banner{height:150px;border-radius:18px}.linkary-sponsored-cta{height:40px;bottom:-20px;min-width:112px}.linkary-featured-project{max-width:62%;font-size:10px}}</style>`;
+const HEADER_STYLES = `<style id="linkary-sponsored-header-style">
+.page.linkary-promotion-page{--linkary-profile-shell-inset:46px;position:relative!important;overflow:visible!important}
+.linkary-promotion-shell{--linkary-avatar-overlap:clamp(80px,7vw,88px);--linkary-cta-avatar-gap:clamp(20px,2vw,24px);position:relative;box-sizing:border-box;width:calc(100% + (var(--linkary-profile-shell-inset) * 2));margin-inline:calc(var(--linkary-profile-shell-inset) * -1);isolation:isolate;overflow:visible}
+.linkary-promotion-shell .linkary-promotion-top{position:relative!important;top:auto!important;left:auto!important;transform:none!important;box-sizing:border-box!important;width:100%!important;min-height:48px;padding:0 clamp(8px,1.8vw,18px)!important;margin:0 0 clamp(14px,1.8vw,20px)!important;z-index:2!important}
+.linkary-sponsored-header{position:relative;z-index:1;width:100%!important;margin:0!important;transform:none!important;border-radius:28px;overflow:visible;isolation:isolate}
+.linkary-sponsored-banner{display:block;width:100%;height:clamp(300px,28vw,340px);border-radius:28px;overflow:hidden;background:#f2f2f2;border:1px solid rgba(255,85,0,.18);box-shadow:0 18px 44px rgba(38,24,17,.14);clip-path:ellipse(100% 100% at 50% 0)}
+.linkary-sponsored-banner img{width:100%;height:100%;display:block;object-fit:cover}
+.linkary-sponsored-cta{position:absolute;left:50%;bottom:calc(var(--linkary-avatar-overlap) + var(--linkary-cta-avatar-gap));transform:translateX(-50%);z-index:8;display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 24px;border-radius:999px;background:#ff5500;color:#fff!important;text-decoration:none!important;font:750 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 10px 26px rgba(255,85,0,.3);border:3px solid #fff}
+.linkary-sponsored-label{position:absolute;top:14px;right:18px;z-index:7;padding:6px 10px;border-radius:999px;background:rgba(17,17,17,.72);backdrop-filter:blur(8px);color:#fff;font:700 10px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.linkary-featured-project{position:absolute;left:18px;top:14px;z-index:7;max-width:55%;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);color:#111;font:750 11px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(17,17,17,.08)}
+.linkary-promotion-shell>.linkary-promotion-hero{margin:calc(var(--linkary-avatar-overlap) * -1) 0 28px!important;padding-top:0!important;position:relative!important;z-index:9!important}
+.linkary-promotion-hero .avatar{width:clamp(160px,14vw,184px)!important;height:clamp(160px,14vw,184px)!important;position:relative!important;z-index:10!important;transform:none!important;border:5px solid #fff!important;border-radius:26px!important;box-shadow:0 14px 38px rgba(42,28,20,.16)!important;overflow:hidden!important}
+@media(max-width:899px){.page.linkary-promotion-page{--linkary-profile-shell-inset:20px}}
+@media(min-width:641px) and (max-width:1024px){.linkary-promotion-shell{--linkary-avatar-overlap:clamp(72px,9vw,82px);--linkary-cta-avatar-gap:clamp(20px,2.5vw,24px)}.linkary-sponsored-banner{height:clamp(292px,34vw,330px)}.linkary-promotion-hero .avatar{width:clamp(148px,18vw,176px)!important;height:clamp(148px,18vw,176px)!important}}
+@media(max-width:650px){.page.linkary-promotion-page{--linkary-profile-shell-inset:15px}}
+@media(max-width:640px){.linkary-promotion-shell{--linkary-avatar-overlap:64px;--linkary-cta-avatar-gap:20px}.linkary-promotion-shell .linkary-promotion-top{min-height:42px;padding-inline:calc(var(--linkary-profile-shell-inset) + 8px)!important;margin-bottom:12px!important}.linkary-sponsored-header{border-radius:20px}.linkary-sponsored-banner{height:260px;border-radius:20px}.linkary-sponsored-cta{height:40px;min-width:112px;padding:0 18px}.linkary-sponsored-label{top:12px;right:12px}.linkary-featured-project{top:12px;left:12px;max-width:58%;font-size:10px}.linkary-promotion-hero .avatar{width:clamp(128px,36vw,152px)!important;height:clamp(128px,36vw,152px)!important;border-width:4px!important;border-radius:20px!important}}
+</style>`;
 
 export async function enhancePublicProfileWithPromotion(response: Response, request: Request, env: Env, username: string): Promise<Response> {
   if (!env.DB || !response.ok || !(response.headers.get('content-type') || '').includes('text/html')) return response;
@@ -145,15 +192,6 @@ async function visitorHash(request: Request, env: Env): Promise<string | null> {
   const ua = request.headers.get('user-agent') || '';
   if (!ip && !ua) return null;
   return sha256(`${salt}|${ip}|${ua}`);
-}
-
-async function recordEvent(db: Db, creative: LiveCreative, eventType: 'impression' | 'banner_click' | 'cta_click', request: Request): Promise<void> {
-  const timestamp = now();
-  const hash = await visitorHash(request, { TRACKING_HASH_SALT: undefined } as Env).catch(() => null);
-  await db.batch([
-    db.statement(`INSERT INTO profile_promotion_events (id, auction_id, creative_id, profile_id, advertiser_user_id, event_type, occurred_at, visitor_hash, referrer, utm_source, utm_medium, utm_campaign) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'linkary', 'sponsored_profile', ?)`, [id('pev'), creative.auction_id, creative.creative_id, creative.profile_id, creative.advertiser_user_id, eventType, timestamp, hash, request.headers.get('referer'), creative.auction_id]),
-    db.statement(`UPDATE profile_promotion_creatives SET impressions_count = impressions_count + ?, banner_clicks_count = banner_clicks_count + ?, cta_clicks_count = cta_clicks_count + ?, updated_at = ? WHERE id = ?`, [eventType === 'impression' ? 1 : 0, eventType === 'banner_click' ? 1 : 0, eventType === 'cta_click' ? 1 : 0, timestamp, creative.creative_id]),
-  ]);
 }
 
 export async function recordPromotionImpression(request: Request, env: Env, code: string): Promise<Response> {

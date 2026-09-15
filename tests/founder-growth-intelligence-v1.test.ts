@@ -93,9 +93,10 @@ test('Growth Intelligence UI compares campaigns, activities, partners and channe
   assert.match(panel, /'campaigns' \| 'activities' \| 'partners' \| 'channels'/);
   assert.match(panel, /ACTUAL SPEND/);
   assert.match(panel, /REPORTED VIEWS/);
+  assert.match(panel, /SOCIAL ENGAGEMENTS/);
   assert.match(panel, /LINKARY CLICKS/);
+  assert.match(panel, /UNIQUE VISITORS/);
   assert.match(panel, /ATTRIBUTED VALUE/);
-  assert.match(panel, /COST \/ OUTCOME/);
   assert.match(panel, /STRONGEST CAMPAIGN/);
   assert.match(panel, /STRONGEST PARTNER/);
   assert.match(panel, /STRONGEST CHANNEL/);
@@ -116,7 +117,8 @@ test('Growth Intelligence UI keeps evidence provenance and methodology visible',
   assert.match(panel, /Tracked \{summary\.evidence_mix\.tracked\}/);
   assert.match(panel, /Verified \{summary\.evidence_mix\.verified\}/);
   assert.match(panel, /Estimated \{summary\.evidence_mix\.estimated\}/);
-  assert.match(panel, /Reported views and engagement can be manual\. Linkary clicks are first-party/);
+  assert.match(panel, /Reported views and engagement can be manual or provider-verified/);
+  assert.match(panel, /Linkary clicks and estimated unique visitors are first-party/);
   assert.match(panel, /How these metrics are calculated/);
   assert.match(panel, /data\.methodology\.partner_attribution/);
 });

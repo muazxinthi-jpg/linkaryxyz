@@ -12,12 +12,18 @@ import {
   placePromotionBid,
   submitPromotionCreative,
 } from './routes/profilePromotions';
-import { reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
-import { enhancePublicProfileWithPromotion, recordPromotionImpression, redirectPromotionClick, recordFeaturedHeaderImpression, redirectFeaturedHeaderClick } from './routes/profilePromotionDelivery';
-import { getFeaturedHeader, upsertFeaturedHeader } from './routes/profileFeaturedHeaders';
+import { getMyPromotionPayment, reviewPromotionCreative, verifyPromotionPayment } from './routes/profilePromotionPayments';
 import { listPromotionCreativeQueue } from './routes/adminProfilePromotions';
+import { getFeaturedHeader, upsertFeaturedHeader } from './routes/profileFeaturedHeaders';
 import { getBidMarketplace, recordPublicProfileView } from './routes/bidMarketplace';
-import { getAuthContext } from './auth/session';
+import {
+  enhancePublicProfileWithPromotion,
+  recordFeaturedHeaderImpression,
+  recordPromotionImpression,
+  redirectFeaturedHeaderClick,
+  redirectPromotionClick,
+} from './routes/profilePromotionDelivery';
+import { refinePublicProfilePromotionLayout } from './routes/profilePromotionLayout';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
   const url = new URL(request.url);
@@ -35,24 +41,6 @@ function publicProfileUsername(request: Request, env: Env): string | null {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const path = new URL(request.url).pathname;
-    // Keep unauthenticated marketplace probes explicit at the outer route boundary.
-    // This also prevents stale auth adapters from turning a normal signed-out
-    // request into a generic 500 before the marketplace handler can respond.
-    if (path === '/api/bid-marketplace' && request.method === 'GET' && !request.headers.get('cookie')) {
-      return new Response(JSON.stringify({ error: 'unauthorized', message: 'Authentication required' }), {
-        status: 401,
-        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-      });
-    }
-    if (path === '/api/bid-marketplace' && request.method === 'GET' && request.headers.get('cookie')) {
-      const auth = await getAuthContext(request, env);
-      if (!auth) {
-        return new Response(JSON.stringify({ error: 'unauthorized', message: 'Authentication required' }), {
-          status: 401,
-          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-        });
-      }
-    }
     try {
       if (path === '/api/bid-marketplace') {
         if (request.method !== 'GET') return methodNotAllowed(['GET']);
@@ -91,7 +79,11 @@ export default {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await finalizePromotionAuction(request, env, decodeURIComponent(finalize[1]));
       }
-
+      const paymentStatus = path.match(/^\/api\/promotion-auctions\/([^/]+)\/payment$/);
+      if (paymentStatus) {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await getMyPromotionPayment(request, env, decodeURIComponent(paymentStatus[1]));
+      }
       const payment = path.match(/^\/api\/promotion-auctions\/([^/]+)\/payment\/verify$/);
       if (payment) {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
@@ -139,10 +131,14 @@ export default {
       const username = request.method === 'GET' ? publicProfileUsername(request, env) : null;
       const response = await baseWorker.fetch(request, env, ctx);
       if (!username) return response;
+      // The authenticated profile editor embeds the public page with this flag.
+      // It is a rendering preview, not a visitor impression, so it must not affect
+      // the marketplace's public-view ranking.
       if (!new URL(request.url).searchParams.has('editorPreview')) {
         ctx.waitUntil(recordPublicProfileView(env, username));
       }
-      return await enhancePublicProfileWithPromotion(response, request, env, username);
+      const enhanced = await enhancePublicProfileWithPromotion(response, request, env, username);
+      return await refinePublicProfilePromotionLayout(enhanced);
     } catch (error) {
       return errorResponse(error);
     }

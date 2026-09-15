@@ -21,6 +21,25 @@ export interface Env {
   // Server-only Alchemy key used for wallet asset discovery and onchain
   // attribution. Never expose this value to the browser.
   ALCHEMY_API_KEY?: string;
+  // Alchemy Notify management token plus chain-specific Address Activity webhook
+  // IDs/signing keys. These are server-only bindings. Attribution fails closed
+  // for a chain until its full webhook configuration is present.
+  ALCHEMY_NOTIFY_AUTH_TOKEN?: string;
+  ALCHEMY_WEBHOOK_ID_ETHEREUM?: string;
+  ALCHEMY_WEBHOOK_SIGNING_KEY_ETHEREUM?: string;
+  ALCHEMY_WEBHOOK_ID_BASE?: string;
+  ALCHEMY_WEBHOOK_SIGNING_KEY_BASE?: string;
+  ALCHEMY_WEBHOOK_ID_BNB?: string;
+  ALCHEMY_WEBHOOK_SIGNING_KEY_BNB?: string;
+  ALCHEMY_WEBHOOK_ID_SOLANA?: string;
+  ALCHEMY_WEBHOOK_SIGNING_KEY_SOLANA?: string;
+  ALCHEMY_WEBHOOK_ID_ROBINHOOD?: string;
+  ALCHEMY_WEBHOOK_SIGNING_KEY_ROBINHOOD?: string;
+
+  // Server-only provider key for selective X deliverable measurement sync.
+  // Linkary never exposes this credential to the browser and does not scan the
+  // full social graph. It is used only for exact campaign deliverables.
+  TWITTERAPI_IO_KEY?: string;
 
   // LinkaryAI provider configuration. Workers AI is the primary provider.
   // External provider keys are server-only Cloudflare secret bindings and are

@@ -5,7 +5,9 @@ import { CDPReactProvider, type Config } from '@coinbase/cdp-react';
 import App from './AppV3';
 import SuperadminApp from './SuperadminApp';
 import SuperadminHostGate from './SuperadminHostGate';
+import AuthInitializationBoundary from './AuthInitializationBoundary';
 import AuthSessionContinuity from './AuthSessionContinuity';
+import { installAuthFetchTimeoutGuard } from './authReliability';
 import UiSafetyGuard from './UiSafetyGuard';
 import OnboardingCompletionBoundary from './OnboardingCompletionBoundary';
 import './styles.css';
@@ -23,6 +25,8 @@ import './partners.css';
 import './ux-system.css';
 import './partner-discovery-stabilization.css';
 import './tracking-assignment.css';
+import './onchain-attribution.css';
+import './linkaryai-contextual.css';
 import './collaboration-inquiry.css';
 import './partner-relationship-memory.css';
 import './dashboard-polish.css';
@@ -35,10 +39,8 @@ import './wallets-beta-acceptance.css';
 import './network-beta-acceptance.css';
 import './admin-readiness-beta-acceptance.css';
 import './admin-commercial.css';
+import './admin-ai-governance.css';
 import './promotion-auction.css';
-import './bid-marketplace-reference.css';
-import './workspace-optimization.css';
-import './workspace-density.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',
@@ -48,13 +50,13 @@ const cdpConfig: Config = {
   authMethods: ['email', 'oauth:google', 'oauth:x'],
 };
 
-const APP_RELEASE = '2026-09-15-bid-marketplace-recovery';
+const APP_RELEASE = '2026-09-09-private-network-v5';
 const APP_SHELL_PATH = '/assets/linkary-app/index.html';
 const RELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const RELEASE_RECOVERY_STORAGE = 'linkary.release-recovery.v1';
 const isSuperadminHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === 'sadmin.linkary.xyz';
 
 if (typeof document !== 'undefined') document.documentElement.dataset.linkaryRelease = APP_RELEASE;
+installAuthFetchTimeoutGuard();
 
 function moduleBundlePath(root: Document): string | null {
   const script = root.querySelector<HTMLScriptElement>('script[type="module"][src]');
@@ -71,14 +73,6 @@ function ReleaseFreshnessGuard() {
     let stopped = false;
     let reloading = false;
 
-    function recoveryAlreadyAttempted() {
-      try { return sessionStorage.getItem(RELEASE_RECOVERY_STORAGE) === APP_RELEASE; } catch { return false; }
-    }
-
-    function markRecoveryAttempted() {
-      try { sessionStorage.setItem(RELEASE_RECOVERY_STORAGE, APP_RELEASE); } catch { /* Storage may be blocked. */ }
-    }
-
     async function verifyCurrentBundle() {
       if (stopped || reloading) return;
       try {
@@ -94,12 +88,8 @@ function ReleaseFreshnessGuard() {
         const latestBundle = moduleBundlePath(latestDocument);
         const runningBundle = moduleBundlePath(document);
         if (!latestBundle || !runningBundle || latestBundle === runningBundle) return;
-        // A recovery URL is deliberately one-shot. Without this check, a browser
-        // that keeps serving the stale hashed bundle can redirect on every reload.
-        if (new URL(window.location.href).searchParams.get('_linkary_release') === APP_RELEASE || recoveryAlreadyAttempted()) return;
 
         reloading = true;
-        markRecoveryAttempted();
         const next = new URL(window.location.href);
         next.searchParams.set('_linkary_release', APP_RELEASE);
         window.location.replace(next.toString());
@@ -137,12 +127,14 @@ function RootApp() {
   }
 
   return (
-    <AuthSessionContinuity>
-      <ReleaseFreshnessGuard />
-      <UiSafetyGuard />
-      <OnboardingCompletionBoundary />
-      <App />
-    </AuthSessionContinuity>
+    <AuthInitializationBoundary>
+      <AuthSessionContinuity>
+        <ReleaseFreshnessGuard />
+        <UiSafetyGuard />
+        <OnboardingCompletionBoundary />
+        <App />
+      </AuthSessionContinuity>
+    </AuthInitializationBoundary>
   );
 }
 

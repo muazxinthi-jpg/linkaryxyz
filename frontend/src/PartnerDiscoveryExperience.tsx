@@ -152,6 +152,13 @@ type RelationshipDetail = {
   communities: RelationshipCommunity[];
   evidence_note: string;
 };
+type MatchExplanation = {
+  headline: string;
+  whyRelevant: string[];
+  evidence: string[];
+  cautions: string[];
+  nextQuestions: string[];
+};
 
 type InquiryForm = {
   inquiryType: string;
@@ -251,6 +258,10 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
   const [relationshipTarget, setRelationshipTarget] = useState<Partner | null>(null);
   const [relationshipDetail, setRelationshipDetail] = useState<RelationshipDetail | null>(null);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [matchTarget, setMatchTarget] = useState<Partner | null>(null);
+  const [matchExplanation, setMatchExplanation] = useState<MatchExplanation | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState('');
   const [inquiryTarget, setInquiryTarget] = useState<Partner | null>(null);
   const [inquiryCommunities, setInquiryCommunities] = useState<CommunityAsset[]>([]);
   const [campaignOptions, setCampaignOptions] = useState<CampaignOption[]>([]);
@@ -386,6 +397,38 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
     }
   }
 
+  async function explainMatch(partner: Partner) {
+    if (!organizationId || !canManage(project)) return;
+    const token = csrf();
+    if (!token) return;
+    setMatchTarget(partner);
+    setMatchExplanation(null);
+    setMatchError('');
+    setMatchLoading(true);
+    try {
+      const result = await api<{ explanation: MatchExplanation }>('/api/ai/partner-match-explanation', {
+        method: 'POST',
+        headers: { 'x-csrf-token': token },
+        body: JSON.stringify({
+          organizationId,
+          partnerKind: partner.kind,
+          partnerId: partner.kind === 'creator' ? partner.profile_id : partner.manager_id,
+          idempotencyKey: `match-explanation:${organizationId}:${partner.kind}:${partner.id}:${crypto.randomUUID()}`,
+        }),
+      });
+      setMatchExplanation(result.explanation);
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : 'request_failed';
+      setMatchError(code === 'usage_credits_insufficient' ? 'This Project does not have enough Usage Credits for a match explanation.'
+        : code === 'ai_evidence_insufficient' ? 'Linkary does not have enough evidence to explain this match yet.'
+          : code === 'forbidden' ? 'Your Project role cannot spend Usage Credits.'
+            : code === 'ai_output_invalid' ? 'LinkaryAI could not produce a safe explanation. Please try again.'
+              : 'LinkaryAI is temporarily unavailable. Please try again shortly.');
+    } finally {
+      setMatchLoading(false);
+    }
+  }
+
   async function openInquiry(partner: Partner, preselectedCommunityId = '') {
     if (!organizationId || !canManage(project)) return;
     setInquiryTarget(partner);
@@ -482,7 +525,7 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
               <div className="partner-card-head"><Avatar src={partner.avatar_url} name={partner.display_name} /><div><strong>{partner.display_name}</strong><span>{partner.kind === 'creator' ? `@${partner.username}` : partner.headline || 'Community Manager'}</span></div><span className={`partner-verify ${partner.kind === 'creator' ? (partner.verified ? 'verified' : 'unverified') : (partner.verified_communities > 0 ? 'verified' : 'unverified')}`}>{partner.kind === 'creator' ? (partner.verified ? 'Verified' : 'Listed') : `${partner.verified_communities} verified`}</span></div>
               {partner.kind === 'creator' ? <><p>{partner.bio || 'Published Linkary Creator profile.'}</p><div className="partner-metrics"><div><span>COLLABORATION</span><strong>{partner.open_to_collaborations ? 'Open' : 'Profile only'}</strong></div><div><span>ACCEPTED CAMPAIGNS</span><strong>{partner.accepted_campaigns}</strong></div><div><span>X IDENTITY</span><strong>{partner.x_handle ? `@${partner.x_handle}` : 'Linked'}</strong></div></div></> : <><p>{partner.bio || partner.headline || 'Public Community Manager portfolio.'}</p><div className="partner-metrics"><div><span>COMMUNITIES</span><strong>{partner.community_count}</strong></div><div><span>VERIFIED</span><strong>{partner.verified_communities}</strong></div><div><span>COMBINED AUDIENCE</span><strong>{compact(partner.combined_audience)}</strong></div><div><span>PERSONAL TELEGRAM</span><strong>{partner.telegram_verified ? 'Verified' : 'Not verified'}</strong></div></div></>}
               {relationship && relationship.state !== 'new' && <div className="partner-relationship-snapshot"><span className={`partner-relationship-state ${relationship.state}`}>{relationshipLabel(relationship.state)}</span><div>{relationship.campaigns > 0 && <span><b>{relationship.campaigns}</b> campaign{relationship.campaigns === 1 ? '' : 's'}</span>}<span><b>{compact(relationship.tracked_clicks)}</b> tracked clicks</span><span><b>{compact(relationship.verified_outcomes)}</b> verified outcomes</span>{relationship.attributed_value_usd > 0 && <span><b>{money(relationship.attributed_value_usd)}</b> value</span>}</div></div>}
-              <div className="partner-card-foot"><span>{inquiry?.status === 'pending' ? <span className="collab-inquiry-status pending">Inquiry pending</span> : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? <span className="collab-inquiry-status accepted">Accepted · activate in Inbox</span> : relationship && relationship.state !== 'new' ? <span className={`partner-relationship-state compact ${relationship.state}`}>{relationshipLabel(relationship.state)}</span> : partner.kind === 'creator' ? (partner.open_to_collaborations ? 'Open to collaboration' : 'Published Creator') : (partner.open_to_campaigns ? 'Open to campaigns' : 'Directory listing')}</span><div className="network-actions"><a className="ops-button ghost small" href={partner.public_url} target="_blank" rel="noreferrer">View profile ↗</a>{partner.kind === 'community_manager' && <button type="button" onClick={() => void openPartner(partner)}>View Communities</button>}{relationship && relationship.state !== 'new' && <button type="button" onClick={() => void openRelationship(partner)}>View relationship</button>}<button type="button" disabled={!canManage(project) || savingId === partner.id} onClick={() => void shortlist(partner)}>{savingId === partner.id ? 'Saving...' : 'Shortlist'}</button><button className="collab-inquiry-open" type="button" disabled={!canManage(project) || inquiryLocked} onClick={() => void openInquiry(partner, rehireCommunity)}>{inquiry?.status === 'pending' ? 'Inquiry pending' : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? 'Accepted' : workedBefore ? 'Work again' : inquiry?.status === 'declined' || inquiry?.status === 'withdrawn' ? 'New inquiry' : 'Start inquiry'}</button></div></div>
+              <div className="partner-card-foot"><span>{inquiry?.status === 'pending' ? <span className="collab-inquiry-status pending">Inquiry pending</span> : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? <span className="collab-inquiry-status accepted">Accepted · activate in Inbox</span> : relationship && relationship.state !== 'new' ? <span className={`partner-relationship-state compact ${relationship.state}`}>{relationshipLabel(relationship.state)}</span> : partner.kind === 'creator' ? (partner.open_to_collaborations ? 'Open to collaboration' : 'Published Creator') : (partner.open_to_campaigns ? 'Open to campaigns' : 'Directory listing')}</span><div className="network-actions"><a className="ops-button ghost small" href={partner.public_url} target="_blank" rel="noreferrer">View profile ↗</a>{partner.kind === 'community_manager' && <button type="button" onClick={() => void openPartner(partner)}>View Communities</button>}{relationship && relationship.state !== 'new' && <button type="button" onClick={() => void openRelationship(partner)}>View relationship</button>}{canManage(project) && <button className="linkaryai-trigger" type="button" onClick={() => void explainMatch(partner)}>Why this match?</button>}<button type="button" disabled={!canManage(project) || savingId === partner.id} onClick={() => void shortlist(partner)}>{savingId === partner.id ? 'Saving...' : 'Shortlist'}</button><button className="collab-inquiry-open" type="button" disabled={!canManage(project) || inquiryLocked} onClick={() => void openInquiry(partner, rehireCommunity)}>{inquiry?.status === 'pending' ? 'Inquiry pending' : inquiry?.status === 'accepted' && !inquiry.activated_activity_id ? 'Accepted' : workedBefore ? 'Work again' : inquiry?.status === 'declined' || inquiry?.status === 'withdrawn' ? 'New inquiry' : 'Start inquiry'}</button></div></div>
             </article>;
           })}</div>}
         </section>
@@ -498,6 +541,15 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
         <div className="partner-portfolio-title"><div><h3>Telegram Communities</h3><span>{communities.length} listed</span></div></div>
         {!communities.length ? <div className="ops-empty compact"><p>No Communities are publicly listed for this manager yet.</p></div> : <div className="partner-asset-list">{communities.map((community) => <article key={community.id}><div><strong>{community.name}</strong><span>{community.handle ? `@${community.handle}` : 'Telegram'}</span></div><div><strong>{compact(community.audience_size)}</strong><span>estimated audience</span></div><span className={`partner-verify ${community.verification_status}`}>{human(community.verification_status)}</span>{community.url && <a href={community.url} target="_blank" rel="noreferrer">Visit Community ↗</a>}{canManage(project) && <button className="ops-button small" onClick={() => { setSelected(null); void openInquiry(selected, community.id); }}>Inquire about this Community</button>}</article>)}</div>}
         <div className="ops-form-actions"><a className="ops-button ghost" href={selected.public_url} target="_blank" rel="noreferrer">View public portfolio ↗</a><button className="ops-button secondary" disabled={!canManage(project) || savingId === selected.id} onClick={() => void shortlist(selected)}>{savingId === selected.id ? 'Saving...' : 'Save to Project shortlist'}</button>{relationshipFor(selected) && relationshipFor(selected)?.state !== 'new' && <button className="ops-button secondary" onClick={() => { setSelected(null); void openRelationship(selected); }}>View relationship</button>}<button className="ops-button primary" disabled={!canManage(project) || latestInquiry(selected)?.status === 'pending' || (latestInquiry(selected)?.status === 'accepted' && !latestInquiry(selected)?.activated_activity_id)} onClick={() => { const latest = latestInquiry(selected); setSelected(null); void openInquiry(selected, latest?.activated_activity_id ? latest.partner_asset_id || '' : ''); }}>{latestInquiry(selected)?.activated_activity_id ? 'Work again' : 'Start inquiry'}</button></div>
+      </section></div>}
+
+      {matchTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !matchLoading) setMatchTarget(null); }}><section className="ops-modal linkaryai-result" role="dialog" aria-modal="true" aria-labelledby="match-explanation-title">
+        <div className="ops-modal-head"><div><span className="ops-kicker">LINKARYAI · 10 USAGE CREDITS</span><h2 id="match-explanation-title">Why {matchTarget.display_name} may be relevant</h2></div><button type="button" disabled={matchLoading} aria-label="Close match explanation" onClick={() => setMatchTarget(null)}>×</button></div>
+        {matchLoading ? <div className="linkaryai-loading">LinkaryAI is reviewing the available evidence...</div> : matchError ? <div className="linkaryai-error"><strong>Explanation unavailable</strong><p>{matchError}</p><button className="ops-button secondary" type="button" onClick={() => void explainMatch(matchTarget)}>Try again</button></div> : matchExplanation ? <>
+          <div className="linkaryai-headline"><span>EVIDENCE-BASED EXPLANATION</span><strong>{matchExplanation.headline}</strong></div>
+          <div className="linkaryai-sections"><section><h3>Why they may be relevant</h3><ul>{matchExplanation.whyRelevant.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>Evidence Linkary has</h3><ul>{matchExplanation.evidence.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>Things to consider</h3><ul>{matchExplanation.cautions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>Questions / next checks</h3><ul>{matchExplanation.nextQuestions.map((item) => <li key={item}>{item}</li>)}</ul></section></div>
+          <p className="linkaryai-disclaimer">This explanation uses recorded Linkary evidence. It is not a ranking, guarantee, or prediction.</p>
+        </> : null}
       </section></div>}
 
       {relationshipTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setRelationshipTarget(null); }}><section className="ops-modal partner-relationship-modal">

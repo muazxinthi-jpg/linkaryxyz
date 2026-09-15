@@ -9,10 +9,20 @@ import { enhancePublicHomepage } from './homepagePricing';
 import { startTelegramConnection, finishTelegramConnection } from './auth/telegram';
 import { listCampaignCosts, recordCampaignCost, voidCampaignCost } from './routes/campaignCosts';
 import { founderGrowthIntelligence } from './routes/growthIntelligence';
+import { generateGrowthSummary } from './ai/growthSummary';
+import { explainPartnerMatch } from './ai/matchExplanation';
 import { listGrowthBaselines, saveGrowthBaseline } from './routes/growthBaseline';
 import { createNetworkInviteIntegrity } from './routes/inviteIntegrity';
 import { renderInviteLanding } from './routes/invites';
 import { redirectTrackedLink } from './routes/tracking';
+import {
+  createOnchainWatchTarget,
+  disableOnchainWatchTarget,
+  listOnchainAttributionEvents,
+  listOnchainWatchTargets,
+  receiveAlchemyAddressActivityWebhook,
+  reviewOnchainAttributionEvent,
+} from './routes/onchainAttribution';
 import {
   billingPaymentConfigurationSafe,
   createBillingCheckoutSafe,
@@ -80,6 +90,46 @@ export default {
       try {
         if (request.method !== 'POST') return methodNotAllowed(['POST']);
         return await verifyBillingCheckoutSafe(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+
+    if (url.pathname === '/api/onchain/watch-targets') {
+      try {
+        if (request.method === 'GET') return await listOnchainWatchTargets(request, env);
+        if (request.method === 'POST') return await createOnchainWatchTarget(request, env);
+        return methodNotAllowed(['GET', 'POST']);
+      } catch (error) { return errorResponse(error); }
+    }
+    const onchainWatchDisable = url.pathname.match(/^\/api\/onchain\/watch-targets\/([^/]+)\/disable$/);
+    if (onchainWatchDisable) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await disableOnchainWatchTarget(request, env, decodeURIComponent(onchainWatchDisable[1]));
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/onchain/events') {
+      try {
+        if (request.method !== 'GET') return methodNotAllowed(['GET']);
+        return await listOnchainAttributionEvents(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    const onchainEventReview = url.pathname.match(/^\/api\/onchain\/events\/([^/]+)\/(confirm|ignore)$/);
+    if (onchainEventReview) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await reviewOnchainAttributionEvent(
+          request,
+          env,
+          decodeURIComponent(onchainEventReview[1]),
+          onchainEventReview[2] as 'confirm' | 'ignore',
+        );
+      } catch (error) { return errorResponse(error); }
+    }
+    const alchemyWebhook = url.pathname.match(/^\/api\/webhooks\/alchemy\/([^/]+)$/);
+    if (alchemyWebhook) {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await receiveAlchemyAddressActivityWebhook(request, env, decodeURIComponent(alchemyWebhook[1]));
       } catch (error) { return errorResponse(error); }
     }
 
@@ -226,6 +276,18 @@ export default {
       try {
         if (request.method === 'GET') return await founderGrowthIntelligence(request, env);
         return methodNotAllowed(['GET']);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/ai/growth-summary') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await generateGrowthSummary(request, env);
+      } catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/ai/partner-match-explanation') {
+      try {
+        if (request.method !== 'POST') return methodNotAllowed(['POST']);
+        return await explainPartnerMatch(request, env);
       } catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/growth-baselines') {

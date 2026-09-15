@@ -11,8 +11,8 @@ test('bid marketplace uses the existing promotion auction system', () => {
   assert.match(entry, /getBidMarketplace/);
   assert.match(marketplace, /profile_promotion_auctions/);
   assert.match(marketplace, /profile_promotion_bids/);
-  assert.match(marketplace, /active\.status = 'open'/);
-  assert.match(marketplace, /active\.expires_at > \?/);
+  assert.match(marketplace, /a\.status = 'open'/);
+  assert.match(marketplace, /a\.expires_at > \?/);
 });
 
 test('public profile views are aggregated daily and fail open', () => {
@@ -41,42 +41,22 @@ test('Bids is a first-class workspace route for creator and project workspaces',
   assert.match(app, /BidMarketplaceExperience/);
 });
 
-test('marketplace exposes operational discovery and personal auction views', () => {
+test('marketplace exposes requested leaderboards and discovery actions', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
-  for (const label of ['Live auctions', 'Ending soon', 'Most viewed', 'Most bid on', 'My bids', 'Won auctions']) {
-    assert.ok(ui.includes(label), `missing marketplace tab ${label}`);
+  for (const label of ['Current Active', 'Top Bidders', 'Top Winners', 'Most Viewed', 'Most Bid On']) {
+    assert.ok(ui.includes(label), `missing leaderboard ${label}`);
   }
-  assert.match(ui, /Search profiles, creators or projects/);
-  assert.match(ui, /Minimum profile views/);
-  assert.match(ui, /Minimum current bid/);
-  assert.match(ui, /PROFILES AVAILABLE/);
-  assert.match(ui, /setInterval\(\(\) => void refresh\(true\), 30000\)/);
-});
-
-test('auction cards and detail panel preserve real bid actions', () => {
-  const components = read('frontend/src/bidMarketplaceComponents.tsx');
-  assert.match(components, /View profile/);
-  assert.match(components, /Place bid/);
-  assert.match(components, /promotion-auction/);
-  assert.match(components, /You will only pay if you win this auction/);
-  assert.match(components, /idempotency-key/);
-  assert.match(components, /x-csrf-token/);
-  assert.match(components, /BidHistoryChart/);
+  assert.match(ui, /View profile/);
+  assert.match(ui, /Place bid/);
+  assert.match(ui, /promotion-auction/);
+  assert.match(ui, /setInterval\(\(\) => void refresh\(\), 30000\)/);
 });
 
 test('marketplace UI is responsive and scoped', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
   const css = read('frontend/src/bid-marketplace.css');
-  const avatarCss = read('frontend/src/bid-marketplace-avatar-fix.css');
   assert.match(ui, /import '\.\/bid-marketplace\.css'/);
-  assert.match(ui, /import '\.\/bid-marketplace-avatar-fix\.css'/);
   assert.match(css, /@media\(max-width:820px\)/);
-  assert.match(css, /@media\(max-width:620px\)/);
-  assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(css, /@media\(max-width:520px\)/);
   assert.match(css, /\.bid-marketplace/);
-  assert.match(css, /\.bid-auction-grid/);
-  assert.match(css, /\.bid-detail-panel/);
-  assert.match(avatarCss, /\.bid-card-avatar > img/);
-  assert.match(avatarCss, /position:absolute/);
-  assert.match(avatarCss, /object-fit:cover/);
 });

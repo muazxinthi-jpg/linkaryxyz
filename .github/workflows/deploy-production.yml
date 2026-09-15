@@ -208,7 +208,9 @@ jobs:
               && grep -qi '^x-robots-tag: noindex' "$sadmin_headers" \
               && grep -qi '^cache-control: .*no-store' "$sadmin_headers" \
               && grep -Fq '100% coupon created.' "$bundle_body" \
-              && grep -Fq 'A 100% percent-off coupon grants one paid monthly period' "$bundle_body" \
+              && grep -Fq 'claim timing kept separate from entitlement expiry.' "$bundle_body" \
+              && grep -Fq 'Claim end controls when a code may be redeemed.' "$bundle_body" \
+              && grep -Fq 'Access until controls the fixed entitlement expiry' "$bundle_body" \
               && ! grep -Fq 'Coupons cannot reduce a paid checkout to $0' "$bundle_body" \
               && grep -Fq 'Profile optimization' "$bundle_body" \
               && grep -Fq 'My network' "$bundle_body" \

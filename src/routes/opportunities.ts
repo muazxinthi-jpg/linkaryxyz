@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { organizationMembership } from './organizations';
+import { createActivity } from './activities';
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -189,13 +190,86 @@ export async function reviewCampaignOpportunityApplication(request: Request, env
   const body = await readJson<{ status?: 'accepted' | 'rejected' }>(request);
   if (!body.status || !['accepted', 'rejected'].includes(body.status)) throw new HttpError(400, 'Choose accepted or rejected', 'invalid_application_status');
   const db = new Db(requireDb(env));
-  const application = await db.first<{ organization_id: string }>(
-    `SELECT o.organization_id FROM campaign_opportunity_applications a JOIN campaign_opportunities o ON o.id = a.opportunity_id WHERE a.id = ?`,
+  const application = await db.first<{
+    organization_id: string;
+    campaign_id: string;
+    opportunity_title: string;
+    applicant_profile_id: string;
+    manager_id: string | null;
+  }>(
+    `SELECT o.organization_id,
+            o.campaign_id,
+            o.title AS opportunity_title,
+            a.applicant_profile_id,
+            a.manager_id
+       FROM campaign_opportunity_applications a
+       JOIN campaign_opportunities o ON o.id = a.opportunity_id
+      WHERE a.id = ?`,
     [applicationId],
   );
   if (!application) throw new HttpError(404, 'Application not found', 'application_not_found');
   const membership = await organizationMembership(db, auth.user.id, application.organization_id);
   if (!membership || !['owner', 'admin', 'marketing_manager'].includes(membership.role)) throw new HttpError(403, 'Application review access denied', 'forbidden');
+
+  let activityId: string | null = null;
+  let activityCreated = false;
+  let requiresCommunitySelection = false;
+
+  if (body.status === 'accepted') {
+    if (application.manager_id) {
+      // A Community Manager may control several Telegram Communities. Acceptance alone
+      // cannot choose which Community should own the evidence, so exact Community
+      // activation remains an explicit Project action in the campaign activity flow.
+      requiresCommunitySelection = true;
+    } else {
+      const existingActivity = await db.first<{ id: string }>(
+        `SELECT ca.id
+           FROM campaign_activities ca
+           JOIN campaign_activity_linkary_assignments la ON la.activity_id = ca.id
+          WHERE ca.campaign_id = ?
+            AND la.assignment_kind = 'creator'
+            AND la.creator_profile_id = ?
+          ORDER BY ca.created_at ASC
+          LIMIT 1`,
+        [application.campaign_id, application.applicant_profile_id],
+      );
+
+      if (existingActivity) {
+        activityId = existingActivity.id;
+      } else {
+        const activationUrl = new URL(request.url);
+        activationUrl.pathname = '/api/campaign-activities';
+        activationUrl.search = '';
+        const activationHeaders = new Headers(request.headers);
+        activationHeaders.set('content-type', 'application/json');
+        const activationResponse = await createActivity(
+          new Request(activationUrl.toString(), {
+            method: 'POST',
+            headers: activationHeaders,
+            body: JSON.stringify({
+              campaignId: application.campaign_id,
+              title: application.opportunity_title,
+              activityType: 'creator_content',
+              partner: { kind: 'creator', creatorProfileId: application.applicant_profile_id },
+            }),
+          }),
+          env,
+        );
+        const activationPayload = await activationResponse.json() as { id?: string };
+        if (!activationResponse.ok || !activationPayload.id) throw new HttpError(500, 'Creator work could not be activated', 'creator_activation_failed');
+        activityId = activationPayload.id;
+        activityCreated = true;
+      }
+    }
+  }
+
   await db.run('UPDATE campaign_opportunity_applications SET status = ?, updated_at = ? WHERE id = ?', [body.status, now(), applicationId]);
-  return json({ ok: true, status: body.status });
+  return json({
+    ok: true,
+    status: body.status,
+    activityId,
+    activityCreated,
+    requiresProjectTrackingLink: body.status === 'accepted' && Boolean(activityId),
+    requiresCommunitySelection,
+  });
 }

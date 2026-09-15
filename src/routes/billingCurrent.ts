@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { requireAuth } from '../auth/session';
 import { HttpError, json } from '../http';
 import { superadminPlatformPlan } from '../superadminPlatformAccess';
+import { ensureCouponEntitlementMonthlyCredits } from '../couponEntitlementCredits';
 
 type ProfileRow = {
   id: string;
@@ -179,6 +180,8 @@ export async function currentBillingStatus(request: Request, env: Env): Promise<
         LIMIT 1`,
       [ownerId, timestamp, timestamp],
     );
+
+  if (grant) await ensureCouponEntitlementMonthlyCredits(db, ownerType, ownerId, timestamp);
 
   const subscription = platformPlan || grant ? null : await activeSubscription(db, ownerType, ownerId, timestamp);
   const fallback = !platformPlan && !grant && !subscription ? await db.first<PlanRow>(

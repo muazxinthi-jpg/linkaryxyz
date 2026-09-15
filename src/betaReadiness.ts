@@ -60,6 +60,15 @@ export const REQUIRED_BETA_CONFIGURATION = [
   'Linkary AI provider',
 ] as const;
 
+export const REQUIRED_ALCHEMY_ATTRIBUTION_CONFIGURATION = [
+  'Alchemy Notify control token',
+  'Ethereum attribution webhook',
+  'Base attribution webhook',
+  'BNB Chain attribution webhook',
+  'Solana attribution webhook',
+  'Robinhood Chain attribution webhook',
+] as const;
+
 export type BetaSchemaReadiness = {
   ready: boolean;
   requiredTableCount: number;
@@ -76,6 +85,18 @@ export type BetaConfigurationReadiness = {
   requiredCount: number;
   presentCount: number;
   missing: string[];
+};
+
+export type AlchemyAttributionReadiness = {
+  ready: boolean;
+  requiredCount: number;
+  presentCount: number;
+  missing: string[];
+  chains: Array<{
+    chain: 'ethereum' | 'base' | 'bnb' | 'solana' | 'robinhood';
+    label: string;
+    configured: boolean;
+  }>;
 };
 
 export function assessBetaSchema(objects: SchemaObject[]): BetaSchemaReadiness {
@@ -122,6 +143,49 @@ export function assessBetaConfiguration(env: Env): BetaConfigurationReadiness {
     requiredCount: REQUIRED_BETA_CONFIGURATION.length,
     presentCount: REQUIRED_BETA_CONFIGURATION.length - missing.length,
     missing: [...missing],
+  };
+}
+
+export function assessAlchemyAttributionConfiguration(env: Env): AlchemyAttributionReadiness {
+  const chains: AlchemyAttributionReadiness['chains'] = [
+    {
+      chain: 'ethereum',
+      label: 'Ethereum',
+      configured: Boolean(env.ALCHEMY_WEBHOOK_ID_ETHEREUM?.trim() && env.ALCHEMY_WEBHOOK_SIGNING_KEY_ETHEREUM?.trim()),
+    },
+    {
+      chain: 'base',
+      label: 'Base',
+      configured: Boolean(env.ALCHEMY_WEBHOOK_ID_BASE?.trim() && env.ALCHEMY_WEBHOOK_SIGNING_KEY_BASE?.trim()),
+    },
+    {
+      chain: 'bnb',
+      label: 'BNB Chain',
+      configured: Boolean(env.ALCHEMY_WEBHOOK_ID_BNB?.trim() && env.ALCHEMY_WEBHOOK_SIGNING_KEY_BNB?.trim()),
+    },
+    {
+      chain: 'solana',
+      label: 'Solana',
+      configured: Boolean(env.ALCHEMY_WEBHOOK_ID_SOLANA?.trim() && env.ALCHEMY_WEBHOOK_SIGNING_KEY_SOLANA?.trim()),
+    },
+    {
+      chain: 'robinhood',
+      label: 'Robinhood Chain',
+      configured: Boolean(env.ALCHEMY_WEBHOOK_ID_ROBINHOOD?.trim() && env.ALCHEMY_WEBHOOK_SIGNING_KEY_ROBINHOOD?.trim()),
+    },
+  ];
+  const checks = [
+    Boolean(env.ALCHEMY_NOTIFY_AUTH_TOKEN?.trim()),
+    ...chains.map((chain) => chain.configured),
+  ];
+  const missing = REQUIRED_ALCHEMY_ATTRIBUTION_CONFIGURATION.filter((_, index) => !checks[index]);
+
+  return {
+    ready: missing.length === 0,
+    requiredCount: REQUIRED_ALCHEMY_ATTRIBUTION_CONFIGURATION.length,
+    presentCount: REQUIRED_ALCHEMY_ATTRIBUTION_CONFIGURATION.length - missing.length,
+    missing: [...missing],
+    chains,
   };
 }
 

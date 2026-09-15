@@ -5,7 +5,26 @@ import { errorResponse, methodNotAllowed } from './http';
 import { requirePersonalNftEntitlement } from './nftProfileEntitlement';
 import { listAdminCoupons, updateAdminCouponStatus } from './routes/adminCoupons';
 import { createAdminCoupon100 } from './routes/adminCouponCreate100';
+import { updateAdminCouponAccessUntil } from './routes/adminCouponAccessUntil';
+import { updateAdminCouponAccessDuration } from './routes/adminCouponAccessDuration';
 import { redeemFreeCoupon } from './routes/freeCouponRedemption';
+import {
+  adminPlatformIntelligence,
+  createInternalReferralReward,
+  updateInternalReferralRewardStatus,
+  upsertPlatformGrowthTarget,
+} from './routes/adminPlatformIntelligence';
+import {
+  adminReferralRewardIntelligence,
+  updateReferralRewardDecision,
+  updateReferralRewardRule,
+} from './routes/adminReferralRewardIntelligence';
+import {
+  adminNetworkRewardLedger,
+  syncNetworkRewardLedger,
+  updateNetworkRewardSettings,
+  updateNetworkRewardSettlement,
+} from './routes/adminNetworkRewardLedger';
 import { redirectTrackedLink } from './routes/tracking';
 
 const APP_SHELL_RELEASE = '2026-09-15-bid-marketplace-recovery';
@@ -106,6 +125,108 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/admin/platform-intelligence') {
+      try {
+        if (request.method === 'GET') return await adminPlatformIntelligence(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-reward-intelligence') {
+      try {
+        if (request.method === 'GET') return await adminReferralRewardIntelligence(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-reward-rule') {
+      try {
+        if (request.method === 'POST') return await updateReferralRewardRule(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const referralRewardPaymentStatus = url.pathname.match(/^\/api\/admin\/platform-intelligence\/referral-reward-payments\/([^/]+)\/status$/);
+    if (referralRewardPaymentStatus) {
+      try {
+        if (request.method === 'POST') return await updateReferralRewardDecision(request, env, decodeURIComponent(referralRewardPaymentStatus[1]));
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-ledger') {
+      try {
+        if (request.method === 'GET') return await adminNetworkRewardLedger(request, env);
+        return methodNotAllowed(['GET']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-ledger/sync') {
+      try {
+        if (request.method === 'POST') return await syncNetworkRewardLedger(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/network-reward-settings') {
+      try {
+        if (request.method === 'POST') return await updateNetworkRewardSettings(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const networkRewardSettlement = url.pathname.match(/^\/api\/admin\/platform-intelligence\/network-reward-ledger\/([^/]+)\/status$/);
+    if (networkRewardSettlement) {
+      try {
+        if (request.method === 'POST') return await updateNetworkRewardSettlement(request, env, decodeURIComponent(networkRewardSettlement[1]));
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/referral-rewards') {
+      try {
+        if (request.method === 'POST') return await createInternalReferralReward(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const internalRewardStatus = url.pathname.match(/^\/api\/admin\/platform-intelligence\/referral-rewards\/([^/]+)\/status$/);
+    if (internalRewardStatus) {
+      try {
+        if (request.method === 'POST') return await updateInternalReferralRewardStatus(request, env, decodeURIComponent(internalRewardStatus[1]));
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    if (url.pathname === '/api/admin/platform-intelligence/growth-targets') {
+      try {
+        if (request.method === 'POST') return await upsertPlatformGrowthTarget(request, env);
+        return methodNotAllowed(['POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
     if (url.pathname === '/api/admin/commercial/coupons') {
       try {
         if (request.method === 'GET') {
@@ -114,6 +235,26 @@ export default {
         }
         if (request.method === 'POST') return await createAdminCoupon100(request, env);
         return methodNotAllowed(['GET', 'POST']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const adminCouponAccessUntil = url.pathname.match(/^\/api\/admin\/commercial\/coupons\/([^/]+)\/access-until$/);
+    if (adminCouponAccessUntil) {
+      try {
+        if (request.method === 'PATCH') return await updateAdminCouponAccessUntil(request, env, decodeURIComponent(adminCouponAccessUntil[1]));
+        return methodNotAllowed(['PATCH']);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+
+    const adminCouponAccessDuration = url.pathname.match(/^\/api\/admin\/commercial\/coupons\/([^/]+)\/access-duration$/);
+    if (adminCouponAccessDuration) {
+      try {
+        if (request.method === 'PATCH') return await updateAdminCouponAccessDuration(request, env, decodeURIComponent(adminCouponAccessDuration[1]));
+        return methodNotAllowed(['PATCH']);
       } catch (error) {
         return errorResponse(error);
       }

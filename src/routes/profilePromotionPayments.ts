@@ -76,7 +76,17 @@ export async function getMyPromotionPayment(request: Request, env: Env, auctionI
   );
   if (!payment) return json({ payment: null, walletBalances: null });
   const auction = await db.first<{ payment_due_at: string | null; status: string }>(`SELECT payment_due_at, status FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
-  return json({ payment: { ...payment, payment_due_at: auction?.payment_due_at || null, auction_status: auction?.status || null } });
+  const timestamp = now();
+  if (auction?.payment_due_at && auction.payment_due_at <= timestamp && ['pending', 'submitted', 'detected'].includes(payment.status)) {
+    await db.batch([
+      db.statement(`UPDATE profile_promotion_payments SET status = 'expired', updated_at = ? WHERE id = ? AND status IN ('pending','submitted','detected')`, [timestamp, payment.id]),
+      db.statement(`UPDATE profile_promotion_auctions SET status = 'payment_expired', updated_at = ? WHERE id = ? AND status IN ('payment_pending','payment_detected')`, [timestamp, auctionId]),
+    ]);
+    return json({ payment: { ...payment, status: 'expired', payment_due_at: auction.payment_due_at, auction_status: 'payment_expired' }, walletBalances: null });
+  }
+  let walletBalances = null;
+  try { walletBalances = await primaryBaseWalletBalances(env, auth.user.id); } catch { /* Payment UI remains usable if a balance provider is unavailable. */ }
+  return json({ payment: { ...payment, payment_due_at: auction?.payment_due_at || null, auction_status: auction?.status || null }, walletBalances });
 }
 
 export async function verifyPromotionPayment(request: Request, env: Env, auctionId: string): Promise<Response> {
@@ -121,9 +131,9 @@ export async function verifyPromotionPayment(request: Request, env: Env, auction
   }
 
   const blockNumber = receipt.blockNumber ? Number.parseInt(receipt.blockNumber, 16) : null;
-  const auction = await db.first<{ live_duration_hours: number }>(`SELECT s.live_duration_hours FROM profile_promotion_auctions a JOIN profile_promotion_slots s ON s.id = a.slot_id WHERE a.id = ?`, [auctionId]);
+  const auction = await db.first<{ duration_hours: number }>(`SELECT duration_hours FROM profile_promotion_auctions WHERE id = ?`, [auctionId]);
   if (!auction) throw new HttpError(404, 'Auction not found', 'auction_not_found');
-  const promotionEndsAt = new Date(Date.now() + auction.live_duration_hours * 60 * 60 * 1000).toISOString();
+  const promotionEndsAt = new Date(Date.now() + auction.duration_hours * 60 * 60 * 1000).toISOString();
   await db.batch([
     db.statement(`UPDATE profile_promotion_payments SET status = 'verified', tx_hash = ?, block_number = ?, verified_at = ?, updated_at = ? WHERE id = ? AND status IN ('pending','submitted')`, [txHash, blockNumber, timestamp, timestamp, payment.id]),
     db.statement(`UPDATE profile_promotion_auctions SET status = 'creative_pending', promotion_ends_at = ?, updated_at = ? WHERE id = ? AND status IN ('payment_pending','payment_detected')`, [promotionEndsAt, timestamp, auctionId]),

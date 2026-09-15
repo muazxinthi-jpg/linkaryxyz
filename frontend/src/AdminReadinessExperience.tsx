@@ -22,6 +22,17 @@ type Health = {
       presentCount: number;
       missing: string[];
     };
+    onchainAttribution: {
+      ready: boolean;
+      requiredCount: number;
+      presentCount: number;
+      missing: string[];
+      chains: Array<{
+        chain: 'ethereum' | 'base' | 'bnb' | 'solana' | 'robinhood';
+        label: string;
+        configured: boolean;
+      }>;
+    };
     inspectionError: string | null;
     nextAction: string;
   };
@@ -131,6 +142,11 @@ export default function AdminReadinessExperience({
                 <small>Database, authentication, security and canonical URLs</small>
               </article>
               <article>
+                <span>ONCHAIN PROVIDER</span>
+                <strong>{health.betaReadiness.onchainAttribution.presentCount}/{health.betaReadiness.onchainAttribution.requiredCount}</strong>
+                <small>Notify token plus five controlled-Beta webhooks</small>
+              </article>
+              <article>
                 <span>USERS</span>
                 <strong>{health.counts.users}</strong>
                 <small>Current Linkary accounts</small>
@@ -141,6 +157,28 @@ export default function AdminReadinessExperience({
                 <small>Creator and Project identities</small>
               </article>
             </div>
+
+            <section className="ops-section">
+              <div className="ops-section-title">
+                <div>
+                  <h2>Alchemy attribution networks</h2>
+                  <p>
+                    This reports configuration presence only. Linkary never returns webhook IDs, signing keys or the Notify control token to the browser.
+                  </p>
+                </div>
+              </div>
+              <div className="ops-table-list">
+                {health.betaReadiness.onchainAttribution.chains.map((chain) => (
+                  <div className="ops-activity-row" key={chain.chain}>
+                    <div className="ops-activity-main">
+                      <span className="ops-type-chip">{chain.configured ? 'Ready' : 'Missing'}</span>
+                      <strong>{chain.label}</strong>
+                      <small>{chain.configured ? 'Webhook ID and signing key are configured.' : 'Webhook configuration is incomplete.'}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {!health.betaReadiness.ready && (
               <section className="ops-section">
@@ -189,6 +227,15 @@ export default function AdminReadinessExperience({
                       </div>
                     </div>
                   ))}
+                  {health.betaReadiness.onchainAttribution.missing.map((name) => (
+                    <div className="ops-activity-row" key={`onchain:${name}`}>
+                      <div className="ops-activity-main">
+                        <span className="ops-type-chip">Onchain</span>
+                        <strong>{name}</strong>
+                        <small>Required for controlled-Beta onchain attribution. Secret values are never exposed here.</small>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
@@ -210,6 +257,8 @@ export default function AdminReadinessExperience({
                     'Invite click, signup and redemption attribution',
                     'Campaign, tracking link, click, outcome and public Proof',
                     'Campaign opportunity application and decision',
+                    'Base onchain transaction, evidence review and confirmed outcome',
+                    'Ethereum, BNB Chain, Solana and Robinhood Chain lightweight verification',
                     'Mobile, tablet and desktop acceptance',
                   ].map((item, index) => (
                     <div className="ops-activity-row" key={item}>

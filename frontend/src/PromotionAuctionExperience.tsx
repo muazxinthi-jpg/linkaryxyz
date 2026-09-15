@@ -30,7 +30,7 @@ type Auction = {
   payment_due_at: string | null;
 };
 
-type AuctionResponse = { auction: Auction; bids: Array<{ id: string; amount_cents: number; created_at: string }> };
+type AuctionResponse = { auction: Auction; profile: { id: string; username: string; display_name: string | null } | null; bids: Array<{ id: string; amount_cents: number; created_at: string }> };
 type Payment = { recipient_wallet_address: string; required_amount_atomic: number; tx_hash: string | null; status: string; payment_due_at: string | null; auction_status: string | null };
 type WalletBalances = { walletAddress: string; ethWei: string; usdcAtomic: string; gasPriceWei: string | null; estimatedUsdcTransferFeeWei: string | null };
 type FeaturedHeader = {
@@ -62,8 +62,6 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
   const [walletLoading, setWalletLoading] = useState(true);
   const [startingBid, setStartingBid] = useState('10');
   const [duration, setDuration] = useState('24');
-  const [liveDuration, setLiveDuration] = useState('24');
-  const [liveBanner, setLiveBanner] = useState<{ bannerUrl: string; endsAt: string | null } | null>(null);
   const [auctionId, setAuctionId] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -96,7 +94,7 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
     let cancelled = false;
     void Promise.all([
       api<{ destinations: Array<{ chain_family: string; address: string }>; embeddedWallets: Array<{ chain_family: string; address: string; is_primary: number }> }>(`/api/profile-wallets?profileId=${encodeURIComponent(profile.id)}`),
-      api<{ slot: { enabled: boolean; payoutWalletAddress: string; liveDurationHours?: number } | null; liveBanner?: { bannerUrl: string; endsAt: string | null } | null }>(`/api/profiles/${encodeURIComponent(profile.id)}/promotion-slot`),
+      api<{ slot: { enabled: boolean; payoutWalletAddress: string } | null }>(`/api/profiles/${encodeURIComponent(profile.id)}/promotion-slot`),
     ]).then(([wallets, promotion]) => {
       if (cancelled) return;
       const savedEvm = wallets.destinations.find((item) => item.chain_family === 'evm')?.address
@@ -105,8 +103,6 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
         || '';
       setWallet((current) => promotion.slot?.payoutWalletAddress || current || savedEvm);
       setMonetizationEnabled(Boolean(promotion.slot?.enabled));
-      setLiveDuration(String(promotion.slot?.liveDurationHours || 24));
-      setLiveBanner(promotion.liveBanner || null);
     }).catch(() => {}).finally(() => { if (!cancelled) setWalletLoading(false); });
     return () => { cancelled = true; };
   }, [profile.id]);
@@ -115,7 +111,7 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
     setBusy(true); setMessage('');
     try {
       await api(`/api/profiles/${encodeURIComponent(profile.id)}/promotion-slot`, {
-        method: 'PUT', body: JSON.stringify({ enabled: true, payoutWalletAddress: wallet, liveDurationHours: Number(liveDuration) }),
+        method: 'PUT', body: JSON.stringify({ enabled: true, payoutWalletAddress: wallet }),
       });
       setMonetizationEnabled(true);
       setMessage('Sponsored header monetization is enabled for this profile.');
@@ -158,13 +154,11 @@ export function PromotionOwnerPanel({ profile }: { profile: ProductProfile }) {
     <>
       <section className="ops-section promotion-owner-panel" data-promotion-owner-panel>
         <div className="ops-section-title"><div><span className="ops-kicker">PUBLIC PROFILE MONETIZATION</span><h2>Sponsored header auction</h2><p>Rent the header banner on your public profile. The winning project pays you directly in USDC on Base.</p></div></div>
-        {liveBanner && <div className="promotion-live-banner"><img src={liveBanner.bannerUrl} alt="Current live sponsored banner" /><div><strong>Current live banner</strong><span>Ends {liveBanner.endsAt ? new Date(liveBanner.endsAt).toLocaleString() : 'when withdrawn'}</span></div></div>}
         <div className="promotion-grid">
           <label><span>Payout wallet</span><input value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="0x..." /></label>
           <button type="button" className="ops-button secondary" disabled={busy || walletLoading || !wallet} onClick={enable}>{walletLoading ? 'Loading wallet…' : monetizationEnabled ? 'Monetization enabled' : 'Enable monetization'}</button>
           <label><span>Starting bid (USD)</span><input inputMode="decimal" value={startingBid} onChange={(e) => setStartingBid(e.target.value)} /></label>
           <label><span>Auction window</span><select value={duration} onChange={(e) => setDuration(e.target.value)}><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">24 hours</option></select></label>
-          <label><span>Live banner duration</span><select value={liveDuration} onChange={(e) => setLiveDuration(e.target.value)}><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></label>
           <button type="button" className="ops-button primary" disabled={busy || !monetizationEnabled || Number(startingBid) <= 0} onClick={createAuction}>Start auction</button>
         </div>
         {auctionId && <div className="promotion-share"><strong>Bidder link</strong><input readOnly value={bidderUrl} /><button type="button" className="ops-button secondary" onClick={() => navigator.clipboard?.writeText(bidderUrl)}>Copy</button></div>}
@@ -255,8 +249,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
     finally { setBusy(false); }
   }
 
-  const profile = status.profiles.find((item) => item.id === data?.auction.profile_id) || status.profiles[0];
-  if (!profile) return null;
+  const profile = data?.profile || status.profiles.find((item) => item.id === data?.auction.profile_id) || status.profiles[0];
   const auction = data?.auction;
   const minimumCents = auction ? Math.max(auction.starting_bid_cents, (auction.highest_bid_cents || 0) + 1) : 0;
   const senderMatches = Boolean(walletBalances && evmAddress && walletBalances.walletAddress.toLowerCase() === evmAddress.toLowerCase());
@@ -267,7 +260,7 @@ export default function PromotionAuctionExperience({ me, status }: { me: Product
       <a className="promotion-back" href="/dashboard">← Back to Linkary</a>
       <section className="promotion-auction-card">
         <span className="ops-kicker">SPONSORED HEADER AUCTION</span>
-        <h1>{profile.display_name || profile.username}</h1>
+        <h1>{profile?.display_name || profile?.username || 'Sponsored profile'}</h1>
         {!auction && <p>Loading auction...</p>}
         {auction && <>
           <div className="promotion-auction-stats"><div><span>Status</span><strong>{auction.status.replaceAll('_', ' ')}</strong></div><div><span>Highest bid</span><strong>{auction.highest_bid_cents ? dollars(auction.highest_bid_cents) : 'No bids yet'}</strong></div><div><span>Closes</span><strong>{new Date(auction.expires_at).toLocaleString()}</strong></div></div>

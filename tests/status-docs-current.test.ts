@@ -21,8 +21,8 @@ for (const [name, doc] of [
   });
 }
 
-test('status docs mark production D1 current through 0034', () => {
-  assert.equal(implementation.includes('Production schema is current through `0034_project_growth_baselines.sql`'), true);
+test('status docs mark their current production D1 migration baselines', () => {
+  assert.equal(implementation.includes('Production schema includes deployed migration `0047_alchemy_chain_attribution.sql`'), true);
   assert.equal(betaState.includes('Production D1 is current through `0034_project_growth_baselines.sql`'), true);
   assert.equal(codex.includes('Production schema is current through `0034_project_growth_baselines.sql`'), true);
   for (const doc of [implementation, betaState, codex]) {
