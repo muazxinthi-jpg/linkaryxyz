@@ -4,6 +4,7 @@ import { Db } from '../db/client';
 import { HttpError, json, readJson } from '../http';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { organizationMembership } from './organizations';
+import { createNotification } from './notifications';
 import { createActivity } from './activities';
 
 const now = () => new Date().toISOString();
@@ -137,8 +138,8 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
     const manager = await db.first<{ id: string }>(`SELECT m.id FROM partner_managers m JOIN profiles p ON p.id = m.profile_id WHERE m.id = ? AND p.owner_user_id = ?`, [body.managerId, auth.user.id]);
     if (!manager) throw new HttpError(403, 'Manager listing access denied', 'forbidden');
   }
-  const opportunity = await db.first<{ status: string; application_deadline: string | null; deadline_passed: number }>(
-    `SELECT status, application_deadline,
+  const opportunity = await db.first<{ organization_id: string; status: string; application_deadline: string | null; deadline_passed: number }>(
+    `SELECT organization_id, status, application_deadline,
             CASE WHEN application_deadline IS NOT NULL AND date(application_deadline) < date(?) THEN 1 ELSE 0 END AS deadline_passed
        FROM campaign_opportunities WHERE id = ?`,
     [now(), body.opportunityId],
@@ -160,6 +161,8 @@ export async function applyToCampaignOpportunity(request: Request, env: Env): Pr
      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
     [applicationId, body.opportunityId, body.profileId, body.managerId || null, body.note?.trim().slice(0, 1000) || '', timestamp, timestamp],
   );
+  const recipients = await db.all<{ user_id: string }>(`SELECT user_id FROM organization_memberships WHERE organization_id = ? AND status = 'active' AND role IN ('owner','admin','marketing_manager') AND user_id != ?`, [opportunity.organization_id, auth.user.id]);
+  await Promise.all(recipients.map((recipient) => createNotification(db, { userId: recipient.user_id, type: 'campaign_application', title: 'New campaign application', body: 'A creator applied to one of your campaign opportunities.', href: '/campaigns', entityType: 'campaign_opportunity_application', entityId: applicationId, dedupeKey: `campaign_application:${applicationId}:${recipient.user_id}` })));
   return json({ id: applicationId, status: 'pending' }, { status: 201 });
 }
 
