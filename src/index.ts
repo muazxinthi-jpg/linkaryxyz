@@ -56,6 +56,7 @@ import { getMyBaseWalletBalances } from './routes/baseWalletBalances';
 import { addProjectMember, cancelMyProjectAccessRequest, listMyProjectAccessRequests, listProjectAccessRequests, listProjectMembers, removeProjectMember, requestProjectAccess, reviewProjectAccessRequest, searchEligibleProjectMembers, searchRegisteredProjects, transferProjectOwnership, updateProjectMember } from './routes/projectAccess';
 import { serveStatic } from './static';
 import { getLinkaryUrls } from './urls';
+import { listNotifications, markAllNotificationsRead, markNotificationRead } from './routes/notifications';
 
 const STATIC_OR_SYSTEM = new Set([
   '', 'index.html', 'styles.css', 'script.js', 'uilib.md', 'favicon.ico', 'assets', 'api', 'onboarding', 'admin', 'app', 'i',
@@ -84,6 +85,10 @@ function withNoIndex(response: Response): Response {
 
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if (path === '/api/notifications') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return listNotifications(request, env); }
+  if (path === '/api/notifications/read-all') { if (request.method !== 'POST') return methodNotAllowed(['POST']); return markAllNotificationsRead(request, env); }
+  const notificationRead = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (notificationRead) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return markNotificationRead(request, env, decodeURIComponent(notificationRead[1])); }
   if (path === '/api/wallets/base-balances') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return getMyBaseWalletBalances(request, env); }
   if (path === '/api/health') {
     return json({
