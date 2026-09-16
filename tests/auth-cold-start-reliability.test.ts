@@ -32,6 +32,8 @@ test('slow initialization becomes informative before the hard timeout', () => {
 test('permanent initialization failure reaches actionable recovery instead of an endless spinner', () => {
   assert.equal(initializationPhase(false, AUTH_INIT_MAX_MS), 'timeout');
   assert.match(initializationBoundary, /Reference: LK-AUTH-INIT/);
+  assert.match(initializationBoundary, /Reset secure sign-in/);
+  assert.match(initializationBoundary, /clearLocalCdpSession/);
   assert.match(initializationBoundary, />Retry</);
   assert.match(initializationBoundary, />Reload</);
   assert.match(main, /<AuthInitializationBoundary>/);
