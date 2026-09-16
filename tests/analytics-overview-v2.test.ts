@@ -22,6 +22,10 @@ test('analytics overview follows the approved dashboard composition without fabr
   assert.match(page, /monthlySocialImpressions/);
   for (const platform of ['X data', 'Telegram', 'YouTube', 'Instagram', 'TikTok', 'LinkedIn']) assert.match(page, new RegExp(platform));
   for (const metric of ['Audience', 'Impressions', 'Engagements', 'Link clicks']) assert.match(page, new RegExp(metric));
+  for (const metric of ['Reposts', 'Replies', 'Bookmarks', 'Video views', 'Average watch time', 'Watch time']) assert.match(page, new RegExp(metric));
+  assert.match(page, /selectedPlatform/);
+  assert.match(page, /analytics-social-detail/);
+  assert.match(page, /aria-pressed/);
   for (const section of ['Social growth', 'Channel performance', 'Top social content', 'Social activity']) assert.match(page, new RegExp(section));
   for (const tab of ['Overview', 'Social analytics', 'Campaigns & attribution', 'Onchain & auctions']) assert.match(page, new RegExp(tab));
   assert.match(page, /setTab\(id\)/);
