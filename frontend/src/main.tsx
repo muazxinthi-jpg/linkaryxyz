@@ -48,7 +48,9 @@ const cdpConfig: Config = {
   ethereum: { createOnLogin: 'eoa' },
   appName: 'Linkary',
   appLogoUrl: 'https://linkary.xyz/assets/brand/linkary-icon-black.png',
-  authMethods: ['email', 'oauth:google', 'oauth:x'],
+  // Telegram is available both as a Coinbase CDP sign-in method and as a
+  // separate post-login identity connection from the Community workspace.
+  authMethods: ['email', 'oauth:google', 'oauth:x', 'oauth:telegram'],
 };
 
 const APP_RELEASE = '2026-09-09-private-network-v5';
