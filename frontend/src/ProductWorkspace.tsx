@@ -54,6 +54,7 @@ export function ProductWorkspace({
 
   const creatorNav = [
     ['/dashboard', 'Overview'],
+    ['/analytics', 'Analytics'],
     ['/dashboard/inbox', 'Inbox'],
     ['/bids', 'Bids'],
     ['/opportunities', 'Opportunities'],
@@ -66,6 +67,7 @@ export function ProductWorkspace({
   ];
   const projectNav = [
     ['/dashboard', 'Overview'],
+    ['/analytics', 'Analytics'],
     ['/dashboard/inbox', 'Inbox'],
     ['/bids', 'Bids'],
     ['/campaigns', 'Growth'],
