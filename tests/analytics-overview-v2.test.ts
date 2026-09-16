@@ -17,6 +17,9 @@ test('analytics overview follows the approved dashboard composition without fabr
   assert.match(page, /monthlyClicks/);
   assert.match(page, /Social APIs not connected/);
   assert.match(page, /socialSources/);
+  assert.match(page, /socialProfiles/);
+  for (const platform of ['X data', 'Telegram', 'YouTube', 'Instagram', 'TikTok', 'LinkedIn']) assert.match(page, new RegExp(platform));
+  for (const metric of ['Audience', 'Impressions', 'Engagements', 'Link clicks']) assert.match(page, new RegExp(metric));
   assert.match(page, /Onchain & auction activity/);
 });
 
@@ -33,5 +36,7 @@ test('analytics route is authenticated, responsive and uses soft SVG trend lines
   assert.match(page, /analytics-tooltip/);
   assert.match(css, /analytics-view-line/);
   assert.match(css, /analytics-donut\.has-data/);
+  assert.match(css, /analytics-social-cards/);
+  assert.match(css, /analytics-metric-link/);
   assert.match(css, /@media\s*\(max-width:720px\)/);
 });
