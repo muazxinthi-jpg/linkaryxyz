@@ -33,6 +33,7 @@
     "@types/react-dom": "^19.1.9",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
+    "utf-8-validate": "^5.0.10",
     "vite": "^7.1.4",
     "wrangler": "^4.132.0"
   }
