@@ -9,13 +9,15 @@ const app = read('frontend/src/AppV3.tsx');
 const profiles = read('src/routes/profiles.ts');
 
 test('analytics overview follows the approved dashboard composition without fabricating social data', () => {
-  for (const label of ['Analytics Overview', 'Performance over time', 'Audience & socials', 'Top performing links', 'Campaign & auction activity', 'Data readiness']) assert.match(page, new RegExp(label));
+  for (const label of ['Analytics Overview', 'Performance over time', 'Audience & socials', 'Top performing content', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
   assert.match(page, /X data/);
   assert.match(page, /Awaiting provider snapshot/);
   assert.doesNotMatch(page, /TwitterAPI\.io/i);
   assert.match(page, /monthlyProfileViews/);
   assert.match(page, /monthlyClicks/);
   assert.match(page, /Social APIs not connected/);
+  assert.match(page, /socialSources/);
+  assert.match(page, /Onchain & auction activity/);
 });
 
 test('analytics adds real raw profile views using the existing daily-view ledger', () => {
@@ -27,6 +29,9 @@ test('analytics adds real raw profile views using the existing daily-view ledger
 test('analytics route is authenticated, responsive and uses soft SVG trend lines', () => {
   assert.match(app, /location\.pathname === '\/analytics'/);
   assert.match(page, /linearGradient id="analytics-view-fill"/);
+  assert.match(page, /onPointerEnter=\{\(\) => setActive\(index\)\}/);
+  assert.match(page, /analytics-tooltip/);
   assert.match(css, /analytics-view-line/);
-  assert.match(css, /@media\(max-width:720px\)/);
+  assert.match(css, /analytics-donut\.has-data/);
+  assert.match(css, /@media\s*\(max-width:720px\)/);
 });
