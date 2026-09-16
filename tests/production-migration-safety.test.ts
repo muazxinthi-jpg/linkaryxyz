@@ -28,11 +28,14 @@ test('production D1 applies only after an explicit apply selection and verifies 
   assert.equal(workflow.includes('Production D1 still has pending migrations after apply.'), true);
 });
 
-test('normal production deploys report D1 migration drift without applying migrations', () => {
+test('normal production deploys fail closed on D1 migration drift without applying migrations', () => {
   assert.equal(deployWorkflow.includes('Report production D1 migration state'), true);
   assert.equal(deployWorkflow.includes('CLOUDFLARE_D1_API_TOKEN'), true);
   assert.equal(deployWorkflow.includes('d1 migrations list linkary-db --remote'), true);
-  assert.equal(deployWorkflow.includes('D1 verification credentials are not configured'), true);
+  assert.equal(deployWorkflow.includes('D1 verification credentials are required before production deployment.'), true);
+  assert.equal(deployWorkflow.includes('No migrations to apply!'), true);
+  assert.equal(deployWorkflow.includes('Production D1 has pending migrations.'), true);
+  assert.equal(deployWorkflow.includes('continue-on-error: true'), false);
   assert.equal(deployWorkflow.includes('d1 migrations apply linkary-db --remote'), false);
 });
 
