@@ -148,6 +148,21 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
 
   function connectTelegram() { window.location.assign('/profile'); }
 
+  async function disconnectTelegram() {
+    if (!window.confirm('Disconnect your personal Telegram account? Community listings and historical evidence will be preserved.')) return;
+    const token = csrf();
+    if (!token) return;
+    setBusy('telegram-disconnect');
+    setMessage('');
+    try {
+      await api('/api/auth/telegram/disconnect', { method: 'POST', headers: { 'x-csrf-token': token } });
+      setTelegramIdentity(null);
+      setMessage('Telegram disconnected. You can connect another account whenever you are ready.');
+    } catch (error) {
+      setMessage(friendly(error, 'Telegram could not be disconnected.'));
+    } finally { setBusy(''); }
+  }
+
   async function saveManager(event: React.FormEvent) {
     event.preventDefault();
     if (!personalProfile) return;
@@ -270,6 +285,7 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
               <section className="ops-card community-list-card">
                 <div className="ops-card-title"><div><span>TELEGRAM ACCOUNT</span><h2>{telegramLabel}</h2></div><span className="community-status status-verified">Connected ✓</span></div>
                 <p>Your personal Telegram identity is verified. Telegram's stable account ID is kept private and is used by Linkary as the canonical identity key.</p>
+                <div className="community-actions"><button type="button" className="ops-button secondary" disabled={busy === 'telegram-disconnect'} onClick={() => void disconnectTelegram()}>{busy === 'telegram-disconnect' ? 'Disconnecting…' : 'Disconnect Telegram'}</button></div>
               </section>
             ) : (
               <section className="ops-card community-list-card">

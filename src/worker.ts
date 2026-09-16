@@ -1,7 +1,7 @@
 import baseWorker from './index';
 import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
-import { currentPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
+import { currentPersonalTelegramIdentity, disconnectPersonalTelegramIdentity, refreshCurrentCdpLink } from './auth/cdpCurrentLink';
 import { errorResponse, methodNotAllowed } from './http';
 import { renderPublicProfileWithIdentity } from './routes/publicProfileIdentity';
 import { getLinkaryUrls } from './urls';
@@ -193,6 +193,10 @@ export default {
     }
     if (url.pathname === '/api/auth/telegram-identity') {
       try { return await currentPersonalTelegramIdentity(request, env); }
+      catch (error) { return errorResponse(error); }
+    }
+    if (url.pathname === '/api/auth/telegram/disconnect') {
+      try { return await disconnectPersonalTelegramIdentity(request, env); }
       catch (error) { return errorResponse(error); }
     }
     if (url.pathname === '/api/invites') {
