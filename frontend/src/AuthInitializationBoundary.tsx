@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useIsInitialized } from '@coinbase/cdp-hooks';
+import { useIsInitialized, useSignOut } from '@coinbase/cdp-hooks';
 import {
   AUTH_INIT_MAX_MS,
   AUTH_INIT_SLOW_MS,
@@ -77,7 +77,17 @@ function LoadingState({ phase }: { phase: Exclude<InitializationPhase, 'ready' |
   );
 }
 
-function RecoveryState({ onRetry }: { onRetry: () => void }) {
+function clearLocalCdpSession() {
+  // CDP keeps its refresh/session state in origin storage. Remove only keys
+  // owned by Coinbase/CDP; Linkary profile, invite, and onboarding state stays intact.
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    for (const key of Object.keys(storage)) {
+      if (/^(cdp_|coinbase_)/i.test(key)) storage.removeItem(key);
+    }
+  }
+}
+
+function RecoveryState({ onRetry, onReset }: { onRetry: () => void; onReset: () => void }) {
   return (
     <main className="access-denied-page">
       <div className="denied-card">
@@ -87,6 +97,7 @@ function RecoveryState({ onRetry }: { onRetry: () => void }) {
         <p>Your secure sign-in could not be prepared within the expected time. You can retry without losing this page, or reload the app.</p>
         <p className="security-note clean-note">Reference: LK-AUTH-INIT</p>
         <button className="button primary full" onClick={onRetry}>Retry</button>
+        <button className="button secondary full" onClick={onReset}>Reset secure sign-in</button>
         <button className="button secondary full" onClick={() => window.location.reload()}>Reload</button>
       </div>
     </main>
@@ -95,11 +106,18 @@ function RecoveryState({ onRetry }: { onRetry: () => void }) {
 
 export default function AuthInitializationBoundary({ children }: { children: ReactNode }) {
   const { isInitialized } = useIsInitialized();
+  const { signOut } = useSignOut();
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<InitializationPhase>(() => initializationPhase(isInitialized, 0));
   const startedAt = useRef(now());
   const timeoutLogged = useRef(false);
   const successLogged = useRef(false);
+
+  async function resetSecureSignIn() {
+    try { await signOut(); } catch { /* CDP may be unavailable while initialization is stuck. */ }
+    clearLocalCdpSession();
+    window.location.reload();
+  }
 
   useEffect(() => {
     if (!isInitialized && isAuthenticationEntryPath(window.location.pathname)) {
@@ -153,7 +171,7 @@ export default function AuthInitializationBoundary({ children }: { children: Rea
 
   if (isInitialized || phase === 'ready') return <>{children}</>;
   if (phase === 'timeout') {
-    return <RecoveryState onRetry={() => setAttempt((value) => value + 1)} />;
+    return <RecoveryState onRetry={() => setAttempt((value) => value + 1)} onReset={() => void resetSecureSignIn()} />;
   }
   return <LoadingState phase={phase === 'slow' ? 'slow' : 'loading'} />;
 }
