@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import AppV2 from './AppV2';
 import TrackingExperience from './TrackingExperience';
@@ -22,8 +22,9 @@ import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import CommunityManagerSessionGate from './CommunityManagerSessionGate';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
 import PromotionAuctionExperience from './PromotionAuctionExperience';
-import AnalyticsExperience from './AnalyticsExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
+
+const AnalyticsExperience = lazy(() => import('./AnalyticsExperience'));
 
 class RequestError extends Error {
   constructor(readonly status: number) {
@@ -140,7 +141,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'dashboard') return <DashboardExperience me={me} status={status} />;
     if (experience === 'inbox') return <InboxExperience me={me} status={status} />;
     if (experience === 'bids') return <BidMarketplaceExperience me={me} status={status} />;
-    if (experience === 'analytics') return <AnalyticsExperience me={me} status={status} />;
+    if (experience === 'analytics') return <Suspense fallback={<main className="loading-screen"><div className="spinner" /><p>Opening analytics</p></main>}><AnalyticsExperience me={me} status={status} /></Suspense>;
     if (experience === 'opportunities') return <CreatorOpportunitiesExperience me={me} status={status} />;
     if (experience === 'communities') return <CommunityManagerSessionGate me={me} status={status} />;
     if (experience === 'growth') return <><GrowthExperience me={me} status={status} /><CampaignBriefAssistant status={status} /></>;
