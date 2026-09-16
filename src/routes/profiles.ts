@@ -7,6 +7,7 @@ import { getLinkaryUrls, publicProfileUrl } from '../urls';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { resolveFeaturedMedia, resolveFeaturedPreview, resolveNftArtworkPreview, safeHttpsUrl } from '../profileMedia';
 import { organizationMembership } from './organizations';
+import { rewardReferralOnProfilePublish } from './inviteProfileRewards';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] || char);
@@ -789,5 +790,6 @@ export async function publishProfile(request: Request, env: Env, profileId: stri
   if (profile.verification_status !== 'verified_x') throw new HttpError(409, 'Verified X ownership is required before publishing', 'verification_required');
   const timestamp = new Date().toISOString();
   await db.run(`UPDATE profiles SET visibility = ?, published_at = ?, updated_at = ? WHERE id = ?`, [published ? 'published' : 'private', published ? timestamp : null, timestamp, profileId]);
+  if (published) await rewardReferralOnProfilePublish(db, { id: profile.id, owner_user_id: profile.owner_user_id, profile_type: profile.profile_type, visibility: 'published' }, profile.visibility === 'published');
   return json({ ok: true, visibility: published ? 'published' : 'private' });
 }
