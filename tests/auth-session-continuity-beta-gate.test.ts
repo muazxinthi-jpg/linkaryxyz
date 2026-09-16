@@ -12,10 +12,10 @@ function compact(value: string) {
   return value.replace(/\s+/g, ' ');
 }
 
-test('Beta sign-in providers stay limited to email, Google and X', () => {
+test('Beta sign-in providers include email, Google, X and Telegram', () => {
   const text = compact(main);
-  assert.match(text, /authMethods:\s*\['email', 'oauth:google', 'oauth:x'\]/);
-  assert.equal(text.includes('oauth:telegram'), false);
+  assert.match(text, /authMethods:\s*\['email', 'oauth:google', 'oauth:x', 'oauth:telegram'\]/);
+  assert.equal(text.includes('oauth:telegram'), true);
 });
 
 test('invite and earned-access context survives OAuth redirects but expires locally after 24 hours', () => {
