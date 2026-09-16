@@ -31,9 +31,16 @@ class RequestError extends Error {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { credentials: 'same-origin' });
-  if (!response.ok) throw new RequestError(response.status);
-  return response.json() as Promise<T>;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(path, { credentials: 'same-origin', signal: controller.signal });
+    if (!response.ok) throw new RequestError(response.status);
+    return await response.json() as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new RequestError(503);
+    throw error;
+  } finally { window.clearTimeout(timeout); }
 }
 
 function requestGateState(error: unknown): GateState {
