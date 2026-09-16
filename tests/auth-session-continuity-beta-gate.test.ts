@@ -15,7 +15,7 @@ function compact(value: string) {
 test('Beta sign-in providers include email, Google, X and Telegram', () => {
   const text = compact(main);
   assert.match(text, /authMethods:\s*\['email', 'oauth:google', 'oauth:x', 'oauth:telegram'\]/);
-  assert.equal(text.includes('oauth:telegram'), false);
+  assert.equal(text.includes('oauth:telegram'), true);
 });
 
 test('invite and earned-access context survives OAuth redirects but expires locally after 24 hours', () => {

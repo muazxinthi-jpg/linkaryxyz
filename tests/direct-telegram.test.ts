@@ -144,10 +144,11 @@ test('full callback exchanges PKCE code, verifies Telegram and persists only the
   } finally { globalThis.fetch = originalFetch; f.sql.close(); }
 });
 
-test('sign-in UI offers email, Google and X with no Telegram authentication option', () => {
-  for (const file of ['main.tsx', 'App.tsx', 'AppV2.tsx']) {
+test('sign-in UI offers Telegram through CDP while direct profile linking remains separate', () => {
+  const main = readFileSync(new URL('../frontend/src/main.tsx', import.meta.url), 'utf8');
+  assert.match(main, /oauth:telegram/);
+  for (const file of ['App.tsx', 'AppV2.tsx']) {
     const source = readFileSync(new URL(`../frontend/src/${file}`, import.meta.url), 'utf8');
-    assert.ok(!source.includes('oauth:telegram'));
     assert.ok(!source.includes("social('telegram')"));
   }
 });
