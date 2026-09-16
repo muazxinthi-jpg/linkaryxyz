@@ -21,7 +21,7 @@
     "@coinbase/cdp-core": "0.0.123",
     "@coinbase/cdp-hooks": "0.0.123",
     "@coinbase/cdp-react": "0.0.123",
-    "@coinbase/cdp-sdk": "1.54.0",
+    "@coinbase/cdp-sdk": "1.56.0",
     "jose": "^6.2.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
