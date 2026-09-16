@@ -260,3 +260,19 @@ export async function refreshCurrentCdpLink(request: Request, env: Env): Promise
     } : null,
   });
 }
+
+export async function disconnectPersonalTelegramIdentity(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed', 'method_not_allowed');
+  const auth = await requireAuth(request, env);
+  await verifyCsrf(request, env, auth);
+  const db = new Db(requireDb(env));
+  const endedAt = new Date().toISOString();
+  const existing = await db.first<{ id: string }>(`SELECT pil.id FROM platform_identity_links pil
+    JOIN platform_identities pi ON pi.id = pil.platform_identity_id
+    WHERE pil.user_id = ? AND pil.link_type = 'owns' AND pil.ended_at IS NULL
+      AND pi.platform = 'telegram' AND pi.provider_object_type = 'person' LIMIT 1`, [auth.user.id]);
+  await db.run(`UPDATE platform_identity_links SET ended_at = ?
+    WHERE user_id = ? AND link_type = 'owns' AND ended_at IS NULL
+      AND platform_identity_id IN (SELECT id FROM platform_identities WHERE platform = 'telegram' AND provider_object_type = 'person')`, [endedAt, auth.user.id]);
+  return json({ ok: true, disconnected: Boolean(existing) });
+}

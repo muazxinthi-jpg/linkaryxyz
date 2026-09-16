@@ -36,6 +36,7 @@ test('personal Telegram status is private, exact-user scoped and does not requir
   assert.match(backend, /pil\.link_type = 'owns'/);
   const text = compact(worker);
   assert.equal(text.includes("url.pathname === '/api/auth/telegram-identity'"), true);
+  assert.equal(text.includes("url.pathname === '/api/auth/telegram/disconnect'"), true);
   assert.equal(text.indexOf("url.pathname === '/api/auth/telegram-identity'") < text.indexOf('return baseWorker.fetch'), true);
 });
 

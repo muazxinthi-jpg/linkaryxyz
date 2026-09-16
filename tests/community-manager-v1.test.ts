@@ -98,6 +98,7 @@ test('Community Manager UI links Telegram instead of trusting a typed personal h
 test('Telegram linking in Personal Profile keeps Community onboarding available', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(ui.includes('Connect Telegram in Personal Profile'), true);
+  assert.equal(ui.includes('Disconnect Telegram'), true);
   assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
   assert.equal(ui.includes('/api/auth/cdp/session'), false);
 });
