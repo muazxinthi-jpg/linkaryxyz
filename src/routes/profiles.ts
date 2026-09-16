@@ -285,7 +285,7 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
   const profile = await requireEditableProfile(db, auth.user.id, profileId);
-  const [totalRow, monthRows, destinationRows, blocks, proof] = await Promise.all([
+  const [totalRow, monthRows, profileViewTotalRow, profileViewMonthRows, destinationRows, blocks, proof] = await Promise.all([
     db.first<{ link_clicks: number }>(
       "SELECT COUNT(*) AS link_clicks FROM profile_engagement_events WHERE profile_id = ? AND event_type = 'link_click'",
       [profileId],
@@ -295,6 +295,18 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
          FROM profile_engagement_events
         WHERE profile_id = ? AND event_type = 'link_click'
         GROUP BY substr(created_at, 1, 7)
+        ORDER BY month ASC`,
+      [profileId],
+    ),
+    db.first<{ profile_views: number }>(
+      'SELECT COALESCE(SUM(views), 0) AS profile_views FROM public_profile_daily_views WHERE profile_id = ?',
+      [profileId],
+    ),
+    db.all<ProfileClickMonthRow>(
+      `SELECT substr(view_date, 1, 7) AS month, COALESCE(SUM(views), 0) AS count
+         FROM public_profile_daily_views
+        WHERE profile_id = ?
+        GROUP BY substr(view_date, 1, 7)
         ORDER BY month ASC`,
       [profileId],
     ),
@@ -310,6 +322,7 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     loadPublicProof(db, profile),
   ]);
   const linkClicks = Number(totalRow?.link_clicks || 0);
+  const profileViews = Number(profileViewTotalRow?.profile_views || 0);
   const blockById = new Map(blocks.map((block) => [block.id, block]));
   const destinationTotals = new Map<string, number>();
   for (const row of destinationRows) {
@@ -323,6 +336,8 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   return json({
     linkClicks,
     monthlyClicks: monthlyClickSeries(monthRows, linkClicks),
+    profileViews,
+    monthlyProfileViews: monthlyClickSeries(profileViewMonthRows, profileViews),
     platformClicks,
     proof,
   });
