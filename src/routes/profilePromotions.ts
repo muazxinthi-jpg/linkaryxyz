@@ -81,25 +81,26 @@ async function isProfileOwnerOrMember(db: Db, profileId: string, userId: string)
 export async function configurePromotionSlot(request: Request, env: Env, profileId: string): Promise<Response> {
   const auth = await requireAuth(request, env);
   await verifyCsrf(request, env, auth);
-  const body = await readJson<{ enabled?: boolean; payoutWalletAddress?: string; liveDurationHours?: number }>(request);
+  const body = await readJson<{ enabled?: boolean; payoutWalletAddress?: string; liveDurationHours?: number; startingBidCents?: number }>(request);
   const db = new Db(requireDb(env));
   await requireProfileManager(db, profileId, auth.user.id);
   const timestamp = now();
   const liveDurationHours = body.liveDurationHours === undefined ? null : Number(body.liveDurationHours);
   if (liveDurationHours !== null && ![24, 72, 168, 720].includes(liveDurationHours)) throw new HttpError(400, 'Live banner duration must be 24 hours, 3 days, 7 days, or 30 days', 'invalid_live_duration');
   const existing = await db.first<{ id: string }>(`SELECT id FROM profile_promotion_slots WHERE profile_id = ?`, [profileId]);
+  const startingBidCents = body.startingBidCents === undefined ? null : integerCents(body.startingBidCents, 'startingBidCents');
   const payout = body.payoutWalletAddress ? evmAddress(body.payoutWalletAddress) : null;
   if (!existing && !payout) throw new HttpError(400, 'Payout wallet is required to enable monetization', 'payout_wallet_required');
   if (existing) {
     if (payout) {
-      await db.run(`UPDATE profile_promotion_slots SET enabled = ?, payout_wallet_address = ?, owner_user_id = ?, live_duration_hours = CASE WHEN ? = 720 THEN live_duration_hours ELSE COALESCE(?, live_duration_hours) END, live_duration_days = CASE WHEN ? = 720 THEN 30 ELSE NULL END, updated_at = ? WHERE id = ?`, [body.enabled === false ? 0 : 1, payout, auth.user.id, liveDurationHours, liveDurationHours, liveDurationHours, timestamp, existing.id]);
+      await db.run(`UPDATE profile_promotion_slots SET enabled = ?, payout_wallet_address = ?, owner_user_id = ?, default_starting_bid_cents = COALESCE(?, default_starting_bid_cents), live_duration_hours = CASE WHEN ? = 720 THEN live_duration_hours ELSE COALESCE(?, live_duration_hours) END, live_duration_days = CASE WHEN ? = 720 THEN 30 ELSE NULL END, updated_at = ? WHERE id = ?`, [body.enabled === false ? 0 : 1, payout, auth.user.id, startingBidCents, liveDurationHours, liveDurationHours, liveDurationHours, timestamp, existing.id]);
     } else {
-      await db.run(`UPDATE profile_promotion_slots SET enabled = ?, owner_user_id = ?, live_duration_hours = CASE WHEN ? = 720 THEN live_duration_hours ELSE COALESCE(?, live_duration_hours) END, live_duration_days = CASE WHEN ? = 720 THEN 30 ELSE NULL END, updated_at = ? WHERE id = ?`, [body.enabled === false ? 0 : 1, auth.user.id, liveDurationHours, liveDurationHours, liveDurationHours, timestamp, existing.id]);
+      await db.run(`UPDATE profile_promotion_slots SET enabled = ?, owner_user_id = ?, default_starting_bid_cents = COALESCE(?, default_starting_bid_cents), live_duration_hours = CASE WHEN ? = 720 THEN live_duration_hours ELSE COALESCE(?, live_duration_hours) END, live_duration_days = CASE WHEN ? = 720 THEN 30 ELSE NULL END, updated_at = ? WHERE id = ?`, [body.enabled === false ? 0 : 1, auth.user.id, startingBidCents, liveDurationHours, liveDurationHours, liveDurationHours, timestamp, existing.id]);
     }
   } else {
     await db.run(
-      `INSERT INTO profile_promotion_slots (id, profile_id, owner_user_id, enabled, payout_wallet_address, settlement_network, settlement_asset, live_duration_hours, live_duration_days, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'base', 'USDC', ?, ?, ?, ?)`,
-      [id('pps'), profileId, auth.user.id, body.enabled === false ? 0 : 1, payout, liveDurationHours === 720 ? 168 : (liveDurationHours ?? 24), liveDurationHours === 720 ? 30 : null, timestamp, timestamp],
+      `INSERT INTO profile_promotion_slots (id, profile_id, owner_user_id, enabled, payout_wallet_address, settlement_network, settlement_asset, live_duration_hours, live_duration_days, default_starting_bid_cents, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'base', 'USDC', ?, ?, ?, ?, ?)`,
+      [id('pps'), profileId, auth.user.id, body.enabled === false ? 0 : 1, payout, liveDurationHours === 720 ? 168 : (liveDurationHours ?? 24), liveDurationHours === 720 ? 30 : null, startingBidCents || 100, timestamp, timestamp],
     );
   }
   return json({ ok: true });
@@ -110,9 +111,9 @@ export async function getPromotionSlot(request: Request, env: Env, profileId: st
   const db = new Db(requireDb(env));
   await requireProfileManager(db, profileId, auth.user.id);
   const timestamp = now();
-  const slot = await db.first<{ enabled: number; payout_wallet_address: string; live_duration_hours: number; live_duration_days: number | null }>(`SELECT enabled, payout_wallet_address, live_duration_hours, live_duration_days FROM profile_promotion_slots WHERE profile_id = ? LIMIT 1`, [profileId]);
+  const slot = await db.first<{ enabled: number; payout_wallet_address: string; live_duration_hours: number; live_duration_days: number | null; default_starting_bid_cents: number }>(`SELECT enabled, payout_wallet_address, live_duration_hours, live_duration_days, default_starting_bid_cents FROM profile_promotion_slots WHERE profile_id = ? LIMIT 1`, [profileId]);
   const liveBanner = await db.first<{ banner_url: string; promotion_ends_at: string | null }>(`SELECT c.banner_url, a.promotion_ends_at FROM profile_promotion_auctions a JOIN profile_promotion_creatives c ON c.auction_id = a.id WHERE a.profile_id = ? AND a.status = 'live' AND c.moderation_status = 'approved' AND (a.promotion_ends_at IS NULL OR a.promotion_ends_at > ?) ORDER BY a.live_at DESC, a.id DESC LIMIT 1`, [profileId, timestamp]);
-  return json({ slot: slot ? { enabled: slot.enabled === 1, payoutWalletAddress: slot.payout_wallet_address, liveDurationHours: slot.live_duration_days ? slot.live_duration_days * 24 : slot.live_duration_hours } : null, liveBanner: liveBanner ? { bannerUrl: liveBanner.banner_url, endsAt: liveBanner.promotion_ends_at } : null });
+  return json({ slot: slot ? { enabled: slot.enabled === 1, payoutWalletAddress: slot.payout_wallet_address, liveDurationHours: slot.live_duration_days ? slot.live_duration_days * 24 : slot.live_duration_hours, defaultStartingBidCents: slot.default_starting_bid_cents } : null, liveBanner: liveBanner ? { bannerUrl: liveBanner.banner_url, endsAt: liveBanner.promotion_ends_at } : null });
 }
 
 export async function createPromotionAuction(request: Request, env: Env, profileId: string): Promise<Response> {

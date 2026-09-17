@@ -24,6 +24,7 @@ import {
   redirectPromotionClick,
 } from './routes/profilePromotionDelivery';
 import { refinePublicProfilePromotionLayout } from './routes/profilePromotionLayout';
+import { runPromotionAuctionScheduler } from './routes/profilePromotionScheduler';
 
 function publicProfileUsername(request: Request, env: Env): string | null {
   const url = new URL(request.url);
@@ -39,6 +40,9 @@ function publicProfileUsername(request: Request, env: Env): string | null {
 }
 
 export default {
+  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContextLike): Promise<void> {
+    ctx.waitUntil(runPromotionAuctionScheduler(env));
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContextLike): Promise<Response> {
     const path = new URL(request.url).pathname;
     try {

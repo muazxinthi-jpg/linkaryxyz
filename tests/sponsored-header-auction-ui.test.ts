@@ -15,9 +15,8 @@ test('editable profiles expose sponsored header monetization controls', () => {
   assert.match(promotion, /profile-wallets\?profileId=/);
   assert.match(promotion, /Loading wallet/);
   assert.match(promotion, /monetizationEnabled/);
-  assert.match(promotion, /6 hours/);
-  assert.match(promotion, /12 hours/);
-  assert.match(promotion, /24 hours/);
+  assert.match(promotion, /24 hours \(automatic\)/);
+  assert.match(promotion, /defaultStartingBidCents/);
 });
 
 test('profile owner can configure a free preferred project header', () => {

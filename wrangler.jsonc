@@ -4,6 +4,7 @@
   "main": "src/promotionEntry.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "CDP_PROJECT_ID": "ec85aa2b-208c-4ec9-a0f2-3da31a8e2218",
     "PUBLIC_SITE_URL": "https://linkary.xyz",

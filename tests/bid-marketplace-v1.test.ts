@@ -66,6 +66,17 @@ test('Current Active is reserved for open bidding and orders by auction expiry',
   assert.match(ui, /Banner live until/);
 });
 
+test('promotion auctions cycle automatically using the owner minimum bid', () => {
+  const migration = read('migrations/0059_auto_promotion_auction_cycle.sql');
+  const scheduler = read('src/routes/profilePromotionScheduler.ts');
+  const entry = read('src/promotionEntry.ts');
+  assert.match(migration, /default_starting_bid_cents/);
+  assert.match(scheduler, /expires_at <= \?/);
+  assert.match(scheduler, /duration_hours, starting_bid_cents/);
+  assert.match(scheduler, /24 \* 60 \* 60 \* 1000/);
+  assert.match(entry, /runPromotionAuctionScheduler/);
+});
+
 test('marketplace UI is responsive and scoped', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
   const css = read('frontend/src/bid-marketplace.css');
