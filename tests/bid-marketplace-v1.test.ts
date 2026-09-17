@@ -58,9 +58,12 @@ test('Current Active is reserved for open bidding and orders by auction expiry',
   assert.match(marketplace, /active\.status = 'open'/);
   assert.doesNotMatch(marketplace, /active_live\.status = 'live'/);
   assert.match(marketplace, /expires_at ASC/);
+  assert.match(marketplace, /profile_featured_headers/);
   assert.match(ui, /Expiry leaderboard/);
   assert.match(ui, /OPEN FOR BIDDING/);
   assert.match(ui, /Creators open for bidding/);
+  assert.match(ui, /LIVE BANNER/);
+  assert.match(ui, /Banner live until/);
 });
 
 test('marketplace UI is responsive and scoped', () => {
