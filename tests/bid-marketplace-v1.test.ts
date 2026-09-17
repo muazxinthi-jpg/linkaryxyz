@@ -52,15 +52,15 @@ test('marketplace exposes requested leaderboards and discovery actions', () => {
   assert.match(ui, /setInterval\(\(\) => void refresh\(\), 30000\)/);
 });
 
-test('Current Active includes live banners and orders by expiry', () => {
+test('Current Active is reserved for open bidding and orders by auction expiry', () => {
   const marketplace = read('src/routes/bidMarketplace.ts');
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
-  assert.match(marketplace, /active_live\.status = 'live'/);
-  assert.match(marketplace, /active_live\.promotion_ends_at/);
-  assert.match(marketplace, /COALESCE\(banner_ends_at, expires_at\) ASC/);
+  assert.match(marketplace, /active\.status = 'open'/);
+  assert.doesNotMatch(marketplace, /active_live\.status = 'live'/);
+  assert.match(marketplace, /expires_at ASC/);
   assert.match(ui, /Expiry leaderboard/);
-  assert.match(ui, /Banner live until/);
-  assert.match(ui, /isLiveBanner \|\| item\.auction_id/);
+  assert.match(ui, /OPEN FOR BIDDING/);
+  assert.match(ui, /Creators open for bidding/);
 });
 
 test('marketplace UI is responsive and scoped', () => {
