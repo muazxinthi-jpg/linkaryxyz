@@ -74,12 +74,12 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
   const order = mode === 'bids'
     ? 'bid_count DESC, views DESC, lower(p.display_name) ASC, p.id ASC'
     : mode === 'active'
-      ? 'COALESCE(highest_bid_cents, starting_bid_cents) DESC, expires_at ASC, p.id ASC'
+      ? 'expires_at ASC, COALESCE(highest_bid_cents, starting_bid_cents) DESC, lower(p.display_name) ASC, p.id ASC'
       : 'views DESC, lower(p.display_name) ASC, p.id ASC';
   const [items, total] = await Promise.all([
     db.all<ProfileRow>(
       `SELECT p.id AS profile_id, p.username, p.display_name, p.avatar_url,
-        (SELECT c.banner_url FROM profile_promotion_creatives c JOIN profile_promotion_auctions la ON la.id = c.auction_id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1) AS banner_url,
+        COALESCE((SELECT c.banner_url FROM profile_promotion_creatives c JOIN profile_promotion_auctions la ON la.id = c.auction_id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1), (SELECT h.banner_url FROM profile_featured_headers h WHERE h.profile_id = p.id AND h.enabled = 1 LIMIT 1)) AS banner_url,
         (SELECT la.promotion_ends_at FROM profile_promotion_auctions la JOIN profile_promotion_creatives c ON c.auction_id = la.id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1) AS banner_ends_at,
         p.profile_type,
         COALESCE((SELECT SUM(v.views) FROM public_profile_daily_views v WHERE v.profile_id = p.id ${views.sql}), 0) AS views,

@@ -52,6 +52,31 @@ test('marketplace exposes requested leaderboards and discovery actions', () => {
   assert.match(ui, /setInterval\(\(\) => void refresh\(\), 30000\)/);
 });
 
+test('Current Active is reserved for open bidding and orders by auction expiry', () => {
+  const marketplace = read('src/routes/bidMarketplace.ts');
+  const ui = read('frontend/src/BidMarketplaceExperience.tsx');
+  assert.match(marketplace, /active\.status = 'open'/);
+  assert.doesNotMatch(marketplace, /active_live\.status = 'live'/);
+  assert.match(marketplace, /expires_at ASC/);
+  assert.match(marketplace, /profile_featured_headers/);
+  assert.match(ui, /Expiry leaderboard/);
+  assert.match(ui, /OPEN FOR BIDDING/);
+  assert.match(ui, /Creators open for bidding/);
+  assert.match(ui, /LIVE BANNER/);
+  assert.match(ui, /Banner live until/);
+});
+
+test('promotion auctions cycle automatically using the owner minimum bid', () => {
+  const migration = read('migrations/0059_auto_promotion_auction_cycle.sql');
+  const scheduler = read('src/routes/profilePromotionScheduler.ts');
+  const entry = read('src/promotionEntry.ts');
+  assert.match(migration, /default_starting_bid_cents/);
+  assert.match(scheduler, /expires_at <= \?/);
+  assert.match(scheduler, /duration_hours, starting_bid_cents/);
+  assert.match(scheduler, /24 \* 60 \* 60 \* 1000/);
+  assert.match(entry, /runPromotionAuctionScheduler/);
+});
+
 test('marketplace UI is responsive and scoped', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
   const css = read('frontend/src/bid-marketplace.css');
