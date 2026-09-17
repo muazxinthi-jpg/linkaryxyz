@@ -66,15 +66,15 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
   const offset = (page - 1) * PAGE_SIZE;
   const activeAt = nowIso();
   const additionalWhere = mode === 'active'
-    ? `AND EXISTS (SELECT 1 FROM profile_promotion_auctions active WHERE active.profile_id = p.id AND active.status = 'open' AND active.expires_at > ?)`
+    ? `AND (EXISTS (SELECT 1 FROM profile_promotion_auctions active WHERE active.profile_id = p.id AND active.status = 'open' AND active.expires_at > ?) OR EXISTS (SELECT 1 FROM profile_promotion_auctions active_live JOIN profile_promotion_creatives active_creative ON active_creative.auction_id = active_live.id WHERE active_live.profile_id = p.id AND active_live.status = 'live' AND active_creative.moderation_status = 'approved' AND active_creative.banner_url IS NOT NULL AND (active_live.promotion_ends_at IS NULL OR active_live.promotion_ends_at > ?)))`
     : mode === 'bids'
       ? `AND EXISTS (SELECT 1 FROM profile_promotion_bids received JOIN profile_promotion_auctions received_auction ON received_auction.id = received.auction_id WHERE received_auction.profile_id = p.id)`
       : '';
-  const additionalParams = mode === 'active' ? [activeAt] : [];
+  const additionalParams = mode === 'active' ? [activeAt, activeAt] : [];
   const order = mode === 'bids'
     ? 'bid_count DESC, views DESC, lower(p.display_name) ASC, p.id ASC'
     : mode === 'active'
-      ? 'COALESCE(highest_bid_cents, starting_bid_cents) DESC, expires_at ASC, p.id ASC'
+      ? 'COALESCE(banner_ends_at, expires_at) ASC, COALESCE(highest_bid_cents, starting_bid_cents) DESC, lower(p.display_name) ASC, p.id ASC'
       : 'views DESC, lower(p.display_name) ASC, p.id ASC';
   const [items, total] = await Promise.all([
     db.all<ProfileRow>(
@@ -124,11 +124,11 @@ export async function getBidMarketplace(request: Request, env: Env): Promise<Res
        ORDER BY wins DESC, winning_value_cents DESC, label ASC LIMIT ? OFFSET ?`, [PAGE_SIZE, offset]),
     db.first<{ active_count: number; active_value_cents: number; bids_placed: number; profile_views: number }>(
       `SELECT
-        (SELECT COUNT(*) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_count,
+        (SELECT COUNT(DISTINCT p.id) FROM profiles p LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND (EXISTS (SELECT 1 FROM profile_promotion_auctions open_a WHERE open_a.profile_id = p.id AND open_a.status = 'open' AND open_a.expires_at > ?) OR EXISTS (SELECT 1 FROM profile_promotion_auctions live_a JOIN profile_promotion_creatives live_c ON live_c.auction_id = live_a.id WHERE live_a.profile_id = p.id AND live_a.status = 'live' AND live_c.moderation_status = 'approved' AND live_c.banner_url IS NOT NULL AND (live_a.promotion_ends_at IS NULL OR live_a.promotion_ends_at > ?)))) AS active_count,
         (SELECT COALESCE(SUM(COALESCE(a.highest_bid_cents, a.starting_bid_cents)), 0) FROM profile_promotion_auctions a JOIN profiles p ON p.id = a.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') AND a.status = 'open' AND a.expires_at > ?) AS active_value_cents,
         (SELECT COUNT(*) FROM profile_promotion_bids) AS bids_placed,
         (SELECT COALESCE(SUM(v.views), 0) FROM public_profile_daily_views v JOIN profiles p ON p.id = v.profile_id LEFT JOIN users owner ON owner.id = p.owner_user_id LEFT JOIN organizations organization ON organization.id = p.organization_id WHERE p.visibility = 'published' AND (p.owner_user_id IS NULL OR owner.status = 'active') AND (p.organization_id IS NULL OR organization.status = 'active') ${views.sql}) AS profile_views`,
-      [activeAt, activeAt, ...views.params],
+      [activeAt, activeAt, activeAt, ...views.params],
     ),
   ]);
   return json({ generatedAt: nowIso(), period, page, pageSize: PAGE_SIZE, active, mostViewed, mostBidOn, topBidders, topWinners, summary: summary || { active_count: 0, active_value_cents: 0, bids_placed: 0, profile_views: 0 } });

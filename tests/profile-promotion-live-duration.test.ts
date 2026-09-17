@@ -16,7 +16,7 @@ test('live sponsored headers support 24 hours, 3 days, 7 days, and 30 days', () 
 
 test('Bids identifies the next available profile without inventing auction data', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
-  assert.match(ui, /Next available/);
+  assert.match(ui, /Banner live until/);
   assert.match(ui, /Available now/);
   assert.match(ui, /banner_ends_at/);
 });
