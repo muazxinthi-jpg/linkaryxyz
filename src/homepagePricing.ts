@@ -143,7 +143,14 @@ export async function enhancePublicHomepage(request: Request, response: Response
   // only that renderer and replace it with a normal external asset. This leaves
   // the existing homepage structure and responsive layout untouched.
   html = html.replace(LEGACY_INLINE_PRICING, '');
-  if (html.includes('id="linkary-pricing-grid"') && !html.includes('/pricing-catalog.js')) {
+  const usesNativeHomepagePricing =
+    html.includes('data-linkary-component="pricing"')
+    || html.includes('/pricing-home.js');
+  if (
+    html.includes('id="linkary-pricing-grid"')
+    && !usesNativeHomepagePricing
+    && !html.includes('/pricing-catalog.js')
+  ) {
     html = appendBeforeBody(html, STATIC_PRICING_SCRIPT);
   }
 
