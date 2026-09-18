@@ -5,6 +5,15 @@ import test from 'node:test';
 const repo = new URL('../', import.meta.url);
 const read = (path: string) => readFile(new URL(path, repo), 'utf8');
 
+test('public homepage includes native pricing without relying on Worker injection', async () => {
+  const homepage = await read('index.html');
+  assert.match(homepage, /href="#pricing">Pricing<\/a>/);
+  assert.match(homepage, /<section class="pricing-home" id="pricing"/);
+  assert.match(homepage, /href="\.\/pricing-home\.css"/);
+  assert.match(homepage, /src="\.\/pricing-home\.js" defer/);
+  assert.match(homepage, /<section class="pricing-home" id="pricing"[\s\S]*<section class="faq" id="faq">/);
+});
+
 test('homepage pricing is additive and reads the live billing catalog', async () => {
   const injection = await read('src/homepagePricing.ts');
   const client = await read('pricing-home.js');
