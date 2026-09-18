@@ -1,5 +1,199 @@
 # Linkary Signal UI Library
 
+## Public homepage — approved 18 September 2026
+
+This section is the canonical handoff for the production public homepage at `https://linkary.xyz/`. The authenticated application and public-profile renderer remain separate surfaces and must not inherit marketing-only styling.
+
+### Product promise
+
+**Turn relationships into measurable growth.**
+
+Supporting message: Linkary connects creators, communities, campaigns, social signals and on-chain outcomes into one measurable growth layer.
+
+Core operating thesis: **Run growth anywhere. Track it in Linkary.**
+
+### Locked brand
+
+- Official wordmark: `assets/brand/linkary-wordmark-black.png`
+- Official icon and favicon: `assets/brand/linkary-icon-black.png`
+- Brand banner: `assets/brand/linkary-banner.jpeg`
+- Display: Space Grotesk 500–700
+- UI/body: Inter 400–700
+- Metadata: IBM Plex Mono 400–600
+- Warm Canvas: `#F6F3EC`
+- Paper: `#FFFDF8`
+- Primary Ink: `#090A0C`
+- Signal Black: `#05070A`
+- Linkary Orange: `#FF4F0A`
+- Orange Hover: `#FF6A2A`
+- Success: `#45D483`
+- Warning: `#F6B84A`
+- Danger: `#FF5C68`
+- Information: `#70A5FF`
+
+Do not recreate, redraw, recolor, or substitute the Linkary logo/favicon.
+
+### Marketing surface isolation
+
+The homepage root uses `.linkary-marketing`. Homepage-only CSS is loaded from `public-homepage.css`; interactions are loaded from `public-homepage.js`. Authenticated product styling remains owned by `.ops-shell` and must not inherit homepage rules.
+
+### Navigation and anchors
+
+- Directory → `#directory`
+- Ecosystem → `#ecosystem`
+- For Creators → `#creators`
+- For Projects → `#projects`
+- For Communities → `#communities`
+- Analytics → `#analytics`
+- Auctions → `#auctions`
+- Pricing → `#pricing`
+- Sign In → `https://app.linkary.xyz/login`
+- Create Profile → `https://app.linkary.xyz/signup`
+
+There is exactly one pricing section. Do not create a public `/pricing` destination.
+
+### Approved hero
+
+Desktop uses an asymmetric two-part composition: large editorial copy on the left and a dark **Live Attribution Feed** on the right. The hero feed is a brand-story visualization, not a dashboard screenshot.
+
+The feed cycles through Project, Creator, Community, and Outcome states to communicate:
+
+`Relationship → Activity → Evidence → Attribution → Outcome → Relationship History`
+
+The floating evidence panel updates with the current item. Controls include previous, next, and Pause Motion. With `prefers-reduced-motion`, auto-rotation is disabled.
+
+Do not replace the hero with a generic dashboard, phone mockup, network-bubble graphic, or static SaaS card.
+
+### Evidence states
+
+- **Manual:** entered manually without automated supporting evidence.
+- **Tracked:** direct Linkary first-party tracking evidence exists.
+- **Correlated:** multiple signals support attribution but do not conclusively prove it.
+- **Verified:** strong first-party or externally verified evidence exists.
+
+Verified is not blockchain-only. Evidence state must be communicated by text in addition to color.
+
+### Featured real public profile
+
+The homepage intentionally features the real Muaz Xinthi Linkary profile as an example of the personal identity surface.
+
+- Public URL: `https://linkary.xyz/muazxinthi`
+- Two supplied screenshots show the profile header/identity and Featured Work/NFT Collections.
+- These screenshots must not be regenerated, rewritten, or treated as generic Linkary platform claims.
+- Production assets must be local copies of the exact supplied screenshots before merge.
+
+### Homepage sections
+
+1. Navigation
+2. Hero / Live Attribution Feed
+3. Product principles
+4. Ecosystem
+5. Directory
+6. Personal profile / For Creators
+7. For Projects
+8. For Communities
+9. Analytics / evidence confidence
+10. How Linkary Works
+11. Social + On-chain
+12. Auctions
+13. Pricing
+14. FAQ
+15. Final CTA
+16. Footer
+
+### Controlled Beta chain presentation
+
+Current homepage Beta set:
+
+- Ethereum
+- Base
+- BNB Chain
+- Solana
+- Robinhood Chain
+
+Do not present Arbitrum, Polygon, Optimism, or Avalanche as current Controlled Beta chains.
+
+### Pricing integration
+
+The homepage pricing surface is dynamic and must read:
+
+`GET /api/billing/plans`
+
+Selector:
+
+`[data-linkary-component="pricing"]`
+
+Data source marker:
+
+`data-linkary-source="/api/billing/plans"`
+
+Required UI states: loading, loaded, empty/error with retry. Commercial prices and plan feature copy come from the billing catalog, not hardcoded homepage data.
+
+### Auctions integration boundary
+
+The homepage currently presents Auctions as an **illustrative product preview**. The existing `GET /api/bid-marketplace` route requires authentication, so the marketing page must not expose or work around that access boundary. A future public-safe marketplace read model may replace the illustrative cards.
+
+### Public profile integration
+
+The featured profile section uses:
+
+`data-linkary-component="public-profile-preview"`
+
+The real public profile remains available at `https://linkary.xyz/muazxinthi`. Generic public-profile reads use the existing public profile backend.
+
+### Footer socials
+
+The approved footer includes X, LinkedIn, Product Hunt, and Trustpilot. Production URLs must be verified as Linkary corporate destinations before merge. Personal founder social accounts are not substitutes.
+
+### Responsive behavior
+
+Reference widths: 1920, 1440, 1280, 1024, 820, 768, 430, 390, 360, 320.
+
+- Desktop: full pill navigation, two-column hero.
+- Tablet: collapsed navigation and stacked hero when required.
+- Mobile: headline and CTAs first, then simplified live feed. Floating evidence panel is removed on narrow screens.
+- No horizontal overflow.
+- Meaningful body text remains approximately 16px or larger.
+- Touch targets should approach 44px minimum.
+
+### Accessibility and motion
+
+- Semantic navigation and landmarks.
+- Skip link.
+- Visible keyboard focus.
+- Evidence states never depend on color only.
+- Hero live region remains concise.
+- Reduced-motion disables timed hero progression.
+- Controls remain keyboard accessible.
+
+### Asset manifest
+
+Current local brand assets:
+
+- `assets/brand/linkary-icon-black.png`
+- `assets/brand/linkary-wordmark-black.png`
+- `assets/brand/linkary-banner.jpeg`
+
+Required before merge:
+
+- exact local copy of Muaz profile screenshot 1
+- exact local copy of Muaz profile screenshot 2
+
+### Production handoff
+
+The homepage is source-controlled in root `index.html`, with `public-homepage.css`, `public-homepage.js`, and the existing API-backed `pricing-home.js`. The public Cloudflare Worker continues to own routing and backend endpoints. Do not deploy a Cloudflare-only homepage that is absent from GitHub.
+
+A production homepage merge requires:
+
+1. exact Muaz screenshots localized;
+2. regression tests and TypeScript checks green;
+3. Wrangler and public-overlay dry runs green;
+4. responsive visual QA complete;
+5. Linkary corporate social URLs verified;
+6. no deployment until the reviewed GitHub PR is approved.
+
+---
+
 ## Surface map and isolation contract
 
 Linkary has three related but independently owned UI surfaces. They share the Signal System tokens and brand rules below; they do not share page-level layout overrides.
