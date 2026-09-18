@@ -48,6 +48,19 @@ test('legacy inline pricing renderer is removed before the browser parses public
   assert.match(client, /fetch\('\/api\/billing\/plans'/);
 });
 
+test('approved homepage uses exactly one pricing renderer', async () => {
+  const homepage = await read('index.html');
+  const injection = await read('src/homepagePricing.ts');
+
+  assert.match(homepage, /data-linkary-component=\"pricing\"/);
+  assert.match(homepage, /src=\"\/pricing-home\.js\"/);
+  assert.doesNotMatch(homepage, /pricing-catalog\.js/);
+  assert.match(injection, /usesNativeHomepagePricing/);
+  assert.match(injection, /html\.includes\('data-linkary-component=\"pricing\"'\)/);
+  assert.match(injection, /html\.includes\('\/pricing-home\.js'\)/);
+  assert.match(injection, /!usesNativeHomepagePricing/);
+});
+
 test('public homepage uses the real local Linkary favicon and wordmark', async () => {
   const homepage = await read('index.html');
   assert.match(homepage, /assets\/brand\/linkary-icon-black\.png/);
