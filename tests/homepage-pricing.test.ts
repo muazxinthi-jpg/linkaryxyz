@@ -86,3 +86,11 @@ test('current marketing shell pricing links normalize to the in-page pricing sec
   assert.match(injection, />\\s\*Auctions\\s\*</);
   assert.match(injection, /href="#pricing"/);
 });
+
+
+test('homepage enhancer recognizes the current live pricing shell and does not inject a duplicate', async () => {
+  const injection = await read('src/homepagePricing.ts');
+  assert.match(injection, /const hasPricingSection =/);
+  assert.match(injection, /06\\s\*\\\/\\s\*PRICING/);
+  assert.match(injection, /!hasPricingSection/);
+});
