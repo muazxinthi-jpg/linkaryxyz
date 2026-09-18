@@ -1,70 +1,22 @@
 (() => {
   const grid = document.querySelector('[data-pricing-grid]');
   if (!grid) return;
-
-  const money = (cents) => {
+  const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  const money = (cents,currency='USD') => {
     if (cents === null || cents === undefined) return 'Custom';
-    return `$${(Number(cents) / 100).toFixed(2)}`;
+    if (Number(cents) === 0) return '$0';
+    try{return new Intl.NumberFormat('en-US',{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(cents)/100)}catch{return `$${(Number(cents)/100).toFixed(2)}`}
   };
-
-  const seats = (value) => {
-    if (value === null || value === undefined) return 'Custom';
-    if (Number(value) === 0) return 'Personal';
-    return Number(value).toLocaleString();
+  const seats = (v) => v === null || v === undefined ? 'Custom' : Number(v) === 0 ? 'Personal' : Number(v) === 1 ? '1 Project seat' : `Up to ${Number(v).toLocaleString()} Project seats`;
+  const cta = (code) => ({free:'Create Profile',personal_pro:'Start Pro',project_manual:'Start Project',project_automate:'Start Automate',project_growth:'Start Growth',scale:'Request Access'})[code] || 'Create Profile';
+  const card = (p) => {
+    const featured = p.code === 'project_automate';
+    const effective = p.effectivePriceCents ?? p.basePriceCents;
+    const discounted = p.promotion && p.basePriceCents !== null && effective !== null && Number(effective) < Number(p.basePriceCents);
+    const price = p.basePriceCents === null || p.billingPeriod === 'custom' ? '<strong>Custom</strong>' : `<strong>${money(effective,p.currency)}</strong>${discounted?` <span><s>${money(p.basePriceCents,p.currency)}</s></span>`:''}${p.billingPeriod==='monthly'?'<span> / month</span>':''}`;
+    return `<article class="pricing-card${featured?' featured':''}"><div class="pricing-top"><div><span class="pricing-kicker">${esc(p.audience)}</span><h3>${esc(p.name)}</h3></div>${featured?'<span class="pricing-badge">Recommended</span>':''}</div><p class="desc">${esc(p.description)}</p><div class="pricing-price">${price}</div><div class="pricing-allowance"><div><small>Monthly Usage Credits</small><b>${Number(p.monthlyUsageCredits||0).toLocaleString()}</b></div><div><small>Access</small><b>${esc(seats(p.projectSeatLimit))}</b></div></div><ul class="pricing-features">${(Array.isArray(p.features)?p.features:[]).slice(0,6).map((f)=>`<li>${esc(f)}</li>`).join('')}</ul><a class="button ${featured?'primary':'secondary'} compact" href="https://app.linkary.xyz/signup">${esc(cta(p.code))} →</a></article>`;
   };
-
-  const escapeHtml = (value) => String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-
-  const priceMarkup = (plan) => {
-    if (plan.basePriceCents === null) {
-      return '<div class="pricing-price"><strong>Custom</strong></div>';
-    }
-    const hasPromotion = plan.promotion && plan.effectivePriceCents !== null && plan.effectivePriceCents < plan.basePriceCents;
-    if (!hasPromotion) {
-      return `<div class="pricing-price"><strong>${money(plan.basePriceCents)}</strong>${plan.billingPeriod === 'monthly' ? '<span>/ month</span>' : ''}</div>`;
-    }
-    return `<div class="pricing-price"><strong>${money(plan.effectivePriceCents)}</strong><span class="pricing-original">${money(plan.basePriceCents)}</span>${plan.billingPeriod === 'monthly' ? '<span>/ month</span>' : ''}</div><p class="pricing-promo">${escapeHtml(plan.promotion.label)}</p>`;
-  };
-
-  const card = (plan) => {
-    const featured = plan.code === 'project_automate';
-    const features = Array.isArray(plan.features) ? plan.features.slice(0, 5) : [];
-    const cta = plan.code === 'free' ? 'Create profile' : plan.code === 'scale' ? 'Request Beta access' : 'Join Controlled Beta';
-    return `<article class="pricing-card${featured ? ' featured' : ''}">
-      <div class="pricing-card-top"><div><span class="pricing-card-kicker">${escapeHtml(plan.audience)}</span><h3>${escapeHtml(plan.name)}</h3></div>${featured ? '<span class="pricing-card-badge">Popular</span>' : ''}</div>
-      <p class="pricing-card-audience">${escapeHtml(plan.description)}</p>
-      ${priceMarkup(plan)}
-      <div class="pricing-allowance"><span><small>USAGE CREDITS</small><b>${Number(plan.monthlyUsageCredits || 0).toLocaleString()} / month</b></span><span><small>PROJECT SEATS</small><b>${seats(plan.projectSeatLimit)}</b></span></div>
-      <ul class="pricing-features">${features.map((feature) => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>
-      <a class="pricing-cta" href="/app">${cta} →</a>
-    </article>`;
-  };
-
-  const renderError = () => {
-    grid.setAttribute('aria-busy', 'false');
-    grid.innerHTML = '<div class="pricing-error"><strong>Pricing could not be loaded.</strong><span>The rest of Linkary is still available. Refresh pricing when you are ready.</span><br><button class="btn outline small" type="button" data-pricing-retry>Retry</button></div>';
-    grid.querySelector('[data-pricing-retry]')?.addEventListener('click', load);
-  };
-
-  async function load() {
-    grid.setAttribute('aria-busy', 'true');
-    try {
-      const response = await fetch('/api/billing/plans', { headers: { accept: 'application/json' } });
-      if (!response.ok) throw new Error('pricing_request_failed');
-      const payload = await response.json();
-      const plans = Array.isArray(payload.plans) ? payload.plans : [];
-      if (!plans.length) throw new Error('pricing_catalog_empty');
-      grid.innerHTML = plans.map(card).join('');
-      grid.setAttribute('aria-busy', 'false');
-    } catch {
-      renderError();
-    }
-  }
-
+  const fail = () => { grid.setAttribute('aria-busy','false'); grid.innerHTML = '<article class="pricing-card"><h3>Pricing unavailable</h3><p class="desc">The rest of Linkary is still available. Refresh to try again.</p><button class="button secondary compact" type="button" data-pricing-retry>Retry</button></article>'; grid.querySelector('[data-pricing-retry]')?.addEventListener('click',load); };
+  async function load(){grid.setAttribute('aria-busy','true');try{const r=await fetch('/api/billing/plans',{credentials:'same-origin',headers:{accept:'application/json'}});if(!r.ok)throw new Error('pricing');const j=await r.json();const plans=Array.isArray(j.plans)?j.plans:[];if(!plans.length)throw new Error('empty');grid.innerHTML=plans.map(card).join('');grid.setAttribute('aria-busy','false')}catch{fail()}}
   void load();
 })();
