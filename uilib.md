@@ -143,7 +143,13 @@ The real public profile remains available at `https://linkary.xyz/muazxinthi`. G
 
 ### Footer socials
 
-The approved footer includes X, LinkedIn, Product Hunt, and Trustpilot. Production URLs must be verified as Linkary corporate destinations before merge. Personal founder social accounts are not substitutes.
+The approved footer includes:
+
+- X → `https://x.com/Linkaryxyz`
+- LinkedIn → `https://www.linkedin.com/company/linkary/`
+- Product Hunt → `https://www.producthunt.com/products/linkary?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-linkary`
+
+The Product Hunt footer treatment uses the official featured badge embed supplied by the product owner. Trustpilot is intentionally omitted for now and may be added later without changing the homepage information architecture.
 
 ### Responsive behavior
 
