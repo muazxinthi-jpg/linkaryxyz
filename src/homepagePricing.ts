@@ -125,6 +125,19 @@ export async function enhancePublicHomepage(request: Request, response: Response
   const pathname = new URL(request.url).pathname;
   let html = applyTrackingFirstHomepageCopy(await response.text());
 
+  // Keep pricing navigation resilient across both public homepage shells.
+  // The current marketing shell uses /pricing in the footer and an Auctions
+  // item in the top navigation, while the legacy shell uses Resources/FAQ.
+  // Normalize both to the same in-page pricing destination without changing
+  // the surrounding visual structure.
+  html = html.replace(/href=(["'])\/pricing\1/gi, 'href="#pricing"');
+  if (!/href=(["'])#pricing\1[^>]*>\s*Pricing\s*<\/a>/i.test(html)) {
+    html = html.replace(
+      /(<a\b[^>]*>\s*Auctions\s*<\/a>)/i,
+      '$1<a href="#pricing">Pricing</a>',
+    );
+  }
+
   // Production legacy pages already contain the correct pricing section, but an
   // older inline renderer can leak JavaScript into the visible document. Remove
   // only that renderer and replace it with a normal external asset. This leaves

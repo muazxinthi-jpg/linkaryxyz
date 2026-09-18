@@ -78,3 +78,11 @@ test('homepage pricing CSS is scoped to pricing classes', async () => {
   assert.match(css, /^\.pricing-home/);
   assert.doesNotMatch(css, /(^|[},])\s*(body|html|\.hero|\.workflow|\.features|\.faq)\s*[,{]/);
 });
+
+
+test('current marketing shell pricing links normalize to the in-page pricing section', async () => {
+  const injection = await read('src/homepagePricing.ts');
+  assert.match(injection, /href=\(\["'\]\)\\\/pricing/);
+  assert.match(injection, />\\s\*Auctions\\s\*</);
+  assert.match(injection, /href="#pricing"/);
+});
