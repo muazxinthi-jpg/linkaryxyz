@@ -149,7 +149,11 @@ export async function enhancePublicHomepage(request: Request, response: Response
 
   // Fallback for a public shell that does not yet contain the production pricing
   // section. Limit this additive path to the actual homepage only.
-  if ((pathname === '/' || pathname === '/index.html') && !html.includes('id="pricing"')) {
+  const hasPricingSection = /<section\b[^>]*\bid=(["'])pricing\1/i.test(html)
+    || /<section\b[^>]*\bclass=(["'])[^"']*pricing-home[^"']*\2/i.test(html)
+    || /06\s*\/\s*PRICING/i.test(html);
+
+  if ((pathname === '/' || pathname === '/index.html') && !hasPricingSection) {
     html = html.replace('</head>', '  <link rel="stylesheet" href="/pricing-home.css">\n</head>');
     const faqMarker = '<section class="faq" id="faq">';
     if (html.includes(faqMarker)) html = html.replace(faqMarker, `${PRICING_SECTION}\n      ${faqMarker}`);
