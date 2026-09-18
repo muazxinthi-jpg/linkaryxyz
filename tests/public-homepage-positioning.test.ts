@@ -1,52 +1,45 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { applyTrackingFirstHomepageCopy } from '../src/homepagePricing';
 
 const repo = new URL('../', import.meta.url);
 const read = (path: string) => readFile(new URL(path, repo), 'utf8');
 
-test('public homepage leads with tracking-first Linkary positioning', async () => {
-  const legacyHomepage = await read('index.html');
-  const homepage = applyTrackingFirstHomepageCopy(legacyHomepage);
-
-  assert.match(homepage, /<title>Linkary — Run growth anywhere\. Track it in Linkary\.<\/title>/);
-  assert.match(homepage, /Web3 growth attribution/);
-  assert.match(homepage, /Run growth anywhere\.<br><em>Track it in Linkary\.<\/em>/);
-  assert.match(homepage, /whether the work starts in Linkary or somewhere else/);
-  assert.match(homepage, /Start tracking ↗/);
-
-  assert.doesNotMatch(homepage, /Creator campaign intelligence/);
-  assert.doesNotMatch(homepage, /Know which creators<br>actually drive/);
-  assert.doesNotMatch(homepage, /Start a campaign ↗/);
+test('public homepage leads with the approved Linkary positioning', async () => {
+  const homepage = await read('index.html');
+  assert.match(homepage, /Turn relationships into/);
+  assert.match(homepage, /measurable/);
+  assert.match(homepage, /Linkary connects creators, communities, campaigns, social signals and on-chain outcomes into one measurable growth layer\./);
+  assert.match(homepage, /Create your Linkary/);
+  assert.match(homepage, /Explore Ecosystem/);
+  assert.doesNotMatch(homepage, /50K\+|99\.8%|142K Gateway Clicks|1,482 on-chain actions/);
 });
 
-test('public homepage makes external campaign tracking and communities explicit', async () => {
-  const homepage = applyTrackingFirstHomepageCopy(await read('index.html'));
-
-  assert.match(homepage, /External campaigns/);
-  assert.match(homepage, /Creator & community identity/);
-  assert.match(homepage, /Bring in work from Linkary or external campaign workflows/);
-  assert.match(homepage, /Projects, creators, communities\.<br><em>One evidence graph\.<\/em>/);
-  assert.match(homepage, /without forcing every campaign to run inside Linkary/);
-  assert.match(homepage, /Linkary connects creators, communities, activities, and tracked events/);
+test('public homepage keeps projects, creators and communities explicit', async () => {
+  const homepage = await read('index.html');
+  assert.match(homepage, /id="creators"/);
+  assert.match(homepage, /Build an identity around the work you actually do\./);
+  assert.match(homepage, /id="projects"/);
+  assert.match(homepage, /Run growth anywhere\. Track it in Linkary\./);
+  assert.match(homepage, /id="communities"/);
+  assert.match(homepage, /Communities create measurable impact\./);
 });
 
-test('built-in campaign execution remains optional rather than becoming the product prerequisite', async () => {
-  const homepage = applyTrackingFirstHomepageCopy(await read('index.html'));
-
-  assert.match(homepage, /OPTIONAL \/ LINKARY CAMPAIGN WORKSPACE/);
-  assert.match(homepage, /Track an existing campaign<br>or coordinate one here\./);
-  assert.match(homepage, /use the built-in workspace when you want to coordinate the brief and contributors here/);
-  assert.match(homepage, /<b>New campaign<\/b>/);
-  assert.doesNotMatch(homepage, /Run campaigns without<br>the spreadsheet maze\./);
+test('public homepage preserves the approved Muaz Xinthi profile example', async () => {
+  const homepage = await read('index.html');
+  assert.match(homepage, /data-profile-example="muazxinthi"/);
+  assert.match(homepage, /https:\/\/linkary\.xyz\/muazxinthi/);
+  assert.match(homepage, /Muaz Xinthi Linkary Profile - Header, Identity, Bio and CTAs/);
+  assert.match(homepage, /Muaz Xinthi Linkary Profile - Featured Work and NFT Collections/);
 });
 
-test('tracking-first copy transformation changes copy only and keeps the existing responsive shell intact', async () => {
-  const source = await read('src/homepagePricing.ts');
-
-  assert.match(source, /applyTrackingFirstHomepageCopy/);
-  assert.match(source, /updated\.split\(from\)\.join\(to\)/);
-  assert.doesNotMatch(source, /style\.setProperty|classList\.|innerHTML\s*=/);
-  assert.match(source, /pathname === '\/' \|\| pathname === '\/index\.html'/);
+test('public homepage keeps the current controlled Beta chain set', async () => {
+  const homepage = await read('index.html');
+  for (const chain of ['Ethereum', 'Base', 'BNB Chain', 'Solana', 'Robinhood Chain']) {
+    assert.match(homepage, new RegExp(chain.replace(' ', '\\s*')));
+  }
+  assert.doesNotMatch(homepage, />Arbitrum</);
+  assert.doesNotMatch(homepage, />Polygon</);
+  assert.doesNotMatch(homepage, />Optimism</);
+  assert.doesNotMatch(homepage, />Avalanche</);
 });

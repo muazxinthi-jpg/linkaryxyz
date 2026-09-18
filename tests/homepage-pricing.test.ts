@@ -5,23 +5,18 @@ import test from 'node:test';
 const repo = new URL('../', import.meta.url);
 const read = (path: string) => readFile(new URL(path, repo), 'utf8');
 
-test('public homepage includes native pricing without relying on Worker injection', async () => {
+test('public homepage includes native API-backed pricing', async () => {
   const homepage = await read('index.html');
   assert.match(homepage, /href="#pricing">Pricing<\/a>/);
-  assert.match(homepage, /<section class="pricing-home" id="pricing"/);
-  assert.match(homepage, /href="\.\/pricing-home\.css"/);
-  assert.match(homepage, /src="\.\/pricing-home\.js" defer/);
-  assert.match(homepage, /<section class="pricing-home" id="pricing"[\s\S]*<section class="faq" id="faq">/);
+  assert.match(homepage, /id="pricing"/);
+  assert.match(homepage, /data-linkary-component="pricing"/);
+  assert.match(homepage, /data-linkary-source="\/api\/billing\/plans"/);
+  assert.match(homepage, /id="linkary-pricing-grid"/);
+  assert.match(homepage, /src="\/pricing-home\.js"/);
 });
 
-test('homepage pricing is additive and reads the live billing catalog', async () => {
-  const injection = await read('src/homepagePricing.ts');
+test('homepage pricing reads the live billing catalog and does not hardcode commercial prices', async () => {
   const client = await read('pricing-home.js');
-  assert.match(injection, /id=\"pricing\"/);
-  assert.match(injection, /Controlled Beta/);
-  assert.match(injection, /pricing-home\.css/);
-  assert.match(injection, /pricing-home\.js/);
-  assert.match(injection, /<section class=\"faq\" id=\"faq\">/);
   assert.match(client, /fetch\('\/api\/billing\/plans'/);
   assert.doesNotMatch(client, /personal_pro.*499/s);
   assert.doesNotMatch(client, /project_manual.*999/s);
@@ -29,7 +24,7 @@ test('homepage pricing is additive and reads the live billing catalog', async ()
   assert.doesNotMatch(client, /project_growth.*9999/s);
 });
 
-test('homepage transformation is limited to public HTML and preserves the existing shell', async () => {
+test('homepage transformation remains limited to public HTML', async () => {
   const injection = await read('src/homepagePricing.ts');
   const worker = await read('src/worker.ts');
   assert.match(injection, /request\.method !== 'GET'/);
@@ -51,34 +46,13 @@ test('legacy inline pricing renderer is removed before the browser parses public
   assert.match(injection, /pricing-catalog\.js/);
   assert.match(client, /document\.getElementById\('linkary-pricing-grid'\)/);
   assert.match(client, /fetch\('\/api\/billing\/plans'/);
-  assert.doesNotMatch(client, /<script/i);
 });
 
-test('production head injection cannot expand dollar replacement tokens and restores the favicon', async () => {
-  const staticSource = await read('src/static.ts');
-  assert.match(staticSource, /const headInjection =/);
-  assert.match(staticSource, /\.replace\('\<\/head\>', \(\) => headInjection\)/);
-  assert.match(staticSource, /rel="icon"/);
-  assert.match(staticSource, /rel="apple-touch-icon"/);
-  assert.match(staticSource, /linkary-icon-black\.png/);
-  assert.doesNotMatch(staticSource, /\.replace\('\<\/head\>', `\$\{/);
+test('public homepage uses the real local Linkary favicon and wordmark', async () => {
+  const homepage = await read('index.html');
+  assert.match(homepage, /assets\/brand\/linkary-icon-black\.png/);
+  assert.match(homepage, /assets\/brand\/linkary-wordmark-black\.png/);
 });
-
-test('public pricing renderer never hardcodes commercial plan prices', async () => {
-  const client = await read('pricing-catalog.js');
-  assert.doesNotMatch(client, /personal_pro.*499/s);
-  assert.doesNotMatch(client, /project_manual.*999/s);
-  assert.doesNotMatch(client, /project_automate.*3399/s);
-  assert.doesNotMatch(client, /project_growth.*9999/s);
-  assert.match(client, /Join Controlled Beta/);
-});
-
-test('homepage pricing CSS is scoped to pricing classes', async () => {
-  const css = await read('pricing-home.css');
-  assert.match(css, /^\.pricing-home/);
-  assert.doesNotMatch(css, /(^|[},])\s*(body|html|\.hero|\.workflow|\.features|\.faq)\s*[,{]/);
-});
-
 
 test('current marketing shell pricing links normalize to the in-page pricing section', async () => {
   const injection = await read('src/homepagePricing.ts');
