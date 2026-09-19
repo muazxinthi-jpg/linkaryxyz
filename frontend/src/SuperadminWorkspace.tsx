@@ -14,6 +14,7 @@ const adminLinks = [
   ['/admin/ai-governance', 'AI governance'],
   ['/admin/platform-intelligence', 'Platform intelligence'],
   ['/admin/network-rewards', 'Network rewards'],
+  ['/admin/invite-credits', 'Invite credits'],
   ['/admin/commercial', 'Commercial accounts'],
   ['/admin/coupons', 'Coupons'],
   ['/admin/promotion-review', 'Sponsored banners'],
