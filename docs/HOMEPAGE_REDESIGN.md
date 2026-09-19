@@ -11,7 +11,7 @@ Implements the desktop/mobile direction from stitch_linkary_homepage_redesign (3
 - Uses the existing signup/login destinations and existing public profile/auction entry points.
 - Preserves the existing public Worker transformation and routing. Authenticated app code, authentication, tracking, billing endpoints, database migrations, deployment configuration, and preservation contracts are unchanged.
 - Keeps pricing attached to /api/billing/plans, with one renderer, separate audience groups, catalog prices/promotions, and a retry state. The homepage intentionally shows names, audience, prices, and entry actions; commercial entitlements remain in the existing billing product.
-- Uses the established LinkedIn, X, and Product Hunt destinations already present on the public site. Trustpilot remains visibly pending until an official destination is confirmed.
+- Keeps LinkedIn and X in the footer's Follow Linkary column, and places the official Product Hunt featured badge and Trustpilot Review Collector widget beneath the footer wordmark. Trustpilot uses the provided business-unit, template, and widget token values.
 - Retains the previously approved Muaz Xinthi public profile link. Member and partner showcases use honest future states.
 - Labels the community image “Early supporters” and omits the “Illustrative artwork” caption. Optional hero photos are listed in `assets/homepage/hero-slides.json`; add at least two local images in `assets/homepage/` with accurate alt text to enable automatic rotation. Visitors can navigate and pause the carousel, and reduced-motion preferences are respected.
 

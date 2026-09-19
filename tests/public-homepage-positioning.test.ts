@@ -42,14 +42,21 @@ test('homepage keeps real app entry points and working section links', async () 
   assert.doesNotMatch(homepage, /mailto:|href="#"/);
 });
 
-test('homepage retains the real profile example and uses local visual assets', async () => {
+test('homepage retains the real profile example and uses approved visual assets', async () => {
   const homepage = await read('index.html');
   assert.match(homepage, /data-profile-example="muazxinthi"/);
   assert.match(homepage, /href="https:\/\/linkary\.xyz\/muazxinthi"/);
   for (const match of homepage.matchAll(/<img[^>]+src="([^"]+)"/g)) {
-    assert.ok(match[1].startsWith('/assets/'), 'Images must be local assets');
-    await access(new URL(match[1].slice(1), repo));
+    if (match[1].startsWith('/assets/')) {
+      await access(new URL(match[1].slice(1), repo));
+    } else {
+      assert.match(match[1].replace(/&amp;/g, '&'), /^https:\/\/api\.producthunt\.com\/widgets\/embed-image\/v1\/featured\.svg\?post_id=1254724&theme=light&t=1789831410548$/);
+    }
   }
+  assert.match(homepage, /src="https:\/\/widget\.trustpilot\.com\/bootstrap\/v5\/tp\.widget\.bootstrap\.min\.js" async/);
+  assert.match(homepage, /class="trustpilot-widget"[^>]+data-businessunit-id="6aae80e1d501df16be21f9c1"/);
+  assert.match(homepage, /class="footer-badges"/);
+  assert.doesNotMatch(homepage, />Trustpilot <small>Coming soon<\/small>/);
   assert.doesNotMatch(homepage, /cdn\.tailwindcss\.com|aida-public/);
 });
 
