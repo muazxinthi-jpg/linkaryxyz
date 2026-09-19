@@ -188,29 +188,54 @@ async function requestPortfolioTokens(apiKey: string, addresses: PortfolioAddres
   }
 }
 
-async function fetchPortfolioTokens(apiKey: string, addresses: PortfolioAddress[]): Promise<AlchemyPortfolioResponse | null> {
-  let payload = await requestPortfolioTokens(apiKey, addresses);
-  if (!payload) payload = await requestPortfolioTokens(apiKey, addresses);
-  if (!payload) return null;
+const MAX_ADDRESSES_PER_REQUEST = 3;
 
-  const partialErrors = payload.error?.partialErrors || [];
-  const requestedNetworks = new Set(addresses.flatMap((entry) => entry.networks));
-  const failedNetworks = new Set(
-    partialErrors
-      .map((error) => safeText(error.network))
-      .filter((network) => requestedNetworks.has(network)),
-  );
-  if (!failedNetworks.size) return payload;
+async function fetchPortfolioTokens(apiKey: string, addresses: PortfolioAddress[]): Promise<AlchemyPortfolioResponse> {
+  const tokens: AlchemyToken[] = [];
+  const partialErrors: Array<{ network?: unknown; message?: unknown }> = [];
 
-  const retryAddresses = addresses
-    .map((entry) => ({ ...entry, networks: entry.networks.filter((network) => failedNetworks.has(network)) }))
-    .filter((entry) => entry.networks.length > 0);
-  const retried = await requestPortfolioTokens(apiKey, retryAddresses);
-  if (!retried) return payload;
+  for (let offset = 0; offset < addresses.length; offset += MAX_ADDRESSES_PER_REQUEST) {
+    const batch = addresses.slice(offset, offset + MAX_ADDRESSES_PER_REQUEST);
+    let payload = await requestPortfolioTokens(apiKey, batch);
+    if (!payload) payload = await requestPortfolioTokens(apiKey, batch);
+
+    const batchNetworks = new Set(batch.flatMap((entry) => entry.networks));
+    if (!payload) {
+      for (const network of batchNetworks) partialErrors.push({ network, message: 'Request failed' });
+      continue;
+    }
+
+    tokens.push(...(payload.data?.tokens || []));
+    const reportedErrors = payload.error?.partialErrors || [];
+    const failedNetworks = new Set(
+      reportedErrors
+        .map((error) => safeText(error.network))
+        .filter((network) => batchNetworks.has(network)),
+    );
+    if (!failedNetworks.size) {
+      partialErrors.push(...reportedErrors);
+      continue;
+    }
+
+    const retryAddresses = batch
+      .map((entry) => ({ ...entry, networks: entry.networks.filter((network) => failedNetworks.has(network)) }))
+      .filter((entry) => entry.networks.length > 0);
+    const retried = await requestPortfolioTokens(apiKey, retryAddresses);
+    if (!retried) {
+      partialErrors.push(...reportedErrors);
+      continue;
+    }
+
+    tokens.push(...(retried.data?.tokens || []));
+    partialErrors.push(
+      ...reportedErrors.filter((error) => !batchNetworks.has(safeText(error.network))),
+      ...(retried.error?.partialErrors || []),
+    );
+  }
 
   return {
-    data: { tokens: [...(payload.data?.tokens || []), ...(retried.data?.tokens || [])] },
-    ...(retried.error?.partialErrors?.length ? { error: { partialErrors: retried.error.partialErrors } } : {}),
+    data: { tokens },
+    ...(partialErrors.length ? { error: { partialErrors } } : {}),
   };
 }
 
