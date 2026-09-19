@@ -14,7 +14,7 @@ type AlchemyToken = {
 };
 type AlchemyPortfolioResponse = {
   data?: { tokens?: AlchemyToken[] };
-  error?: { partialErrors?: unknown[] };
+  error?: { partialErrors?: Array<{ network?: unknown; message?: unknown }> };
 };
 
 export type PortfolioAsset = {
@@ -165,6 +165,55 @@ function emptySummary(configured: boolean, walletCount: number, message: string)
   };
 }
 
+type PortfolioAddress = { address: string; networks: string[] };
+
+async function requestPortfolioTokens(apiKey: string, addresses: PortfolioAddress[]): Promise<AlchemyPortfolioResponse | null> {
+  try {
+    const response = await fetch(`https://api.g.alchemy.com/data/v1/${encodeURIComponent(apiKey)}/assets/tokens/by-address`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        addresses,
+        withMetadata: true,
+        withPrices: true,
+        includeNativeTokens: true,
+        includeErc20Tokens: true,
+        includeBlockMetadata: false,
+      }),
+    });
+    if (!response.ok) return null;
+    return await response.json() as AlchemyPortfolioResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPortfolioTokens(apiKey: string, addresses: PortfolioAddress[]): Promise<AlchemyPortfolioResponse | null> {
+  let payload = await requestPortfolioTokens(apiKey, addresses);
+  if (!payload) payload = await requestPortfolioTokens(apiKey, addresses);
+  if (!payload) return null;
+
+  const partialErrors = payload.error?.partialErrors || [];
+  const requestedNetworks = new Set(addresses.flatMap((entry) => entry.networks));
+  const failedNetworks = new Set(
+    partialErrors
+      .map((error) => safeText(error.network))
+      .filter((network) => requestedNetworks.has(network)),
+  );
+  if (!failedNetworks.size) return payload;
+
+  const retryAddresses = addresses
+    .map((entry) => ({ ...entry, networks: entry.networks.filter((network) => failedNetworks.has(network)) }))
+    .filter((entry) => entry.networks.length > 0);
+  const retried = await requestPortfolioTokens(apiKey, retryAddresses);
+  if (!retried) return payload;
+
+  return {
+    data: { tokens: [...(payload.data?.tokens || []), ...(retried.data?.tokens || [])] },
+    ...(retried.error?.partialErrors?.length ? { error: { partialErrors: retried.error.partialErrors } } : {}),
+  };
+}
+
 export async function buildWalletPortfolio(
   env: Env,
   embeddedWallets: WalletLike[],
@@ -188,27 +237,8 @@ export async function buildWalletPortfolio(
     ...wallets.solana.map((address) => ({ address, networks: [...SOLANA_NETWORKS] })),
   ];
 
-  let payload: AlchemyPortfolioResponse;
-  try {
-    const response = await fetch(`https://api.g.alchemy.com/data/v1/${encodeURIComponent(apiKey)}/assets/tokens/by-address`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        addresses,
-        withMetadata: true,
-        withPrices: true,
-        includeNativeTokens: true,
-        includeErc20Tokens: true,
-        includeBlockMetadata: false,
-      }),
-    });
-    if (!response.ok) {
-      const unavailable = emptySummary(true, walletCount, 'Portfolio pricing is temporarily unavailable. Your wallet settings are unaffected.');
-      unavailable.partial = true;
-      return unavailable;
-    }
-    payload = await response.json() as AlchemyPortfolioResponse;
-  } catch {
+  const payload = await fetchPortfolioTokens(apiKey, addresses);
+  if (!payload) {
     const unavailable = emptySummary(true, walletCount, 'Portfolio pricing is temporarily unavailable. Your wallet settings are unaffected.');
     unavailable.partial = true;
     return unavailable;
