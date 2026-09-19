@@ -103,6 +103,7 @@ function RecoveryState({ onRetry, onReset }: { onRetry: () => void; onReset: () 
         <p className="security-note clean-note">Reference: LK-AUTH-INIT</p>
         <button className="button primary full" onClick={onRetry}>Retry</button>
         <button className="button secondary full" onClick={onReset}>Reset secure sign-in</button>
+        <button className="button secondary full" onClick={() => window.location.reload()}>Reload</button>
       </div>
     </main>
   );
