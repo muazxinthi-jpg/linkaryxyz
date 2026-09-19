@@ -15,7 +15,12 @@ test('approved editorial homepage keeps tracking-first positioning and honest ev
   assert.match(homepage, /External campaigns/);
   assert.match(homepage, /Manual entries, submissions, and estimates do not become verified automatically/);
   assert.doesNotMatch(homepage, /Cryptographic Consensus|Immutable Integrity Guarantee|Reserve Handle|session event tokens|50K\+|99\.8%/);
-  assert.match(homepage, /Illustrative artwork/);
+  assert.match(homepage, />Early supporters</);
+  assert.doesNotMatch(homepage, />Illustrative artwork</);
+  assert.match(homepage, /data-carousel/);
+  const slides = JSON.parse(await read('assets/homepage/hero-slides.json'));
+  assert.equal(slides.length, 1);
+  assert.equal(slides[0].src, '/assets/homepage/community-portrait.png');
   assert.match(homepage, /Member showcase \/ Coming soon/);
 });
 

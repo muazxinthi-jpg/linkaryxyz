@@ -54,7 +54,19 @@ p { color: var(--muted); }
 .hero-actions { display: flex; align-items: center; gap: 18px; margin-top: auto; padding-top: 28px; flex-wrap: wrap; }
 .hero-portrait { background: #d8cfbf; }
 .hero-portrait > img { width: 100%; height: auto; aspect-ratio: 2.25; object-fit: cover; object-position: center 44%; }
-.hero-portrait figcaption { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; color: var(--muted); background: var(--canvas); font: 10px/1.5 var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.hero-portrait > img.is-changing { opacity: .5; }
+.hero-portrait figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 48px; padding: 4px 0; color: var(--muted); background: var(--canvas); }
+.hero-caption { font: 10px/1.5 var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.carousel-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.carousel-controls > button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 17px; }
+.carousel-controls > button:hover:not(:disabled) { color: var(--orange); border-color: var(--ink); }
+.carousel-controls > button:disabled { opacity: .45; cursor: default; }
+.carousel-controls [data-carousel-status] { min-width: 52px; text-align: center; color: var(--muted); font: 10px/1.4 var(--mono); }
+.carousel-controls .carousel-toggle { width: auto; padding-inline: 12px; font: 11px/1.4 Inter,sans-serif; }
+.carousel-dots { display: flex; align-items: center; gap: 2px; }
+.carousel-dots button { display: grid; place-items: center; width: 34px; height: 42px; border: 0; padding: 0; background: transparent; }
+.carousel-dots button::before { content: ""; display: block; width: 6px; height: 6px; border-radius: 50%; background: #aaa69d; }
+.carousel-dots button[aria-current="true"]::before { background: var(--orange); transform: scale(1.35); }
 .section-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; margin-bottom: 36px; }
 .section-heading > p { max-width: 365px; font-size: 14px; }
 .section-heading h2 + p { margin-top: 12px; }
@@ -210,6 +222,10 @@ p { color: var(--muted); }
   .hero-portrait { margin-inline: -16px; }
   .hero-portrait > img { aspect-ratio: 1.5; object-position: center; }
   .hero-portrait figcaption { padding: 9px 16px; font-size: 9px; flex-wrap: wrap; }
+  .carousel-controls { gap: 4px; }
+  .carousel-controls > button { width: 40px; height: 40px; }
+  .carousel-controls .carousel-toggle { padding-inline: 7px; font-size: 10px; }
+  .carousel-controls [data-carousel-status] { min-width: 42px; }
   .section { padding-block: 44px; }
   .section-heading { margin-bottom: 24px; }
   .section-heading > p { font-size: 15px; }
