@@ -295,10 +295,10 @@ p { color: var(--muted); }
 .community-member-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .community-member-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .community-member:hover .community-member-name { text-decoration: underline; text-underline-offset: 3px; }
-.community-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 22px 0 0; }
+.community-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 0 0; }
 .community-stats article { min-width: 0; padding: 4px 22px 8px; border-right: 1px solid var(--line); }
 .community-stats article:first-child { padding-left: 0; }
-.community-stats article:nth-child(3) { border-right: 0; }
+.community-stats article:nth-child(4) { border-right: 0; }
 .community-stats article span { display: block; margin-bottom: 4px; color: var(--muted); font: 10px/1.5 var(--mono); letter-spacing: .03em; text-transform: uppercase; }
 .community-stats article strong { display: block; font: 600 clamp(24px, 3vw, 34px)/1.1 var(--display); font-variant-numeric: tabular-nums; }
 .community-stats-note { grid-column: 1 / -1; margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
