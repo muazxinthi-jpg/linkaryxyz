@@ -22,7 +22,7 @@ const TRACKING_FIRST_COPY: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     '<title>Linkary — Creator campaigns, connected to outcomes</title>',
-    '<title>Linkary — Run growth anywhere. Track it in Linkary.</title>',
+    '<title>Linkary: Run growth anywhere. Track it in Linkary.</title>',
   ],
   [
     'Connect creator campaigns to clicks, communities, conversions, and real growth outcomes.',
