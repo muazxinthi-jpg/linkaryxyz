@@ -3,6 +3,7 @@ import { requireDb } from '../env';
 import { Db } from '../db/client';
 import { json } from '../http';
 import { safeHttpsUrl } from '../profileMedia';
+import { getPublicHomepageWalletValue } from './homepageWalletValue';
 
 type TotalRow = { total: number | string };
 type PublicCreatorRow = { username: string; display_name: string; avatar_url: string | null };
@@ -14,7 +15,7 @@ function total(row: TotalRow | null): number {
 
 export async function publicHomepageCommunity(_request: Request, env: Env): Promise<Response> {
   const db = new Db(requireDb(env));
-  const [members, projects, wallets, creators] = await Promise.all([
+  const [members, projects, wallets, creators, connectedValue] = await Promise.all([
     db.first<TotalRow>("SELECT COUNT(*) AS total FROM users WHERE status = 'active'"),
     db.first<TotalRow>(
       "SELECT COUNT(DISTINCT o.id) AS total FROM organizations o JOIN profiles p ON p.organization_id = o.id AND p.profile_type = 'project' WHERE o.status = 'active' AND p.visibility <> 'archived'",
@@ -25,6 +26,7 @@ export async function publicHomepageCommunity(_request: Request, env: Env): Prom
     db.all<PublicCreatorRow>(
       "SELECT p.username, p.display_name, p.avatar_url FROM profiles p JOIN users u ON u.id = p.owner_user_id WHERE p.profile_type = 'creator' AND p.visibility = 'published' AND u.status = 'active' ORDER BY p.published_at DESC, p.id ASC LIMIT 5",
     ),
+    getPublicHomepageWalletValue(env),
   ]);
 
   return json({
@@ -32,6 +34,9 @@ export async function publicHomepageCommunity(_request: Request, env: Env): Prom
       registeredMembers: total(members),
       projects: total(projects),
       walletsSubmitted: total(wallets),
+      connectedValueUsd: connectedValue?.connectedValueUsd ?? null,
+      connectedValuePartial: connectedValue?.partial ?? false,
+      connectedValueUpdatedAt: connectedValue?.updatedAt ?? null,
     },
     supporters: creators.map((creator) => ({
       username: creator.username,

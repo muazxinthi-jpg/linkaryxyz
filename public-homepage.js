@@ -114,6 +114,24 @@
         const node = root.querySelector('[data-stat="' + key + '"]');
         if (node) node.textContent = new Intl.NumberFormat('en').format(value);
       }
+      const valueNode = root.querySelector('[data-stat="connectedValueUsd"]');
+      if (valueNode) {
+        const value = metrics.connectedValueUsd;
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+          valueNode.textContent = '≈' + new Intl.NumberFormat('en-US', {
+            style: 'currency', currency: 'USD', maximumFractionDigits: 2,
+          }).format(value);
+          const updatedAt = typeof metrics.connectedValueUpdatedAt === 'string' ? metrics.connectedValueUpdatedAt : '';
+          const partial = metrics.connectedValuePartial === true;
+          valueNode.title = updatedAt
+            ? 'Last updated ' + new Date(updatedAt).toLocaleString() + (partial ? '. Some supported wallet data was unavailable.' : '')
+            : (partial ? 'Some supported wallet data was unavailable.' : '');
+          valueNode.setAttribute('aria-label', 'Estimated connected value ' + valueNode.textContent.slice(1) + (partial ? ', partial estimate' : ''));
+        } else {
+          valueNode.textContent = 'Unavailable';
+          valueNode.title = 'A priced aggregate is not available yet.';
+        }
+      }
       const list = root.querySelector('[data-community-supporters]');
       const people = root.querySelector('[data-community-people]');
       const supporters = Array.isArray(payload.supporters) ? payload.supporters : [];

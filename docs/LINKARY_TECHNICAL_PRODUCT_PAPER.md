@@ -446,6 +446,17 @@ Onchain signals should be matched to Project activities, campaigns and outcomes 
 
 Normal personal-profile activity must not trigger continuous blockchain polling or a scan across Project campaign records. Wallet/NFT information can be loaded from the relevant provider when the entitled user or profile needs it. Automated onchain attribution should only be activated for the relevant Project/campaign scope and should prefer provider webhooks/subscriptions or targeted reads over broad polling.
 
+### 15.1 Daily public homepage wallet-value snapshot
+
+The homepage may publish one aggregate USD estimate across active EVM and Solana wallet destinations on non-archived profiles. This is a narrowly scoped exception to on-demand provider reads:
+
+- The existing Worker schedule may refresh the aggregate no more than once per 24 hours.
+- Alchemy receives the distinct active wallet addresses and supported networks only for that refresh.
+- Linkary persists only the aggregate estimated USD value, partial-availability state, and snapshot timestamp. It must not persist or publish the addresses, per-wallet balances, or asset holdings for this homepage feature.
+- The displayed value includes only assets for which Alchemy returns usable USD pricing. Show it as an estimate; if no priced value can be confirmed, show it as unavailable rather than implying a zero balance.
+- Provider failure must not affect identity, profiles, invites, tracking, or promotion scheduling. The last successful snapshot may remain visible with its original update time.
+- The public API returns only the aggregate, availability state, and timestamp.
+
 ## 16. Infrastructure principles
 
 Current delivery stack includes:
