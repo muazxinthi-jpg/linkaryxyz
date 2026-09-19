@@ -21,8 +21,8 @@ export default function AdminInviteCreditsExperience() {
   const [owners, setOwners] = useState<OwnersResponse>({ profiles: [], organizations: [] });
   const [balances, setBalances] = useState<Balance[]>([]);
   const [ownerId, setOwnerId] = useState('');
-  const [amount, setAmount] = useState('10');
-  const [reason, setReason] = useState('Superadmin requested 10 additional invite credits for Muazxinthi.');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -38,8 +38,6 @@ export default function AdminInviteCreditsExperience() {
         if (cancelled) return;
         setOwners(ownerData);
         setBalances(balanceData.balances);
-        const ownProfile = ownerData.profiles.find((profile) => profile.username.toLowerCase() === 'muazxinthi');
-        if (ownProfile) setOwnerId(ownProfile.id);
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : 'Unable to load invite-credit owners.');
       }
