@@ -20,8 +20,8 @@ test('approved editorial homepage keeps tracking-first positioning and honest ev
   assert.match(homepage, /data-carousel/);
   const slides = JSON.parse(await read('assets/homepage/hero-slides.json'));
   assert.equal(slides.length, 1);
-  assert.equal(slides[0].src, '/assets/homepage/linkary-early-supporters-01.avif');
-  assert.match(homepage, /data-carousel-image src="\/assets\/homepage\/linkary-early-supporters-01\.avif"/);
+  assert.equal(slides[0].src, '/assets/homepage/linkary-early-supporters-01.png');
+  assert.match(homepage, /data-carousel-image src="\/assets\/homepage\/linkary-early-supporters-01\.png"/);
   assert.match(homepage, /Member showcase \/ Coming soon/);
 });
 
