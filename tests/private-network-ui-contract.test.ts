@@ -40,6 +40,21 @@ test('Private Network keeps the approved seven-generation panels wired to the Pe
   assert.match(mapPanel, /up to seven generations/);
 });
 
+test('accepted Network Map remains the fluid avatar V3 experience rather than the old radial-only map', () => {
+  assert.equal(interactiveMap.includes('Fluid network view. Drag any node'), true);
+  assert.equal(interactiveMap.includes('Find in network'), true);
+  assert.equal(interactiveMap.includes('placeholder="Search name or @handle"'), true);
+  assert.equal(interactiveMap.includes('Verified only'), true);
+  assert.equal(interactiveMap.includes('Fit'), true);
+  assert.equal(interactiveMap.includes('Expand'), true);
+  assert.equal(interactiveMap.includes('Collapse branch'), true);
+  assert.equal(interactiveMap.includes('node.avatarUrl'), true, 'network nodes must continue to render profile imagery when available');
+  assert.equal(interactiveMap.includes('onPointerDown'), true, 'node/canvas pointer interaction must remain enabled');
+  assert.equal(mapCss.includes('.network-map-fluid'), true);
+  assert.equal(mapCss.includes('.network-map-v2-avatar'), true);
+  assert.equal(mapCss.includes('cursor:grab'), true);
+});
+
 test('Private Network tabs cannot collapse accepted views out of the visible control strip', () => {
   const css = tabsCss.replace(/\s+/g, '');
   assert.equal(css.includes('.private-network-tabs{display:flex;'), true);
