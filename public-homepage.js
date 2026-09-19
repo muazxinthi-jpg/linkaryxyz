@@ -99,7 +99,65 @@
       .catch(() => { /* Keep the local fallback photo if a manifest is unavailable. */ });
   }
 
+  async function setupCommunityProof() {
+    const root = document.querySelector('[data-community-proof]');
+    if (!root) return;
+    try {
+      const response = await fetch('/api/public/homepage-community', { credentials: 'omit', headers: { accept: 'application/json' } });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const metrics = payload && payload.metrics;
+      if (!metrics) return;
+      for (const key of ['registeredMembers', 'projects', 'walletsSubmitted']) {
+        const value = metrics[key];
+        if (!Number.isSafeInteger(value) || value < 0) return;
+        const node = root.querySelector('[data-stat="' + key + '"]');
+        if (node) node.textContent = new Intl.NumberFormat('en').format(value);
+      }
+      const list = root.querySelector('[data-community-supporters]');
+      const people = root.querySelector('[data-community-people]');
+      const supporters = Array.isArray(payload.supporters) ? payload.supporters : [];
+      supporters.slice(0, 5).forEach((member) => {
+        if (!member || typeof member.username !== 'string' || !/^[a-z0-9_-]{2,40}$/i.test(member.username)) return;
+        const name = typeof member.displayName === 'string' && member.displayName.trim() ? member.displayName.trim() : member.username;
+        const link = document.createElement('a');
+        link.className = 'community-member';
+        link.href = '/' + encodeURIComponent(member.username);
+        link.setAttribute('aria-label', 'View ' + name + "'s public Linkary profile");
+        const avatar = document.createElement('span');
+        avatar.className = 'community-member-avatar';
+        if (typeof member.avatarUrl === 'string') {
+          try {
+            const imageUrl = new URL(member.avatarUrl);
+            if (imageUrl.protocol === 'https:') {
+              const image = document.createElement('img');
+              image.src = imageUrl.href;
+              image.alt = '';
+              image.loading = 'lazy';
+              image.decoding = 'async';
+              avatar.append(image);
+            }
+          } catch { /* Use the public creator's initials when an image URL is unavailable. */ }
+        }
+        if (!avatar.firstChild) {
+          avatar.textContent = Array.from(name.trim())[0]?.toUpperCase() || '?';
+          avatar.setAttribute('aria-hidden', 'true');
+        }
+        const label = document.createElement('span');
+        label.className = 'community-member-name';
+        label.textContent = name;
+        link.append(avatar, label);
+        const item = document.createElement('li');
+        item.append(link);
+        list.append(item);
+      });
+      if (list.children.length) people.hidden = false;
+      root.hidden = false;
+    } catch { /* Keep the hero intact if public aggregate data is temporarily unavailable. */ }
+  }
+
   setupCarousel();
+  void setupCommunityProof();
   const menuButton = document.querySelector('.menu-button');
   const mobileNav = document.getElementById('mobile-nav');
   if (menuButton && mobileNav) {
