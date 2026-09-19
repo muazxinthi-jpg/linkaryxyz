@@ -73,10 +73,15 @@
       .then((items) => {
         if (!Array.isArray(items)) return;
         const safeSlides = items.filter((item) => item && typeof item.src === 'string'
-          && /^\/assets\/homepage\/[a-z0-9/_-]+\.(?:png|jpe?g|webp)$/i.test(item.src)
+          && /^\/assets\/homepage\/[a-z0-9/_-]+\.(?:png|jpe?g|webp|avif)$/i.test(item.src)
           && typeof item.alt === 'string' && item.alt.trim());
-        if (safeSlides.length < 2) return;
+        if (safeSlides.length < 1) return;
         slides = safeSlides;
+        show(0);
+        if (slides.length < 2) {
+          controls.hidden = true;
+          return;
+        }
         const dots = document.createElement('div');
         dots.className = 'carousel-dots';
         dots.setAttribute('role', 'group');
@@ -89,7 +94,6 @@
         toggle.setAttribute('aria-pressed', String(paused));
         toggle.textContent = paused ? 'Resume rotation' : 'Pause rotation';
         toggle.setAttribute('aria-label', paused ? 'Resume automatic photo rotation' : 'Pause automatic photo rotation');
-        show(0);
         startTimer();
       })
       .catch(() => { /* Keep the local fallback photo if a manifest is unavailable. */ });
