@@ -7,6 +7,7 @@ import AdminCreatorAccessExperience from './AdminCreatorAccessExperience';
 import AdminNetworkRewardsExperience from './AdminNetworkRewardsExperience';
 import AdminPlatformIntelligenceExperience from './AdminPlatformIntelligenceExperience';
 import AdminReadinessExperience from './AdminReadinessExperience';
+import AdminInviteCreditsExperience from './AdminInviteCreditsExperience';
 import AdminPromotionReviewExperience from './AdminPromotionReviewExperience';
 import SuperadminWorkspace from './SuperadminWorkspace';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
@@ -25,6 +26,7 @@ export default function SuperadminApp({ me }: { me: ProductMe }) {
   if (location.pathname === '/admin/creator-access') return <AdminCreatorAccessExperience me={me} />;
   if (location.pathname === '/admin/community-verifications') return <AdminCommunityVerificationExperience me={me} status={status} />;
   if (location.pathname === '/admin/commercial') return <AdminCommercialExperience me={me} status={status} />;
+  if (location.pathname === '/admin/invite-credits') return <SuperadminWorkspace me={me}><AdminInviteCreditsExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/coupons') return <SuperadminWorkspace me={me}><AdminCouponsExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/ai-governance') return <SuperadminWorkspace me={me}><AdminAiGovernanceExperience /></SuperadminWorkspace>;
   if (location.pathname === '/admin/platform-intelligence') return <SuperadminWorkspace me={me}><AdminPlatformIntelligenceExperience /></SuperadminWorkspace>;
