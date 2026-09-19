@@ -114,6 +114,19 @@
         const node = root.querySelector('[data-stat="' + key + '"]');
         if (node) node.textContent = new Intl.NumberFormat('en').format(value);
       }
+      const valueNode = root.querySelector('[data-stat="connectedValueUsd"]');
+      const connectedValue = metrics.connectedValueUsd;
+      if (valueNode) {
+        if (typeof connectedValue === 'number' && Number.isFinite(connectedValue) && connectedValue >= 0) {
+          valueNode.textContent = new Intl.NumberFormat('en-US', {
+            style: 'currency', currency: 'USD', notation: connectedValue >= 10_000_000 ? 'compact' : 'standard',
+            maximumFractionDigits: connectedValue >= 100 ? 0 : 2,
+          }).format(connectedValue);
+          if (metrics.connectedValuePartial) valueNode.textContent = '≈' + valueNode.textContent;
+        } else {
+          valueNode.textContent = 'Unavailable';
+        }
+      }
       const list = root.querySelector('[data-community-supporters]');
       const people = root.querySelector('[data-community-people]');
       const supporters = Array.isArray(payload.supporters) ? payload.supporters : [];
@@ -143,10 +156,7 @@
           avatar.textContent = Array.from(name.trim())[0]?.toUpperCase() || '?';
           avatar.setAttribute('aria-hidden', 'true');
         }
-        const label = document.createElement('span');
-        label.className = 'community-member-name';
-        label.textContent = name;
-        link.append(avatar, label);
+        link.append(avatar);
         const item = document.createElement('li');
         item.append(link);
         list.append(item);
