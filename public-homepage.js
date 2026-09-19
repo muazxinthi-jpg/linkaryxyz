@@ -118,7 +118,7 @@
       if (valueNode) {
         const value = metrics.connectedValueUsd;
         if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-          valueNode.textContent = '≈' + new Intl.NumberFormat('en-US', {
+          valueNode.textContent = new Intl.NumberFormat('en-US', {
             style: 'currency', currency: 'USD', maximumFractionDigits: 2,
           }).format(value);
           const updatedAt = typeof metrics.connectedValueUpdatedAt === 'string' ? metrics.connectedValueUpdatedAt : '';
@@ -126,7 +126,7 @@
           valueNode.title = updatedAt
             ? 'Last updated ' + new Date(updatedAt).toLocaleString() + (partial ? '. Some supported wallet data was unavailable.' : '')
             : (partial ? 'Some supported wallet data was unavailable.' : '');
-          valueNode.setAttribute('aria-label', 'Estimated connected value ' + valueNode.textContent.slice(1) + (partial ? ', partial estimate' : ''));
+          valueNode.setAttribute('aria-label', 'Estimated network value ' + valueNode.textContent + (partial ? ', partial estimate' : ''));
         } else {
           valueNode.textContent = 'Unavailable';
           valueNode.title = 'A priced aggregate is not available yet.';
