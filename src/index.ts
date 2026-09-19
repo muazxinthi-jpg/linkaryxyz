@@ -1,6 +1,7 @@
 import type { Env } from './env';
 import type { ExecutionContextLike } from './platform';
 import { errorResponse, json, methodNotAllowed } from './http';
+import { publicHomepageCommunity } from './routes/homepageCommunity';
 import { finishXOAuth, startXOAuth } from './auth/x';
 import { createCdpSession } from './auth/cdp';
 import { getAuthContext, requireAuth, revokeCurrentSession, verifyCsrf } from './auth/session';
@@ -90,6 +91,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   const notificationRead = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
   if (notificationRead) { if (request.method !== 'POST') return methodNotAllowed(['POST']); return markNotificationRead(request, env, decodeURIComponent(notificationRead[1])); }
   if (path === '/api/wallets/base-balances') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return getMyBaseWalletBalances(request, env); }
+  if (path === '/api/public/homepage-community') { if (request.method !== 'GET') return methodNotAllowed(['GET']); return publicHomepageCommunity(request, env); }
   if (path === '/api/health') {
     return json({
       ok: true,
