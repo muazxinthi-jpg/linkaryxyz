@@ -1,0 +1,49 @@
+name: Temporary sync Linkary hero PNG
+
+on:
+  push:
+    branches:
+      - fix/hero-png-quality-20260919
+
+permissions:
+  contents: write
+
+jobs:
+  sync-hero:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Download exact uploaded hero PNG
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 'https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-8500-820a-b5aa-1eca00e5bcad/raw?se=2026-09-19T14%3A33%3A51Z&sp=r&sv=2026-02-06&sr=b&scid=8fd81ed6-a223-5d89-9a27-86d7dd61a228&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-19T06%3A40%3A29Z&ske=2026-09-20T06%3A40%3A29Z&sks=b&skv=2026-02-06&sig=Fvn/eX/ug4IAR7gPFnZrFBKFs%2BGlR165WNO3O1MaxJQ%3D' -o assets/homepage/linkary-early-supporters-01.png
+          test "$(sha256sum assets/homepage/linkary-early-supporters-01.png | awk '{print $1}')" = "57f20024999309d2bf7537a745550019ba66f672cd6021f081dc56f4804110aa"
+          python - <<'PY'
+          import struct
+          p = 'assets/homepage/linkary-early-supporters-01.png'
+          with open(p, 'rb') as f:
+              sig = f.read(24)
+          if sig[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('Not a PNG')
+          width, height = struct.unpack('>II', sig[16:24])
+          if (width, height) != (1536, 1024):
+              raise SystemExit(f'Unexpected dimensions: {width}x{height}')
+          print(f'Validated {width}x{height} PNG')
+          PY
+
+      - name: Commit exact hero asset and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temp-sync-linkary-hero.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/homepage/linkary-early-supporters-01.png .github/workflows/temp-sync-linkary-hero.yml
+          git commit -m "Replace homepage hero with full-quality PNG"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
