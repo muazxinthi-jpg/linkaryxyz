@@ -39,12 +39,16 @@ function parseStored(value: string | null | undefined): StoredSnapshot | null {
 }
 
 export async function getPublicHomepageWalletValue(env: Env) {
-  const db = new Db(requireDb(env));
-  const row = await db.first<SettingRow>(
-    'SELECT value_json FROM admin_settings WHERE setting_key = ?',
-    [SETTING_KEY],
-  );
-  return parseStored(row?.value_json)?.snapshot || null;
+  try {
+    const db = new Db(requireDb(env));
+    const row = await db.first<SettingRow>(
+      'SELECT value_json FROM admin_settings WHERE setting_key = ?',
+      [SETTING_KEY],
+    );
+    return parseStored(row?.value_json)?.snapshot || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
