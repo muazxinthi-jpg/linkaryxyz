@@ -126,7 +126,7 @@
           valueNode.title = updatedAt
             ? 'Last updated ' + new Date(updatedAt).toLocaleString() + (partial ? '. Some supported wallet data was unavailable.' : '')
             : (partial ? 'Some supported wallet data was unavailable.' : '');
-          valueNode.setAttribute('aria-label', 'Estimated connected value ' + valueNode.textContent.slice(1));
+          valueNode.setAttribute('aria-label', 'Estimated connected value ' + valueNode.textContent.slice(1) + (partial ? ', partial estimate' : ''));
         } else {
           valueNode.textContent = 'Unavailable';
           valueNode.title = 'A priced aggregate is not available yet.';
