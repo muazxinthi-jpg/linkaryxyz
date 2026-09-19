@@ -143,10 +143,7 @@
           avatar.textContent = Array.from(name.trim())[0]?.toUpperCase() || '?';
           avatar.setAttribute('aria-hidden', 'true');
         }
-        const label = document.createElement('span');
-        label.className = 'community-member-name';
-        label.textContent = name;
-        link.append(avatar, label);
+        link.append(avatar);
         const item = document.createElement('li');
         item.append(link);
         list.append(item);
