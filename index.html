@@ -3,125 +3,133 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Linkary — Turn relationships into measurable growth</title>
-  <meta name="description" content="Linkary connects creators, communities, campaigns, social signals and on-chain outcomes into one measurable growth layer.">
+  <title>Linkary — Run growth anywhere. Track it in Linkary.</title>
+  <meta name="description" content="Connect contributors, growth activity, evidence and outcomes. Run growth anywhere. Track it in Linkary.">
   <link rel="canonical" href="https://linkary.xyz/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://linkary.xyz/">
+  <meta property="og:title" content="Run growth anywhere. Track it in Linkary.">
+  <meta property="og:description" content="Connect who contributed, what happened, and what resulted.">
+  <meta property="og:image" content="https://linkary.xyz/assets/homepage/community-portrait.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/brand/linkary-icon-black.png" type="image/png">
   <link rel="apple-touch-icon" href="/assets/brand/linkary-icon-black.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public-homepage.css">
+  <script src="/public-homepage.js" defer></script>
+  <script src="/pricing-home.js" defer></script>
 </head>
-<body class="linkary-marketing">
+<body class="linkary-editorial">
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-nav-wrap">
-    <div class="site-nav">
-      <a class="brand" href="#top" aria-label="Linkary home"><img src="/assets/brand/linkary-wordmark-black.png" alt="Linkary"></a>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="/" aria-label="Linkary home"><img src="/assets/brand/linkary-wordmark-black.png" alt="Linkary" width="1080" height="720"></a>
       <nav class="desktop-nav" aria-label="Primary">
-        <a href="#directory">Directory</a><a href="#ecosystem">Ecosystem</a><a href="#creators">For Creators</a><a href="#projects">For Projects</a><a href="#communities">For Communities</a><a href="#analytics">Analytics</a><a href="#auctions">Auctions</a><a href="#pricing">Pricing</a>
+        <a href="#product">Product</a><a href="#projects">For teams</a><a href="#creators">For creators</a><a href="#pricing">Pricing</a>
       </nav>
-      <div class="nav-actions"><a class="sign-in" href="https://app.linkary.xyz/login">Sign In</a><a class="button primary compact" href="https://app.linkary.xyz/signup">Create Profile <span>↗</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="mobile-nav">☰</button></div>
+      <div class="nav-actions"><a class="login-link" href="https://app.linkary.xyz/login">Log in</a><a class="button button-dark" href="https://app.linkary.xyz/signup">Join Linkary <span aria-hidden="true">↗</span></a></div>
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open navigation" hidden><span></span><span></span></button>
     </div>
-    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile" hidden>
-      <a href="#directory">Directory</a><a href="#ecosystem">Ecosystem</a><a href="#creators">For Creators</a><a href="#projects">For Projects</a><a href="#communities">For Communities</a><a href="#analytics">Analytics</a><a href="#auctions">Auctions</a><a href="#pricing">Pricing</a><a href="https://app.linkary.xyz/login">Sign In</a>
+    <nav id="mobile-nav" class="shell mobile-nav" aria-label="Mobile" hidden>
+      <a href="#product">Product</a><a href="#projects">For teams</a><a href="#creators">For creators</a><a href="#pricing">Pricing</a><a href="https://app.linkary.xyz/login">Log in</a>
     </nav>
   </header>
 
   <main id="main">
-    <section id="top" class="hero section-shell">
-      <div class="hero-copy">
-        <span class="eyebrow"><i></i> FIRST-PARTY ATTRIBUTION LAYER</span>
-        <h1>Turn relationships into <em>measurable</em> growth.</h1>
-        <p>Linkary connects creators, communities, campaigns, social signals and on-chain outcomes into one measurable growth layer.</p>
-        <div class="hero-actions"><a class="button primary" href="https://app.linkary.xyz/signup">Create your Linkary <span>↗</span></a><a class="button secondary" href="#ecosystem">Explore Ecosystem</a></div>
-        <div class="capabilities"><span>✓ First-party tracking</span><span>✓ Evidence-aware attribution</span><span>✓ Relationship intelligence</span></div>
+    <section id="top" class="hero shell">
+      <div class="hero-heading">
+        <div><span class="eyebrow">Growth is made by people</span><h1>Run growth anywhere.<br>Track it in Linkary.</h1><p class="hero-intro">People, activity, evidence, outcomes. Connect who contributed, what happened, and what resulted — whether work runs on Telegram, X, events, agencies, or internal teams.</p></div>
+        <div class="hero-aside"><span class="eyebrow neutral">People. Activity. Outcomes.</span><p>Keep the work connected, wherever it happens.</p><div class="hero-actions"><a class="button button-dark" href="https://app.linkary.xyz/signup">Join Linkary</a><a class="text-link" href="#evidence">See how attribution works <span aria-hidden="true">↗</span></a></div></div>
       </div>
+      <figure class="hero-portrait" data-carousel data-slides="/assets/homepage/hero-slides.json" data-interval="6500">
+        <img data-carousel-image src="/assets/homepage/community-portrait.png" alt="Illustrative group portrait of five people sharing a lively conversation" width="1536" height="1024" fetchpriority="high">
+        <figcaption><span class="hero-caption">Early supporters</span><div class="carousel-controls" data-carousel-controls aria-label="Hero photos" hidden><button type="button" data-carousel-prev aria-label="Previous photo">←</button><span data-carousel-status aria-live="polite" aria-atomic="true">1 of 1</span><button type="button" data-carousel-next aria-label="Next photo">→</button><button class="carousel-toggle" type="button" data-carousel-toggle aria-pressed="false">Pause rotation</button></div></figcaption>
+      </figure>
+    </section>
 
-      <div class="hero-visual" aria-label="Illustrative Linkary live attribution feed">
-        <div class="hero-glow"></div>
-        <div class="live-feed-card">
-          <div class="feed-head"><div><span class="mono">LIVE ATTRIBUTION FEED</span><b id="feed-title">Project activity connected</b></div><span class="live-dot">● Live</span></div>
-          <div class="feed-stage" aria-live="polite">
-            <article class="feed-slide active" data-type="PROJECT" data-evidence="Tracked" data-source="Campaign activity" data-outcome="Connected" data-confidence="Tracked"><span class="feed-icon">P</span><div><small>PROJECT</small><h3>Campaign activity connected</h3><p>A Project connects an external growth activity to Linkary.</p></div><span class="evidence tracked">Tracked</span></article>
-            <article class="feed-slide" data-type="CREATOR" data-evidence="Manual" data-source="Creator contribution" data-outcome="Recorded" data-confidence="Manual"><span class="feed-icon">C</span><div><small>CREATOR</small><h3>Contribution recorded</h3><p>A creator contribution is attached to the campaign record.</p></div><span class="evidence manual">Manual</span></article>
-            <article class="feed-slide" data-type="COMMUNITY" data-evidence="Correlated" data-source="Community activity" data-outcome="Connected" data-confidence="Correlated"><span class="feed-icon">CO</span><div><small>COMMUNITY</small><h3>Community activity matched</h3><p>Multiple signals support the relationship between activity and outcome.</p></div><span class="evidence correlated">Correlated</span></article>
-            <article class="feed-slide" data-type="OUTCOME" data-evidence="Verified" data-source="Tracked activity" data-outcome="Verified" data-confidence="Verified"><span class="feed-icon">O</span><div><small>OUTCOME</small><h3>Outcome connected</h3><p>Strong first-party or externally verified evidence supports attribution.</p></div><span class="evidence verified">Verified</span></article>
-          </div>
-          <div class="feed-flow"><span>Relationship</span><i>→</i><span>Activity</span><i>→</i><span>Evidence</span><i>→</i><span>Attribution</span><i>→</i><span>Outcome</span></div>
-          <div class="feed-controls"><div class="progress" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i></div><div><button type="button" id="prev-feed" aria-label="Previous feed item">←</button><button type="button" id="pause-feed" aria-pressed="false">Pause motion</button><button type="button" id="next-feed" aria-label="Next feed item">→</button></div></div>
+    <section id="product" class="section paper">
+      <div class="shell">
+        <div class="section-heading"><div><span class="eyebrow">01 / A clearer picture</span><h2>The attribution reality.</h2></div><p>Growth happens across disconnected channels. Connect the activity to the people and outcomes behind it.</p></div>
+        <div class="comparison">
+          <article><div class="card-heading"><h3>Activity on its own</h3><span class="tag neutral">Incomplete picture</span></div><ol class="numbered-list"><li><h4>Reach without context</h4><p>Views and impressions show what was seen. They don’t tell the whole story of what happened next.</p></li><li><h4>Scattered records</h4><p>Contributions and context spread across posts, conversations, spreadsheets, and reports.</p></li><li><h4>Lost relationship history</h4><p>Work moves on. The record of who contributed can be left behind.</p></li></ol></article>
+          <article class="outcomes"><div class="card-heading"><h3>Activity connected to outcomes</h3><span class="tag verified">Evidence in context</span></div><ol class="numbered-list"><li><h4>First-party tracking</h4><p>Connect Linkary tracking-link events to the relevant contributor and activity.</p></li><li><h4>Clear evidence states</h4><p>See what was entered, tracked, correlated, or verified. Keep the strength of each claim visible.</p></li><li><h4>A growing relationship history</h4><p>Keep contributions and outcomes connected so the next collaboration starts with context.</p></li></ol></article>
         </div>
-        <aside class="evidence-float"><span class="mono">EVIDENCE STATUS</span><dl><div><dt>Evidence</dt><dd id="float-evidence">Tracked</dd></div><div><dt>Source</dt><dd id="float-source">Campaign activity</dd></div><div><dt>Outcome</dt><dd id="float-outcome">Connected</dd></div><div><dt>Confidence</dt><dd id="float-confidence">Tracked</dd></div></dl></aside>
       </div>
     </section>
 
-    <div class="principles"><div class="section-shell compact"><span>First-party tracking</span><i></i><span>External campaigns</span><i></i><span>Evidence-aware attribution</span><i></i><span>Social + On-chain</span><i></i><span>Relationship intelligence</span><i></i><span>Auditable outcomes</span></div></div>
-
-    <section id="ecosystem" class="section-shell split-section">
-      <div><span class="section-label">ECOSYSTEM ARCHITECTURE</span><h2>One ecosystem.<br>Every contribution connected.</h2><p>Linkary creates an intelligence layer across Projects, creators and communities without forcing every campaign to run inside Linkary.</p></div>
-      <div class="relationship-map" aria-label="Illustrative Linkary relationship map"><article><b>Project</b><small>Campaign</small></article><article><b>Creator</b><small>Contribution</small></article><article><b>Community</b><small>Activity</small></article><strong>Linkary</strong><article><b>Evidence</b><small>Tracked</small></article><article><b>Outcome</b><small>Attributed</small></article></div>
-    </section>
-
-    <section id="directory" class="section-shell">
-      <div class="section-head"><div><span class="section-label">CURATED DIRECTORY</span><h2>Discover people and communities through evidence, not follower counts.</h2></div><p>Controlled Beta discovery focuses on creators, Community Managers and community assets.</p></div>
-      <div class="directory-search"><span>⌕</span><input aria-label="Directory preview search" placeholder="Search creators, Community Managers or communities" disabled><button disabled>Filters</button></div>
-      <div class="card-grid three"><article class="directory-card"><span class="preview-label">Illustrative</span><div class="avatar">CR</div><h3>Creator profile</h3><p>Public identity with attributable work history and evidence state.</p><span class="evidence tracked">Tracked</span></article><article class="directory-card"><span class="preview-label">Illustrative</span><div class="avatar">CM</div><h3>Community Manager</h3><p>Community leadership identity linked to campaign participation.</p><span class="evidence correlated">Correlated</span></article><article class="directory-card"><span class="preview-label">Illustrative</span><div class="avatar">CO</div><h3>Community asset</h3><p>A discoverable community profile with relationship history.</p><span class="evidence manual">Manual</span></article></div>
-    </section>
-
-    <section id="creators" class="section-shell" data-linkary-component="public-profile-preview" data-profile-example="muazxinthi" data-profile-source="https://linkary.xyz/muazxinthi">
-      <div class="section-head"><div><span class="section-label">FOR CREATORS & CURATORS</span><h2>Build an identity around the work you actually do.</h2><p>Bring your public identity, social presence, featured work, collections and attributable contribution history into one Linkary profile.</p></div><div class="section-actions"><a class="button secondary compact" href="https://linkary.xyz/muazxinthi" target="_blank" rel="noreferrer">View live profile ↗</a><a class="button primary compact" href="https://app.linkary.xyz/signup">Create your profile →</a></div></div>
-      <div class="profile-showcase">
-        <!-- Production blocker before merge: localize these exact supplied Muaz Xinthi screenshots without regenerating them. -->
-        <div class="profile-images"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDw47rmZs7QOmRNFkYZffTNsUGC5_K8iC9shz0Bvu5wZlFAhtbw7qfu8NC1J-fEAhZRQMiY_B6lqMpL5CieMJHuQwKrgtpFJwN4-76EviH-P_nOvwby1GNeAd7cZxqee45za6mE725b2BUw3w4ojEJyOOUOTP7y3YkAkxfBuSygvnqE0WgjCM-XLI0JpXsCuOBasRCnD-2KCxUxU-U6lq1X378TaWaUkjfcevM1wdW6bfbgWPqDgqKQ" alt="Muaz Xinthi Linkary Profile - Header, Identity, Bio and CTAs"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCpvliKJXRugQNC8s_xkIepeI74Vnz36oE_B-vs8F01PMUMVJKMG5AdWfU5xeRwGRAry-kHteQYFneazP3vGlHLq4bNjVZdEzGJkFiZuHhTa4sVvXOSblXDKKl8QAOoLmdaEVHGBOPBT1IHpkEmWWA8FvVKk-pqerT8_XZ3IQUkL1I69cZ5a5qC5HPDkaBs2TmLzuHjHUVqV3MViUL1NeWzGad4xqmxyvGQyqwVuZe9e4gZBiQwGdZ" alt="Muaz Xinthi Linkary Profile - Featured Work and NFT Collections"></div>
-        <div class="profile-points"><article><b>PUBLIC IDENTITY</b><p>Identity, headline, socials and public presence on one canonical URL.</p></article><article><b>NFT SHOWCASE</b><p>Display supported NFT collections and profile assets when entitled.</p></article><article><b>ATTRIBUTED WORK HISTORY</b><p>Show campaign, contribution and evidence history connected through Linkary.</p></article></div>
+    <section id="evidence" class="section">
+      <div class="shell">
+        <span id="workflow" class="anchor"></span><span id="ecosystem" class="anchor"></span>
+        <div class="section-heading"><div><span class="eyebrow">02 / Connect the work</span><h2>The evidence path.</h2><p>From scattered activity to a connected growth record.</p></div><span class="section-note">External campaigns. One connected record.</span></div>
+        <div class="evidence-diagram">
+          <div class="diagram-heading"><span class="eyebrow neutral">Where the work happens</span><span class="eyebrow neutral">Illustrative workflow</span></div>
+          <ul class="source-list"><li>Internal team</li><li>Growth agency</li><li>Creator / partner</li><li>Community lead</li><li>Event / other</li></ul>
+          <div class="diagram-connector" aria-hidden="true"><span></span></div>
+          <ol class="evidence-path" aria-label="The Linkary evidence path">
+            <li><span>01</span>Project</li><li><span>02</span>Campaign</li><li><span>03</span>Activity</li><li><span>04</span>Contributor</li><li><span>05</span>Tracking link</li><li><span>06</span>Click</li><li><span>07</span>Outcome</li><li><span>08</span>Attribution</li><li><span>09</span>Relationship history</li>
+          </ol>
+        </div>
+        <div id="analytics" class="evidence-heading"><h3>Four states. A clear view of the evidence.</h3><p>Every claim should show what supports it.</p></div>
+        <div class="evidence-states">
+          <article><span class="tag manual">Manual</span><h4>Entered by a person</h4><p>Person-entered information that has not been independently confirmed.</p></article>
+          <article><span class="tag tracked">Tracked</span><h4>Recorded by Linkary</h4><p>A first-party Linkary event, such as a tracking-link event.</p></article>
+          <article><span class="tag correlated">Correlated</span><h4>A supported connection</h4><p>Signals support a possible connection, but do not prove attribution.</p></article>
+          <article><span class="tag verified">Verified</span><h4>Supported by proof</h4><p>Strong first-party or external proof supports the claim.</p></article>
+        </div>
+        <p class="evidence-note">Manual entries, submissions, and estimates do not become verified automatically.</p>
+        <div class="audiences">
+          <article id="projects"><span class="eyebrow neutral">For Projects &amp; teams</span><h3>Keep growth work connected.</h3><p>Track external campaigns, contributors, links, and outcomes. Use Linkary’s campaign workspace when you want to coordinate the work here.</p></article>
+          <article id="creators"><span class="eyebrow neutral">For creators &amp; communities</span><h3>Give your contribution context.</h3><p>Bring your public identity, work, and contribution history together. Build an identity around the work you actually do.</p></article>
+        </div>
       </div>
     </section>
 
-    <section id="projects" class="section-shell split-section">
-      <div><span class="section-label">FOR WEB3 PROJECTS & PROTOCOLS</span><h2>Know what actually drove growth.</h2><p>Run growth anywhere. Track it in Linkary. Connect activities, creators, communities, first-party links, outcomes and relationship history without rebuilding your workflow.</p><ul class="check-list"><li>Campaign and activity tracking</li><li>Creator and community contribution</li><li>First-party links and outcomes</li><li>Evidence confidence and reporting</li></ul></div>
-      <div class="product-console"><div class="console-head"><span>PROJECT GROWTH INTELLIGENCE</span><i>Product Preview</i></div><div class="console-metrics"><article><small>Tracked activity</small><b>—</b></article><article><small>Attributed outcomes</small><b>—</b></article><article><small>Evidence confidence</small><b>Mixed</b></article></div><div class="console-chart"><span>Contribution trend</span><svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-hidden="true"><path d="M0 160 C70 155 90 130 150 140 S250 105 310 118 S410 75 465 92 S540 55 600 42"/></svg></div><div class="console-row"><span>Creator contribution</span><b>Tracked</b></div><div class="console-row"><span>Community contribution</span><b>Correlated</b></div></div>
+    <section id="community" class="section paper">
+      <div class="shell">
+        <span id="directory" class="anchor"></span><span id="communities" class="anchor"></span>
+        <div class="section-heading"><div><span class="eyebrow">03 / Community directory</span><h2>The Linkary community is growing.</h2></div><p>A place for founders, creators, and communities to connect their identity with their work.</p></div>
+        <div class="community-invitation"><div><span class="eyebrow neutral">Be part of the next chapter</span><h3>Join Linkary.</h3><p>Build your public presence and keep your contributions connected.</p></div><a class="button button-dark" href="https://app.linkary.xyz/signup">Join Linkary <span aria-hidden="true">↗</span></a></div>
+        <div class="member-placeholder"><span class="eyebrow neutral">Member showcase / Coming soon</span><p>Public member profiles will be featured here.</p><a class="text-link" data-profile-example="muazxinthi" href="https://linkary.xyz/muazxinthi">Explore Muaz Xinthi’s public profile <span aria-hidden="true">↗</span></a></div>
+        <div class="partner-placeholder"><div><span class="eyebrow neutral">Partner directory</span><h3>More connections to come.</h3><p>A dedicated space for approved Linkary partners. Coming soon.</p></div><span class="coming-soon">Coming soon</span></div>
+      </div>
     </section>
 
-    <section id="communities" class="section-shell">
-      <div class="section-head"><div><span class="section-label">COMMUNITY ALLIANCES</span><h2>Communities create measurable impact.</h2></div><p>Connect community identity, Project relationships, campaign participation, evidence and outcomes without treating every listed community as Verified.</p></div>
-      <div class="card-grid three"><article class="feature-card"><b>Community identity</b><p>Present the community and the people responsible for operating it.</p></article><article class="feature-card"><b>Contribution history</b><p>Preserve participation and evidence across Project relationships.</p></article><article class="feature-card"><b>Attributable outcomes</b><p>Connect tracked or corroborated activity to measurable outcomes.</p></article></div>
+    <section id="pricing" class="section" data-linkary-component="pricing" data-linkary-source="/api/billing/plans">
+      <div class="shell">
+        <div class="pricing-heading"><span class="eyebrow">04 / Pricing</span><h2>Start free. Add capacity<br>when your work grows.</h2><p>Choose a personal profile plan or a Project plan.</p></div>
+        <p class="beta-note"><strong>Controlled Beta</strong> Eligible beta users may receive access without payment while Linkary validates real workflows.</p>
+        <div id="linkary-pricing-grid" data-pricing-grid aria-live="polite" aria-busy="true">
+          <div class="pricing-loading"><p>Loading current plans…</p></div>
+        </div>
+        <noscript><p>Enable JavaScript to see current pricing, or <a href="https://app.linkary.xyz/signup">join Linkary</a>.</p></noscript>
+        <p class="pricing-note">Monthly plans. Current prices and availability are shown above.</p>
+      </div>
     </section>
 
-    <section id="analytics" class="analytics-section">
-      <div class="section-shell analytics-inner"><div><span class="section-label light">SIGNAL FIDELITY</span><h2>Measure contribution.<br>Not vanity.</h2><p>Linkary keeps evidence confidence visible so Projects can distinguish what was entered, tracked, correlated and verified.</p></div><div class="evidence-grid"><article><span>01</span><b>Manual</b><p>Entered manually without automated supporting evidence.</p></article><article><span>02</span><b>Tracked</b><p>Direct Linkary first-party tracking evidence exists.</p></article><article><span>03</span><b>Correlated</b><p>Multiple signals support attribution but do not conclusively prove it.</p></article><article><span>04</span><b>Verified</b><p>Strong first-party or externally verified evidence exists.</p></article></div></div>
+    <section id="faq" class="section paper">
+      <div class="shell faq-shell"><div class="pricing-heading"><span class="eyebrow">05 / Your questions</span><h2>Frequently asked questions.</h2></div>
+        <div class="faq-list">
+          <details><summary>How does off-platform activity tracking work?</summary><p>Use Linkary tracking links to connect recorded events to the relevant activity and contributor. You can also record work performed elsewhere. The evidence label shows what supports each record; not every off-platform action can be tracked or attributed.</p></details>
+          <details><summary>How do the four evidence states differ?</summary><p>Manual information is entered by a person. Tracked events are recorded by Linkary. Correlated signals support a possible connection without proving attribution. Verified claims have strong first-party or external proof.</p></details>
+          <details><summary>Do campaigns have to run inside Linkary?</summary><p>No. Run growth anywhere. Track it in Linkary. You can record work from external campaigns or use the Linkary workspace to coordinate a campaign here.</p></details>
+          <details><summary>How does Controlled Beta access work?</summary><p>Linkary is in Controlled Beta. Access follows the existing invitation and review process. Eligible beta users may receive access without payment while we validate real workflows.</p></details>
+        </div>
+      </div>
     </section>
-
-    <section class="section-shell how-section"><span class="section-label">HOW LINKARY WORKS</span><h2>From relationship to intelligence.</h2><div class="steps-grid"><article><span>01</span><b>Connect</b><p>Create your Linkary identity or Project.</p></article><article><span>02</span><b>Track</b><p>Connect campaigns, activities, creators, communities and links.</p></article><article><span>03</span><b>Measure</b><p>Capture evidence and outcomes.</p></article><article><span>04</span><b>Learn</b><p>Build attribution and relationship intelligence over time.</p></article></div>
+    <section class="final-cta">
+      <div class="shell"><span class="eyebrow">Start making connections</span><h2>Run growth anywhere.<br>Track it in Linkary.</h2><p>People, activity, evidence, outcomes.<br>Keep the story of your growth connected.</p><div class="final-actions"><a class="button button-orange" href="https://app.linkary.xyz/signup">Join Linkary <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#evidence">See how attribution works</a></div></div>
     </section>
-
-    <section class="section-shell chain-section"><div><span class="section-label">SOCIAL + ON-CHAIN</span><h2>Connect the signals that matter.</h2><p>Relevant social activity, first-party tracking and on-chain signals can be connected to the campaign or activity where attribution is intentionally configured.</p></div><div class="chain-list"><span>Ethereum</span><span>Base</span><span>BNB Chain</span><span>Solana</span><span>Robinhood Chain</span></div></section>
-
-    <section id="auctions" class="section-shell" data-linkary-component="auction-marketplace" data-linkary-mode="illustrative">
-      <div class="section-head"><div><span class="section-label">PROFILE MONETIZATION</span><h2>Banner Auctions</h2><p>Creators and communities can offer selected public-profile banner inventory through timed auctions, with Linkary tracking and evidence-aware attribution around resulting activity.</p></div><a class="text-link" href="https://app.linkary.xyz/signup">Explore in Linkary →</a></div>
-      <div class="card-grid three"><article class="auction-card"><span class="preview-label">Illustrative Product Preview</span><h3>Sponsored profile banner</h3><p>Selected profile inventory with a banner and CTA.</p><div><small>STATUS</small><b>Timed auction</b></div></article><article class="auction-card"><span class="preview-label">Illustrative Product Preview</span><h3>Community profile placement</h3><p>Sponsored placement on an eligible public community surface.</p><div><small>STATUS</small><b>Timed auction</b></div></article><article class="auction-card"><span class="preview-label">Illustrative Product Preview</span><h3>Creator profile placement</h3><p>Sponsored placement on an eligible public personal profile.</p><div><small>STATUS</small><b>Timed auction</b></div></article></div>
-    </section>
-
-    <section id="pricing" class="section-shell pricing-section" data-linkary-component="pricing" data-linkary-source="/api/billing/plans">
-      <div class="section-head"><div><span class="section-label">COMMERCIAL PRICING</span><h2>Simple, predictable pricing for everyone.</h2></div><p>Choose the tracking, intelligence and automation level that fits your growth. Pricing below is loaded from Linkary’s live billing catalog.</p></div>
-      <div id="linkary-pricing-grid" class="pricing-grid" data-pricing-grid aria-live="polite" aria-busy="true"><article class="pricing-skeleton">Loading pricing…</article><article class="pricing-skeleton">Loading pricing…</article><article class="pricing-skeleton">Loading pricing…</article></div>
-      <p class="pricing-footnote">Usage Credits are an operating allowance, not money, rewards or transferable value.</p>
-    </section>
-
-    <section class="section-shell faq-section" id="faq"><div><span class="section-label">FAQ</span><h2>Clear answers.</h2></div><div class="faq-list"><details><summary>What is Linkary?<span>+</span></summary><p>Linkary is a growth attribution, identity, relationship intelligence and evidence platform for Web3 Projects, creators and communities.</p></details><details><summary>Does my campaign need to run inside Linkary?<span>+</span></summary><p>No. Run growth anywhere and use Linkary as the evidence and attribution layer around the activity.</p></details><details><summary>What does Verified mean?<span>+</span></summary><p>Verified means strong first-party or externally verified evidence supports the attribution. It is not limited to blockchain evidence.</p></details><details><summary>How do profile auctions work?<span>+</span></summary><p>Eligible public profiles can offer selected sponsored banner inventory through timed auctions. Payment and delivery logic remain inside the Linkary application.</p></details><details><summary>What are Usage Credits?<span>+</span></summary><p>Usage Credits are an operating allowance for eligible intelligence and provider-assisted features. They are not money or transferable tokens.</p></details></div></section>
-
-    <section class="final-cta"><span class="section-label light">RUN GROWTH ANYWHERE. TRACK IT IN LINKARY.</span><h2>Make relationships measurable.</h2><p>Build your identity, connect your growth activity and preserve the evidence behind every outcome.</p><div><a class="button primary" href="https://app.linkary.xyz/signup">Create your Linkary ↗</a><a class="button dark" href="#ecosystem">Explore Ecosystem</a></div></section>
   </main>
-
-  <footer class="footer">
-    <div class="footer-grid">
-      <div class="footer-brand"><div class="footer-logo"><span><img src="/assets/brand/linkary-icon-black.png" alt=""></span><b>Linkary.xyz</b></div><p>Growth attribution, identity and relationship intelligence for Web3.</p><div class="footer-socials"><b>Socials</b><a href="https://x.com/Linkaryxyz" target="_blank" rel="noreferrer">𝕏 X</a><a href="https://www.linkedin.com/company/linkary/" target="_blank" rel="noreferrer">in LinkedIn</a><a class="producthunt-badge" href="https://www.producthunt.com/products/linkary?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-linkary" target="_blank" rel="noopener noreferrer"><img alt="Linkary - Turn online influence into measurable growth | Product Hunt" width="250" height="54" loading="lazy" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1254724&amp;theme=light&amp;t=1789755641012"></a></div></div>
-      <nav><b>Product</b><a href="#directory">Directory</a><a href="#analytics">Analytics</a><a href="#auctions">Auctions</a><a href="#pricing">Pricing</a></nav>
-      <nav><b>Ecosystem</b><a href="#creators">Creators</a><a href="#projects">Projects</a><a href="#communities">Communities</a></nav>
-      <nav><b>Platform</b><a href="https://app.linkary.xyz/signup">Create Profile</a><a href="https://app.linkary.xyz/login">Sign In</a><a href="#faq">Help</a></nav>
+  <footer class="site-footer">
+    <div class="shell footer-grid">
+      <div class="footer-brand"><a class="wordmark footer-wordmark" href="/" aria-label="Linkary home"><img src="/assets/brand/linkary-wordmark-black.png" alt="Linkary" width="1080" height="720"></a><p>Growth attribution, identity, and relationship intelligence for Web3.</p></div>
+      <nav aria-label="Footer product"><h3>Product</h3><a href="#evidence">How it works</a><a href="#projects">For teams</a><a href="#creators">For creators</a><a href="#community">Community</a><a href="#pricing">Pricing</a><a id="auctions" href="/bids">Banner auctions</a></nav>
+      <nav aria-label="Footer Linkary"><h3>Linkary</h3><a href="#faq">Questions &amp; answers</a><a href="https://app.linkary.xyz/signup">Join Linkary</a><a href="https://app.linkary.xyz/login">Log in</a></nav>
+      <nav aria-label="Socials"><h3>Follow Linkary</h3><a href="https://www.linkedin.com/company/linkary/" target="_blank" rel="noopener noreferrer">LinkedIn <span aria-hidden="true">↗</span></a><a href="https://x.com/Linkaryxyz" target="_blank" rel="noopener noreferrer">X <span aria-hidden="true">↗</span></a><a href="https://www.producthunt.com/products/linkary" target="_blank" rel="noopener noreferrer">Product Hunt <span aria-hidden="true">↗</span></a><span class="social-pending">Trustpilot <small>Coming soon</small></span></nav>
     </div>
-    <div class="footer-bottom"><span>© 2026 Linkary. All rights reserved.</span><span>Run growth anywhere. Track it in Linkary.</span></div>
+    <div class="shell footer-bottom"><span>© <span data-year>2026</span> Linkary.xyz</span><span>People. Activity. Evidence. Outcomes.</span></div>
   </footer>
-  <script src="/public-homepage.js" defer></script>
-  <script src="/pricing-home.js" defer></script>
 </body>
 </html>
