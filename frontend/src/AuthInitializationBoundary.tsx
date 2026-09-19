@@ -101,7 +101,7 @@ function RecoveryState({ onRetry, onReset }: { onRetry: () => void; onReset: () 
         <h1>Linkary is taking too long to start.</h1>
         <p>Your secure sign-in could not be prepared within the expected time. Retry to restart Linkary, or reset only secure sign-in data if this keeps happening.</p>
         <p className="security-note clean-note">Reference: LK-AUTH-INIT</p>
-        <button className="button primary full" onClick={onRetry}>Retry sign-in</button>
+        <button className="button primary full" onClick={onRetry}>Retry</button>
         <button className="button secondary full" onClick={onReset}>Reset secure sign-in</button>
       </div>
     </main>
