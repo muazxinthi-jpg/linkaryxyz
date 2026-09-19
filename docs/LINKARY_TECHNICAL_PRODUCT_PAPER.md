@@ -448,10 +448,11 @@ Normal personal-profile activity must not trigger continuous blockchain polling 
 
 ### 15.1 Daily public homepage wallet-value snapshot
 
-The homepage may publish one aggregate USD estimate across active EVM and Solana wallet destinations on non-archived profiles. This is a narrowly scoped exception to on-demand provider reads:
+The homepage may publish one aggregate USD estimate across active EVM and Solana wallet destinations and active embedded wallet accounts associated with non-archived profiles. This is a narrowly scoped exception to on-demand provider reads:
 
 - The existing Worker schedule may refresh the aggregate no more than once per 24 hours.
-- Alchemy receives the distinct active wallet addresses and supported networks only for that refresh.
+- Alchemy receives the deduplicated active wallet addresses and supported networks from both profile-saved destinations and embedded wallet accounts only for that refresh.
+- If Alchemy reports failed networks, retry only those networks once, then retain any priced partial total and its partial-availability state.
 - Linkary persists only the aggregate estimated USD value, partial-availability state, and snapshot timestamp. It must not persist or publish the addresses, per-wallet balances, or asset holdings for this homepage feature.
 - The displayed value includes only assets for which Alchemy returns usable USD pricing. Show it as an estimate; if no priced value can be confirmed, show it as unavailable rather than implying a zero balance.
 - Provider failure must not affect identity, profiles, invites, tracking, or promotion scheduling. The last successful snapshot may remain visible with its original update time.

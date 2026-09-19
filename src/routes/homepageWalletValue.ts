@@ -9,7 +9,7 @@ const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 type Destination = { chain_family: string; address: string };
 type SettingRow = { value_json: string };
 type StoredSnapshot = {
-  version: 1;
+  version: 1 | 2;
   lastAttemptAt: number;
   snapshot: {
     connectedValueUsd: number | null;
@@ -22,7 +22,7 @@ function parseStored(value: string | null | undefined): StoredSnapshot | null {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as Partial<StoredSnapshot>;
-    if (parsed.version !== 1 || !Number.isFinite(parsed.lastAttemptAt)) return null;
+    if ((parsed.version !== 1 && parsed.version !== 2) || !Number.isFinite(parsed.lastAttemptAt)) return null;
     const snapshot = parsed.snapshot;
     if (snapshot !== null && snapshot !== undefined) {
       if (
@@ -32,7 +32,7 @@ function parseStored(value: string | null | undefined): StoredSnapshot | null {
         typeof snapshot.updatedAt !== 'string'
       ) return null;
     }
-    return { version: 1, lastAttemptAt: Number(parsed.lastAttemptAt), snapshot: snapshot || null };
+    return { version: parsed.version, lastAttemptAt: Number(parsed.lastAttemptAt), snapshot: snapshot || null };
   } catch {
     return null;
   }
@@ -66,23 +66,24 @@ export async function refreshPublicHomepageWalletValue(env: Env): Promise<void> 
       "INSERT INTO admin_settings (setting_key, value_json, updated_at) " +
       "VALUES (?, ?, ?) " +
       "ON CONFLICT(setting_key) DO UPDATE SET " +
-      "value_json = json_set(admin_settings.value_json, '$.lastAttemptAt', CAST(json_extract(excluded.value_json, '$.lastAttemptAt') AS INTEGER)), " +
+      "value_json = json_set(admin_settings.value_json, '$.version', 2, '$.lastAttemptAt', CAST(json_extract(excluded.value_json, '$.lastAttemptAt') AS INTEGER)), " +
       "updated_at = excluded.updated_at " +
-      "WHERE COALESCE(CAST(json_extract(admin_settings.value_json, '$.lastAttemptAt') AS INTEGER), 0) <= ? " +
+      "WHERE COALESCE(CAST(json_extract(admin_settings.value_json, '$.version') AS INTEGER), 0) < 2 OR COALESCE(CAST(json_extract(admin_settings.value_json, '$.lastAttemptAt') AS INTEGER), 0) <= ? " +
       "RETURNING value_json",
-      [SETTING_KEY, JSON.stringify({ version: 1, lastAttemptAt: now, snapshot: null }), nowIso, cutoff],
+      [SETTING_KEY, JSON.stringify({ version: 2, lastAttemptAt: now, snapshot: null }), nowIso, cutoff],
     );
     if (!claim) return;
 
-    const destinations = await db.all<Destination>(
-      "SELECT DISTINCT w.chain_family, w.address FROM profile_wallet_destinations w JOIN profiles p ON p.id = w.profile_id WHERE w.status = 'active' AND p.visibility <> 'archived'",
+    const wallets = await db.all<Destination>(
+      "SELECT w.chain_family, w.address FROM profile_wallet_destinations w JOIN profiles p ON p.id = w.profile_id WHERE w.status = 'active' AND p.visibility <> 'archived' " +
+      "UNION SELECT wa.chain_family, wa.address FROM wallet_accounts wa WHERE wa.status = 'active' AND EXISTS (SELECT 1 FROM profiles p WHERE p.owner_user_id = wa.user_id AND p.visibility <> 'archived')",
     );
 
     let snapshot: StoredSnapshot['snapshot'];
-    if (!destinations.length) {
+    if (!wallets.length) {
       snapshot = { connectedValueUsd: 0, partial: false, updatedAt: nowIso };
     } else {
-      const portfolio = await buildWalletPortfolio(env, [], destinations, true);
+      const portfolio = await buildWalletPortfolio(env, [], wallets, true);
       snapshot = {
         connectedValueUsd: portfolio.pricedAssetCount > 0 ? portfolio.totalUsd : null,
         partial: portfolio.partial,
@@ -92,7 +93,7 @@ export async function refreshPublicHomepageWalletValue(env: Env): Promise<void> 
 
     await db.run(
       'UPDATE admin_settings SET value_json = ?, updated_at = ? WHERE setting_key = ?',
-      [JSON.stringify({ version: 1, lastAttemptAt: now, snapshot }), nowIso, SETTING_KEY],
+      [JSON.stringify({ version: 2, lastAttemptAt: now, snapshot }), nowIso, SETTING_KEY],
     );
   } catch {
     // Optional homepage enrichment must not interfere with the promotion
