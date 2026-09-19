@@ -448,7 +448,7 @@ Normal personal-profile activity must not trigger continuous blockchain polling 
 
 ### 15.1 Daily public homepage wallet-value snapshot
 
-The homepage may publish one aggregate USD estimate across active EVM and Solana wallet destinations and active embedded wallet accounts associated with non-archived profiles. This is a narrowly scoped exception to on-demand provider reads:
+The homepage may publish one aggregate USD estimate across active Coinbase CDP embedded wallets and users’ additional submitted EVM and Solana wallet destinations associated with non-archived profiles. Do not describe these sources as user-connected wallets. This is a narrowly scoped exception to on-demand provider reads:
 
 - The existing Worker schedule may refresh the aggregate no more than once per 24 hours.
 - Alchemy receives the deduplicated active wallet addresses and supported networks from both profile-saved destinations and embedded wallet accounts only for that refresh.
