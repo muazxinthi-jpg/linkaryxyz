@@ -4,8 +4,6 @@ import {
   LinkAuthError,
   LinkAuthFlow,
   LinkAuthFlowBackButton,
-  LinkAuthItem,
-  LinkAuthItems,
   LinkAuthTitle,
 } from '@coinbase/cdp-react';
 import {
@@ -229,9 +227,6 @@ export default function AccountSignInExperience({ me, status }: { me: ProductMe;
                         <div><LinkAuthTitle /><span>{linkedEmail || (backendHasEmail ? 'Email is linked to this Coinbase account.' : 'Add an email method to this Coinbase account.')}</span></div>
                         {state.methodToLink && <LinkAuthFlowBackButton />}
                       </div>
-                      <LinkAuthItems>
-                        {(item) => item.authMethod === 'email' ? <LinkAuthItem {...item} /> : null}
-                      </LinkAuthItems>
                       <LinkAuthError />
                       <LinkAuthFlow />
                     </div>
