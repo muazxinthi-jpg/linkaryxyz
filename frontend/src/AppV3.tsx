@@ -21,6 +21,7 @@ import AdminCouponsExperience from './AdminCouponsExperience';
 import CreatorOpportunitiesExperience from './CreatorOpportunitiesExperience';
 import CommunityManagerSessionGate from './CommunityManagerSessionGate';
 import ProjectTeamInvitesExperience, { TeamInviteAcceptExperience } from './ProjectTeamInvitesExperience';
+import AccountSignInExperience from './AccountSignInExperience';
 import PromotionAuctionExperience from './PromotionAuctionExperience';
 import type { ProductMe, ProductStatus } from './ProductWorkspace';
 
@@ -96,7 +97,8 @@ type Experience =
   | 'admin-readiness'
   | 'admin-community-verifications'
   | 'admin-commercial'
-  | 'admin-coupons';
+  | 'admin-coupons'
+  | 'account';
 
 type GateState = 'loading' | 'legacy' | 'forbidden' | 'unavailable' | 'ready';
 
@@ -153,6 +155,7 @@ function ProductGate({ experience }: { experience: Experience }) {
     if (experience === 'billing') return <BillingExperience me={me} status={status} />;
     if (experience === 'projects') return <ProjectExperienceBeta me={me} status={status} />;
     if (experience === 'team-invites') return <ProjectTeamInvitesExperience me={me} status={status} />;
+    if (experience === 'account') return <AccountSignInExperience me={me} status={status} />;
     if (experience === 'promotion-auction') return <PromotionAuctionExperience me={me} status={status} />;
     if (experience === 'admin-readiness' || experience === 'admin-community-verifications' || experience === 'admin-commercial' || experience === 'admin-coupons') {
       if (!me.user?.superadmin) return <ForbiddenScreen />;
@@ -202,6 +205,7 @@ export default function AppV3() {
   if (location.pathname === '/creators') return <ProductGate experience="network" />;
   if (location.pathname === '/profile') return <ProductGate experience="profile" />;
   if (location.pathname === '/invites') return <ProductGate experience="invites" />;
+  if (location.pathname === '/account') return <ProductGate experience="account" />;
   if (location.pathname === '/wallets') return <ProductGate experience="wallets" />;
   if (location.pathname === '/settings/plan') return <ProductGate experience="billing" />;
   if (location.pathname === '/settings/team-invites') return <ProductGate experience="team-invites" />;

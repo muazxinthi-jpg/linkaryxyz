@@ -64,6 +64,7 @@ export function ProductWorkspace({
     ['/wallets', 'Wallets'],
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
+    ['/account', 'Account'],
   ];
   const projectNav = [
     ['/dashboard', 'Overview'],
@@ -79,6 +80,7 @@ export function ProductWorkspace({
     ['/invites', 'Invites'],
     ['/settings', 'Projects'],
     ['/settings/team-invites', 'Team'],
+    ['/account', 'Account'],
   ];
   const nav = profile.profile_type === 'creator' ? creatorNav : projectNav;
   const navSections = profile.profile_type === 'creator'
