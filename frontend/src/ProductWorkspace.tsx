@@ -153,7 +153,7 @@ export function ProductWorkspace({
             </div>
           </details>
         </header>
-        <div className="ops-page">
+        <div className={`ops-page${currentPath === '/partners' ? ' partners-workspace-page' : ''}`}>
           {children}
           {showGrowthIntelligence && profile.organization_id && <FounderGrowthIntelligencePanel organizationId={profile.organization_id} />}
         </div>
