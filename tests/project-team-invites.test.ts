@@ -53,9 +53,9 @@ test('Project navigation exposes Team on wider layouts without changing Creator 
   assert.equal(projectNav.includes("['/settings/team-invites', 'Team']"), true);
   assert.equal(creatorNav.includes("['/settings/team-invites', 'Team']"), false);
 
-  const mobile = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
-  assert.match(mobile, /\.workspace-project\s+\.ops-nav\s+a\[href="\/settings\/team-invites"\]\s*\{[^}]*display:none!important/s);
-  assert.equal(mobile.includes('grid-template-columns:repeat(6,minmax(0,1fr))!important'), true);
+  const mobile = readFileSync(new URL('../frontend/src/mobile-workspace-navigation.css', import.meta.url), 'utf8');
+  assert.match(mobile, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(workspace, /navSections\.map\(\(\[section, items\]\)/);
 });
 
 test('Team invitations have their own role schema and automatic membership trigger', () => {

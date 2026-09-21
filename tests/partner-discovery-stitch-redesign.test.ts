@@ -34,4 +34,3 @@ test('Partners redesign is scoped to the page and covers desktop, tablet, and na
   assert.equal(discoveryCss.includes('grid-template-columns: minmax(0, 1fr)'), true);
   assert.equal(discoveryCss.includes('.partner-discovery-v1 .partner-card-foot .network-actions .collab-inquiry-open'), true);
 });
-

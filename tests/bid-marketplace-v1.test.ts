@@ -94,3 +94,21 @@ test('workspace density keeps Bids and Profile full-width and regression-proof',
   assert.match(density, /\.bid-market-card-grid\{grid-template-columns:repeat\(auto-fit,minmax\(250px,1fr\)\)/);
   assert.match(density, /\.ops-sidebar\{position:sticky/);
 });
+
+test('Bids Stitch redesign keeps the Linkary shell and real marketplace controls responsive', () => {
+  const workspace = read('frontend/src/ProductWorkspace.tsx');
+  const ui = read('frontend/src/BidMarketplaceExperience.tsx');
+  const css = read('frontend/src/bid-marketplace-stitch.css');
+  assert.match(workspace, /currentPath === '\/bids' \? ' bids-workspace-page'/);
+  assert.match(ui, /import '\.\/bid-marketplace-stitch\.css'/);
+  for (const label of ['Current Active', 'Top Bidders', 'Top Winners', 'Most Viewed', 'Most Bid On']) {
+    assert.ok(ui.includes(label), `missing marketplace tab ${label}`);
+  }
+  assert.match(ui, /aria-label="Profile view ranking period"/);
+  assert.match(ui, /Updated \$\{new Intl\.DateTimeFormat/);
+  assert.match(ui, /to=\{`\/promotion-auction\/\$\{item\.auction_id\}`\}/);
+  assert.match(css, /@media\(max-width:900px\)/);
+  assert.match(css, /@media\(max-width:640px\)/);
+  assert.match(css, /@media\(max-width:380px\)/);
+  assert.match(css, /bid-market-leaderboard-row>span:before\{[^}]*content:attr\(data-label\)/);
+});

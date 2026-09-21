@@ -1,0 +1,68 @@
+/* Stitch-inspired Bids presentation. All content remains backed by the existing marketplace API. */
+.ops-shell .ops-page.bids-workspace-page{box-sizing:border-box;width:100%;max-width:none;min-height:calc(100dvh - 64px);margin:0;padding:30px clamp(22px,2.5vw,46px) 76px;background:#f5f7fc}
+.ops-shell .ops-page.bids-workspace-page>.bid-marketplace{width:100%;max-width:none;gap:18px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-hero{align-items:center;min-height:112px;padding:20px 22px;background:linear-gradient(112deg,#fff 0%,#f9faff 100%);border:1px solid #dce4f2;border-left:4px solid #ff4f0a;border-radius:14px;box-shadow:0 5px 18px rgba(29,52,83,.045)}
+.ops-shell .ops-page.bids-workspace-page .bid-market-hero h1{margin:5px 0 7px;color:#10253e;font-size:clamp(28px,2.6vw,38px);letter-spacing:-.045em}
+.ops-shell .ops-page.bids-workspace-page .bid-market-hero p{max-width:680px;color:#62748b;font-size:14px;line-height:1.55}
+.ops-shell .ops-page.bids-workspace-page .bid-market-hero .ops-kicker{color:#72839a;font-size:10px;letter-spacing:.15em}
+.bid-market-hero-tools{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.bid-market-updated{display:inline-flex;align-items:center;gap:8px;color:#64748b;font-size:11px;white-space:nowrap}
+.bid-market-updated i{width:8px;height:8px;border-radius:50%;background:#22a579;box-shadow:0 0 0 3px #e6f6ef}
+.ops-shell .ops-page.bids-workspace-page .bid-market-hero-tools .ops-button{min-height:42px;padding-inline:15px;border-color:#d7e1ef;border-radius:9px;color:#18314d;background:#fff;font-size:12px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary{grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid #dce4f2;border-radius:13px;background:#fff;box-shadow:0 4px 16px rgba(29,52,83,.035)}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary article{position:relative;min-height:106px;align-content:center;gap:7px;padding:17px 20px;border-color:#e7ecf4}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary article:after{position:absolute;top:18px;right:18px;width:7px;height:7px;border:1px solid #c7d3e3;border-radius:50%;content:""}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary span{color:#74849a;font-size:9px;letter-spacing:.13em}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary strong{color:#10253e;font-size:27px;font-weight:700;letter-spacing:-.045em}
+.ops-shell .ops-page.bids-workspace-page .bid-market-summary small{color:#7b8ba0;font-size:11px}
+.bid-market-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:4px 0 12px;border-bottom:1px solid #dce4ef}
+.ops-shell .ops-page.bids-workspace-page .bid-market-tabs{min-width:0;gap:5px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#c7d2e1 transparent}
+.ops-shell .ops-page.bids-workspace-page .bid-market-tabs button{min-height:42px;padding:10px 15px;border:1px solid transparent;border-radius:9px;background:transparent;color:#53657d;font-size:12px;font-weight:600;transition:background .16s ease,color .16s ease,border-color .16s ease;}
+.ops-shell .ops-page.bids-workspace-page .bid-market-tabs button:hover{background:#fff;border-color:#e1e7f0;color:#172d48}
+.ops-shell .ops-page.bids-workspace-page .bid-market-primary-tabs button.active{position:relative;background:#fff;border-color:#dce4f2;color:#e94420;box-shadow:0 2px 6px rgba(30,55,90,.04)}
+.ops-shell .ops-page.bids-workspace-page .bid-market-primary-tabs button.active:after{position:absolute;right:10px;bottom:-1px;left:10px;height:2px;border-radius:2px;background:#ff4f0a;content:""}
+.ops-shell .ops-page.bids-workspace-page .bid-market-periods{flex:0 0 auto;padding:3px;border:1px solid #e0e7f0;border-radius:10px;background:#fff}
+.ops-shell .ops-page.bids-workspace-page .bid-market-periods button{min-height:33px;padding:7px 11px;border-radius:7px;font-size:11px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-periods button.active{border-color:#203b5b;background:#203b5b;color:#fff}
+.ops-shell .ops-page.bids-workspace-page .bid-market-expiry-note{display:flex;align-items:center;gap:8px;padding:11px 14px;border:1px solid #e6eaf1;border-radius:10px;background:#fff;color:#65758c;font-size:12px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-expiry-note strong{color:#233b58}
+.ops-shell .ops-page.bids-workspace-page .bid-market-card-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:16px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card{min-width:0;border-color:#dce4f2;border-radius:13px;box-shadow:0 5px 18px rgba(29,52,83,.055);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card:hover{transform:translateY(-2px);border-color:#c5d4e8;box-shadow:0 12px 26px rgba(29,52,83,.11)}
+.ops-shell .ops-page.bids-workspace-page .bid-card-cover{height:164px;background:linear-gradient(135deg,#e5eaf3,#cbd6e4)}
+.ops-shell .ops-page.bids-workspace-page .bid-card-cover>img{transition:transform .35s ease}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card:hover .bid-card-cover>img{transform:scale(1.035)}
+.ops-shell .ops-page.bids-workspace-page .bid-card-status{background:rgba(255,255,255,.96);color:#3b506b;letter-spacing:.045em}
+.ops-shell .ops-page.bids-workspace-page .bid-card-status.live{background:#ff4f0a;color:#fff}
+.ops-shell .ops-page.bids-workspace-page .bid-card-rank{border:1px solid rgba(224,231,241,.9);color:#203b5b}
+.ops-shell .ops-page.bids-workspace-page .bid-card-countdown{font-variant-numeric:tabular-nums}
+.ops-shell .ops-page.bids-workspace-page .bid-card-body{display:flex;min-height:210px;flex-direction:column;padding:14px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-identity{gap:10px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-avatar{width:40px;height:40px;border:1px solid #e1e7f0;background:#eef2f8;color:#284363}
+.ops-shell .ops-page.bids-workspace-page .bid-card-identity strong{color:#122944;font-size:13px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-identity span{margin-top:2px;color:#718198;font-size:11px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-identity em{color:#5c6f87;background:#f0f3f8;font-size:9px;letter-spacing:.045em}
+.ops-shell .ops-page.bids-workspace-page .bid-card-tags{gap:7px;margin:13px 0 11px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-tags span{border:1px solid #e7ebf2;border-radius:6px;background:#f7f9fc;color:#5c6d83;font-size:10px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-price{gap:4px;margin:0 0 9px;padding:11px 12px;border-radius:9px;background:#f6f8fc}
+.ops-shell .ops-page.bids-workspace-page .bid-card-price small{color:#718198;font-size:10px}
+.ops-shell .ops-page.bids-workspace-page .bid-card-price strong{color:#122944;font-size:19px;line-height:1.2}
+.ops-shell .ops-page.bids-workspace-page .bid-card-availability{min-height:28px;margin:0 0 12px;color:#718198;font-size:10px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions{margin-top:auto;gap:8px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions .ops-button{min-height:39px;padding:9px 10px;border-radius:8px;font-size:11px}
+.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions .ops-button.primary{border-color:#ff4f0a;background:#ff4f0a;color:#fff}
+.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard{border-color:#dce4f2;border-radius:13px;box-shadow:0 5px 18px rgba(29,52,83,.04)}
+.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-head{background:#f4f7fc;color:#718198}
+.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row{border-color:#e9edf4}
+.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>strong{color:#f04d2c}
+.ops-shell .ops-page.bids-workspace-page .bid-market-empty{border-color:#dce4f2;border-radius:13px;color:#263c56}
+.ops-shell .ops-page.bids-workspace-page .bid-market-empty span{color:#75859b}
+.ops-shell .ops-page.bids-workspace-page .bid-marketplace>.bid-market-actions{justify-content:center;align-items:center;gap:14px;color:#65758c;font-size:12px}
+.ops-shell .ops-page.bids-workspace-page .bid-marketplace>.bid-market-actions .ops-button{min-height:38px;border-radius:8px}
+
+@media(max-width:1350px){.ops-shell .ops-page.bids-workspace-page .bid-market-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1050px){.ops-shell .ops-page.bids-workspace-page{padding:26px 22px 76px}.bid-market-toolbar{align-items:flex-start;flex-direction:column}.ops-shell .ops-page.bids-workspace-page .bid-market-periods{align-self:flex-end}.ops-shell .ops-page.bids-workspace-page .bid-market-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.ops-shell .ops-page.bids-workspace-page{min-height:calc(100dvh - 56px);padding:24px 20px 88px}.ops-shell .ops-page.bids-workspace-page .bid-market-hero{flex-direction:row}.ops-shell .ops-page.bids-workspace-page .bid-market-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-shell .ops-page.bids-workspace-page .bid-market-summary article:nth-child(2){border-right:0}.ops-shell .ops-page.bids-workspace-page .bid-market-summary article:nth-child(-n+2){border-bottom:1px solid #e7ecf4}}
+@media(max-width:640px){.ops-shell .ops-page.bids-workspace-page{padding:19px 14px 94px}.ops-shell .ops-page.bids-workspace-page>.bid-marketplace{gap:14px}.ops-shell .ops-page.bids-workspace-page .bid-market-hero{align-items:flex-start;flex-direction:column;gap:14px;padding:17px 16px}.ops-shell .ops-page.bids-workspace-page .bid-market-hero h1{font-size:29px}.bid-market-hero-tools{width:100%;justify-content:space-between}.bid-market-updated{font-size:10px}.ops-shell .ops-page.bids-workspace-page .bid-market-summary article{min-height:94px;padding:13px 14px}.ops-shell .ops-page.bids-workspace-page .bid-market-summary strong{font-size:23px}.bid-market-toolbar{gap:10px;padding-bottom:9px}.ops-shell .ops-page.bids-workspace-page .bid-market-primary-tabs{width:100%;margin-right:-14px;padding-right:14px}.ops-shell .ops-page.bids-workspace-page .bid-market-primary-tabs button{flex:0 0 auto;min-height:40px;padding:9px 12px;font-size:11px}.ops-shell .ops-page.bids-workspace-page .bid-market-periods{align-self:flex-start;max-width:100%}.ops-shell .ops-page.bids-workspace-page .bid-market-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.ops-shell .ops-page.bids-workspace-page .bid-card-cover{height:132px}.ops-shell .ops-page.bids-workspace-page .bid-card-body{min-height:210px;padding:11px}.ops-shell .ops-page.bids-workspace-page .bid-card-identity{gap:7px}.ops-shell .ops-page.bids-workspace-page .bid-card-avatar{width:34px;height:34px}.ops-shell .ops-page.bids-workspace-page .bid-card-identity strong{font-size:12px}.ops-shell .ops-page.bids-workspace-page .bid-card-identity em{display:none}.ops-shell .ops-page.bids-workspace-page .bid-card-tags{flex-wrap:wrap;margin:10px 0}.ops-shell .ops-page.bids-workspace-page .bid-card-price{padding:9px}.ops-shell .ops-page.bids-workspace-page .bid-card-price strong{font-size:16px}.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions{flex-direction:column}.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions .ops-button{width:100%;min-height:38px}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard{display:grid;gap:10px;overflow:visible;border:0;background:transparent;box-shadow:none}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-head{display:none}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row,.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row.winner{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 10px;padding:15px;border:1px solid #dce4f2;border-radius:12px;background:#fff}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>*{min-width:0}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>strong{grid-column:1/-1;padding-bottom:8px;border-bottom:1px solid #edf0f5}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>div{grid-column:1/-1;grid-row:2}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>span{display:grid;gap:4px;color:#203b5b;font-size:13px;font-weight:650}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>span:before{color:#7b8ba0;font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;content:attr(data-label)}.ops-shell .ops-page.bids-workspace-page .bid-market-leaderboard-row>strong:before{margin-right:6px;color:#7b8ba0;font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;content:attr(data-label)}.ops-shell .ops-page.bids-workspace-page .bid-market-expiry-note{align-items:flex-start;flex-direction:column;gap:3px;font-size:11px}}
+@media(max-width:380px){.ops-shell .ops-page.bids-workspace-page{padding-inline:11px}.ops-shell .ops-page.bids-workspace-page .bid-market-card-grid{grid-template-columns:1fr}.ops-shell .ops-page.bids-workspace-page .bid-card-cover{height:165px}.ops-shell .ops-page.bids-workspace-page .bid-card-body{min-height:unset}.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions{flex-direction:row}.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card .bid-market-actions .ops-button{width:auto;flex:1}}
+@media(prefers-reduced-motion:reduce){.ops-shell .ops-page.bids-workspace-page .bid-market-visual-card,.ops-shell .ops-page.bids-workspace-page .bid-card-cover>img{transition:none}}

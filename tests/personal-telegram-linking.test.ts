@@ -43,7 +43,7 @@ test('personal Telegram status is private, exact-user scoped and does not requir
 test('connecting personal Telegram never upgrades exact Community ownership or campaign proof', () => {
   assert.match(telegram, /Personal Telegram identity is separate from Community ownership verification/);
   assert.match(telegram, /never verifies a Community or creates campaign performance proof/);
-  assert.match(community, /Personal Telegram verification and exact Community verification are independent/);
+  assert.match(community, /Personal identity verification is separate from verification of the Communities you manage/);
   assert.match(verification, /verification_status = 'submitted'/);
   assert.match(verification, /'approved' : 'rejected'/);
 });

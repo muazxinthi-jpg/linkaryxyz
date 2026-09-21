@@ -81,8 +81,8 @@ async function primaryXIdentity(db: Db, userId: string): Promise<PlatformIdentit
 export async function onboardingStatus(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
   const db = new Db(requireDb(env));
-  const profiles = await db.all<{ id: string; profile_type: string; username: string; display_name: string; bio: string; seo_title: string | null; seo_description: string | null; visibility: string; organization_id: string | null }>(
-    `SELECT id, profile_type, username, display_name, bio, seo_title, seo_description, visibility, organization_id FROM profiles
+  const profiles = await db.all<{ id: string; profile_type: string; username: string; display_name: string; avatar_url: string | null; bio: string; seo_title: string | null; seo_description: string | null; visibility: string; organization_id: string | null }>(
+    `SELECT id, profile_type, username, display_name, avatar_url, bio, seo_title, seo_description, visibility, organization_id FROM profiles
      WHERE owner_user_id = ? OR organization_id IN (
        SELECT m.organization_id FROM organization_memberships m
        JOIN organizations o ON o.id = m.organization_id

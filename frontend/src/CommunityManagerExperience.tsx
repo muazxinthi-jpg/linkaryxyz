@@ -267,54 +267,49 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
   return (
     <ProductWorkspace me={me} status={status} profile={profile} onProfileChange={changeProfile}>
       <section className="community-manager-page">
-        <header className="ops-page-header community-manager-hero">
-          <div>
+        <header className="community-manager-hero">
+          <div className="community-manager-intro">
             <span className="ops-kicker">COMMUNITY PORTFOLIO</span>
             <h1>Communities</h1>
-            <p>List every Telegram community you manage. Your Community Portfolio is automatically published on your public Linkary profile and stays in sync with the communities you manage here.</p>
+            <p>List every Telegram community you manage. Your portfolio appears on your public Linkary profile and stays in sync with the communities you manage here.</p>
           </div>
-          {manager && <div className="community-manager-stats"><strong>{assets.length}</strong><span>communities</span><strong>{compact(combinedAudience)}</strong><span>combined audience</span></div>}
+          <div className="community-manager-stats" aria-label="Community portfolio summary">
+            <article><span>COMMUNITIES</span><strong>{loading ? '—' : assets.length}</strong></article>
+            <article><span>COMBINED AUDIENCE</span><strong>{loading ? '—' : compact(combinedAudience)}</strong></article>
+            <article><span>PORTFOLIO STATUS</span><strong className={`community-summary-status status-${manager?.verification_status || 'unverified'}`}>{loading ? 'Loading' : manager ? verificationLabel(manager.verification_status) : 'Setup needed'}</strong></article>
+          </div>
         </header>
 
-        {message && <div className="ops-banner">{message}</div>}
+        {message && <div className="ops-banner" role="status">{message}</div>}
         {loading ? <div className="ops-empty">Loading your Community Portfolio…</div> : !personalProfile ? (
           <div className="ops-empty"><strong>Create a Personal Profile first</strong><p>Your Personal Profile owns your Community Manager portfolio. Project workspaces cannot own it directly.</p></div>
         ) : (
           <>
-            {telegramIdentity ? (
-              <section className="ops-card community-list-card">
-                <div className="ops-card-title"><div><span>TELEGRAM ACCOUNT</span><h2>{telegramLabel}</h2></div><span className="community-status status-verified">Connected ✓</span></div>
-                <p>Your personal Telegram identity is verified. Telegram's stable account ID is kept private and is used by Linkary as the canonical identity key.</p>
-                <div className="community-actions"><button type="button" className="ops-button secondary" disabled={busy === 'telegram-disconnect'} onClick={() => void disconnectTelegram()}>{busy === 'telegram-disconnect' ? 'Disconnecting…' : 'Disconnect Telegram'}</button></div>
-              </section>
-            ) : (
-              <section className="ops-card community-list-card">
-                <div className="ops-card-title"><div><span>TELEGRAM IDENTITY</span><h2>Personal Telegram not verified</h2></div><span className="community-status status-unverified">Optional for Beta</span></div>
-                <p>You can create your Community Manager profile, list Telegram communities and submit exact Community ownership proof without connecting your personal Telegram account. Linkary will not show a verified personal Telegram identity badge until this connection succeeds.</p>
-                <div className="community-actions">
-                  <button type="button" className="ops-button primary" disabled={busy === 'telegram-link' || busy === 'telegram-sync'} onClick={() => void connectTelegram()}>
-                    {busy === 'telegram-link' || busy === 'telegram-sync' ? 'Connecting Telegram…' : 'Connect Telegram in Personal Profile'}
-                  </button>
-                </div>
-                <div className="community-verification-note"><strong>Evidence stays separate</strong><span>Personal Telegram verification and exact Community verification are independent. A Community only becomes Verified after Linkary reviews Community-specific public management proof.</span></div>
-                <div className="community-verification-note"><strong>LinkaryTrackerBot is optional</strong><span>You do not need to install LinkaryTrackerBot to create or verify a Community. The bot can later provide stronger campaign, join, leave and retention evidence.</span></div>
-              </section>
-            )}
+            <section className={`community-telegram-card ${telegramIdentity ? 'is-connected' : 'is-unverified'}`} aria-label="Personal Telegram identity">
+              <span className="community-telegram-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m21 3-7.5 18-3.7-7.1L3 10.2 21 3Z"/><path d="m9.8 13.9 4.4-4.4"/></svg></span>
+              <div className="community-telegram-copy">
+                <div className="community-telegram-heading"><span className="community-section-eyebrow">{telegramIdentity ? 'PERSONAL TELEGRAM ACCOUNT' : 'TELEGRAM IDENTITY'}</span><span className={`community-status ${telegramIdentity ? 'status-verified' : 'status-unverified'}`}>{telegramIdentity ? 'Connected' : 'Not connected'}</span></div>
+                <h2>{telegramIdentity ? <>Connected as <code>{telegramLabel}</code></> : 'Connect your personal Telegram account'}</h2>
+                <p>{telegramIdentity ? "Your personal Telegram identity is verified. Telegram's stable account ID stays private and is used by Linkary as the canonical identity key. This does not verify ownership of an individual Community." : 'You can create your portfolio and list Communities without connecting Telegram. Personal identity verification is separate from verification of the Communities you manage.'}</p>
+              </div>
+              {telegramIdentity ? <button type="button" className="ops-button secondary community-telegram-action" disabled={busy === 'telegram-disconnect'} onClick={() => void disconnectTelegram()}>{busy === 'telegram-disconnect' ? 'Disconnecting…' : 'Disconnect Telegram'}</button> : <button type="button" className="ops-button secondary community-telegram-action" onClick={connectTelegram}>Connect in Profile</button>}
+            </section>
 
-            <section className="community-manager-grid">
-              <form className="ops-card community-manager-form" onSubmit={saveManager}>
-                <div className="ops-card-title"><div><span>MANAGER PROFILE</span><h2>{manager ? 'Community Manager details' : 'Create your Community Portfolio'}</h2></div>{manager && <span className={`community-status status-${manager.verification_status}`}>{verificationLabel(manager.verification_status)}</span>}</div>
+            <section className="community-manager-grid" aria-label="Community portfolio forms">
+              <form className="ops-card community-manager-form community-manager-profile-form" onSubmit={saveManager}>
+                <div className="community-form-heading"><div><span className="community-section-eyebrow">MANAGER PROFILE</span><h2>{manager ? 'Manager Profile' : 'Create your Manager Profile'}</h2><p>Your public portfolio representation shown to Projects.</p></div>{manager && <span className={`community-status status-${manager.verification_status}`}>{verificationLabel(manager.verification_status)}</span>}</div>
                 <label>Headline<input value={managerForm.headline} onChange={(event) => setManagerForm((value) => ({ ...value, headline: event.target.value }))} maxLength={160} placeholder="Telegram Community Manager" /></label>
                 <label>About<textarea value={managerForm.bio} onChange={(event) => setManagerForm((value) => ({ ...value, bio: event.target.value }))} maxLength={800} rows={4} placeholder="What kinds of communities do you manage, and what projects are a good fit?" /></label>
-                <div className="community-verification-note"><strong>Telegram identity</strong><span>{telegramIdentity ? `${telegramLabel} is your verified personal Telegram identity.` : 'Not verified yet. Your Community Portfolio can still be created, and each Community can be verified separately with public proof.'}</span></div>
-                <label>Email<input value={managerForm.email} onChange={(event) => setManagerForm((value) => ({ ...value, email: event.target.value }))} placeholder="you@example.com" type="email" /></label>
-                <label>Website or media kit<input value={managerForm.websiteUrl} onChange={(event) => setManagerForm((value) => ({ ...value, websiteUrl: event.target.value }))} placeholder="https://…" /></label>
+                <div className="community-manager-contact-grid">
+                  <label>Contact email<input value={managerForm.email} onChange={(event) => setManagerForm((value) => ({ ...value, email: event.target.value }))} placeholder="you@example.com" type="email" /></label>
+                  <label>Website or media kit<input value={managerForm.websiteUrl} onChange={(event) => setManagerForm((value) => ({ ...value, websiteUrl: event.target.value }))} placeholder="https://…" /></label>
+                </div>
                 <label className="community-check"><input type="checkbox" checked={managerForm.openToCampaigns} onChange={(event) => setManagerForm((value) => ({ ...value, openToCampaigns: event.target.checked }))} /><span>Open to campaign opportunities from Projects</span></label>
-                <button className="ops-primary" disabled={busy === 'manager'}>{busy === 'manager' ? 'Saving…' : manager ? 'Save manager profile' : 'Create Community Portfolio'}</button>
+                <div className="community-form-footer"><span>{telegramIdentity ? `Personal identity: ${telegramLabel}` : 'Personal Telegram verification is optional.'}</span><button className="ops-primary" disabled={busy === 'manager'}>{busy === 'manager' ? 'Saving…' : manager ? 'Save manager profile' : 'Create Community Portfolio'}</button></div>
               </form>
 
-              <form className={`ops-card community-manager-form ${!manager ? 'is-disabled' : ''}`} onSubmit={saveCommunity}>
-                <div className="ops-card-title"><div><span>TELEGRAM COMMUNITY</span><h2>{draft.assetId ? 'Edit community' : 'Add a community'}</h2></div></div>
+              <form className={`ops-card community-manager-form community-add-form ${!manager ? 'is-disabled' : ''}`} onSubmit={saveCommunity}>
+                <div className="community-form-heading"><div><span className="community-section-eyebrow">TELEGRAM COMMUNITY</span><h2>{draft.assetId ? 'Edit Community' : 'Add a Community'}</h2><p>List a Telegram community you actively manage or moderate.</p></div></div>
                 {!manager && <p className="community-help">Create your Community Manager profile first.</p>}
                 <fieldset disabled={!manager || busy === 'community'}>
                   <label>Community name<input required value={draft.name} onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))} placeholder="Example Alpha Community" /></label>
@@ -323,31 +318,36 @@ export default function CommunityManagerExperience({ me, status }: { me: Product
                     <label>Audience size<input type="number" min="0" value={draft.audienceSize} onChange={(event) => setDraft((value) => ({ ...value, audienceSize: event.target.value }))} placeholder="25000" /></label>
                   </div>
                   <label>Telegram URL<input required value={draft.url} onChange={(event) => setDraft((value) => ({ ...value, url: event.target.value }))} placeholder="https://t.me/community" /></label>
-                  <label>Notes<textarea value={draft.notes} onChange={(event) => setDraft((value) => ({ ...value, notes: event.target.value }))} rows={3} maxLength={500} placeholder="Main language, regions, category, posting format, audience notes…" /></label>
-                  <div className="community-actions"><button className="ops-primary">{busy === 'community' ? 'Saving…' : draft.assetId ? 'Update community' : 'Add community'}</button>{draft.assetId && <button type="button" className="ops-secondary" onClick={() => setDraft(emptyCommunity())}>Cancel</button>}</div>
+                  <label>Role and internal notes<textarea value={draft.notes} onChange={(event) => setDraft((value) => ({ ...value, notes: event.target.value }))} rows={3} maxLength={500} placeholder="Describe your role, language, regions, category, posting format, and audience…" /></label>
+                  <div className="community-form-footer"><span>LinkaryTrackerBot is optional.</span><div className="community-actions"><button className="ops-primary">{busy === 'community' ? 'Saving…' : draft.assetId ? 'Update community' : 'Add community'}</button>{draft.assetId && <button type="button" className="ops-secondary" onClick={() => setDraft(emptyCommunity())}>Cancel</button>}</div></div>
                 </fieldset>
               </form>
             </section>
 
-            <section className="ops-card community-list-card">
-              <div className="ops-card-title"><div><span>MANAGED COMMUNITIES</span><h2>Your portfolio</h2></div><small>{assets.length ? 'Automatically shown on your public Linkary profile' : 'Add your first Telegram community'}</small></div>
-              {!assets.length ? <div className="ops-empty"><strong>No communities listed yet</strong><p>Add the communities you manage. They will appear automatically on your public Linkary profile and can be discovered by Projects.</p></div> : (
-                <div className="community-list">
+            <section className="community-managed-section" aria-labelledby="community-managed-title">
+              <div className="community-managed-heading"><div><span className="community-section-eyebrow">YOUR LINKARY PORTFOLIO</span><h2 id="community-managed-title">Managed Communities <span>({assets.length})</span></h2><p>These Communities appear on your public Linkary profile and can be discovered by Projects.</p></div><span className="community-managed-total">{compact(combinedAudience)} total audience</span></div>
+              {!assets.length ? <div className="community-managed-empty"><span className="community-empty-icon" aria-hidden="true">◎</span><strong>No communities listed yet</strong><p>Add the Telegram communities you manage. Your public Community Portfolio will update automatically.</p></div> : (
+                <div className="community-card-grid">
                   {assets.map((asset) => (
-                    <article className="community-row" key={asset.id}>
-                      <div className="community-avatar">{asset.name.slice(0, 2).toUpperCase()}</div>
-                      <div className="community-main"><div><strong>{asset.name}</strong><span className={`community-status status-${asset.verification_status}`}>{verificationLabel(asset.verification_status)}</span></div><small>{asset.handle ? `@${asset.handle.replace(/^@/, '')}` : 'Telegram community'} · {compact(asset.audience_size)} audience</small>{asset.notes && <p>{asset.notes}</p>}<CommunityVerificationPanel asset={asset} onChanged={load} /></div>
-                      <div className="community-row-actions">
-                        {asset.url && <a href={asset.url} target="_blank" rel="noreferrer">Open ↗</a>}
+                    <article className="community-portfolio-card" key={asset.id}>
+                      <div className="community-portfolio-card-head"><span className="community-avatar" aria-hidden="true">{asset.name.slice(0, 2).toUpperCase()}</span><span className={`community-status status-${asset.verification_status}`}>{verificationLabel(asset.verification_status)}</span></div>
+                      <div className="community-portfolio-identity"><h3>{asset.name}</h3><span>{asset.handle ? `@${asset.handle.replace(/^@/, '')}` : 'Telegram community'}</span></div>
+                      <div className="community-audience-pill"><span aria-hidden="true">♧</span><strong>{compact(asset.audience_size)}</strong><span>members</span></div>
+                      {asset.notes ? <p className="community-portfolio-notes">{asset.notes}</p> : <p className="community-portfolio-notes community-no-notes">No community notes added.</p>}
+                      <CommunityVerificationPanel asset={asset} onChanged={load} />
+                      <div className="community-portfolio-actions">
+                        {asset.url && <a href={asset.url} target="_blank" rel="noreferrer">Open community ↗</a>}
                         <button type="button" onClick={() => editCommunity(asset)}>Edit</button>
-                        <button type="button" disabled={busy === `remove:${asset.id}`} onClick={() => void removeCommunity(asset)}>Remove</button>
+                        <button type="button" disabled={busy === `remove:${asset.id}`} onClick={() => void removeCommunity(asset)}>{busy === `remove:${asset.id}` ? 'Removing…' : 'Remove'}</button>
                       </div>
                     </article>
                   ))}
                 </div>
               )}
-              <div className="community-verification-note"><strong>Public profile</strong><span>Your listed communities appear automatically on your public Linkary profile. Update or remove them here and the public Community Portfolio follows the same source of truth.</span></div>
-              <div className="community-verification-note"><strong>Community verification</strong><span>Listed means the Personal Profile owner supplied this community. Verified means Linkary separately reviewed public Telegram proof showing that person manages the exact Community. Personal Telegram verification is a separate badge and is not required for Community ownership review. LinkaryTrackerBot remains optional and can later add stronger automated evidence.</span></div>
+              <div className="community-verification-guide">
+                <span className="community-guide-icon" aria-hidden="true">✓</span>
+                <div><strong>About Community status and verification</strong><p><b>Listed</b> means you supplied the Community details; it can appear on your public portfolio. <b>Verified</b> means Linkary separately reviewed public proof that you manage that exact Community. Verifying your personal Telegram identity does not automatically verify Community ownership.</p><p>LinkaryTrackerBot is optional. It may later provide stronger campaign, join, leave, and retention evidence; it is not required to list or verify a Community.</p></div>
+              </div>
             </section>
           </>
         )}

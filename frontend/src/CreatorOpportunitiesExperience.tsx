@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { ProductWorkspace, type ProductMe, type ProductProfile, type ProductStatus } from './ProductWorkspace';
 import ActivityMeasurementPanel from './ActivityMeasurementPanel';
 import './creator-opportunities.css';
+import './creator-opportunities-stitch.css';
 
 type Opportunity = {
   id: string;
@@ -143,6 +144,25 @@ export default function CreatorOpportunitiesExperience({
     window.localStorage.setItem('linkary.active.profile', id);
   }
 
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const modes = ['browse', 'mine', 'work'] as const;
+    const currentIndex = modes.indexOf(mode);
+    const nextIndex = event.key === 'ArrowRight'
+      ? (currentIndex + 1) % modes.length
+      : event.key === 'ArrowLeft'
+        ? (currentIndex - 1 + modes.length) % modes.length
+        : event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? modes.length - 1
+            : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextMode = modes[nextIndex];
+    setMode(nextMode);
+    document.getElementById(`creator-opportunities-tab-${nextMode}`)?.focus();
+  }
+
   async function load() {
     setLoading(true);
     setMessage('');
@@ -218,7 +238,7 @@ export default function CreatorOpportunitiesExperience({
   if (!personalProfile) {
     return (
       <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
-        <section className="ops-empty prominent">
+        <section className="ops-empty prominent creator-opportunity-profile-required">
           <div className="ops-empty-icon">✦</div>
           <h2>Create your Personal Profile first</h2>
           <p>Opportunities and assigned work are connected to your personal Linkary identity.</p>
@@ -246,18 +266,18 @@ export default function CreatorOpportunitiesExperience({
         </section>
 
         <div className="creator-opportunity-toolbar">
-          <nav className="ops-tabs">
-            <button type="button" className={mode === 'browse' ? 'active' : ''} onClick={() => setMode('browse')}>Browse opportunities</button>
-            <button type="button" className={mode === 'mine' ? 'active' : ''} onClick={() => setMode('mine')}>My applications</button>
-            <button type="button" className={mode === 'work' ? 'active' : ''} onClick={() => setMode('work')}>My work</button>
+          <nav className="ops-tabs creator-opportunity-tabs" role="tablist" aria-label="Opportunities workspace views">
+            <button type="button" role="tab" tabIndex={mode === 'browse' ? 0 : -1} aria-selected={mode === 'browse'} aria-controls="creator-opportunities-panel" id="creator-opportunities-tab-browse" className={mode === 'browse' ? 'active' : ''} onKeyDown={handleTabKeyDown} onClick={() => setMode('browse')}>Browse opportunities</button>
+            <button type="button" role="tab" tabIndex={mode === 'mine' ? 0 : -1} aria-selected={mode === 'mine'} aria-controls="creator-opportunities-panel" id="creator-opportunities-tab-mine" className={mode === 'mine' ? 'active' : ''} onKeyDown={handleTabKeyDown} onClick={() => setMode('mine')}>My applications</button>
+            <button type="button" role="tab" tabIndex={mode === 'work' ? 0 : -1} aria-selected={mode === 'work'} aria-controls="creator-opportunities-panel" id="creator-opportunities-tab-work" className={mode === 'work' ? 'active' : ''} onKeyDown={handleTabKeyDown} onClick={() => setMode('work')}>My work</button>
           </nav>
-          <label className="creator-opportunity-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={mode === 'work' ? 'Search project, campaign, or activity' : 'Search project, campaign, or brief'} aria-label={mode === 'work' ? 'Search assigned work' : 'Search opportunities'} />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button>}</label>
+          <label className="creator-opportunity-search"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={mode === 'work' ? 'Search project, campaign, activity, or assigned partner' : 'Search project, campaign, brief, compensation, or deliverables'} aria-label={mode === 'work' ? 'Search assigned work' : 'Search opportunities'} />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button>}</label>
         </div>
 
         {message && <div className="ops-message">{message}</div>}
 
         {mode === 'work' ? (
-          <section className="ops-section creator-work-section">
+          <section className="ops-section creator-work-section" id="creator-opportunities-panel" role="tabpanel" aria-labelledby="creator-opportunities-tab-work" tabIndex={0}>
             <div className="ops-section-title">
               <div><h2>Your assigned work</h2><p>Only activities assigned to your Creator identity or one of your exact Community Manager portfolios appear here.</p></div>
             </div>
@@ -295,7 +315,7 @@ export default function CreatorOpportunitiesExperience({
             )}
           </section>
         ) : (
-          <section className="ops-section">
+          <section className="ops-section creator-opportunity-section" id="creator-opportunities-panel" role="tabpanel" aria-labelledby={mode === 'mine' ? 'creator-opportunities-tab-mine' : 'creator-opportunities-tab-browse'} tabIndex={0}>
             <div className="ops-section-title">
               <div>
                 <h2>{mode === 'mine' ? 'Your open applications' : 'Open campaigns'}</h2>

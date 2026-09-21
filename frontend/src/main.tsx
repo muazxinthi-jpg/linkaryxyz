@@ -42,6 +42,8 @@ import './admin-commercial.css';
 import './admin-ai-governance.css';
 import './promotion-auction.css';
 import './workspace-density.css';
+import './dashboard-sidebar-redesign.css';
+import './mobile-workspace-navigation.css';
 import './partner-discovery-stitch.css';
 
 const cdpConfig: Config = {

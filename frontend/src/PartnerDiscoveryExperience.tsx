@@ -516,7 +516,7 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
         <section className="ops-section partner-discovery-workspace" aria-label="Partner search and results">
           <div className="partner-toolbar"><nav className="ops-tabs" aria-label="Partner type"><button type="button" aria-pressed={type === 'creator'} className={type === 'creator' ? 'active' : ''} onClick={() => setType('creator')}>Creators</button><button type="button" aria-pressed={type === 'community_manager'} className={type === 'community_manager' ? 'active' : ''} onClick={() => setType('community_manager')}>Community Managers</button></nav><form onSubmit={(event) => { event.preventDefault(); void loadPartners(); }}><input type="search" aria-label={type === 'creator' ? 'Search creators by name, handle, or bio' : 'Search Community Managers by name, Community, or handle'} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={type === 'creator' ? 'Search creator, @handle or bio' : 'Search manager, Community or @handle'} /><button type="submit" className="ops-button small">Search</button></form></div>
 
-          <div className="partner-filter-bar">
+            <div className="partner-filter-bar">
             <div className="partner-discovery-filters">
               <label className="partner-check"><input type="checkbox" checked={verifiedOnly} onChange={(event) => setVerifiedOnly(event.target.checked)} /><span>{type === 'creator' ? 'Verified creators only' : 'At least one verified Community'}</span></label>
               <label className="partner-check"><input type="checkbox" checked={openOnly} onChange={(event) => setOpenOnly(event.target.checked)} /><span>{type === 'creator' ? 'Open to collaboration' : 'Open to campaigns'}</span></label>
@@ -534,8 +534,7 @@ export default function PartnerDiscoveryExperience({ me, status }: { me: Product
               </div>
               <div className="ops-form-actions"><button type="button" className="ops-button primary" onClick={() => void loadPartners()}>Apply filters</button><button type="button" className="ops-button ghost" onClick={resetFilters}>Reset</button></div>
             </div>
-          </div>
-
+            </div>
 
           {loading ? <div className="ops-loading">Loading partners...</div> : !partners.length ? <div className="ops-empty"><div className="ops-empty-icon">◇</div><h3>No matching partners yet</h3><p>Try widening the filters. Discovery only shows real published Creator profiles and public Community Manager portfolios.</p></div> : <div className="partner-grid">{partners.map((partner) => {
             const inquiry = latestInquiry(partner);
