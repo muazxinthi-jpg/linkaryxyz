@@ -42,6 +42,9 @@ import './admin-commercial.css';
 import './admin-ai-governance.css';
 import './promotion-auction.css';
 import './workspace-density.css';
+import './dashboard-sidebar-redesign.css';
+import './mobile-workspace-navigation.css';
+import './partner-discovery-stitch.css';
 
 const cdpConfig: Config = {
   projectId: 'ec85aa2b-208c-4ec9-a0f2-3da31a8e2218',

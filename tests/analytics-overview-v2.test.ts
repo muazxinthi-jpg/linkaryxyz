@@ -9,7 +9,7 @@ const app = read('frontend/src/AppV3.tsx');
 const profiles = read('src/routes/profiles.ts');
 
 test('analytics overview follows the approved dashboard composition without fabricating social data', () => {
-  for (const label of ['Analytics Overview', 'Performance over time', 'Audience & socials', 'Top performing content', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
+  for (const label of ['Analytics', 'Performance over time', 'Audience & socials', 'Top-performing profile links', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
   assert.match(page, /X data/);
   assert.match(page, /Awaiting provider snapshot/);
   assert.doesNotMatch(page, /TwitterAPI\.io/i);
@@ -50,4 +50,43 @@ test('analytics route is authenticated, responsive and uses soft SVG trend lines
   assert.match(css, /analytics-metric-link/);
   assert.match(css, /analytics-tabs/);
   assert.match(css, /@media\s*\(max-width:720px\)/);
+  assert.match(css, /analytics-workspace-page\{[^}]*max-width:none/);
+  assert.match(css, /\.ops-shell \.ops-page\.analytics-workspace-page\{[^}]*max-width:none/);
+  assert.match(css, /@media\(max-width:480px\)/);
+  assert.match(page, /analytics-overview-details/);
+});
+
+test('analytics visual refresh is scoped to its workspace and keeps the existing metrics payload', () => {
+  const workspace = read('frontend/src/ProductWorkspace.tsx');
+  assert.match(workspace, /currentPath === '\/analytics' \? ' analytics-workspace-page'/);
+  assert.match(css, /analytics-hero\{[^}]*background:transparent/);
+  assert.match(page, /fetch\(`\/api\/profiles\/\$\{encodeURIComponent\(profileId\)\}\/analytics\?\$\{params\}`/);
+  for (const dataField of ['profileViews', 'linkClicks', 'monthlyProfileViews', 'monthlyClicks', 'socialSources', 'socialProfiles', 'proof']) {
+    assert.match(page, new RegExp(dataField));
+  }
+});
+
+test('overview filters return real date-bounded series and only scope link clicks to a selected link', () => {
+  for (const option of ['7d', '30d', '90d', '12m']) assert.match(page, new RegExp(`value="${option}"`));
+  for (const option of ['day', 'week', 'month']) assert.match(page, new RegExp(`value="${option}"`));
+  assert.match(page, /URLSearchParams\(\{ range, interval, linkId \}\)/);
+  assert.match(page, /Link selection filters clicks; profile views remain profile-wide/);
+  assert.match(page, /linkFilterAppliesTo: 'linkClicksOnly'/);
+  assert.match(profiles, /invalid_analytics_filter/);
+  assert.match(profiles, /created_at >= \? AND created_at <= \?/);
+  assert.match(profiles, /view_date >= \? AND view_date <= \?/);
+  assert.match(profiles, /AND block_id = \?/);
+  assert.match(profiles, /filteredSeries/);
+  assert.match(profiles, /analyticsPeriodKeys\(fromDate, endDate, interval/);
+});
+
+test('performance chart matches the Stitch dual-line visual language with accurate per-period tooltips', () => {
+  assert.match(page, /function smoothPath/);
+  assert.match(page, /analytics-click-fill/);
+  assert.match(page, /analytics-y-label/);
+  assert.match(page, /Profile views and link clicks over time/);
+  assert.match(page, /selected\.profileViews\.toLocaleString\(\)/);
+  assert.match(page, /selected\.linkClicks\.toLocaleString\(\)/);
+  assert.match(css, /analytics-click-point/);
+  assert.match(css, /analytics-filter-bar/);
 });

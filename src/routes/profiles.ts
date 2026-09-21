@@ -246,6 +246,7 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
 
 type ProfileClickMonthRow = { month: string; count: number };
 type ProfileClickDestinationRow = { block_id: string; count: number };
+type ProfileAnalyticsSeriesRow = { period: string; count: number };
 
 function monthlyClickSeries(rows: ProfileClickMonthRow[], totalClicks: number): ProfileClickMonthRow[] {
   if (!totalClicks || !rows.length) return [];
@@ -279,6 +280,21 @@ function clickDestinationLabel(block: ProfileBlockRow): string {
     }
   }
   return block.title?.trim() || 'Other';
+}
+
+function analyticsPeriodKeys(from: string, to: string, interval: 'day' | 'week' | 'month'): string[] {
+  const cursor = new Date(`${from}T00:00:00.000Z`);
+  const end = new Date(`${to}T00:00:00.000Z`);
+  if (interval === 'week') cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() + 6) % 7));
+  if (interval === 'month') cursor.setUTCDate(1);
+  const keys: string[] = [];
+  while (cursor <= end) {
+    keys.push(interval === 'month' ? cursor.toISOString().slice(0, 7) : cursor.toISOString().slice(0, 10));
+    if (interval === 'month') cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    else if (interval === 'week') cursor.setUTCDate(cursor.getUTCDate() + 7);
+    else cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return keys;
 }
 
 export async function profileAnalytics(request: Request, env: Env, profileId: string): Promise<Response> {
@@ -333,12 +349,80 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   }
   const platformClicks = Array.from(destinationTotals, ([platform, count]) => ({ platform, count }))
     .sort((left, right) => right.count - left.count || left.platform.localeCompare(right.platform));
+  const url = new URL(request.url);
+  const hasSeriesFilters = ['range', 'interval', 'linkId'].some((key) => url.searchParams.has(key));
+  let filteredSeries: Record<string, unknown> | undefined;
+  if (hasSeriesFilters) {
+    const range = url.searchParams.get('range') || '30d';
+    const rangeDays: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '12m': 365 };
+    if (!rangeDays[range]) throw new HttpError(400, 'Unsupported analytics date range', 'invalid_analytics_filter');
+    const interval = url.searchParams.get('interval') || 'day';
+    if (!['day', 'week', 'month'].includes(interval)) throw new HttpError(400, 'Unsupported analytics interval', 'invalid_analytics_filter');
+    const linkId = url.searchParams.get('linkId') || 'all';
+    if (linkId !== 'all' && !blocks.some((block) => block.id === linkId && block.url)) {
+      throw new HttpError(400, 'Choose a link from this profile', 'invalid_analytics_filter');
+    }
+    const today = new Date();
+    const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())).toISOString().slice(0, 10);
+    const start = new Date(`${endDate}T00:00:00.000Z`);
+    start.setUTCDate(start.getUTCDate() - rangeDays[range] + 1);
+    const fromDate = start.toISOString().slice(0, 10);
+    const bucketExpression = interval === 'day'
+      ? 'substr(created_at, 1, 10)'
+      : interval === 'week'
+        ? "date(created_at, '-' || ((CAST(strftime('%w', created_at) AS INTEGER) + 6) % 7) || ' days')"
+        : 'substr(created_at, 1, 7)';
+    const viewBucketExpression = interval === 'day'
+      ? 'view_date'
+      : interval === 'week'
+        ? "date(view_date, '-' || ((CAST(strftime('%w', view_date) AS INTEGER) + 6) % 7) || ' days')"
+        : 'substr(view_date, 1, 7)';
+    const linkClause = linkId === 'all' ? '' : ' AND block_id = ?';
+    const linkParams: unknown[] = linkId === 'all' ? [profileId, `${fromDate}T00:00:00.000Z`, `${endDate}T23:59:59.999Z`] : [profileId, `${fromDate}T00:00:00.000Z`, `${endDate}T23:59:59.999Z`, linkId];
+    const [filteredClickRows, filteredViewRows] = await Promise.all([
+      db.all<ProfileAnalyticsSeriesRow>(
+        `SELECT ${bucketExpression} AS period, COUNT(*) AS count
+           FROM profile_engagement_events
+          WHERE profile_id = ? AND event_type = 'link_click' AND created_at >= ? AND created_at <= ?${linkClause}
+          GROUP BY period ORDER BY period ASC`,
+        linkParams,
+      ),
+      db.all<ProfileAnalyticsSeriesRow>(
+        `SELECT ${viewBucketExpression} AS period, COALESCE(SUM(views), 0) AS count
+           FROM public_profile_daily_views
+          WHERE profile_id = ? AND view_date >= ? AND view_date <= ?
+          GROUP BY period ORDER BY period ASC`,
+        [profileId, fromDate, endDate],
+      ),
+    ]);
+    const periods = analyticsPeriodKeys(fromDate, endDate, interval as 'day' | 'week' | 'month');
+    const clicksByPeriod = new Map(filteredClickRows.map((row) => [row.period, Number(row.count || 0)]));
+    const viewsByPeriod = new Map(filteredViewRows.map((row) => [row.period, Number(row.count || 0)]));
+    const series = periods.map((period) => ({
+      date: period,
+      profileViews: viewsByPeriod.get(period) || 0,
+      linkClicks: clicksByPeriod.get(period) || 0,
+    }));
+    filteredSeries = {
+      range,
+      interval,
+      from: fromDate,
+      to: endDate,
+      linkId,
+      profileViews: series.reduce((total, point) => total + point.profileViews, 0),
+      linkClicks: series.reduce((total, point) => total + point.linkClicks, 0),
+      series,
+      links: blocks.filter((block) => Boolean(block.url)).map((block) => ({ id: block.id, label: block.title?.trim() || clickDestinationLabel(block) })),
+      linkFilterAppliesTo: 'linkClicksOnly',
+    };
+  }
   return json({
     linkClicks,
     monthlyClicks: monthlyClickSeries(monthRows, linkClicks),
     profileViews,
     monthlyProfileViews: monthlyClickSeries(profileViewMonthRows, profileViews),
     platformClicks,
+    ...(filteredSeries ? { filteredSeries } : {}),
     proof,
   });
 }

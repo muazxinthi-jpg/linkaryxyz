@@ -61,7 +61,7 @@ test('Creator dashboard promotes profile, opportunities, Projects and invites', 
   assert.equal(dashboard.includes('Complete your profile'), true);
   assert.equal(dashboard.includes('Join a Project'), true);
   assert.equal(dashboard.includes('Invite your network'), true);
-  assert.equal(dashboard.includes('<strong>{projectCount}</strong>'), true);
+  assert.equal(dashboard.includes('{projectCount.toLocaleString()}'), true);
 });
 
 test('Creator opportunity feed exposes application state and excludes passed deadlines', () => {
@@ -107,10 +107,44 @@ test('My Work stays readable and actionable on tablet and phone widths', () => {
   assert.equal(css.includes('.creator-work-metrics{grid-template-columns:1fr}'), true);
 });
 
-test('mobile workspace keeps six primary destinations for Creator and Project contexts', () => {
-  const css = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
-  assert.equal(css.includes('.ops-nav a[href="/tracking"]'), true);
-  assert.equal(css.includes('.ops-nav a[href="/partners"]'), true);
-  assert.equal(css.includes('.ops-nav a[href="/wallets"]'), true);
-  assert.equal(css.includes('repeat(6,minmax(0,1fr))'), true);
+test('Creator Opportunities adopts the shared Stitch layout without replacing live data or work metrics', () => {
+  const ui = readFileSync(new URL('../frontend/src/CreatorOpportunitiesExperience.tsx', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/creator-opportunities-stitch.css', import.meta.url), 'utf8');
+
+  assert.equal(ui.includes("import './creator-opportunities-stitch.css'"), true);
+  assert.equal(workspace.includes("currentPath === '/opportunities' ? ' creator-opportunities-workspace-page'"), true);
+  assert.equal(ui.includes('/api/campaign-opportunities'), true);
+  assert.equal(ui.includes("mode === 'mine' ? '?mine=1' : ''"), true);
+  assert.equal(ui.includes("'/api/tracked-links?measurement=1&mine=1'"), true);
+  assert.equal(ui.includes('item.trackingClicks.toLocaleString()'), true);
+  assert.equal(ui.includes('item.deliverables.toLocaleString()'), true);
+  assert.equal(ui.includes('item.outcomes.toLocaleString()'), true);
+  assert.equal(ui.includes('money(item.attributedValueUsd)'), true);
+  assert.equal(ui.includes('reported impressions'), false);
+  assert.equal(ui.includes('creator-work-reported-impressions'), false);
+  assert.equal(css.includes('@media(max-width:640px)'), true);
+  assert.equal(css.includes('@media(max-width:430px)'), true);
+  assert.equal(css.includes('@media(max-width:340px)'), true);
+});
+
+test('Creator Opportunities tabs expose selected state and keyboard navigation', () => {
+  const ui = readFileSync(new URL('../frontend/src/CreatorOpportunitiesExperience.tsx', import.meta.url), 'utf8');
+  assert.equal(ui.includes('role="tablist" aria-label="Opportunities workspace views"'), true);
+  assert.equal(ui.includes("event.key === 'ArrowRight'"), true);
+  assert.equal(ui.includes("event.key === 'ArrowLeft'"), true);
+  assert.equal(ui.includes("event.key === 'Home'"), true);
+  assert.equal(ui.includes("event.key === 'End'"), true);
+  assert.equal(ui.includes('role="tabpanel" aria-labelledby={mode ==='), true);
+});
+
+test('mobile workspace uses five primary destinations with a complete menu for both contexts', () => {
+  const css = readFileSync(new URL('../frontend/src/mobile-workspace-navigation.css', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  assert.match(css, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(workspace, /const mobilePrimaryNav = profile\.profile_type === 'creator'/);
+  assert.match(workspace, /navSections\.map\(\(\[section, items\]\)/);
+  assert.match(workspace, /\['\/partners', 'Partners'\]/);
+  assert.match(workspace, /\['\/wallets', 'Wallets'\]/);
+  assert.match(workspace, /\['\/settings', 'Projects'\]/);
 });

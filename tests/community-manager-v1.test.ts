@@ -50,9 +50,9 @@ test('Creator navigation exposes Communities without adding it to Project operat
   assert.equal(creatorNav.includes("['/communities', 'Communities']"), true);
   assert.equal(projectNav.includes("['/communities', 'Communities']"), false);
 
-  const mobile = readFileSync(new URL('../frontend/src/workspace-mobile.css', import.meta.url), 'utf8');
-  assert.match(mobile, /\.workspace-creator\s+\.ops-nav\s+a\[href="\/settings"\]\s*\{[^}]*display:none!important/s);
-  assert.equal(mobile.includes('grid-template-columns:repeat(6,minmax(0,1fr))!important'), true);
+  const mobile = readFileSync(new URL('../frontend/src/mobile-workspace-navigation.css', import.meta.url), 'utf8');
+  assert.match(mobile, /\.ops-mobile-bottom-nav\s*\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/s);
+  assert.match(mobile, /\.ops-mobile-drawer-nav/);
 });
 
 test('Community Manager V1 reuses the existing evidence-aware partner schema', () => {
@@ -79,8 +79,8 @@ test('Personal Telegram verification stays evidence-bearing but does not block C
   assert.equal(route.includes("const telegramContact = existing.manager_type === 'community_manager'"), true);
   assert.equal(route.includes("const telegramContact = body.managerType === 'community_manager'"), true);
   assert.equal(route.includes("? telegramIdentity?.current_handle || null"), true);
-  assert.equal(ui.includes('Optional for Beta'), true);
-  assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
+  assert.equal(ui.includes('Personal Telegram verification is optional.'), true);
+  assert.equal(ui.includes('You can create your portfolio and list Communities without connecting Telegram.'), true);
   assert.equal(ui.includes('if (!personalProfile) return;'), true);
   assert.equal(ui.includes('if (!manager) return;'), true);
 });
@@ -89,27 +89,27 @@ test('Community Manager UI links Telegram instead of trusting a typed personal h
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   assert.equal(ui.includes('useLinkOAuth'), false);
   assert.equal(ui.includes("window.location.assign('/profile')"), true);
-  assert.equal(ui.includes('Personal Telegram not verified'), true);
+  assert.equal(ui.includes('Personal Telegram verification is optional.'), true);
   assert.equal(ui.includes('telegramContact: managerForm.telegramContact'), false);
   assert.equal(ui.includes('<label>Telegram contact<input'), false);
-  assert.equal(ui.includes('stable account ID is kept private'), true);
+  assert.equal(ui.includes('stable account ID stays private'), true);
 });
 
 test('Telegram linking in Personal Profile keeps Community onboarding available', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
-  assert.equal(ui.includes('Connect Telegram in Personal Profile'), true);
+  assert.equal(ui.includes('Connect in Profile'), true);
   assert.equal(ui.includes('Disconnect Telegram'), true);
-  assert.equal(ui.includes('Your Community Portfolio can still be created'), true);
+  assert.equal(ui.includes('You can create your portfolio and list Communities without connecting Telegram.'), true);
   assert.equal(ui.includes('/api/auth/cdp/session'), false);
 });
 
 test('Personal Telegram identity and exact Community verification remain separate and TrackerBot stays optional', () => {
   const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
   const verification = readFileSync(new URL('../src/routes/communityVerification.ts', import.meta.url), 'utf8');
-  assert.equal(ui.includes('Personal Telegram verification and exact Community verification are independent.'), true);
-  assert.equal(ui.includes('Personal Telegram verification is a separate badge and is not required for Community ownership review.'), true);
+  assert.equal(ui.includes('Personal identity verification is separate from verification of the Communities you manage.'), true);
+  assert.equal(ui.includes('Verifying your personal Telegram identity does not automatically verify Community ownership.'), true);
   assert.equal(ui.includes('LinkaryTrackerBot is optional'), true);
-  assert.equal(ui.includes('You do not need to install LinkaryTrackerBot to create or verify a Community.'), true);
+  assert.equal(ui.includes('it is not required to list or verify a Community.'), true);
   assert.equal(verification.includes("verification_status = 'submitted'"), true);
   assert.equal(verification.includes("'approved' : 'rejected'"), true);
 });
@@ -119,13 +119,29 @@ test('Community Manager workspace uses an automatic public Community Portfolio',
   assert.equal(ui.includes("managerType: 'community_manager'"), true);
   assert.equal(ui.includes('/api/partner-manager-assets'), true);
   assert.equal(ui.includes('Add community'), true);
-  assert.equal(ui.includes('MANAGED COMMUNITIES'), true);
+  assert.equal(ui.includes('Managed Communities'), true);
   assert.equal(ui.includes("type: 'community_card'"), false);
   assert.equal(ui.includes('Add to public profile'), false);
-  assert.equal(ui.includes('automatically published on your public Linkary profile'), true);
-  assert.equal(ui.includes('Automatically shown on your public Linkary profile'), true);
+  assert.equal(ui.includes('Your portfolio appears on your public Linkary profile'), true);
+  assert.equal(ui.includes('Your public Community Portfolio will update automatically.'), true);
   assert.equal(ui.includes('CommunityVerificationPanel'), true);
-  assert.equal(ui.includes('Verified means Linkary separately reviewed public Telegram proof'), true);
+  assert.equal(ui.includes('Verified</b> means Linkary separately reviewed public proof'), true);
+});
+
+test('Communities desktop redesign uses the available page width and keeps Linkary data/actions', () => {
+  const ui = readFileSync(new URL('../frontend/src/CommunityManagerExperience.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/community-manager.css', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../frontend/src/ProductWorkspace.tsx', import.meta.url), 'utf8');
+  assert.equal(workspace.includes("currentPath === '/communities' ? ' community-workspace-page'"), true);
+  assert.match(css, /\.ops-shell \.ops-page\.community-workspace-page\s*\{[^}]*width:100%;max-width:none/s);
+  assert.match(css, /\.community-manager-page \.community-manager-grid\s*\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css, /@media\(max-width:900px\)[\s\S]*?\.community-manager-page \.community-manager-grid\s*\{grid-template-columns:1fr\}/);
+  assert.match(css, /@media\(max-width:640px\)[\s\S]*?\.community-card-grid\s*\{grid-template-columns:1fr\}/);
+  for (const preserved of ['CommunityVerificationPanel', 'onClick={() => editCommunity(asset)}', 'onClick={() => void removeCommunity(asset)}', '<label>Community name<input', 'audienceSize:', 'openToCampaigns:']) {
+    assert.equal(ui.includes(preserved), true, `missing existing Community behavior: ${preserved}`);
+  }
+  assert.equal(ui.includes('Example Alpha Community</h3>'), false);
+  assert.equal(ui.includes('Myrtle'), false);
 });
 
 test('Public profiles derive Community Portfolio directly from manager and Community records', () => {

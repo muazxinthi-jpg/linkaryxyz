@@ -1,0 +1,70 @@
+:root{--workspace-sidebar-width:248px;--linkary-sidebar-ink:#1d3047;--linkary-sidebar-raised:#293c55;--linkary-sidebar-border:#354a64;--linkary-sidebar-accent:#f15a32}
+
+/* Desktop visual refresh based on the approved Stitch dashboard shell.
+   Navigation labels, routes, role gates, and mobile navigation stay owned by ProductWorkspace. */
+@media(min-width:901px){
+  .ops-shell{grid-template-columns:var(--workspace-sidebar-width) minmax(0,1fr)}
+  /* The legacy shell fixes the sidebar at 208px while the Stitch shell's grid
+     track is 248px. Fill the track to remove the visible unpainted gutter. */
+  .ops-shell .ops-sidebar{box-sizing:border-box;width:100%;min-width:0;position:sticky;top:0;height:100dvh;min-height:100dvh;overflow:hidden;background:var(--linkary-sidebar-ink);border-right:1px solid #263a53;padding:18px 13px 15px;color:#f5f7fa}
+  .ops-shell .ops-main{box-sizing:border-box;width:100%;min-width:0}
+  .ops-shell .ops-brand{gap:10px;padding:0 8px 19px;color:#f5f7fa;font-size:19px;letter-spacing:-.035em}
+  .ops-shell .ops-brand-mark{box-sizing:border-box;display:flex;width:38px;height:38px;flex:none;flex-direction:column;justify-content:center;gap:3px;padding:8px;border-radius:10px;background:var(--linkary-sidebar-accent);box-shadow:0 5px 12px rgba(241,90,50,.2)}
+  .ops-shell .ops-brand-mark i{display:block;width:100%;height:3px;border-radius:2px;background:#fff}
+  .ops-shell .ops-brand-mark i:nth-child(2){width:68%}
+  .ops-shell .ops-brand-mark i:nth-child(3){width:84%}
+  .ops-shell .ops-view-as{margin:0 0 13px;padding:11px 11px 10px;border:1px solid var(--linkary-sidebar-border);border-radius:11px;background:#182a40}
+  .ops-shell .ops-view-as label{margin:0 0 9px;color:#aebdd0;font-size:9px;letter-spacing:.12em}
+  .ops-shell .ops-view-as select{height:36px;padding:0 8px;border-color:transparent;border-bottom-color:#35475d;border-radius:0;background:transparent;color:#fff;font-size:12px}
+  .ops-shell .ops-view-as select:focus-visible{outline:2px solid #ff997d;outline-offset:2px}
+  .ops-shell .ops-workspace-meta{display:flex;justify-content:space-between;gap:6px;margin-top:9px;color:#f5f7fa;font-size:11px;line-height:1.3}
+  .ops-shell .ops-workspace-meta small{color:#aebdd0;font-size:10px}
+  .ops-shell .ops-nav{flex:1;min-height:0;overflow-y:auto;gap:12px;padding:5px 0 12px;scrollbar-color:#526780 transparent;scrollbar-width:thin}
+  .ops-shell .ops-nav-section{display:flex;flex-direction:column;gap:3px}
+  .ops-shell .ops-nav-section-label{padding:0 10px 3px;color:#9fb0c4;font:600 9px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}
+  .ops-shell .ops-nav a{position:relative;display:flex;align-items:center;gap:10px;min-height:38px;box-sizing:border-box;padding:0 11px 0 13px;border:1px solid transparent;border-radius:8px;color:#bdcadd;font-size:12px;font-weight:600;transition:background-color .16s ease,border-color .16s ease,color .16s ease}
+  .ops-shell .ops-nav a:before{display:none;content:none}
+  .ops-shell .ops-nav-icon{display:block;width:16px;height:16px;flex:none;color:#91a5bb;transition:color .16s ease,transform .16s ease}
+  .ops-shell .ops-nav a:hover{border-color:#3a536f;background:#2a4059;color:#fff}
+  .ops-shell .ops-nav a:hover .ops-nav-icon{color:#ff9a7c;transform:translateY(-1px)}
+  .ops-shell .ops-nav a.active{border-color:#3d526a;background:#30445e;color:#ff9a7c;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
+  .ops-shell .ops-nav a.active .ops-nav-icon{color:#ff8d6b}
+  .ops-shell .ops-nav a.active:before{position:absolute;top:8px;bottom:8px;left:0;width:3px;border-radius:0 3px 3px 0;background:var(--linkary-sidebar-accent);content:""}
+  .ops-shell .ops-nav a:focus-visible,.ops-shell .ops-sidebar-footer a:focus-visible,.ops-shell .ops-sidebar-footer button:focus-visible{outline:2px solid #ff9a7c;outline-offset:2px}
+  .ops-shell .ops-sidebar-footer{flex:none;gap:3px;margin-top:8px;padding:11px 8px 0;border-top:1px solid #3a4c63}
+  .ops-shell .ops-sidebar-footer a,.ops-shell .ops-sidebar-footer button{display:flex;align-items:center;gap:9px;min-height:34px;padding:6px 2px;color:#b8c6d6;font-size:11px}
+  .ops-shell .ops-sidebar-footer .ops-nav-icon{width:15px;height:15px;color:#91a5bb}
+  .ops-shell .ops-sidebar-footer a:hover,.ops-shell .ops-sidebar-footer button:hover{color:#fff}
+  .ops-shell .ops-sidebar-footer a:hover .ops-nav-icon,.ops-shell .ops-sidebar-footer button:hover .ops-nav-icon{color:#ff9a7c}
+  .ops-shell .ops-sidebar-footer .ops-plan-nav{color:#d2dbe5}
+}
+
+@media(min-width:901px){.ops-shell .ops-nav a.active:before{display:block}}
+@media(max-width:900px){.ops-shell .ops-nav a:not(.active):before{display:none;content:none}.ops-shell .ops-nav a{gap:0}.ops-shell .ops-nav-icon{width:19px;height:19px}.ops-shell .ops-nav a.active{background:#30445e}.ops-shell .ops-nav a.active .ops-nav-icon{color:#ff8d6b}}
+@media(max-width:640px){.ops-shell .ops-nav a{flex-direction:column;gap:2px}.ops-shell .ops-nav-icon{width:17px;height:17px}.ops-shell .ops-nav a.active:before{display:none}}
+
+/* Stitch-inspired workspace top navigation; shortcuts map to real Linkary routes. */
+.ops-shell .ops-topbar{width:100%;height:64px;box-sizing:border-box;display:grid;grid-template-columns:minmax(135px,1fr) auto minmax(270px,1fr);gap:20px;padding:0 clamp(20px,2.5vw,40px);background:#fff;border-bottom-color:#e7eaf0}
+.ops-shell .ops-topbar .ops-topbar-context{display:flex;align-items:center;gap:8px;min-width:0;color:#7c8792;font-size:12px;white-space:nowrap}
+.ops-shell .ops-topbar .ops-topbar-context i{color:#aab2bb;font-style:normal}
+.ops-shell .ops-topbar .ops-topbar-context strong{overflow:hidden;color:#25364a;font-size:12px;text-overflow:ellipsis}
+.ops-shell .ops-topbar .ops-topbar-nav{display:flex;align-self:stretch;align-items:stretch;gap:22px}
+.ops-shell .ops-topbar .ops-topbar-nav a{position:relative;display:inline-flex;align-items:center;min-height:64px;padding:0 3px;border:0;border-radius:0;color:#697787;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
+.ops-shell .ops-topbar .ops-topbar-nav a:hover{color:#20354c;background:transparent}
+.ops-shell .ops-topbar .ops-topbar-nav a.active{color:#1b3048}
+.ops-shell .ops-topbar .ops-topbar-nav a.active:after{position:absolute;right:0;bottom:0;left:0;height:2px;background:var(--linkary-sidebar-accent);content:""}
+.ops-shell .ops-topbar .ops-topbar-actions{display:flex;justify-self:end;align-items:center;gap:13px;min-width:0;color:#34465a;font-size:11px}
+.ops-shell .ops-topbar .ops-public-profile-link{display:inline-flex;align-items:center;min-height:34px;padding:0 10px;border:1px solid #e1e6ec;border-radius:8px;color:#35475c;font-size:11px;white-space:nowrap}
+.ops-shell .ops-topbar .ops-public-profile-link:hover{border-color:#f3b39e;background:#fff8f5;color:#bc4a2b}
+.ops-shell .ops-topbar .ops-notification-link{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid #e1e6ec;border-radius:9px;color:#5c6c7d}
+.ops-shell .ops-topbar .ops-notification-link:hover{border-color:#f3b39e;background:#fff8f5;color:#cf512f}
+.ops-shell .ops-topbar .ops-topbar-identity{display:flex;align-items:center;gap:8px;min-width:0}
+.ops-shell .ops-topbar .ops-topbar-avatar{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid #dce4ed;border-radius:50%;background:#eaf0f6;color:#1e3a56;font-size:10px;font-weight:800}
+.ops-shell .ops-topbar .ops-topbar-identity>span:last-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ops-shell .ops-topbar .ops-topbar-identity strong{overflow:hidden;color:#26384b;font-size:10px;text-overflow:ellipsis}
+.ops-shell .ops-topbar .ops-topbar-identity small{color:#8b96a2;font-size:9px;white-space:nowrap}
+@media(max-width:1200px){.ops-shell .ops-topbar{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;padding-inline:20px}.ops-shell .ops-topbar .ops-topbar-nav{gap:14px}.ops-shell .ops-topbar .ops-topbar-actions{gap:8px}}
+@media(max-width:900px){.ops-shell .ops-topbar{display:flex;justify-content:space-between;gap:12px;padding-inline:20px}.ops-shell .ops-topbar .ops-topbar-nav{display:none}.ops-shell .ops-topbar .ops-topbar-actions{gap:8px}}
+@media(max-width:640px){.ops-shell .ops-topbar{height:52px;padding-inline:14px}.ops-shell .ops-topbar .ops-topbar-context{display:none}.ops-shell .ops-topbar .ops-public-profile-link,.ops-shell .ops-topbar .ops-notification-link{display:none}.ops-shell .ops-topbar .ops-topbar-identity{margin-right:auto}.ops-shell .ops-topbar .ops-topbar-identity small{display:none}}
+
+@media(prefers-reduced-motion:reduce){.ops-shell .ops-nav a{transition:none}}
