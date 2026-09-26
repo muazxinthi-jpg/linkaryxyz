@@ -9,7 +9,7 @@ const app = read('frontend/src/AppV3.tsx');
 const profiles = read('src/routes/profiles.ts');
 
 test('analytics overview follows the approved dashboard composition without fabricating social data', () => {
-  for (const label of ['Analytics Overview', 'Performance over time', 'Audience & socials', 'Top performing content', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
+  for (const label of ['Analytics', 'Performance over time', 'Audience & socials', 'Top-performing profile links', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
   assert.match(page, /X data/);
   assert.match(page, /Awaiting provider snapshot/);
   assert.doesNotMatch(page, /TwitterAPI\.io/i);
@@ -50,4 +50,21 @@ test('analytics route is authenticated, responsive and uses soft SVG trend lines
   assert.match(css, /analytics-metric-link/);
   assert.match(css, /analytics-tabs/);
   assert.match(css, /@media\s*\(max-width:720px\)/);
+});
+
+test('Social analytics keeps the matching interactive chart while empty provider history stays explicit', () => {
+  assert.match(page, /SocialGrowthChart snapshots=\{audienceSnapshots\}/);
+  assert.match(page, /No follower history in this 7-day window/);
+  assert.match(page, /onPointerEnter=\{\(\) => setActive\(index\)\}/);
+  assert.doesNotMatch(page, /loadAnalytics\(profile\.id, range, interval, linkId, tab === 'social'\)/);
+  assert.doesNotMatch(page, /twitterapi\.io/i);
+});
+
+test('filtered analytics series uses only existing Linkary click and profile-view ledgers', () => {
+  assert.match(profiles, /analyticsPeriodKeys/);
+  assert.match(profiles, /FROM profile_engagement_events/);
+  assert.match(profiles, /FROM public_profile_daily_views/);
+  assert.match(profiles, /Unsupported analytics date range/);
+  assert.match(profiles, /Unsupported analytics interval/);
+  assert.doesNotMatch(profiles, /x_profile_metric_snapshots|social_post_metric_snapshots|social_metrics_refresh_state/);
 });
