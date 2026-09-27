@@ -7,7 +7,7 @@ import './inbox-redesign.css';
 type Role = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
 type Project = { id: string; name: string; role: Role; status: string; verification_status: string };
 type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; username: string | null };
-type MyAcccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
+type MyAccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
 type Opportunity = { id: string; organization_id: string; title: string; campaign_name: string; applications: number; status: string };
 type Application = { id: string; status: string; note: string; created_at: string; profile_id: string; display_name: string; username: string; manager_name: string | null };
 type Campaign = { id: string; name: string; status: string };
