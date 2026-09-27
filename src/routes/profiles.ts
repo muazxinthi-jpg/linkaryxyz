@@ -1070,4 +1070,3 @@ export async function publishProfile(request: Request, env: Env, profileId: stri
   if (published) await rewardReferralOnProfilePublish(db, { id: profile.id, owner_user_id: profile.owner_user_id, profile_type: profile.profile_type, visibility: 'published' }, profile.visibility === 'published');
   return json({ ok: true, visibility: published ? 'published' : 'private' });
 }
-
