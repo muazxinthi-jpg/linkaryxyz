@@ -24,10 +24,40 @@ test('Inbox decisions offer local filters and search over real loaded action typ
   assert.match(inbox, /visibleActions\.map\(renderAction\)/);
 });
 
+test('Inbox header keeps Creator context and renders the active Project name from the current profile', () => {
+  assert.match(inbox, /INBOX·\{isCreator\?'CREATOR':'PROJECT'\}WORKSPACE/);
+  assert.match(inbox, /!isCreator&&<spanclassName="inbox-project-context">\{profile\.display_name\}<\/span>/);
+  assert.equal(inbox.includes('KlineO'), false, 'Project names are dynamic rather than hardcoded');
+  assert.match(inbox, /constprofile=status\.profiles\.find\(\(item\)=>item\.id===profileId\)\|\|first/);
+  assert.match(inbox, /functionchangeProfile\(id:string\)\{setProfileId\(id\)/);
+  assert.equal(css.includes('.inbox-project-context{display:block'), true);
+  assert.equal(css.includes('overflow-wrap:anywhere'), true, 'long Project names can wrap safely');
+});
+
 test('Redesigned Inbox retains notifications, access updates and sent inquiry surfaces', () => {
   for (const content of ['markAllNotifications()', 'markNotification(item.id)', 'showAllNotifications', 'Project access updates', 'Collaboration inquiries you sent', 'Open Evidence', 'Refresh workspaces']) {
     assert.equal(inbox.includes(content.replace(/\s+/g, '')), true, `${content} remains available`);
   }
+});
+
+test('UI26 Inbox reads real account notifications and only confirms read state after successful requests', () => {
+  for (const content of [
+    "api<{notifications:Notification[];unreadCount:number}>('/api/notifications')",
+    "'/api/notifications/read-all'",
+    "`/api/notifications/${encodeURIComponent(id)}/read`",
+    'notificationResult.unreadCount',
+    'item.title',
+    'item.body',
+    'item.href',
+    'date(item.created_at)',
+    "setNotifications((items)=>items.map((notification)=>notification.id===id?{...notification,read_at:newDate().toISOString()}:notification))",
+    "if(profile?.profile_type==='creator')",
+    "profile?.profile_type==='project'&&profile.organization_id",
+  ]) {
+    assert.equal(inbox.includes(content.replace(/\s+/g, '')), true, `${content} remains wired`);
+  }
+  assert.equal(inbox.includes('Notifications aren’t available yet'), false);
+  assert.equal(inbox.includes("api<{notifications:Notification[];unreadCount:number}>('/api/notifications?"), false, 'notification stream remains account-level rather than Project-filtered');
 });
 
 test('Inbox decision type icons are drawn as accessible inline SVG, not placeholder letters', () => {

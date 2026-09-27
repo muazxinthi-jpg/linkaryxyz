@@ -3,6 +3,7 @@
 .inbox-redesign{--inbox-ink:#172b43;--inbox-muted:#667b94;--inbox-border:#dce5f2;--inbox-coral:#f4512b;color:var(--inbox-ink)}
 .inbox-redesign .inbox-hero{align-items:flex-start;margin:0 0 2px;padding:22px 24px;border:1px solid #d7e2f1;border-radius:16px;background:linear-gradient(115deg,#fff 0%,#f8faff 58%,#fff5ef 100%);box-shadow:0 8px 24px rgba(24,48,78,.045)}
 .inbox-redesign .inbox-hero h1{margin:6px 0 5px;font-size:clamp(28px,3vw,38px);letter-spacing:-.045em;color:#142942}
+.inbox-redesign .inbox-project-context{display:block;max-width:100%;margin-top:5px;color:#647b97;font-size:13px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
 .inbox-redesign .inbox-hero p{max-width:680px;margin:0;color:var(--inbox-muted);font-size:14px;line-height:1.55}
 .inbox-redesign .ops-kicker{color:#758aa4;letter-spacing:.14em}
 .inbox-redesign .ops-button{min-height:42px;border-radius:10px;font-weight:700}
@@ -85,3 +86,18 @@
 @media(max-width:560px){.ops-shell .ops-page.inbox-workspace-page{padding:18px 13px 92px}.ops-shell .ops-page.inbox-workspace-page>.inbox-redesign{gap:13px}.inbox-redesign .inbox-hero{flex-direction:column;gap:14px;padding:18px 16px}.inbox-redesign .inbox-hero h1{font-size:28px}.inbox-redesign .inbox-hero .ops-button{width:100%}.inbox-summary{grid-template-columns:1fr;gap:9px}.inbox-summary article{min-height:unset;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:13px 15px}.inbox-summary article span,.inbox-summary article small{grid-column:1}.inbox-summary article strong{grid-column:2;grid-row:1/3;align-self:center;font-size:26px}.inbox-support-column{grid-template-columns:minmax(0,1fr)}.inbox-redesign .ops-section-title{padding:15px 14px 12px}.inbox-toolbar{gap:9px;padding:0 12px 12px}.inbox-filter-tabs{margin-right:-12px}.inbox-filter-tabs button{min-height:40px}.inbox-search{height:44px}.inbox-list>article{grid-template-columns:36px minmax(0,1fr);gap:9px;padding:14px 12px}.inbox-icon{width:36px;height:36px}.inbox-copy>div:first-child{align-items:flex-start;gap:6px}.inbox-copy>div:first-child span{font-size:8px}.inbox-copy time{font-size:10px}.inbox-copy strong{font-size:13px}.inbox-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px}.inbox-actions>a,.inbox-actions>button{width:100%;min-width:0;min-height:44px;white-space:normal}.inbox-actions>a:first-child{grid-column:1/-1}.inbox-updates article>a,.inbox-updates article>button{grid-column:1/-1;width:100%;justify-self:stretch}.inbox-redesign .ops-empty{padding:26px 16px}}
 @media(max-width:360px){.ops-shell .ops-page.inbox-workspace-page{padding-inline:10px}.inbox-redesign .inbox-hero h1{font-size:25px}.inbox-filter-tabs button{padding-inline:9px;font-size:10px}.inbox-list>article{grid-template-columns:minmax(0,1fr)}.inbox-list>article>.inbox-icon,.inbox-list>article>.inbox-copy,.inbox-list>article>.inbox-actions{grid-column:1}.inbox-list>article>.inbox-icon{margin-bottom:2px}.inbox-copy>div:first-child{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.inbox-redesign *{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* UI26 context-specific inbox panels; scoped here so shared workspace/public pages stay untouched. */
+.inbox-redesign .inbox-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+.inbox-redesign.creator .inbox-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+.inbox-redesign .inbox-summary article.notification-metric:before{background:#e66a47}
+.inbox-redesign .inbox-main-grid{grid-template-columns:minmax(0,2fr) minmax(280px,1fr)}
+.inbox-redesign .inbox-notification-list{display:grid;min-width:0}
+.inbox-redesign .inbox-notification-list article{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;cursor:default}
+.inbox-redesign .inbox-notification-copy{min-width:0}
+.inbox-redesign .inbox-notification-copy strong,.inbox-redesign .inbox-notification-copy p{overflow-wrap:anywhere}
+.inbox-redesign .inbox-notification-list article>button{min-height:40px;padding:7px 10px;border:1px solid #dce5f0;border-radius:8px;background:#fff;color:#556b84;font:650 11px/1.2 Inter,system-ui,sans-serif;cursor:pointer}
+.inbox-redesign .inbox-notification-list article>button:disabled{opacity:.55;cursor:wait}
+.inbox-redesign .inbox-notification-list article>a:focus-visible,.inbox-redesign .inbox-notification-list article>button:focus-visible{outline:3px solid rgba(244,81,43,.35);outline-offset:2px}
+@media(max-width:780px){.inbox-redesign .inbox-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.inbox-redesign.creator .inbox-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.inbox-redesign.project .inbox-support-column{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.inbox-redesign .inbox-summary,.inbox-redesign.creator .inbox-summary{grid-template-columns:minmax(0,1fr)}.inbox-redesign .inbox-notification-list article{grid-template-columns:minmax(0,1fr)}.inbox-redesign .inbox-notification-list article>button{justify-self:start;min-height:44px}}
