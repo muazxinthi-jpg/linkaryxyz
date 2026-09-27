@@ -11,11 +11,12 @@ const profiles = read('src/routes/profiles.ts');
 test('analytics overview follows the approved dashboard composition without fabricating social data', () => {
   for (const label of ['Analytics', 'Performance over time', 'Audience & socials', 'Top-performing profile links', 'Onchain & auction activity', 'Top campaigns & partners']) assert.match(page, new RegExp(label));
   assert.match(page, /X data/);
-  assert.match(page, /Awaiting provider snapshot/);
+  assert.match(page, /Awaiting linked X identity/);
   assert.doesNotMatch(page, /TwitterAPI\.io/i);
   assert.match(page, /monthlyProfileViews/);
   assert.match(page, /monthlyClicks/);
-  assert.match(page, /Social APIs not connected/);
+  assert.match(page, /Social metrics not connected/);
+  assert.doesNotMatch(page, /TwitterAPI|OAuth|Social APIs|Awaiting provider|Provider data/i);
   assert.match(page, /socialSources/);
   assert.match(page, /socialProfiles/);
   assert.match(page, /monthlySocialAudience/);
@@ -26,7 +27,7 @@ test('analytics overview follows the approved dashboard composition without fabr
   assert.match(page, /selectedPlatform/);
   assert.match(page, /analytics-social-detail/);
   assert.match(page, /aria-pressed/);
-  for (const section of ['Social growth', 'Channel performance', 'Top social content', 'Social activity']) assert.match(page, new RegExp(section));
+  for (const section of ['Social growth', 'Channel performance', 'Recent social content', 'Social activity']) assert.match(page, new RegExp(section));
   for (const tab of ['Overview', 'Social analytics', 'Campaigns & attribution', 'Onchain & auctions']) assert.match(page, new RegExp(tab));
   assert.match(page, /setTab\(id\)/);
   assert.match(page, /Onchain & auction activity/);
@@ -84,7 +85,7 @@ test('performance chart matches the Stitch dual-line visual language with accura
   assert.match(page, /function smoothPath/);
   assert.match(page, /analytics-click-fill/);
   assert.match(page, /analytics-y-label/);
-  assert.match(page, /Profile views and link clicks over time/);
+  assert.match(page, /aria-label=\{`\$\{legendLabels\[0\]\} and \$\{legendLabels\[1\]\} over time`\}/);
   assert.match(page, /selected\.profileViews\.toLocaleString\(\)/);
   assert.match(page, /selected\.linkClicks\.toLocaleString\(\)/);
   assert.match(css, /analytics-click-point/);
