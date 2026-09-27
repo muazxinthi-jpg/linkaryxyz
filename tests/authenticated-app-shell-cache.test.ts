@@ -8,7 +8,7 @@ const read = (path: string) => readFile(new URL(path, repo), 'utf8');
 test('authenticated app HTML and auth traffic recover stale pre-v5 bundles without deleting user state', async () => {
   const entry = await read('src/trackingEntry.ts');
 
-  assert.match(entry, /APP_SHELL_RELEASE = '2026-09-27-project-social-metrics-v1'/);
+  assert.match(entry, /APP_SHELL_RELEASE = '2026-09-09-private-network-v5'/);
   assert.match(entry, /APP_SHELL_RECOVERY_COOKIE = '__Host-linkary_shell_v5'/);
   assert.match(entry, /function appShellResponse\(request: Request, response: Response\)/);
   assert.match(entry, /function appApiCacheRecoveryResponse\(request: Request, response: Response\)/);
