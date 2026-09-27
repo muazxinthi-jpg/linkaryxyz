@@ -140,3 +140,47 @@
 @media(max-width:1180px){.analytics-filter-bar{grid-template-columns:repeat(3,minmax(0,1fr))}.analytics-filter-bar p{grid-column:1/-1}}
 @media(max-width:720px){.analytics-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}.analytics-filter-bar p{grid-column:1/-1}.analytics-performance{min-height:340px}.analytics-performance .analytics-trend svg{height:230px}}
 @media(max-width:420px){.analytics-filter-bar{grid-template-columns:1fr}.analytics-filter-bar p{grid-column:auto}.analytics-performance .analytics-trend svg{height:205px}.analytics-y-label{font-size:9px}}
+
+/* Project Social connections: reuse the Overview chart language and fill the
+   Stitch content panels with profile-scoped public metrics only. */
+.analytics-project-social{gap:14px}
+.analytics-project-social-growth{min-height:390px}
+.analytics-project-follower-chart{margin-top:14px}
+.analytics-project-follower-chart svg{height:300px}
+.analytics-project-follower-chart .analytics-view-line{fill:none;stroke:#c83b24;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
+.analytics-project-follower-chart .analytics-point{fill:#fff;stroke:#c83b24;stroke-width:2.4}
+.analytics-project-follower-chart .analytics-y-label{fill:#8794a3;font:10px var(--ui)}
+.analytics-project-follower-chart .analytics-axis{gap:12px;color:#8794a3}
+.analytics-project-follower-chart .analytics-axis span:last-child{text-align:right}
+.analytics-project-social-pair{display:grid;grid-template-columns:minmax(230px,.72fr) minmax(0,2fr);gap:14px;align-items:stretch}
+.analytics-project-audience{display:grid;grid-template-columns:112px minmax(0,1fr);align-content:start;column-gap:13px}
+.analytics-project-audience>header{grid-column:1/-1;margin-bottom:12px}
+.analytics-project-donut{display:grid;width:104px;height:104px;place-content:center;border-radius:50%;background:#edf0f3;box-shadow:inset 0 0 0 19px #fff;text-align:center}
+.analytics-project-donut.has-data{box-shadow:inset 0 0 0 19px #fff,0 10px 18px rgba(17,24,30,.05)}
+.analytics-project-donut b{color:#172b42;font-size:20px;letter-spacing:-.04em}
+.analytics-project-donut small{color:#89939c;font-size:9px}
+.analytics-project-audience-list{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:9px}
+.analytics-project-audience-list>div{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:7px;align-items:center}
+.analytics-project-audience-list i{width:8px;height:8px;border-radius:50%}
+.analytics-project-audience-list span{color:#596670;font-size:10px;overflow-wrap:anywhere}
+.analytics-project-audience-list strong{color:#172b42;font-size:11px}
+.analytics-project-audience-list .analytics-panel-empty{grid-column:1/-1;margin:0;padding:12px 0}
+.analytics-project-channels{min-width:0}
+.analytics-project-channels .analytics-social-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.analytics-project-channels .analytics-social-card-heading{min-width:0}
+.analytics-project-channels .analytics-social-card-heading>div{min-width:0}
+.analytics-project-channels .analytics-social-card-heading small{max-width:none}
+.analytics-project-channels .analytics-social-detail dl{grid-template-columns:repeat(5,minmax(0,1fr))}
+.analytics-project-social-lower{grid-template-columns:repeat(3,minmax(0,1fr))}
+.analytics-project-posts{display:grid;gap:9px;margin-top:13px}
+.analytics-project-posts>div{display:grid;grid-template-columns:22px minmax(70px,auto) minmax(50px,1fr) auto;gap:7px;align-items:center;padding:8px 0;border-top:1px solid #edf0ef}
+.analytics-project-posts>div>span{display:grid;width:19px;height:19px;place-items:center;border-radius:6px;background:#fff2ea;color:#c83b24;font-size:9px;font-weight:700}
+.analytics-project-posts>div>strong{color:#42505b;font-size:10px;font-weight:600}
+.analytics-project-posts>div>i{height:5px;overflow:hidden;border-radius:5px;background:#edf0ef}
+.analytics-project-posts>div>i>b{display:block;height:100%;border-radius:inherit;background:#f15a32}
+.analytics-project-posts>div>em{color:#26384b;font-size:10px;font-style:normal;font-weight:700;text-align:right}
+.analytics-project-posts>div>small{grid-column:2/-1;color:#75828d;font-size:9px;line-height:1.4;overflow-wrap:anywhere}
+@media(max-width:900px){.analytics-project-social-pair{grid-template-columns:1fr}.analytics-project-social-lower{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.analytics-project-follower-chart svg{height:230px}.analytics-project-social-lower{grid-template-columns:1fr}.analytics-project-channels .analytics-social-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-project-channels .analytics-social-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.analytics-project-follower-chart svg{height:205px}.analytics-project-audience{grid-template-columns:88px minmax(0,1fr)}.analytics-project-donut{width:82px;height:82px}.analytics-project-posts>div{grid-template-columns:20px minmax(68px,auto) minmax(34px,1fr) auto;gap:5px}.analytics-project-posts>div>small{font-size:8px}}
+

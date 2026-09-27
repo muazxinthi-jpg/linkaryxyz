@@ -519,6 +519,11 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
       return [{
         date: typeof post.date === 'string' ? post.date : latestXSnapshotDate,
         views: typeof post.views === 'number' ? post.views : null,
+        likes: typeof post.likes === 'number' ? post.likes : null,
+        reposts: typeof post.reposts === 'number' ? post.reposts : null,
+        replies: typeof post.replies === 'number' ? post.replies : null,
+        quotes: typeof post.quotes === 'number' ? post.quotes : null,
+        bookmarks: typeof post.bookmarks === 'number' ? post.bookmarks : null,
       }];
     })
     : [];
@@ -596,6 +601,9 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     monthlyProfileViews: monthlyClickSeries(profileViewMonthRows, profileViews),
     monthlySocialAudience: monthlySocialSeries(socialSnapshotRows.filter((row) => row.platform === 'x'), 'audience'),
     monthlySocialImpressions: monthlySocialSeries(socialSnapshotRows.filter((row) => row.platform === 'x'), 'impressions'),
+    socialAudienceSnapshots: socialSnapshotRows
+      .filter((row) => row.platform === 'x' && typeof row.audience === 'number')
+      .map((row) => ({ date: row.snapshot_date, followers: row.audience })),
     socialProfiles,
     socialSources: latestX?.audience != null ? [{ label: 'X followers', value: latestX.audience, color: '#121820' }] : [],
     socialContent,
@@ -1070,3 +1078,4 @@ export async function publishProfile(request: Request, env: Env, profileId: stri
   if (published) await rewardReferralOnProfilePublish(db, { id: profile.id, owner_user_id: profile.owner_user_id, profile_type: profile.profile_type, visibility: 'published' }, profile.visibility === 'published');
   return json({ ok: true, visibility: published ? 'published' : 'private' });
 }
+
