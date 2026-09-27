@@ -335,16 +335,16 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
       ? (tweetsPayload as Record<string, unknown>).tweets
       : null;
     if (userId && (!Array.isArray(recentTweets) || recentTweets.length === 0)) {
-      const timelineUrl = new URL('https://api.twitterapi.io/twitter/user/tweet_timeline');
-      timelineUrl.searchParams.set('userId', userId);
-      timelineUrl.searchParams.set('includeReplies', 'false');
-      const timelineResponse = await fetch(timelineUrl.toString(), requestOptions);
-      if (timelineResponse.ok) {
-        const timelinePayload: unknown = await timelineResponse.json();
-        const timelineTweets = timelinePayload && typeof timelinePayload === 'object' && !Array.isArray(timelinePayload)
-          ? (timelinePayload as Record<string, unknown>).tweets
+      const usernameTweetsUrl = new URL('https://api.twitterapi.io/twitter/user/last_tweets');
+      usernameTweetsUrl.searchParams.set('userName', handle);
+      usernameTweetsUrl.searchParams.set('includeReplies', 'false');
+      const usernameTweetsResponse = await fetch(usernameTweetsUrl.toString(), requestOptions);
+      if (usernameTweetsResponse.ok) {
+        const usernameTweetsPayload: unknown = await usernameTweetsResponse.json();
+        const usernameTweets = usernameTweetsPayload && typeof usernameTweetsPayload === 'object' && !Array.isArray(usernameTweetsPayload)
+          ? (usernameTweetsPayload as Record<string, unknown>).tweets
           : null;
-        if (Array.isArray(timelineTweets) && timelineTweets.length > 0) tweetsPayload = timelinePayload;
+        if (Array.isArray(usernameTweets) && usernameTweets.length > 0) tweetsPayload = usernameTweetsPayload;
       }
     }
     snapshot = summarizeXPublicMetrics(userPayload, tweetsPayload);
