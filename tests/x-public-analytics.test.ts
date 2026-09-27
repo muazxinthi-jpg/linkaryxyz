@@ -58,6 +58,8 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(refresh, /const userId = typeof user\.id === 'string'/);
   assert.match(refresh, /tweetsUrl\.searchParams\.set\('userId', userId\)/);
   assert.match(refresh, /const retryAfterMs = 15 \* 60 \* 1000/);
+  assert.match(refresh, /tweet_timeline/);
+  assert.match(refresh, /Array\.isArray\(timelineTweets\)/);
   assert.doesNotMatch(refresh, /ownership_verified_at/);
   assert.match(route, /socialProfiles,/);
   assert.match(route, /socialSources: latestX\?\.audience != null/);
