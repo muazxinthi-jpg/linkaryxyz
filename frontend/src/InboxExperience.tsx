@@ -6,8 +6,8 @@ import './inbox-redesign.css';
 
 type Role = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
 type Project = { id: string; name: string; role: Role; status: string; verification_status: string };
-type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; email: string | null };
-type MyAccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
+type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; username: string | null };
+type MyAcccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
 type Opportunity = { id: string; organization_id: string; title: string; campaign_name: string; applications: number; status: string };
 type Application = { id: string; status: string; note: string; created_at: string; profile_id: string; display_name: string; username: string; manager_name: string | null };
 type Campaign = { id: string; name: string; status: string };
@@ -107,6 +107,7 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   const [message, setMessage] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationLoadError, setNotificationLoadError] = useState(false);
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
   const [actionSearch, setActionSearch] = useState('');
   const [showAllNotifications, setShowAllNotifications] = useState(false);
@@ -119,37 +120,50 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   const [activationCandidateActivityId, setActivationCandidateActivityId] = useState('');
   const [activationForm, setActivationForm] = useState<ActivationForm>({ campaignId: '', mode: 'new', activityId: '', title: '', activityType: 'creator_content', destinationUrl: '', plannedCostUsd: '', communityId: '' });
 
-  function changeProfile(id: string) { setProfileId(id); window.localStorage.setItem('linkary.active.profile', id); }
+  function changeProfile(id: string) { setProfileId(id); setActionFilter('all'); setActionSearch(''); window.localStorage.setItem('linkary.active.profile', id); }
 
   async function load() {
     setLoading(true); setMessage('');
+    let partialFailure = false;
+    let notificationFailure = false;
     try {
       const [projectResult, myRequestResult, incomingInquiryResult, outgoingInquiryResult, notificationResult] = await Promise.all([
         api<{ organizations: Project[] }>('/api/organizations'),
-        api<{ requests: MyAccessRequest[] }>('/api/projects/access-requests/mine').catch(() => ({ requests: [] })),
-        api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => ({ inquiries: [] })),
-        api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => ({ inquiries: [] })),
-        api<{ notifications: Notification[]; unreadCount: number }>('/api/notifications').catch(() => ({ notifications: [], unreadCount: 0 })),
+        profile?.profile_type === 'creator'
+          ? api<{ requests: MyAccessRequest[] }>('/api/projects/access-requests/mine').catch(() => { partialFailure = true; return { requests: [] }; })
+          : Promise.resolve({ requests: [] as MyAccessRequest[] }),
+        profile?.profile_type === 'creator'
+          ? api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => { partialFailure = true; return { inquiries: [] }; })
+          : Promise.resolve({ inquiries: [] as CollaborationInquiry[] }),
+        profile?.profile_type === 'project'
+          ? api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => { partialFailure = true; return { inquiries: [] }; })
+          : Promise.resolve({ inquiries: [] as CollaborationInquiry[] }),
+        api<{ notifications: Notification[]; unreadCount: number }>('/api/notifications').catch(() => { partialFailure = true; notificationFailure = true; return { notifications: [], unreadCount: 0 }; }),
       ]);
       setNotifications(notificationResult.notifications); setUnreadNotifications(notificationResult.unreadCount);
-      const projectList = projectResult.organizations;
+      setNotificationLoadError(notificationFailure);
+      const projectList = profile?.profile_type === 'project' && profile.organization_id
+        ? projectResult.organizations.filter((project) => project.id === profile.organization_id)
+        : projectResult.organizations;
       setProjects(projectList);
       const actionItems: Action[] = [];
 
-      for (const inquiry of incomingInquiryResult.inquiries.filter((item) => item.status === 'pending')) {
-        actionItems.push({ id: `inquiry:${inquiry.id}`, kind: 'collaboration_inquiry', inquiry, occurredAt: inquiry.created_at, ownerRequired: false });
+      if (profile?.profile_type === 'creator') {
+        for (const inquiry of incomingInquiryResult.inquiries.filter((item) => item.status === 'pending' && item.target_profile_id === profile.id)) {
+          actionItems.push({ id: `inquiry:${inquiry.id}`, kind: 'collaboration_inquiry', inquiry, occurredAt: inquiry.created_at, ownerRequired: false });
+        }
       }
 
-      await Promise.all(projectList.map(async (project) => {
+      await Promise.all((profile?.profile_type === 'project' ? projectList : []).map(async (project) => {
         if (['owner', 'admin'].includes(project.role)) {
-          const access = await api<{ requests: AccessRequest[] }>(`/api/projects/${encodeURIComponent(project.id)}/access-requests`).catch(() => ({ requests: [] }));
+          const access = await api<{ requests: AccessRequest[] }>(`/api/projects/${encodeURIComponent(project.id)}/access-requests`).catch(() => { partialFailure = true; return { requests: [] }; });
           for (const request of access.requests) actionItems.push({ id: `access:${request.id}`, kind: 'project_access', project, request, occurredAt: request.created_at, ownerRequired: project.role === 'admin' && request.requested_role === 'admin' });
         }
         if (['owner', 'admin', 'marketing_manager'].includes(project.role)) {
-          const opportunityResult = await api<{ opportunities: Opportunity[] }>(`/api/campaign-opportunities?organizationId=${encodeURIComponent(project.id)}`).catch(() => ({ opportunities: [] }));
+          const opportunityResult = await api<{ opportunities: Opportunity[] }>(`/api/campaign-opportunities?organizationId=${encodeURIComponent(project.id)}`).catch(() => { partialFailure = true; return { opportunities: [] }; });
           const withApplications = opportunityResult.opportunities.filter((item) => Number(item.applications || 0) > 0).slice(0, 25);
           await Promise.all(withApplications.map(async (opportunity) => {
-            const applicationResult = await api<{ applications: Application[] }>(`/api/campaign-opportunity-applications?opportunityId=${encodeURIComponent(opportunity.id)}`).catch(() => ({ applications: [] }));
+            const applicationResult = await api<{ applications: Application[] }>(`/api/campaign-opportunity-applications?opportunityId=${encodeURIComponent(opportunity.id)}`).catch(() => { partialFailure = true; return { applications: [] }; });
             for (const application of applicationResult.applications.filter((item) => item.status === 'pending')) actionItems.push({ id: `application:${application.id}`, kind: 'opportunity_application', project, opportunity, application, occurredAt: application.created_at, ownerRequired: false });
           }));
         }
@@ -158,15 +172,18 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
       actionItems.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
       setActions(actionItems);
       setUpdates(myRequestResult.requests.filter((item) => ['approved', 'rejected'].includes(item.status)).slice(0, 30));
-      setSentInquiries(outgoingInquiryResult.inquiries.slice(0, 50));
+      setSentInquiries(profile?.profile_type === 'project' && profile.organization_id
+        ? outgoingInquiryResult.inquiries.filter((item) => item.organization_id === profile.organization_id).slice(0, 50)
+        : []);
+      if (partialFailure) setMessage('Some inbox items could not be loaded. Refresh to try again.');
     } catch { setMessage('Inbox is temporarily unavailable. Please try again shortly.'); }
     finally { setLoading(false); }
   }
 
-  async function markNotification(id: string) { const token = csrf(); if (!token) return; await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item)); setUnreadNotifications((count) => Math.max(0, count - 1)); }
-  async function markAllNotifications() { const token = csrf(); if (!token) return; await api('/api/notifications/read-all', { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); setUnreadNotifications(0); }
+  async function markNotification(id: string) { const item = notifications.find((notification) => notification.id === id); if (!item || item.read_at || busy === `notification:${id}`) return; const token = csrf(); if (!token) { setMessage('Refresh your secure session before updating notifications.'); return; } setBusy(`notification:${id}`); try { await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'x-csrf-token': token } }); setNotifications((items) => items.map((notification) => notification.id === id ? { ...notification, read_at: new Date().toISOString() } : notification)); setUnreadNotifications((count) => Math.max(0, count - 1)); } catch (error) { setMessage(error instanceof ApiError ? error.message : 'This notification could not be marked as read.'); } finally { setBusy(''); } }
+  async function markAllNotifications() { if (!unreadNotifications) return; const token = csrf(); if (!token) { setMessage('Refresh your secure session before updating notifications.'); return; } setBusy('notifications:all'); try { await api('/api/notifications/read-all', { method: 'POST', headers: { 'x-csrf-token': token } }); const readAt = new Date().toISOString(); setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || readAt }))); setUnreadNotifications(0); } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Notifications could not be marked as read.'); } finally { setBusy(''); } }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [profileId]);
 
   async function reviewAccess(action: Extract<Action, { kind: 'project_access' }>, decision: 'approve' | 'reject') {
     if (decision === 'reject' && !window.confirm(`Reject ${action.request.display_name}'s request to ${action.project.name}?`)) return;
@@ -354,7 +371,7 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
       if (actionFilter !== 'all' && action.kind !== actionFilter) return false;
       if (!query) return true;
       const searchable = action.kind === 'project_access'
-        ? [action.request.display_name, action.request.email, action.request.requested_role, action.request.note, action.project.name]
+        ? [action.request.display_name, action.request.username, action.request.requested_role, action.request.note, action.project.name]
         : action.kind === 'opportunity_application'
           ? [action.application.display_name, action.application.username, action.application.note, action.opportunity.title, action.opportunity.campaign_name, action.project.name]
           : [action.inquiry.project_name, action.inquiry.target_display_name, action.inquiry.target_username, action.inquiry.community_name, action.inquiry.campaign_name, action.inquiry.inquiry_type, action.inquiry.message, action.inquiry.deliverables];
