@@ -6,7 +6,7 @@ import './inbox-redesign.css';
 
 type Role = 'owner' | 'admin' | 'marketing_manager' | 'analyst' | 'viewer';
 type Project = { id: string; name: string; role: Role; status: string; verification_status: string };
-type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; email: string | null };
+type AccessRequest = { id: string; requested_role: string; note: string; created_at: string; display_name: string; username: string | null };
 type MyAccessRequest = { id: string; organization_id: string; name: string; username: string; requested_role: string; status: string; note: string; created_at: string };
 type Opportunity = { id: string; organization_id: string; title: string; campaign_name: string; applications: number; status: string };
 type Application = { id: string; status: string; note: string; created_at: string; profile_id: string; display_name: string; username: string; manager_name: string | null };
@@ -107,6 +107,7 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   const [message, setMessage] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationLoadError, setNotificationLoadError] = useState(false);
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
   const [actionSearch, setActionSearch] = useState('');
   const [showAllNotifications, setShowAllNotifications] = useState(false);
@@ -119,37 +120,50 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   const [activationCandidateActivityId, setActivationCandidateActivityId] = useState('');
   const [activationForm, setActivationForm] = useState<ActivationForm>({ campaignId: '', mode: 'new', activityId: '', title: '', activityType: 'creator_content', destinationUrl: '', plannedCostUsd: '', communityId: '' });
 
-  function changeProfile(id: string) { setProfileId(id); window.localStorage.setItem('linkary.active.profile', id); }
+  function changeProfile(id: string) { setProfileId(id); setActionFilter('all'); setActionSearch(''); window.localStorage.setItem('linkary.active.profile', id); }
 
   async function load() {
     setLoading(true); setMessage('');
+    let partialFailure = false;
+    let notificationFailure = false;
     try {
       const [projectResult, myRequestResult, incomingInquiryResult, outgoingInquiryResult, notificationResult] = await Promise.all([
         api<{ organizations: Project[] }>('/api/organizations'),
-        api<{ requests: MyAccessRequest[] }>('/api/projects/access-requests/mine').catch(() => ({ requests: [] })),
-        api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => ({ inquiries: [] })),
-        api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => ({ inquiries: [] })),
-        api<{ notifications: Notification[]; unreadCount: number }>('/api/notifications').catch(() => ({ notifications: [], unreadCount: 0 })),
+        profile?.profile_type === 'creator'
+          ? api<{ requests: MyAccessRequest[] }>('/api/projects/access-requests/mine').catch(() => { partialFailure = true; return { requests: [] }; })
+          : Promise.resolve({ requests: [] as MyAccessRequest[] }),
+        profile?.profile_type === 'creator'
+          ? api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=incoming').catch(() => { partialFailure = true; return { inquiries: [] }; })
+          : Promise.resolve({ inquiries: [] as CollaborationInquiry[] }),
+        profile?.profile_type === 'project'
+          ? api<{ inquiries: CollaborationInquiry[] }>('/api/project-partner-shortlists?inquiries=outgoing').catch(() => { partialFailure = true; return { inquiries: [] }; })
+          : Promise.resolve({ inquiries: [] as CollaborationInquiry[] }),
+        api<{ notifications: Notification[]; unreadCount: number }>('/api/notifications').catch(() => { partialFailure = true; notificationFailure = true; return { notifications: [], unreadCount: 0 }; }),
       ]);
       setNotifications(notificationResult.notifications); setUnreadNotifications(notificationResult.unreadCount);
-      const projectList = projectResult.organizations;
+      setNotificationLoadError(notificationFailure);
+      const projectList = profile?.profile_type === 'project' && profile.organization_id
+        ? projectResult.organizations.filter((project) => project.id === profile.organization_id)
+        : projectResult.organizations;
       setProjects(projectList);
       const actionItems: Action[] = [];
 
-      for (const inquiry of incomingInquiryResult.inquiries.filter((item) => item.status === 'pending')) {
-        actionItems.push({ id: `inquiry:${inquiry.id}`, kind: 'collaboration_inquiry', inquiry, occurredAt: inquiry.created_at, ownerRequired: false });
+      if (profile?.profile_type === 'creator') {
+        for (const inquiry of incomingInquiryResult.inquiries.filter((item) => item.status === 'pending' && item.target_profile_id === profile.id)) {
+          actionItems.push({ id: `inquiry:${inquiry.id}`, kind: 'collaboration_inquiry', inquiry, occurredAt: inquiry.created_at, ownerRequired: false });
+        }
       }
 
-      await Promise.all(projectList.map(async (project) => {
+      await Promise.all((profile?.profile_type === 'project' ? projectList : []).map(async (project) => {
         if (['owner', 'admin'].includes(project.role)) {
-          const access = await api<{ requests: AccessRequest[] }>(`/api/projects/${encodeURIComponent(project.id)}/access-requests`).catch(() => ({ requests: [] }));
+          const access = await api<{ requests: AccessRequest[] }>(`/api/projects/${encodeURIComponent(project.id)}/access-requests`).catch(() => { partialFailure = true; return { requests: [] }; });
           for (const request of access.requests) actionItems.push({ id: `access:${request.id}`, kind: 'project_access', project, request, occurredAt: request.created_at, ownerRequired: project.role === 'admin' && request.requested_role === 'admin' });
         }
         if (['owner', 'admin', 'marketing_manager'].includes(project.role)) {
-          const opportunityResult = await api<{ opportunities: Opportunity[] }>(`/api/campaign-opportunities?organizationId=${encodeURIComponent(project.id)}`).catch(() => ({ opportunities: [] }));
+          const opportunityResult = await api<{ opportunities: Opportunity[] }>(`/api/campaign-opportunities?organizationId=${encodeURIComponent(project.id)}`).catch(() => { partialFailure = true; return { opportunities: [] }; });
           const withApplications = opportunityResult.opportunities.filter((item) => Number(item.applications || 0) > 0).slice(0, 25);
           await Promise.all(withApplications.map(async (opportunity) => {
-            const applicationResult = await api<{ applications: Application[] }>(`/api/campaign-opportunity-applications?opportunityId=${encodeURIComponent(opportunity.id)}`).catch(() => ({ applications: [] }));
+            const applicationResult = await api<{ applications: Application[] }>(`/api/campaign-opportunity-applications?opportunityId=${encodeURIComponent(opportunity.id)}`).catch(() => { partialFailure = true; return { applications: [] }; });
             for (const application of applicationResult.applications.filter((item) => item.status === 'pending')) actionItems.push({ id: `application:${application.id}`, kind: 'opportunity_application', project, opportunity, application, occurredAt: application.created_at, ownerRequired: false });
           }));
         }
@@ -158,15 +172,18 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
       actionItems.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
       setActions(actionItems);
       setUpdates(myRequestResult.requests.filter((item) => ['approved', 'rejected'].includes(item.status)).slice(0, 30));
-      setSentInquiries(outgoingInquiryResult.inquiries.slice(0, 50));
+      setSentInquiries(profile?.profile_type === 'project' && profile.organization_id
+        ? outgoingInquiryResult.inquiries.filter((item) => item.organization_id === profile.organization_id).slice(0, 50)
+        : []);
+      if (partialFailure) setMessage('Some inbox items could not be loaded. Refresh to try again.');
     } catch { setMessage('Inbox is temporarily unavailable. Please try again shortly.'); }
     finally { setLoading(false); }
   }
 
-  async function markNotification(id: string) { const token = csrf(); if (!token) return; await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item)); setUnreadNotifications((count) => Math.max(0, count - 1)); }
-  async function markAllNotifications() { const token = csrf(); if (!token) return; await api('/api/notifications/read-all', { method: 'POST', headers: { 'x-csrf-token': token } }).catch(() => undefined); setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); setUnreadNotifications(0); }
+  async function markNotification(id: string) { const item = notifications.find((notification) => notification.id === id); if (!item || item.read_at || busy === `notification:${id}`) return; const token = csrf(); if (!token) { setMessage('Refresh your secure session before updating notifications.'); return; } setBusy(`notification:${id}`); try { await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'x-csrf-token': token } }); setNotifications((items) => items.map((notification) => notification.id === id ? { ...notification, read_at: new Date().toISOString() } : notification)); setUnreadNotifications((count) => Math.max(0, count - 1)); } catch (error) { setMessage(error instanceof ApiError ? error.message : 'This notification could not be marked as read.'); } finally { setBusy(''); } }
+  async function markAllNotifications() { if (!unreadNotifications) return; const token = csrf(); if (!token) { setMessage('Refresh your secure session before updating notifications.'); return; } setBusy('notifications:all'); try { await api('/api/notifications/read-all', { method: 'POST', headers: { 'x-csrf-token': token } }); const readAt = new Date().toISOString(); setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || readAt }))); setUnreadNotifications(0); } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Notifications could not be marked as read.'); } finally { setBusy(''); } }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [profileId]);
 
   async function reviewAccess(action: Extract<Action, { kind: 'project_access' }>, decision: 'approve' | 'reject') {
     if (decision === 'reject' && !window.confirm(`Reject ${action.request.display_name}'s request to ${action.project.name}?`)) return;
@@ -354,7 +371,7 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
       if (actionFilter !== 'all' && action.kind !== actionFilter) return false;
       if (!query) return true;
       const searchable = action.kind === 'project_access'
-        ? [action.request.display_name, action.request.email, action.request.requested_role, action.request.note, action.project.name]
+        ? [action.request.display_name, action.request.username, action.request.requested_role, action.request.note, action.project.name]
         : action.kind === 'opportunity_application'
           ? [action.application.display_name, action.application.username, action.application.note, action.opportunity.title, action.opportunity.campaign_name, action.project.name]
           : [action.inquiry.project_name, action.inquiry.target_display_name, action.inquiry.target_username, action.inquiry.community_name, action.inquiry.campaign_name, action.inquiry.inquiry_type, action.inquiry.message, action.inquiry.deliverables];
@@ -363,34 +380,51 @@ export default function InboxExperience({ me, status }: { me: ProductMe; status:
   }, [actions, actionFilter, actionSearch]);
 
   function renderAction(action: Action) {
-    if (action.kind === 'project_access') return <article key={action.id} className={action.ownerRequired ? 'restricted' : ''}><InboxActionIcon kind={action.kind}/><div className="inbox-copy"><div><span>PROJECT ACCESS</span><time>{date(action.occurredAt)}</time></div><strong>{action.request.display_name || action.request.email || 'Linkary member'} requested {human(action.request.requested_role)}</strong><small>{action.project.name}</small>{action.request.note && <p>{action.request.note}</p>}{action.ownerRequired && <p className="inbox-warning">Only the Project Owner can approve Project Admin access.</p>}</div><div className="inbox-actions"><NavLink to="/settings">Open Project</NavLink><button disabled={busy === action.id} onClick={() => void reviewAccess(action, 'reject')}>Reject</button><button className="primary" disabled={busy === action.id || action.ownerRequired} onClick={() => void reviewAccess(action, 'approve')}>Approve</button></div></article>;
+    if (action.kind === 'project_access') return <article key={action.id} className={action.ownerRequired ? 'restricted' : ''}><InboxActionIcon kind={action.kind}/><div className="inbox-copy"><div><span>PROJECT ACCESS</span><time>{date(action.occurredAt)}</time></div><strong>{action.request.display_name || (action.request.username ? `@${action.request.username}` : 'Linkary member')} requested {human(action.request.requested_role)}</strong><small>{action.request.username ? `@${action.request.username} · ` : ''}{action.project.name}</small>{action.request.note && <p>{action.request.note}</p>}{action.ownerRequired && <p className="inbox-warning">Project Owner approval required — Admin members cannot approve other Admin access requests.</p>}</div><div className="inbox-actions"><NavLink to="/settings">Open Project</NavLink><button disabled={busy === action.id} onClick={() => void reviewAccess(action, 'reject')}>Reject</button><button className="primary" disabled={busy === action.id || action.ownerRequired} onClick={() => void reviewAccess(action, 'approve')}>Approve</button></div></article>;
     if (action.kind === 'opportunity_application') return <article key={action.id}><InboxActionIcon kind={action.kind}/><div className="inbox-copy"><div><span>CAMPAIGN APPLICATION</span><time>{date(action.occurredAt)}</time></div><strong>{action.application.display_name} applied to {action.opportunity.title}</strong><small>{action.opportunity.campaign_name} · {action.project.name}</small>{action.application.note && <p>{action.application.note}</p>}</div><div className="inbox-actions"><NavLink to="/campaigns">Open Growth</NavLink><button disabled={busy === action.id} onClick={() => void reviewApplication(action, 'rejected')}>Reject</button><button className="primary" disabled={busy === action.id} onClick={() => void reviewApplication(action, 'accepted')}>Accept</button></div></article>;
     const inquiry = action.inquiry;
     return <article key={action.id} className="collaboration-inquiry"><InboxActionIcon kind={action.kind}/><div className="inbox-copy"><div><span>COLLABORATION INQUIRY</span><time>{date(action.occurredAt)}</time></div><strong>{inquiry.project_name} wants to discuss {human(inquiry.inquiry_type)}</strong><small>{inquiry.community_name ? `${inquiry.community_name} · ${human(inquiry.community_verification_status || 'unverified')}` : inquiry.target_kind === 'community_manager' ? 'General Community Manager inquiry' : `@${inquiry.target_username}`}</small><div className="inbox-inquiry-meta">{inquiry.campaign_name && <span>Campaign: {inquiry.campaign_name}</span>}<span>{money(inquiry.budget_usd)}</span>{inquiry.community_name && <span>Community proof stays {human(inquiry.community_verification_status || 'unverified')}</span>}</div><p>{inquiry.message}</p>{inquiry.deliverables && <p><strong>Expected scope:</strong> {inquiry.deliverables}</p>}</div><div className="inbox-actions"><button disabled={busy === action.id} onClick={() => void reviewInquiry(action, 'declined')}>Decline</button><button className="primary" disabled={busy === action.id} onClick={() => void reviewInquiry(action, 'accepted')}>Accept</button></div></article>;
   }
 
   if (!profile) return null;
+  const isCreator = profile.profile_type === 'creator';
+  const queueFilters: { id: ActionFilter; label: string }[] = isCreator
+    ? [{ id: 'all', label: 'All' }, { id: 'collaboration_inquiry', label: 'Collaboration' }]
+    : [{ id: 'all', label: 'All' }, { id: 'project_access', label: 'Project access' }, { id: 'opportunity_application', label: 'Campaign applications' }];
+  const profileUpdates = isCreator ? updates : updates.filter((item) => item.organization_id === profile.organization_id);
   return <ProductWorkspace me={me} status={status} profile={profile as ProductProfile} onProfileChange={changeProfile}>
-    <div className="ops-stack inbox-workspace inbox-redesign">
-      <div className="ops-heading-row inbox-hero"><div><span className="ops-kicker">INBOX · CREATOR WORKSPACE</span><h1>What needs your attention</h1><p>Project access, campaign decisions and collaboration inquiries that need your next action. Linkary keeps this focused instead of turning it into another noisy chat feed.</p></div><button className="ops-button secondary" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing...' : '↻ Refresh inbox'}</button></div>
+    <div className={`ops-stack inbox-workspace inbox-redesign ${isCreator ? 'creator' : 'project'}`}>
+      <div className="ops-heading-row inbox-hero"><div><span className="ops-kicker">INBOX · {isCreator ? 'CREATOR' : 'PROJECT'} WORKSPACE</span>{!isCreator && <span className="inbox-project-context">{profile.display_name}</span>}<h1>What needs your attention</h1><p>{isCreator ? 'Collaboration inquiries and Project access decisions that need your next action.' : 'Project access requests and campaign applications that need your team’s attention.'} Linkary keeps this focused instead of turning it into another noisy chat feed.</p></div><button className="ops-button secondary" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing...' : '↻ Refresh inbox'}</button></div>
       {message && <div className="ops-message">{message}</div>}
-      <section className="inbox-summary"><article className="action-metric"><span>ACTION REQUIRED</span><strong>{loading ? '—' : actionable.length}</strong><small>Decisions you can make now</small></article><article className="owner-metric"><span>OWNER REQUIRED</span><strong>{loading ? '—' : ownerRequired.length}</strong><small>Restricted Project Admin requests</small></article><article className="sent-metric"><span>SENT INQUIRIES</span><strong>{loading ? '—' : pendingSent}</strong><small>Pending partner responses</small></article></section>
+      <section className="inbox-summary">{isCreator ? <>
+        <article className="action-metric"><span>COLLABORATION REQUESTS</span><strong>{loading ? '—' : actions.filter((item) => item.kind === 'collaboration_inquiry').length}</strong><small>Inquiries awaiting your response</small></article>
+        <article className="owner-metric"><span>UNREAD NOTIFICATIONS</span><strong>{loading || notificationLoadError ? '—' : unreadNotifications}</strong><small>Updates for your Linkary account</small></article>
+        <article className="sent-metric"><span>PROJECT ACCESS UPDATES</span><strong>{loading ? '—' : profileUpdates.length}</strong><small>Recent decisions on your requests</small></article>
+      </> : <>
+        <article className="action-metric"><span>ACTION REQUIRED</span><strong>{loading ? '—' : actionable.length}</strong><small>Decisions you can make now</small></article>
+        <article className="owner-metric"><span>OWNER REQUIRED</span><strong>{loading ? '—' : ownerRequired.length}</strong><small>Project Owner approval required</small></article>
+        <article className="sent-metric"><span>SENT INQUIRIES</span><strong>{loading ? '—' : pendingSent}</strong><small>Pending partner responses</small></article>
+        <article className="notification-metric"><span>UNREAD NOTIFICATIONS</span><strong>{loading || notificationLoadError ? '—' : unreadNotifications}</strong><small>Updates for your Linkary account</small></article>
+      </>}</section>
 
       <div className="inbox-main-grid">
-        <section className="ops-section inbox-decisions"><div className="ops-section-title"><div><h2>Pending decisions <span className="inbox-section-count">{loading ? '—' : actions.length}</span></h2><p>Oldest pending items first · Filter and search this inbox.</p></div></div>
-          <div className="inbox-toolbar"><div className="inbox-filter-tabs" role="group" aria-label="Filter pending decisions">{([{ id: 'all', label: 'All' }, { id: 'project_access', label: 'Project access' }, { id: 'opportunity_application', label: 'Campaign applications' }, { id: 'collaboration_inquiry', label: 'Collaboration' }] as const).map((filter) => <button key={filter.id} type="button" className={actionFilter === filter.id ? 'active' : ''} onClick={() => setActionFilter(filter.id)}>{filter.label}<span>{filter.id === 'all' ? actions.length : actions.filter((item) => item.kind === filter.id).length}</span></button>)}</div><label className="inbox-search"><span className="sr-only">Search pending decisions</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input value={actionSearch} onChange={(event) => setActionSearch(event.target.value)} placeholder="Search people, projects, campaigns…" /></label></div>
-          {loading ? <div className="ops-loading">Checking Project, campaign and collaboration activity...</div> : !actions.length ? <div className="ops-empty"><div className="ops-empty-icon">✓</div><h3>Nothing waiting on you</h3><p>New Project access requests, campaign applications and collaboration inquiries will appear here when they need a decision.</p></div> : !visibleActions.length ? <div className="ops-empty compact"><p>No pending decisions match this filter. Try another type or search.</p><button className="ops-button secondary" onClick={() => { setActionFilter('all'); setActionSearch(''); }}>Clear filters</button></div> : <div className="inbox-list">{visibleActions.map(renderAction)}</div>}
+        <section className="ops-section inbox-decisions"><div className="ops-section-title"><div><h2>{isCreator ? 'Pending collaboration requests' : 'Pending decisions'} <span className="inbox-section-count">{loading ? '—' : actions.length}</span></h2><p>{isCreator ? 'Review inquiries sent to this Creator profile.' : 'Oldest pending items first · Filter and search this inbox.'}</p></div></div>
+          <div className="inbox-toolbar"><div className="inbox-filter-tabs" role="group" aria-label="Filter pending decisions">{queueFilters.map((filter) => <button key={filter.id} type="button" className={actionFilter === filter.id ? 'active' : ''} onClick={() => setActionFilter(filter.id)}>{filter.label}<span>{filter.id === 'all' ? actions.length : actions.filter((item) => item.kind === filter.id).length}</span></button>)}</div><label className="inbox-search"><span className="sr-only">Search pending decisions</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input value={actionSearch} onChange={(event) => setActionSearch(event.target.value)} placeholder="Search people, projects, campaigns…" /></label></div>
+          {loading ? <div className="ops-loading">Checking your inbox…</div> : !actions.length ? <div className="ops-empty"><div className="ops-empty-icon">✓</div><h3>Nothing waiting on you</h3><p>{isCreator ? 'New collaboration inquiries will appear here when they need your response.' : 'New Project access requests and campaign applications will appear here when they need a decision.'}</p></div> : !visibleActions.length ? <div className="ops-empty compact"><p>No pending decisions match this filter. Try another type or search.</p><button className="ops-button secondary" onClick={() => { setActionFilter('all'); setActionSearch(''); }}>Clear filters</button></div> : <div className="inbox-list">{visibleActions.map(renderAction)}</div>}
         </section>
         <aside className="inbox-support-column">
-          <section className="ops-section inbox-notifications"><div className="ops-section-title"><div><h2>Notifications {unreadNotifications > 0 && <span className="inbox-unread-count">{unreadNotifications}</span>}</h2><p>Updates from your projects, campaigns and collaboration activity.</p></div>{unreadNotifications > 0 && <button className="ops-button secondary" onClick={() => void markAllNotifications()}>Mark all read</button>}</div>{!notifications.length ? <div className="ops-empty compact"><p>No notifications yet.</p></div> : <div className="inbox-notification-list">{(showAllNotifications ? notifications : notifications.slice(0, 5)).map((item) => <article key={item.id} className={item.read_at ? '' : 'unread'} onClick={() => { if (!item.read_at) void markNotification(item.id); }}>{item.href ? <NavLink to={item.href}><strong>{item.title}</strong></NavLink> : <strong>{item.title}</strong>}<p>{item.body}</p><time>{date(item.created_at)}</time></article>)}</div>}{notifications.length > 5 && <button className="inbox-view-all" onClick={() => setShowAllNotifications((value) => !value)}>{showAllNotifications ? 'Show recent notifications' : `View all ${notifications.length} notifications`}</button>}</section>
-          <section className="ops-section inbox-access-updates"><div className="ops-section-title"><div><h2>Project access updates</h2><p>Recent decisions on Project roles you requested.</p></div></div>{!updates.length ? <div className="ops-empty compact"><p>No recent Project access decisions.</p></div> : <div className="inbox-updates">{updates.map((item) => <article key={item.id}><span className={`inbox-update-state ${item.status}`}>{human(item.status)}</span><div><strong>{item.name}</strong><small>{human(item.requested_role)} access · @{item.username}</small></div>{item.status === 'approved' ? <button onClick={() => window.location.reload()}>Refresh workspaces</button> : <NavLink to="/settings">View Projects</NavLink>}</article>)}</div>}</section>
+          <section className="ops-section inbox-notifications"><div className="ops-section-title"><div><h2>Notifications {!notificationLoadError && unreadNotifications > 0 && <span className="inbox-unread-count">{unreadNotifications}</span>}</h2><p>Updates from your projects, campaigns and collaboration activity.</p></div>{!notificationLoadError && unreadNotifications > 0 && <button className="ops-button secondary" disabled={busy === 'notifications:all'} onClick={() => void markAllNotifications()}>{busy === 'notifications:all' ? 'Marking…' : 'Mark all read'}</button>}</div>{notificationLoadError ? <div className="ops-empty compact"><p>Notifications couldn’t load. Refresh to try again.</p></div> : !notifications.length ? <div className="ops-empty compact"><p>No notifications yet.</p></div> : <div className="inbox-notification-list">{(showAllNotifications ? notifications : notifications.slice(0, 5)).map((item) => <article key={item.id} className={item.read_at ? '' : 'unread'}><div className="inbox-notification-copy">{item.href ? <NavLink to={item.href} onClick={() => { if (!item.read_at) void markNotification(item.id); }}><strong>{item.title}</strong></NavLink> : <strong>{item.title}</strong>}<p>{item.body}</p><time>{date(item.created_at)}</time></div>{!item.read_at && <button type="button" disabled={busy === `notification:${item.id}`} onClick={() => void markNotification(item.id)}>{busy === `notification:${item.id}` ? 'Saving…' : 'Mark read'}</button>}</article>)}</div>}{notifications.length > 5 && <button className="inbox-view-all" onClick={() => setShowAllNotifications((value) => !value)}>{showAllNotifications ? 'Show recent notifications' : 'View all loaded notifications'}</button>}</section>
+          {isCreator && <section className="ops-section inbox-access-updates"><div className="ops-section-title"><div><h2>Project access updates</h2><p>Recent decisions on Project roles you requested.</p></div></div>{!profileUpdates.length ? <div className="ops-empty compact"><p>No recent Project access decisions.</p></div> : <div className="inbox-updates">{profileUpdates.map((item) => <article key={item.id}><span className={`inbox-update-state ${item.status}`}>{human(item.status)}</span><div><strong>{item.name}</strong><small>{human(item.requested_role)} access · @{item.username}</small></div>{item.status === 'approved' ? <button onClick={() => window.location.reload()}>Refresh workspaces</button> : <NavLink to="/settings">View Projects</NavLink>}</article>)}</div>}</section>}
         </aside>
       </div>
 
-      <section className="ops-section inbox-sent-section"><div className="ops-section-title"><div><h2>Collaboration inquiries you sent</h2><p>Accepted means the partner is open to discussion. Campaign activation is a separate explicit Project action, and proof still requires tracked or verified evidence.</p></div></div>{loading ? <div className="ops-loading">Loading sent inquiries...</div> : !sentInquiries.length ? <div className="ops-empty compact"><p>No collaboration inquiries sent yet. Start from Partner Discovery when a Creator or Community Manager looks relevant.</p></div> : <div className="inbox-sent-inquiries">{sentInquiries.map((inquiry) => {
-        const project = projects.find((item) => item.id === inquiry.organization_id);
-        return <article key={inquiry.id}><span className={`inbox-update-state ${inquiry.status}`}>{human(inquiry.status)}</span><div className="inbox-sent-copy"><strong>{inquiry.target_display_name} · {human(inquiry.inquiry_type)}</strong><small>{inquiry.project_name}{inquiry.community_name ? ` · ${inquiry.community_name} (${human(inquiry.community_verification_status || 'unverified')})` : ''}{inquiry.campaign_name ? ` · ${inquiry.campaign_name}` : ''} · {money(inquiry.budget_usd)}</small><p>{inquiry.message}</p>{inquiry.activated_activity_id && <div className="inbox-activation-state"><strong>Activated in campaign</strong><span>{inquiry.activated_campaign_name} · {inquiry.activated_activity_title}</span></div>}</div><div className="inbox-sent-actions">{inquiry.status === 'pending' && <button disabled={busy === `sent:${inquiry.id}`} onClick={() => void withdrawInquiry(inquiry)}>Withdraw</button>}{inquiry.status === 'accepted' && !inquiry.activated_activity_id && <button className="inbox-activate-button" disabled={!canActivate(project) || busy === `activate:${inquiry.id}`} onClick={() => void openActivation(inquiry)}>Activate in campaign</button>}{inquiry.activated_activity_id && <NavLink to={`/tracking?project=${encodeURIComponent(inquiry.organization_id)}&campaign=${encodeURIComponent(inquiry.activated_campaign_id || '')}`}>Open Evidence</NavLink>}</div></article>;
-      })}</div>}</section>
+      {!isCreator ? <section className="ops-section inbox-sent-section">
+        <div className="ops-section-title"><div><h2>Collaboration inquiries you sent</h2><p>Accepted means the partner is open to discussion. Campaign activation is a separate explicit Project action, and proof still requires tracked or verified evidence.</p></div></div>
+        {loading ? <div className="ops-loading">Loading sent inquiries...</div> : !sentInquiries.length ? <div className="ops-empty compact"><p>No collaboration inquiries sent yet. Start from Partner Discovery when a Creator or Community Manager looks relevant.</p></div> : <div className="inbox-sent-inquiries">{sentInquiries.map((inquiry) => {
+          const project = projects.find((item) => item.id === inquiry.organization_id);
+          return <article key={inquiry.id}><span className={`inbox-update-state ${inquiry.status}`}>{human(inquiry.status)}</span><div className="inbox-sent-copy"><strong>{inquiry.target_display_name} · {human(inquiry.inquiry_type)}</strong><small>{inquiry.project_name}{inquiry.community_name ? ` · ${inquiry.community_name} (${human(inquiry.community_verification_status || 'unverified')})` : ''}{inquiry.campaign_name ? ` · ${inquiry.campaign_name}` : ''} · {money(inquiry.budget_usd)}</small><p>{inquiry.message}</p>{inquiry.activated_activity_id && <div className="inbox-activation-state"><strong>Activated in campaign</strong><span>{inquiry.activated_campaign_name} · {inquiry.activated_activity_title}</span></div>}</div><div className="inbox-sent-actions">{inquiry.status === 'pending' && <button disabled={busy === `sent:${inquiry.id}`} onClick={() => void withdrawInquiry(inquiry)}>Withdraw</button>}{inquiry.status === 'accepted' && !inquiry.activated_activity_id && <button className="inbox-activate-button" disabled={!canActivate(project) || busy === `activate:${inquiry.id}`} onClick={() => void openActivation(inquiry)}>Activate in campaign</button>}{inquiry.activated_activity_id && <NavLink to={`/tracking?project=${encodeURIComponent(inquiry.organization_id)}&campaign=${encodeURIComponent(inquiry.activated_campaign_id || '')}`}>Open Evidence</NavLink>}</div></article>;
+        })}</div>}
+      </section> : null}
 
       {activationTarget && <div className="ops-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !busy.startsWith('activate:')) setActivationTarget(null); }}><section className="ops-modal inquiry-activation-modal">
         <div className="ops-modal-head"><div><span className="ops-kicker">EXPLICIT CAMPAIGN ACTIVATION</span><h2>Activate {activationTarget.target_display_name}</h2></div><button disabled={busy.startsWith('activate:')} onClick={() => setActivationTarget(null)}>×</button></div>
