@@ -62,4 +62,3 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(page, /X deep analytics/);
   assert.doesNotMatch(page, /TwitterAPI\.io|TwitterAPI|OAuth/i);
 });
-
