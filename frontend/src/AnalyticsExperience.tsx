@@ -96,13 +96,14 @@ function SoftLineChart({ data, interval = 'day', emptyNote = 'No recorded profil
   </div>;
 }
 
-function SocialSources({ sources = [] }: { sources?: SocialSource[] }) {
+function SocialSources({ sources = [], compact = false }: { sources?: SocialSource[]; compact?: boolean }) {
   const rows = [['X followers', 'Awaiting linked X identity'], ['Telegram', 'Connect Telegram to view metrics'], ['YouTube', 'Coming soon'], ['Instagram', 'Coming soon']]; const total = sources.reduce((sum, source) => sum + source.value, 0); const colors = ['#1769e8', '#23a5e8', '#ee4a7c', '#8a54ea', '#c7cfda']; let progress = 0;
   const segments = total ? sources.map((source, index) => { const start = progress; progress += source.value / total * 100; return `${source.color || colors[index % colors.length]} ${start}% ${progress}%`; }).join(',') : '';
-  return <article className="analytics-panel analytics-audience"><header><div><h2>Audience & socials</h2><p>Connected social accounts populate automatically.</p></div><span>Social metrics</span></header><div className={`analytics-donut ${total ? 'has-data' : ''}`} style={total ? { background: `conic-gradient(${segments})` } : undefined}><b>{total ? total.toLocaleString() : '—'}</b><small>{total ? 'audience\nsize' : 'no social\nmetrics yet'}</small></div><div className="analytics-social-list">{total ? sources.map((source, index) => <div key={source.label}><i style={{ background: source.color || colors[index % colors.length] }} /><strong>{source.label}</strong><small>{source.value.toLocaleString()} followers</small></div>) : rows.map(([label, state]) => <div key={label}><i /><strong>{label}</strong><small>{state}</small></div>)}</div></article>;
+  if (compact) return <article className="analytics-panel analytics-audience analytics-audience-compact"><header><div><h2>Audience & socials</h2><p>Latest audience snapshots by connected source.</p></div><span>{sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'}` : 'Social metrics'}</span></header>{sources.length ? <div className="analytics-audience-source-list">{sources.map((source, index) => <div key={source.label}><i style={{ background: source.color || colors[index % colors.length] }} /><span>{source.label}</span><strong>{source.value.toLocaleString()}</strong></div>)}</div> : <p className="analytics-panel-empty">No audience snapshot is available yet.</p>}</article>;
+  return <article className="analytics-panel analytics-audience"><header><div><h2>Audience & socials</h2><p>Connected sources populate automatically.</p></div><span>Social metrics</span></header><div className={`analytics-donut ${total ? 'has-data' : ''}`} style={total ? { background: `conic-gradient(${segments})` } : undefined}><b>{total ? total.toLocaleString() : '—'}</b><small>{total ? 'audience\nsize' : 'no social\nmetrics yet'}</small></div><div className="analytics-social-list">{total ? sources.map((source, index) => <div key={source.label}><i style={{ background: source.color || colors[index % colors.length] }} /><strong>{source.label}</strong><small>{source.value.toLocaleString()} followers</small></div>) : rows.map(([label, state]) => <div key={label}><i /><strong>{label}</strong><small>{state}</small></div>)}</div></article>;
 }
 
-function SocialAnalytics({ profiles = [], sources = [], audience = [], impressions = [], content = [] }: { profiles?: SocialProfile[]; sources?: SocialSource[]; audience?: Point[]; impressions?: Point[]; content?: SocialContentItem[] }) {
+function SocialAnalytics({ profiles = [], sources = [], snapshots = [], content = [] }: { profiles?: SocialProfile[]; sources?: SocialSource[]; snapshots?: SocialAudienceSnapshot[]; content?: SocialContentItem[]; audience?: Point[]; impressions?: Point[] }) {
   const platforms = [
     { platform: 'X data', short: 'X', color: '#121820', state: 'Awaiting X public metrics' },
     { platform: 'Telegram', short: 'TG', color: '#239bd8', state: 'Connect Telegram to view its metrics' },
@@ -113,13 +114,13 @@ function SocialAnalytics({ profiles = [], sources = [], audience = [], impressio
   ];
   const values = new Map(profiles.map((profile) => [profile.platform.toLowerCase(), profile]));
   const [selectedPlatform, setSelectedPlatform] = useState('X data');
-  const latest = (points: Point[]) => points.length ? points[points.length - 1].count.toLocaleString() : '—';
-  const totalEngagements = profiles.reduce((sum, profile) => sum + (profile.engagements || 0), 0);
-  const totalClicks = profiles.reduce((sum, profile) => sum + (profile.clicks || 0), 0);
-  const hasAudience = audience.length > 0 || profiles.some((profile) => typeof profile.audience === 'number');
-  const hasImpressions = impressions.length > 0 || profiles.some((profile) => typeof profile.impressions === 'number');
-  const hasEngagements = profiles.some((profile) => typeof profile.engagements === 'number');
-  const hasClicks = profiles.some((profile) => typeof profile.clicks === 'number');
+  const xProfile = values.get('x data');
+  const xMetrics = xProfile?.metrics || {};
+  const metric = (key: string, fallback?: number) => typeof xMetrics[key] === 'number' ? xMetrics[key] : fallback;
+  const followers = metric('followers', xProfile?.audience);
+  const postViews = metric('recent_post_views', xProfile?.impressions);
+  const engagements = metric('public_engagements', xProfile?.engagements);
+  const clicks = metric('linkary_clicks', xProfile?.clicks);
   const selectedProfile = values.get(selectedPlatform.toLowerCase());
   const selectedDefinition = platforms.find((platform) => platform.platform === selectedPlatform) || platforms[0];
   const metricSets: Record<string, string[]> = {
@@ -148,39 +149,41 @@ function SocialAnalytics({ profiles = [], sources = [], audience = [], impressio
     };
     return typeof fallback[key] === 'number' ? fallback[key]!.toLocaleString() : '—';
   };
-  const impressionsByMonth = new Map(impressions.map((point) => [point.month, point.count]));
-  const chartData = audience.map((point) => ({ date: point.month, profileViews: point.count, linkClicks: impressionsByMonth.get(point.month) || 0 }));
   const maxViews = Math.max(1, ...content.map((post) => post.views || 0));
-  const xProfile = values.get('x data');
-  const xMetricsReady = typeof xProfile?.audience === 'number';
+  const xMetricsReady = typeof followers === 'number' || typeof postViews === 'number' || typeof engagements === 'number';
 
   return <div className="analytics-social-dashboard">
     <section className="analytics-social-summary">
-      <article><span>Social audience</span><strong>{latest(audience)}</strong><small>{hasAudience ? 'Latest X follower count' : 'Awaiting linked X identity'}</small></article>
-      <article><span>Recent post views</span><strong>{latest(impressions)}</strong><small>{hasImpressions ? 'Across sampled public posts' : 'Awaiting X post metrics'}</small></article>
-      <article><span>Public engagements</span><strong>{hasEngagements ? totalEngagements.toLocaleString() : '—'}</strong><small>{hasEngagements ? 'Likes, reposts, replies and quotes' : 'Awaiting X post metrics'}</small></article>
-      <article><span>Linkary clicks</span><strong>{hasClicks ? totalClicks.toLocaleString() : '—'}</strong><small>Tracked first-party link clicks</small></article>
+      <article><span>X followers</span><strong>{typeof followers === 'number' ? followers.toLocaleString() : '—'}</strong><small>{xProfile?.status || 'Latest public profile snapshot'}</small></article>
+      <article><span>Recent public post views</span><strong>{typeof postViews === 'number' ? postViews.toLocaleString() : '—'}</strong><small>{typeof postViews === 'number' ? 'Across sampled public posts' : 'Shown when public view counts are available'}</small></article>
+      <article><span>Public engagements</span><strong>{typeof engagements === 'number' ? engagements.toLocaleString() : '—'}</strong><small>{typeof engagements === 'number' ? 'Likes, reposts, replies and quotes' : 'Measured public interactions across sampled posts'}</small></article>
+      <article><span>Linkary clicks</span><strong>{typeof clicks === 'number' ? clicks.toLocaleString() : '—'}</strong><small>Tracked first-party link clicks</small></article>
     </section>
     <section className="analytics-primary-grid analytics-social-primary">
       <article className="analytics-panel analytics-performance">
-        <header><div><h2>Social growth</h2><p>Follower audience and sampled post-view snapshots.</p></div><span>Last 12 months</span></header>
-        <SoftLineChart data={chartData} interval="month" emptyNote="Connect an X identity to start tracking public follower and post metrics." legendLabels={['X followers', 'Recent post views']} />
+        <header><div><h2>Social growth</h2><p>Dated public follower snapshots. New snapshots extend this trend over time.</p></div><span>{snapshots.length ? `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'}` : 'Public metrics'}</span></header>
+        <ProjectFollowerChart snapshots={snapshots} currentFollowers={followers} />
       </article>
-      <SocialSources sources={sources} />
+      <SocialSources sources={sources} compact />
     </section>
     <article className="analytics-panel analytics-social-analytics">
       <header><div><h2>Channel performance</h2><p>Select a social network to inspect its metrics.</p></div><span>Social metrics</span></header>
       <div className="analytics-social-cards">{platforms.map((platform) => {
         const profile = values.get(platform.platform.toLowerCase());
-        const hasData = Boolean(profile && [profile.audience, profile.impressions, profile.engagements, profile.clicks].some((value) => typeof value === 'number'));
+        const profileMetrics = profile?.metrics || {};
+        const profileAudience = typeof profileMetrics.followers === 'number' ? profileMetrics.followers : profile?.audience;
+        const profileViews = typeof profileMetrics.recent_post_views === 'number' ? profileMetrics.recent_post_views : profile?.impressions;
+        const profileEngagements = typeof profileMetrics.public_engagements === 'number' ? profileMetrics.public_engagements : profile?.engagements;
+        const profileClicks = typeof profileMetrics.linkary_clicks === 'number' ? profileMetrics.linkary_clicks : profile?.clicks;
+        const hasData = Boolean(profile && [profileAudience, profileViews, profileEngagements, profileClicks].some((value) => typeof value === 'number'));
         const isX = platform.platform === 'X data';
         return <button type="button" className={'analytics-social-card ' + (hasData ? 'has-data ' : '') + (selectedPlatform === platform.platform ? 'selected' : '')} key={platform.platform} onClick={() => setSelectedPlatform(platform.platform)} aria-pressed={selectedPlatform === platform.platform}>
           <div className="analytics-social-card-heading"><i style={{ background: platform.color }}>{platform.short}</i><div><strong>{platform.platform}</strong><small>{profile?.status || platform.state}</small></div></div>
           <dl>
-            <div><dt>{isX ? 'Followers' : 'Audience'}</dt><dd>{typeof profile?.audience === 'number' ? profile.audience.toLocaleString() : '—'}</dd></div>
-            <div><dt>{isX ? 'Recent post views' : 'Impressions'}</dt><dd>{typeof profile?.impressions === 'number' ? profile.impressions.toLocaleString() : '—'}</dd></div>
-            <div><dt>{isX ? 'Public engagements' : 'Engagements'}</dt><dd>{typeof profile?.engagements === 'number' ? profile.engagements.toLocaleString() : '—'}</dd></div>
-            <div><dt>{isX ? 'Linkary clicks' : 'Link clicks'}</dt><dd>{typeof profile?.clicks === 'number' ? profile.clicks.toLocaleString() : '—'}</dd></div>
+            <div><dt>{isX ? 'Followers' : 'Audience'}</dt><dd>{typeof profileAudience === 'number' ? profileAudience.toLocaleString() : '—'}</dd></div>
+            <div><dt>{isX ? 'Recent post views' : 'Impressions'}</dt><dd>{typeof profileViews === 'number' ? profileViews.toLocaleString() : '—'}</dd></div>
+            <div><dt>{isX ? 'Public engagements' : 'Engagements'}</dt><dd>{typeof profileEngagements === 'number' ? profileEngagements.toLocaleString() : '—'}</dd></div>
+            <div><dt>{isX ? 'Linkary clicks' : 'Link clicks'}</dt><dd>{typeof profileClicks === 'number' ? profileClicks.toLocaleString() : '—'}</dd></div>
           </dl>
         </button>;
       })}</div>
@@ -226,16 +229,16 @@ function ProjectFollowerChart({ snapshots, currentFollowers }: { snapshots: Soci
   const selected = active === null ? null : coords[active];
   const dateLabel = (date: string) => date ? new Date(`${date}T00:00:00Z`).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'Tracking baseline';
   const displayedDates = points.length > 1 ? [dateLabel(points[0].date), dateLabel(points[points.length - 1].date)] : ['Tracking start', points.length ? dateLabel(points[0].date) : 'Today'];
-  return <div className="analytics-trend analytics-project-follower-chart">
+  return <div className="analytics-trend analytics-social-growth-chart">
     <div className="analytics-legend"><span><i className="views" />X followers</span></div>
     <div className="analytics-chart-stage" onPointerLeave={() => setActive(null)}>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Interactive X follower growth" preserveAspectRatio="none">
-        <defs><linearGradient id="project-follower-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#c83b24" stopOpacity=".2" /><stop offset="1" stopColor="#c83b24" stopOpacity=".015" /></linearGradient></defs>
+        <defs><linearGradient id="analytics-social-follower-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#c83b24" stopOpacity=".2" /><stop offset="1" stopColor="#c83b24" stopOpacity=".015" /></linearGradient></defs>
         {[0, 1, 2, 3, 4].map((tick) => {
           const y = top + plotHeight - tick / 4 * plotHeight;
           return <g key={tick}><line className="analytics-gridline" x1={left} x2={width} y1={y} y2={y} /><text className="analytics-y-label" x={left - 9} y={y + 3} textAnchor="end">{Math.round(axisMax * tick / 4).toLocaleString()}</text></g>;
         })}
-        {points.length > 0 && <><path d={area} fill="url(#project-follower-fill)" /><path className="analytics-view-line" d={line} />{coords.map((point, index) => !point.baseline && <circle key={`${point.date}-${index}`} className="analytics-point" cx={point.x} cy={point.y} r={selected && active === index ? 4.5 : 3.5} />)}</>}
+        {points.length > 0 && <><path d={area} fill="url(#analytics-social-follower-fill)" /><path className="analytics-view-line" d={line} />{coords.map((point, index) => !point.baseline && <circle key={`${point.date}-${index}`} className="analytics-point" cx={point.x} cy={point.y} r={selected && active === index ? 4.5 : 3.5} />)}</>}
         {selected && <line className="analytics-active-line" x1={selected.x} x2={selected.x} y1={top} y2={top + plotHeight} />}
         {coords.map((point, index) => {
           const previousX = coords[index - 1]?.x ?? left; const nextX = coords[index + 1]?.x ?? left + plotWidth;
@@ -250,7 +253,7 @@ function ProjectFollowerChart({ snapshots, currentFollowers }: { snapshots: Soci
   </div>;
 }
 
-function ProjectSocialAnalytics({ profiles = [], sources = [], snapshots = [], content = [] }: { profiles?: SocialProfile[]; sources?: SocialSource[]; snapshots?: SocialAudienceSnapshot[]; content?: SocialContentItem[] }) {
+function LegacyProjectSocialAnalytics({ profiles = [], sources = [], snapshots = [], content = [] }: { profiles?: SocialProfile[]; sources?: SocialSource[]; snapshots?: SocialAudienceSnapshot[]; content?: SocialContentItem[] }) {
   const platforms = [
     { platform: 'X', key: 'x data', short: 'X', color: '#121820' },
     { platform: 'Telegram', key: 'telegram', short: 'TG', color: '#239bd8' },
@@ -330,6 +333,8 @@ function ProjectSocialAnalytics({ profiles = [], sources = [], snapshots = [], c
   </div>;
 }
 
+const ProjectSocialAnalytics = SocialAnalytics;
+
 export default function AnalyticsExperience({ me, status }: { me: ProductMe; status: ProductStatus }) {
   const first = status.profiles.find((item) => item.profile_type === 'creator') || status.profiles[0];
   const saved = typeof window === 'undefined' ? null : window.localStorage.getItem('linkary.active.profile');
@@ -360,9 +365,7 @@ export default function AnalyticsExperience({ me, status }: { me: ProductMe; sta
   const metrics = [{ label: 'PROFILE VIEWS', value: !loading && filtered ? String(filtered.profileViews) : '—', note: 'Selected range · profile-wide', icon: 'eye' as const }, { label: 'LINK CLICKS', value: !loading && filtered ? String(filtered.linkClicks) : '—', note: linkId === 'all' ? 'Selected range · all links' : 'Selected range · selected link', icon: 'link' as const }, { label: 'ENGAGEMENTS', value: 'Unavailable', note: 'Social metrics not connected', icon: 'users' as const, status: 'Social metrics' }, { label: 'VERIFIED OUTCOMES', value: outcome, note: outcome === 'Unavailable' ? 'No verified evidence yet' : 'Verified evidence', icon: 'cube' as const }, { label: 'ATTRIBUTED VALUE', value: 'Unavailable', note: profile.profile_type === 'project' ? 'See project intelligence below' : 'No campaign value recorded', icon: 'coin' as const }];
   function changeProfile(id: string) { setProfileId(id); setLinkId('all'); setAnalytics(null); window.localStorage.setItem('linkary.active.profile', id); }
   const destinations = analytics?.platformClicks || []; const destinationMax = Math.max(1, ...destinations.map((row) => row.count));
-  const tabs = profile.profile_type === 'project'
-    ? [['overview', 'Overview'], ['social', 'Social connections'], ['campaigns', 'Campaigns & attribution'], ['onchain', 'Onchain & auctions']] as const
-    : [['overview', 'Overview'], ['social', 'Social analytics'], ['campaigns', 'Campaigns & attribution'], ['onchain', 'Onchain & auctions']] as const;
+  const tabs = [['overview', 'Overview'], ['social', 'Social analytics'], ['campaigns', 'Campaigns & attribution'], ['onchain', 'Onchain & auctions']] as const;
   const contentLinks = <article className="analytics-panel"><header><div><h2>Top-performing profile links</h2><p>Measured outbound destinations and links.</p></div><a href="/profile">Edit links →</a></header>{destinations.length ? <div className="analytics-rank-list">{destinations.slice(0, 5).map((row, index) => <div key={row.platform}><b>{index + 1}</b><span>{row.platform}</span><i><em style={{ width: `${row.count / destinationMax * 100}%` }} /></i><strong>{row.count}</strong></div>)}</div> : <p className="analytics-panel-empty">No tracked content clicks yet.</p>}</article>;
   const onchainActivity = <article className="analytics-panel"><header><div><h2>Onchain & auction activity</h2><p>Actual Linkary records only.</p></div><a href="/bids">View all →</a></header><div className="analytics-activity-list"><div><i><Icon name="trend" /></i><span><strong>Profile promotion auctions</strong><small>Live, next available and completed placements appear in Bids.</small></span></div><div><i><Icon name="target" /></i><span><strong>UTM attribution</strong><small>Tracked links populate campaign and source performance.</small></span></div><div><i><Icon name="check" /></i><span><strong>Evidence and outcomes</strong><small>Only verified or recorded outcomes are reported.</small></span></div></div></article>;
   const campaigns = <article className="analytics-panel"><header><div><h2>Top campaigns & partners</h2><p>Campaign intelligence is ready for tracked activity.</p></div><a href="/campaigns">View all →</a></header><div className="analytics-readiness"><div><i className="ready" />Linkary tracked clicks <small>Ready</small></div><div><i className="ready" />Raw profile views <small>Ready</small></div><div><i />X data <small>Awaiting integration</small></div><div><i />Telegram engagement <small>Awaiting integration</small></div></div></article>;

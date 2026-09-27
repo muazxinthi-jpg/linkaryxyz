@@ -184,3 +184,26 @@
 @media(max-width:720px){.analytics-project-follower-chart svg{height:230px}.analytics-project-social-lower{grid-template-columns:1fr}.analytics-project-channels .analytics-social-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-project-channels .analytics-social-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.analytics-project-follower-chart svg{height:205px}.analytics-project-audience{grid-template-columns:88px minmax(0,1fr)}.analytics-project-donut{width:82px;height:82px}.analytics-project-posts>div{grid-template-columns:20px minmax(68px,auto) minmax(34px,1fr) auto;gap:5px}.analytics-project-posts>div>small{font-size:8px}}
 
+/* Shared approved Social analytics panels for Creator and Project profiles. */
+.analytics-social-growth-chart{margin-top:14px}
+.analytics-social-growth-chart svg{height:300px}
+.analytics-social-growth-chart .analytics-legend{justify-content:flex-end}
+.analytics-social-growth-chart .analytics-view-line{fill:none;stroke:#c83b24;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
+.analytics-social-growth-chart .analytics-point{fill:#fff;stroke:#c83b24;stroke-width:2.4}
+.analytics-social-growth-chart .analytics-y-label{fill:#8794a3;font:10px var(--ui)}
+.analytics-social-growth-chart .analytics-axis{margin-top:7px;color:#8794a3}
+.analytics-social-growth-chart .analytics-axis span:last-child{text-align:right}
+.analytics-social-growth-chart .analytics-tooltip i.views{background:#c83b24}
+.analytics-audience-compact{display:flex;min-height:unset;flex-direction:column;gap:0}
+.analytics-audience-compact .analytics-audience-source-list{display:flex;flex:1;flex-direction:column;justify-content:center;gap:12px;padding:12px 2px}
+.analytics-audience-source-list>div{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:9px;align-items:center;padding:12px;border:1px solid #edf0ef;border-radius:10px;background:#fcfcfb}
+.analytics-audience-source-list i{width:9px;height:9px;border-radius:50%}
+.analytics-audience-source-list span{color:#596670;font-size:11px;overflow-wrap:anywhere}
+.analytics-audience-source-list strong{color:#182027;font-size:20px;letter-spacing:-.035em}
+.analytics-audience-compact .analytics-panel-empty{margin:auto 0}
+.analytics-social-posts{display:grid;gap:10px;margin-top:14px}
+.analytics-social-posts>div{display:grid;gap:5px;padding:10px 0;border-top:1px solid #e7ebf1}
+.analytics-social-posts small{color:#718096;font-size:9px;line-height:1.5}
+@media(max-width:720px){.analytics-social-growth-chart svg{height:230px}}
+@media(max-width:420px){.analytics-social-growth-chart svg{height:205px}}
+

@@ -66,7 +66,8 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(route, /socialSources: latestX\?\.audience != null/);
   assert.match(route, /monthlySocialAudience: monthlySocialSeries/);
   assert.match(route, /socialContent,/);
-  assert.match(page, /legendLabels=\{\['X followers', 'Recent post views'\]\}/);
+  assert.match(page, /<ProjectFollowerChart snapshots=\{snapshots\} currentFollowers=\{followers\} \/>/);
+  assert.match(page, /X followers/);
   assert.match(page, /Public engagements/);
   assert.match(page, /X deep analytics/);
   assert.doesNotMatch(page, /TwitterAPI\.io|TwitterAPI|OAuth/i);
