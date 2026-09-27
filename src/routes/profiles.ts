@@ -6,6 +6,7 @@ import { HttpError, html, json, readJson } from '../http';
 import { getLinkaryUrls, publicProfileUrl } from '../urls';
 import { requireAuth, verifyCsrf } from '../auth/session';
 import { resolveFeaturedMedia, resolveFeaturedPreview, resolveNftArtworkPreview, safeHttpsUrl } from '../profileMedia';
+import { summarizeXPublicMetrics } from '../analytics/xPublicMetrics';
 import { organizationMembership } from './organizations';
 import { rewardReferralOnProfilePublish } from './inviteProfileRewards';
 
@@ -247,6 +248,76 @@ export async function publicProfileJson(username: string, env: Env): Promise<Res
 type ProfileClickMonthRow = { month: string; count: number };
 type ProfileClickDestinationRow = { block_id: string; count: number };
 type ProfileAnalyticsSeriesRow = { period: string; count: number };
+type SocialSnapshotRow = { platform: string; snapshot_date: string; audience: number | null; impressions: number | null; engagements: number | null; link_clicks: number | null; metrics_json: string | null };
+
+function socialSnapshotMetrics(row: SocialSnapshotRow): Record<string, unknown> {
+  const parsed = safeJson(row.metrics_json || '{}');
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+}
+
+async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Promise<void> {
+  if (!env.TWITTERAPI_IO_KEY || !profile.primary_platform_identity_id) return;
+  const identity = await db.first<{ current_handle: string }>(
+    `SELECT current_handle FROM platform_identities
+      WHERE id = ? AND platform = 'x' AND status = 'active'
+      LIMIT 1`,
+    [profile.primary_platform_identity_id],
+  );
+  const handle = identity?.current_handle?.trim().replace(/^@/, '');
+  if (!handle) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const todaysSnapshot = await db.first<{ id: string }>(
+    `SELECT id FROM social_provider_snapshots WHERE profile_id = ? AND platform = 'x' AND snapshot_date = ? LIMIT 1`,
+    [profile.id, today],
+  );
+  if (todaysSnapshot) return;
+
+  let snapshot = null;
+  let status = 'unavailable';
+  try {
+    const userUrl = new URL('https://api.twitterapi.io/twitter/user/info');
+    userUrl.searchParams.set('userName', handle);
+    const tweetsUrl = new URL('https://api.twitterapi.io/twitter/user/last_tweets');
+    tweetsUrl.searchParams.set('userName', handle);
+    tweetsUrl.searchParams.set('includeReplies', 'false');
+    const requestOptions: RequestInit = {
+      method: 'GET',
+      headers: { 'X-API-Key': env.TWITTERAPI_IO_KEY, accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    };
+    const [userResponse, tweetsResponse] = await Promise.all([
+      fetch(userUrl.toString(), requestOptions),
+      fetch(tweetsUrl.toString(), requestOptions),
+    ]);
+    const userPayload: unknown = userResponse.ok ? await userResponse.json() : null;
+    const tweetsPayload: unknown = tweetsResponse.ok ? await tweetsResponse.json() : null;
+    snapshot = summarizeXPublicMetrics(userPayload, tweetsPayload);
+    if (snapshot) status = 'ready';
+  } catch {
+    // A provider outage must not take down first-party analytics.
+  }
+
+  const capturedAt = new Date().toISOString();
+  const metricValues = snapshot?.metrics || {};
+  const metricsJson = JSON.stringify({
+    status,
+    capturedAt,
+    metrics: metricValues,
+    posts: snapshot?.posts || [],
+  });
+  await db.run(
+    `INSERT INTO social_provider_snapshots
+      (id, profile_id, platform, snapshot_date, audience, impressions, engagements, link_clicks, metrics_json, provider_account_ref, created_at)
+     VALUES (?, ?, 'x', ?, ?, ?, ?, NULL, ?, NULL, ?)
+     ON CONFLICT(profile_id, platform, snapshot_date) DO UPDATE SET
+       audience = excluded.audience,
+       impressions = excluded.impressions,
+       engagements = excluded.engagements,
+       metrics_json = excluded.metrics_json,
+       created_at = excluded.created_at`,
+    [`sps_${crypto.randomUUID().replace(/-/g, '')}`, profile.id, today, snapshot?.audience ?? null, snapshot?.impressions ?? null, snapshot?.engagements ?? null, metricsJson, capturedAt],
+  );
+}
 
 function monthlyClickSeries(rows: ProfileClickMonthRow[], totalClicks: number): ProfileClickMonthRow[] {
   if (!totalClicks || !rows.length) return [];
@@ -259,6 +330,34 @@ function monthlyClickSeries(rows: ProfileClickMonthRow[], totalClicks: number): 
   return Array.from({ length: 12 }, (_, index) => {
     const date = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - (11 - index), 1));
     const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+    return { month, count: byMonth.get(month) || 0 };
+  });
+}
+
+function monthlySocialSeries(rows: SocialSnapshotRow[], field: 'audience' | 'impressions'): ProfileClickMonthRow[] {
+  const byMonth = new Map<string, number>();
+  for (const row of rows) {
+    const value = row[field];
+    if (typeof value === 'number') byMonth.set(row.snapshot_date.slice(0, 7), value);
+  }
+  const months = Array.from(byMonth.keys()).sort();
+  if (!months.length) return [];
+  const firstDate = new Date(`${months[0]}-01T00:00:00.000Z`);
+  const lastDate = new Date(`${months[months.length - 1]}-01T00:00:00.000Z`);
+  if (Number.isNaN(firstDate.getTime()) || Number.isNaN(lastDate.getTime())) return [];
+  if (months.length === 1) {
+    const baseline = new Date(Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth() - 1, 1));
+    return [
+      { month: baseline.toISOString().slice(0, 7), count: 0 },
+      { month: months[0], count: byMonth.get(months[0]) || 0 },
+    ];
+  }
+  const start = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth() - 11, 1));
+  const from = firstDate > start ? firstDate : start;
+  const count = (lastDate.getUTCFullYear() - from.getUTCFullYear()) * 12 + lastDate.getUTCMonth() - from.getUTCMonth() + 1;
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + index, 1));
+    const month = date.toISOString().slice(0, 7);
     return { month, count: byMonth.get(month) || 0 };
   });
 }
@@ -337,6 +436,19 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     db.all<ProfileBlockRow>('SELECT * FROM profile_blocks WHERE profile_id = ?', [profileId]),
     loadPublicProof(db, profile),
   ]);
+  await refreshXPublicSnapshot(db, env, profile).catch(() => undefined);
+  let socialSnapshotRows: SocialSnapshotRow[] = [];
+  try {
+    socialSnapshotRows = await db.all<SocialSnapshotRow>(
+      `SELECT platform, snapshot_date, audience, impressions, engagements, link_clicks, metrics_json
+         FROM social_provider_snapshots
+        WHERE profile_id = ? AND snapshot_date >= date('now', '-365 day')
+        ORDER BY snapshot_date ASC`,
+      [profileId],
+    );
+  } catch {
+    // First-party analytics remain available if the additive social snapshot migration is not applied yet.
+  }
   const linkClicks = Number(totalRow?.link_clicks || 0);
   const profileViews = Number(profileViewTotalRow?.profile_views || 0);
   const blockById = new Map(blocks.map((block) => [block.id, block]));
@@ -349,6 +461,35 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
   }
   const platformClicks = Array.from(destinationTotals, ([platform, count]) => ({ platform, count }))
     .sort((left, right) => right.count - left.count || left.platform.localeCompare(right.platform));
+  const latestSocialByPlatform = new Map<string, SocialSnapshotRow>();
+  for (const row of socialSnapshotRows) latestSocialByPlatform.set(row.platform, row);
+  const latestX = latestSocialByPlatform.get('x');
+  const latestXMetrics = latestX ? socialSnapshotMetrics(latestX) : {};
+  const latestXValues = latestXMetrics.metrics && typeof latestXMetrics.metrics === 'object' && !Array.isArray(latestXMetrics.metrics)
+    ? latestXMetrics.metrics as Record<string, unknown>
+    : {};
+  const xMetrics = Object.fromEntries(Object.entries(latestXValues).filter(([, value]) => typeof value === 'number')) as Record<string, number>;
+  if (linkClicks >= 0 && latestX) xMetrics.linkary_clicks = linkClicks;
+  const socialProfiles = latestX ? [{
+    platform: 'X data',
+    audience: latestX.audience ?? undefined,
+    impressions: latestX.impressions ?? undefined,
+    engagements: latestX.engagements ?? undefined,
+    clicks: linkClicks,
+    metrics: xMetrics,
+    status: latestXMetrics.status === 'ready' ? `Updated ${latestX.snapshot_date}` : 'X public metrics temporarily unavailable',
+  }] : [];
+  const latestXSnapshotDate = latestX?.snapshot_date || '';
+  const socialContent = Array.isArray(latestXMetrics.posts)
+    ? latestXMetrics.posts.slice(0, 10).flatMap((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+      const post = raw as Record<string, unknown>;
+      return [{
+        date: typeof post.date === 'string' ? post.date : latestXSnapshotDate,
+        views: typeof post.views === 'number' ? post.views : null,
+      }];
+    })
+    : [];
   const url = new URL(request.url);
   const hasSeriesFilters = ['range', 'interval', 'linkId'].some((key) => url.searchParams.has(key));
   let filteredSeries: Record<string, unknown> | undefined;
@@ -421,6 +562,11 @@ export async function profileAnalytics(request: Request, env: Env, profileId: st
     monthlyClicks: monthlyClickSeries(monthRows, linkClicks),
     profileViews,
     monthlyProfileViews: monthlyClickSeries(profileViewMonthRows, profileViews),
+    monthlySocialAudience: monthlySocialSeries(socialSnapshotRows.filter((row) => row.platform === 'x'), 'audience'),
+    monthlySocialImpressions: monthlySocialSeries(socialSnapshotRows.filter((row) => row.platform === 'x'), 'impressions'),
+    socialProfiles,
+    socialSources: latestX?.audience != null ? [{ label: 'X followers', value: latestX.audience, color: '#121820' }] : [],
+    socialContent,
     platformClicks,
     ...(filteredSeries ? { filteredSeries } : {}),
     proof,
