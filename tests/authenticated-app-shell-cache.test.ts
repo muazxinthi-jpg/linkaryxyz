@@ -25,7 +25,7 @@ test('authenticated app HTML and auth traffic recover stale pre-v5 bundles witho
 test('authenticated app self-heals when its running hashed bundle is older than the current app shell', async () => {
   const main = await read('frontend/src/main.tsx');
 
-  assert.match(main, /APP_RELEASE = '2026-09-09-private-network-v5'/);
+  assert.match(main, /APP_RELEASE = '2026-09-27-project-social-metrics-v1'/);
   assert.match(main, /APP_SHELL_PATH = '\/assets\/linkary-app\/index\.html'/);
   assert.match(main, /function ReleaseFreshnessGuard\(\)/);
   assert.match(main, /cache: 'no-store'/);
@@ -40,7 +40,7 @@ test('private network UI remains in the authenticated release bundle', async () 
   const main = await read('frontend/src/main.tsx');
   const invites = await read('frontend/src/InviteExperience.tsx');
 
-  assert.match(main, /APP_RELEASE = '2026-09-09-private-network-v5'/);
+  assert.match(main, /APP_RELEASE = '2026-09-27-project-social-metrics-v1'/);
   assert.match(main, /document\.documentElement\.dataset\.linkaryRelease = APP_RELEASE/);
   assert.match(invites, /useState<PrivateNetworkView>\(personalProfile \? 'network' : 'invites'\)/);
   assert.match(invites, />Invitations<\/button>/);
