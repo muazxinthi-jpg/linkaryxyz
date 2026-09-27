@@ -55,6 +55,9 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(env, /TWITTERAPI_IO_API_KEY\?: string/);
   assert.match(refresh, /env\.TWITTERAPI_IO_API_KEY \|\| env\.TWITTERAPI_IO_KEY/);
   assert.match(refresh, /hasPosts \|\| \(Number\.isFinite\(capturedAt\) && Date\.now\(\) - capturedAt < retryAfterMs\)/);
+  assert.match(refresh, /const userId = typeof user\.id === 'string'/);
+  assert.match(refresh, /tweetsUrl\.searchParams\.set\('userId', userId\)/);
+  assert.match(refresh, /const retryAfterMs = 15 \* 60 \* 1000/);
   assert.doesNotMatch(refresh, /ownership_verified_at/);
   assert.match(route, /socialProfiles,/);
   assert.match(route, /socialSources: latestX\?\.audience != null/);

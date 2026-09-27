@@ -301,7 +301,7 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
     const snapshotState = safeJson(todaysSnapshot.metrics_json || '{}') as { posts?: unknown };
     const hasPosts = Array.isArray(snapshotState.posts) && snapshotState.posts.length > 0;
     const capturedAt = Date.parse(todaysSnapshot.created_at);
-    const retryAfterMs = 6 * 60 * 60 * 1000;
+    const retryAfterMs = 15 * 60 * 1000;
     if (hasPosts || (Number.isFinite(capturedAt) && Date.now() - capturedAt < retryAfterMs)) return;
   }
 
@@ -318,11 +318,18 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
       headers: { 'X-API-Key': apiKey, accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     };
-    const [userResponse, tweetsResponse] = await Promise.all([
-      fetch(userUrl.toString(), requestOptions),
-      fetch(tweetsUrl.toString(), requestOptions),
-    ]);
+    const userResponse = await fetch(userUrl.toString(), requestOptions);
     const userPayload: unknown = userResponse.ok ? await userResponse.json() : null;
+    const userEnvelope = userPayload && typeof userPayload === 'object' && !Array.isArray(userPayload)
+      ? userPayload as Record<string, unknown>
+      : {};
+    const userData = userEnvelope.data;
+    const user = userData && typeof userData === 'object' && !Array.isArray(userData)
+      ? userData as Record<string, unknown>
+      : {};
+    const userId = typeof user.id === 'string' && user.id.trim() ? user.id.trim() : null;
+    if (userId) tweetsUrl.searchParams.set('userId', userId);
+    const tweetsResponse = await fetch(tweetsUrl.toString(), requestOptions);
     const tweetsPayload: unknown = tweetsResponse.ok ? await tweetsResponse.json() : null;
     snapshot = summarizeXPublicMetrics(userPayload, tweetsPayload);
     if (snapshot) status = 'ready';
