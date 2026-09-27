@@ -287,7 +287,8 @@ async function linkedXIdentityForProfile(db: Db, profile: ProfileRow): Promise<{
 }
 
 async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Promise<void> {
-  if (!env.TWITTERAPI_IO_KEY) return;
+  const apiKey = env.TWITTERAPI_IO_API_KEY || env.TWITTERAPI_IO_KEY;
+  if (!apiKey) return;
   const identity = await linkedXIdentityForProfile(db, profile);
   const handle = identity?.current_handle?.trim().replace(/^@/, '');
   if (!handle) return;
@@ -314,7 +315,7 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
     tweetsUrl.searchParams.set('includeReplies', 'false');
     const requestOptions: RequestInit = {
       method: 'GET',
-      headers: { 'X-API-Key': env.TWITTERAPI_IO_KEY, accept: 'application/json' },
+      headers: { 'X-API-Key': apiKey, accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     };
     const [userResponse, tweetsResponse] = await Promise.all([

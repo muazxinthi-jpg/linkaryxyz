@@ -41,6 +41,7 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   const page = read('../frontend/src/AnalyticsExperience.tsx');
   const refresh = route.match(/async function refreshXPublicSnapshot[\s\S]*?\n}/)?.[0] || '';
   const identityResolver = route.match(/async function linkedXIdentityForProfile[\s\S]*?\n}/)?.[0] || '';
+  const env = read('../src/env.ts');
 
   assert.match(route, /WHERE profile_id = \? AND snapshot_date >= date\('now', '-365 day'\)/);
   assert.match(identityResolver, /profile\.primary_platform_identity_id/);
@@ -51,6 +52,8 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(identityResolver, /pil\.organization_id = \?/);
   assert.match(identityResolver, /pi\.platform = 'x'/);
   assert.match(refresh, /linkedXIdentityForProfile\(db, profile\)/);
+  assert.match(env, /TWITTERAPI_IO_API_KEY\?: string/);
+  assert.match(refresh, /env\.TWITTERAPI_IO_API_KEY \|\| env\.TWITTERAPI_IO_KEY/);
   assert.match(refresh, /hasPosts \|\| \(Number\.isFinite\(capturedAt\) && Date\.now\(\) - capturedAt < retryAfterMs\)/);
   assert.doesNotMatch(refresh, /ownership_verified_at/);
   assert.match(route, /socialProfiles,/);
