@@ -255,22 +255,54 @@ function socialSnapshotMetrics(row: SocialSnapshotRow): Record<string, unknown> 
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 }
 
-async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Promise<void> {
-  if (!env.TWITTERAPI_IO_KEY || !profile.primary_platform_identity_id) return;
-  const identity = await db.first<{ current_handle: string }>(
-    `SELECT current_handle FROM platform_identities
-      WHERE id = ? AND platform = 'x' AND status = 'active'
+async function linkedXIdentityForProfile(db: Db, profile: ProfileRow): Promise<{ id: string; current_handle: string | null } | null> {
+  if (profile.primary_platform_identity_id) {
+    const primary = await db.first<{ id: string; current_handle: string | null }>(
+      `SELECT id, current_handle FROM platform_identities
+        WHERE id = ? AND platform = 'x' AND status = 'active'
+        LIMIT 1`,
+      [profile.primary_platform_identity_id],
+    );
+    if (primary?.current_handle) return primary;
+  }
+
+  // Older claimed Project profiles may have the verified represents-link even
+  // when the profile's primary identity column was not populated. Keep this
+  // lookup bound to the exact profile (and its organization for Projects).
+  return db.first<{ id: string; current_handle: string | null }>(
+    `SELECT pi.id, pi.current_handle
+       FROM platform_identity_links pil
+       JOIN platform_identities pi ON pi.id = pil.platform_identity_id
+      WHERE pil.profile_id = ?
+        AND pil.ended_at IS NULL
+        AND pil.link_type IN ('owns', 'represents')
+        AND ((? = 'project' AND pil.organization_id = ?) OR (? = 'creator' AND pil.organization_id IS NULL))
+        AND pi.platform = 'x'
+        AND pi.status = 'active'
+        AND pi.current_handle IS NOT NULL
+      ORDER BY pil.verified_at DESC
       LIMIT 1`,
-    [profile.primary_platform_identity_id],
+    [profile.id, profile.profile_type, profile.organization_id, profile.profile_type],
   );
+}
+
+async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Promise<void> {
+  if (!env.TWITTERAPI_IO_KEY) return;
+  const identity = await linkedXIdentityForProfile(db, profile);
   const handle = identity?.current_handle?.trim().replace(/^@/, '');
   if (!handle) return;
   const today = new Date().toISOString().slice(0, 10);
-  const todaysSnapshot = await db.first<{ id: string }>(
-    `SELECT id FROM social_provider_snapshots WHERE profile_id = ? AND platform = 'x' AND snapshot_date = ? LIMIT 1`,
+  const todaysSnapshot = await db.first<{ metrics_json: string | null; created_at: string }>(
+    `SELECT metrics_json, created_at FROM social_provider_snapshots WHERE profile_id = ? AND platform = 'x' AND snapshot_date = ? LIMIT 1`,
     [profile.id, today],
   );
-  if (todaysSnapshot) return;
+  if (todaysSnapshot) {
+    const snapshotState = safeJson(todaysSnapshot.metrics_json || '{}') as { posts?: unknown };
+    const hasPosts = Array.isArray(snapshotState.posts) && snapshotState.posts.length > 0;
+    const capturedAt = Date.parse(todaysSnapshot.created_at);
+    const retryAfterMs = 6 * 60 * 60 * 1000;
+    if (hasPosts || (Number.isFinite(capturedAt) && Date.now() - capturedAt < retryAfterMs)) return;
+  }
 
   let snapshot = null;
   let status = 'unavailable';

@@ -40,9 +40,18 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   const route = read('../src/routes/profiles.ts');
   const page = read('../frontend/src/AnalyticsExperience.tsx');
   const refresh = route.match(/async function refreshXPublicSnapshot[\s\S]*?\n}/)?.[0] || '';
+  const identityResolver = route.match(/async function linkedXIdentityForProfile[\s\S]*?\n}/)?.[0] || '';
 
   assert.match(route, /WHERE profile_id = \? AND snapshot_date >= date\('now', '-365 day'\)/);
-  assert.match(refresh, /WHERE id = \? AND platform = 'x' AND status = 'active'/);
+  assert.match(identityResolver, /profile\.primary_platform_identity_id/);
+  assert.match(identityResolver, /FROM platform_identity_links pil/);
+  assert.match(identityResolver, /JOIN platform_identities pi ON pi\.id = pil\.platform_identity_id/);
+  assert.match(identityResolver, /pil\.profile_id = \?/);
+  assert.match(identityResolver, /pil\.link_type IN \('owns', 'represents'\)/);
+  assert.match(identityResolver, /pil\.organization_id = \?/);
+  assert.match(identityResolver, /pi\.platform = 'x'/);
+  assert.match(refresh, /linkedXIdentityForProfile\(db, profile\)/);
+  assert.match(refresh, /hasPosts \|\| \(Number\.isFinite\(capturedAt\) && Date\.now\(\) - capturedAt < retryAfterMs\)/);
   assert.doesNotMatch(refresh, /ownership_verified_at/);
   assert.match(route, /socialProfiles,/);
   assert.match(route, /socialSources: latestX\?\.audience != null/);
