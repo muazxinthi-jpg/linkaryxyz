@@ -320,7 +320,13 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
     };
     const userResponse = await fetch(userUrl.toString(), requestOptions);
     const userPayload: unknown = userResponse.ok ? await userResponse.json() : null;
-    const user = record(record(userPayload).data);
+    const userEnvelope = userPayload && typeof userPayload === 'object' && !Array.isArray(userPayload)
+      ? userPayload as Record<string, unknown>
+      : {};
+    const userData = userEnvelope.data;
+    const user = userData && typeof userData === 'object' && !Array.isArray(userData)
+      ? userData as Record<string, unknown>
+      : {};
     const userId = typeof user.id === 'string' && user.id.trim() ? user.id.trim() : null;
     if (userId) tweetsUrl.searchParams.set('userId', userId);
     const tweetsResponse = await fetch(tweetsUrl.toString(), requestOptions);
