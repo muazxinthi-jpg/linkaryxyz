@@ -57,6 +57,7 @@ test('analytics response reads profile-scoped X snapshots and exposes social met
   assert.match(refresh, /hasPosts \|\| \(Number\.isFinite\(capturedAt\) && Date\.now\(\) - capturedAt < retryAfterMs\)/);
   assert.match(refresh, /const userId = typeof user\.id === 'string'/);
   assert.match(refresh, /tweetsUrl\.searchParams\.set\('userId', userId\)/);
+  assert.match(refresh, /if \(userId\) tweetsUrl\.searchParams\.set\('userId', userId\);\s*else tweetsUrl\.searchParams\.set\('userName', handle\)/);
   assert.match(refresh, /const retryAfterMs = 15 \* 60 \* 1000/);
   assert.match(refresh, /tweet_timeline/);
   assert.match(refresh, /Array\.isArray\(timelineTweets\)/);

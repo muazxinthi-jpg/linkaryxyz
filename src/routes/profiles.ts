@@ -311,7 +311,6 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
     const userUrl = new URL('https://api.twitterapi.io/twitter/user/info');
     userUrl.searchParams.set('userName', handle);
     const tweetsUrl = new URL('https://api.twitterapi.io/twitter/user/last_tweets');
-    tweetsUrl.searchParams.set('userName', handle);
     tweetsUrl.searchParams.set('includeReplies', 'false');
     const requestOptions: RequestInit = {
       method: 'GET',
@@ -329,6 +328,7 @@ async function refreshXPublicSnapshot(db: Db, env: Env, profile: ProfileRow): Pr
       : {};
     const userId = typeof user.id === 'string' && user.id.trim() ? user.id.trim() : null;
     if (userId) tweetsUrl.searchParams.set('userId', userId);
+    else tweetsUrl.searchParams.set('userName', handle);
     const tweetsResponse = await fetch(tweetsUrl.toString(), requestOptions);
     let tweetsPayload: unknown = tweetsResponse.ok ? await tweetsResponse.json() : null;
     const recentTweets = tweetsPayload && typeof tweetsPayload === 'object' && !Array.isArray(tweetsPayload)
