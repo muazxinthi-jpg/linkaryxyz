@@ -40,6 +40,10 @@ export interface Env {
   // Linkary never exposes this credential to the browser and does not scan the
   // full social graph. It is used only for exact campaign deliverables.
   TWITTERAPI_IO_KEY?: string;
+  // Existing production secret binding for public X profile/post metrics.
+  // Keep this server-only; authenticated Analytics calls use it to refresh
+  // profile-scoped public snapshots.
+  TWITTERAPI_IO_API_KEY?: string;
 
   // LinkaryAI provider configuration. Workers AI is the primary provider.
   // External provider keys are server-only Cloudflare secret bindings and are
