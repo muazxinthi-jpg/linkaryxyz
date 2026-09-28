@@ -10,7 +10,8 @@ const styles = read('../frontend/src/analytics.css');
 test('Creator and Project use the same approved social panel and chart presentation', () => {
   assert.match(page, /const ProjectSocialAnalytics = SocialAnalytics/);
   assert.match(page, /ProjectSocialAnalytics profiles=\{analytics\?\.socialProfiles\} sources=\{analytics\?\.socialSources\} snapshots=\{analytics\?\.socialAudienceSnapshots\} content=\{analytics\?\.socialContent\}/);
-  assert.match(page, /SocialAnalytics profiles=\{analytics\?\.socialProfiles\} sources=\{analytics\?\.socialSources\} audience=\{analytics\?\.monthlySocialAudience\} impressions=\{analytics\?\.monthlySocialImpressions\} content=\{analytics\?\.socialContent\}/);
+  assert.match(page, /: <SocialAnalytics profiles=\{analytics\?\.socialProfiles\} sources=\{analytics\?\.socialSources\} snapshots=\{analytics\?\.socialAudienceSnapshots\} content=\{analytics\?\.socialContent\}/);
+  assert.doesNotMatch(page, /SocialAnalytics[^>]*audience=\{analytics\?\.monthlySocialAudience\}|SocialAnalytics[^>]*impressions=\{analytics\?\.monthlySocialImpressions\}/);
   for (const panel of ['Social growth', 'Audience & socials', 'Channel performance', 'Recent social content', 'Social activity', 'Data readiness']) assert.ok(page.includes(panel), `shared panel includes ${panel}`);
   assert.match(page, /analytics-audience-compact/);
   assert.doesNotMatch(page, /TwitterAPI\.io|TwitterAPI|OAuth/i);
