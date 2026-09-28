@@ -135,3 +135,12 @@ test('Bids leaderboard tabs support keyboard selection and expose the active pan
   assert.match(ui, /event\.key === 'Home'/);
   assert.match(ui, /event\.key === 'End'/);
 });
+
+test('Bids labels auction prices and recorded wins without implying settlement or completion', () => {
+  const ui = read('frontend/src/BidMarketplaceExperience.tsx');
+  assert.match(ui, /typeof item\.highest_bid_cents === 'number' \? 'Current bid' : 'Starting bid'/);
+  assert.match(ui, /Ranked by recorded auction wins/);
+  assert.match(ui, /Winning bid value/);
+  assert.match(ui, /No auction winners recorded yet\./);
+  assert.doesNotMatch(ui, /completed auction wins|No completed auction winners yet/i);
+});
