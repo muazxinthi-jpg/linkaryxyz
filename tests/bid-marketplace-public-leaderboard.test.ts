@@ -23,8 +23,11 @@ test('public-profile leaderboard periods, ties, zero views, and auction enrichme
   assert.match(route, /views DESC, lower\(p\.display_name\) ASC, p\.id ASC/);
   assert.match(route, /COALESCE\(\(SELECT SUM\(v\.views\)/);
   assert.match(route, /auction_id: string \| null/);
-  assert.match(ui, /LIVE AUCTION/);
-  assert.match(ui, /Banner not available/);
+  assert.match(route, /has_live_banner: number/);
+  assert.match(route, /AS has_live_banner/);
+  assert.match(route, /\[activeAt, activeAt, activeAt, \.\.\.views\.params, activeAt, activeAt, activeAt, activeAt, \.\.\.additionalParams, PAGE_SIZE, offset\]/);
+  assert.match(ui, /OPEN AUCTIONS/);
+  assert.match(ui, /No open auction/);
   assert.match(ui, /24H/);
   assert.match(ui, /30D/);
   assert.match(ui, /All Time/);

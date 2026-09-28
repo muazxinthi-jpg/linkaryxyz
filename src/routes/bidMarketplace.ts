@@ -58,7 +58,7 @@ export async function recordPublicProfileView(env: Env, username: string): Promi
   }
 }
 
-type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; banner_url: string | null; banner_ends_at: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
+type ProfileRow = { profile_id: string; username: string; display_name: string; avatar_url: string | null; banner_url: string | null; has_live_banner: number; banner_ends_at: string | null; profile_type: string; views: number; bid_count: number; auction_id: string | null; starting_bid_cents: number | null; highest_bid_cents: number | null; expires_at: string | null };
 type Paged<T> = { items: T[]; total: number };
 
 async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views' | 'bids' | 'active'): Promise<Paged<ProfileRow>> {
@@ -80,6 +80,7 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
     db.all<ProfileRow>(
       `SELECT p.id AS profile_id, p.username, p.display_name, p.avatar_url,
         COALESCE((SELECT c.banner_url FROM profile_promotion_creatives c JOIN profile_promotion_auctions la ON la.id = c.auction_id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1), (SELECT h.banner_url FROM profile_featured_headers h WHERE h.profile_id = p.id AND h.enabled = 1 LIMIT 1)) AS banner_url,
+        EXISTS (SELECT 1 FROM profile_promotion_creatives c JOIN profile_promotion_auctions la ON la.id = c.auction_id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) LIMIT 1) AS has_live_banner,
         (SELECT la.promotion_ends_at FROM profile_promotion_auctions la JOIN profile_promotion_creatives c ON c.auction_id = la.id WHERE la.profile_id = p.id AND la.status = 'live' AND c.moderation_status = 'approved' AND (la.promotion_ends_at IS NULL OR la.promotion_ends_at > ?) ORDER BY la.live_at DESC, c.id DESC LIMIT 1) AS banner_ends_at,
         p.profile_type,
         COALESCE((SELECT SUM(v.views) FROM public_profile_daily_views v WHERE v.profile_id = p.id ${views.sql}), 0) AS views,
@@ -91,7 +92,7 @@ async function rankedProfiles(db: Db, period: Period, page: number, mode: 'views
        ${eligibleProfiles}
        ${additionalWhere}
        ORDER BY ${order} LIMIT ? OFFSET ?`,
-      [...views.params, activeAt, activeAt, activeAt, activeAt, activeAt, activeAt, ...additionalParams, PAGE_SIZE, offset],
+      [activeAt, activeAt, activeAt, ...views.params, activeAt, activeAt, activeAt, activeAt, ...additionalParams, PAGE_SIZE, offset],
     ),
     db.first<{ count: number }>(`SELECT COUNT(*) AS count ${eligibleProfiles} ${additionalWhere}`, additionalParams),
   ]);

@@ -43,9 +43,8 @@ test('Bids is a first-class workspace route for creator and project workspaces',
 
 test('marketplace exposes requested leaderboards and discovery actions', () => {
   const ui = read('frontend/src/BidMarketplaceExperience.tsx');
-  for (const label of ['Current Active', 'Top Bidders', 'Top Winners', 'Most Viewed', 'Most Bid On']) {
-    assert.ok(ui.includes(label), `missing leaderboard ${label}`);
-  }
+  assert.match(ui, /\[\['views', 'Most Viewed'\], \['active', 'Current Active'\], \['bids', 'Most Bid On'\], \['bidders', 'Top Bidders'\], \['winners', 'Top Winners'\]\]/);
+  assert.match(ui, /useState<Tab>\('views'\)/);
   assert.match(ui, /View profile/);
   assert.match(ui, /Place bid/);
   assert.match(ui, /promotion-auction/);
@@ -61,7 +60,7 @@ test('Current Active is reserved for open bidding and orders by auction expiry',
   assert.match(marketplace, /profile_featured_headers/);
   assert.match(ui, /Expiry leaderboard/);
   assert.match(ui, /OPEN FOR BIDDING/);
-  assert.match(ui, /Creators open for bidding/);
+  assert.match(ui, /Profiles open for bidding/);
   assert.match(ui, /LIVE BANNER/);
   assert.match(ui, /Banner live until/);
 });
@@ -111,4 +110,28 @@ test('Bids Stitch redesign keeps the Linkary shell and real marketplace controls
   assert.match(css, /@media\(max-width:640px\)/);
   assert.match(css, /@media\(max-width:380px\)/);
   assert.match(css, /bid-market-leaderboard-row>span:before\{[^}]*content:attr\(data-label\)/);
+});
+
+test('Bids labels global metrics and only applies the period selector to public profile views', () => {
+  const ui = read('frontend/src/BidMarketplaceExperience.tsx');
+  assert.match(ui, /OPEN AUCTIONS/);
+  assert.match(ui, /OPEN AUCTION VALUE/);
+  assert.match(ui, /Current \/ starting bids; not settlement/);
+  assert.match(ui, /ALL-TIME BIDS/);
+  assert.match(ui, /PUBLIC PROFILE VIEWS/);
+  assert.match(ui, /Ranked by all recorded bids\. The selected period applies only to public profile views\./);
+  assert.match(ui, /money = \(cents: number \| null \| undefined\) => cents == null \? '—'/);
+  assert.match(ui, /data \? metric\(data\.summary\.active_count\) : '—'/);
+  assert.doesNotMatch(ui, /Available now|Banner not available/);
+});
+
+test('Bids leaderboard tabs support keyboard selection and expose the active panel', () => {
+  const ui = read('frontend/src/BidMarketplaceExperience.tsx');
+  assert.match(ui, /role="tablist"/);
+  assert.match(ui, /aria-controls="bid-market-panel"/);
+  assert.match(ui, /role="tabpanel" aria-labelledby=\{`bid-tab-\$\{tab\}`\}/);
+  assert.match(ui, /event\.key === 'ArrowRight'/);
+  assert.match(ui, /event\.key === 'ArrowLeft'/);
+  assert.match(ui, /event\.key === 'Home'/);
+  assert.match(ui, /event\.key === 'End'/);
 });
