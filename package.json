@@ -35,6 +35,6 @@
     "typescript": "^5.9.2",
     "utf-8-validate": "^5.0.10",
     "vite": "^7.1.4",
-    "wrangler": "^4.132.0"
+    "wrangler": "^4.147.0"
   }
 }
